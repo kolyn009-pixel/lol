@@ -329,8 +329,8 @@ async def callbacks(update, context):
         text = (
             f"💜 {case['name']}, привет!\n\n"
             f"Следующее занятие — {_fmt_start(case['start_time'])}.\n"
-            f"Стоимость: {case['price']:,} ₽.\n\n".replace(",", " ")
-            "Если удобно, оплатить можно прямо здесь 👇"
+            + f"Стоимость: {case['price']:,} ₽.\n\n".replace(",", " ")
+            + "Если удобно, оплатить можно прямо здесь 👇"
         )
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💳 Оплатить следующее занятие", callback_data=f"payment_lesson|{lesson_id}")],
