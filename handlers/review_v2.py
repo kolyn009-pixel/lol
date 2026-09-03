@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -39,6 +39,48 @@ def _mark_done(case_key):
     database.set_setting(_done_key(), ",".join(sorted(done)))
 
 
+def _defer_key(case_key):
+    safe = str(case_key).replace(":", "_").replace("|", "_")
+    return f"review_v2_defer_{safe}"
+
+
+def _deferred_until(case_key):
+    value = database.get_setting(_defer_key(case_key), "") or ""
+    try:
+        return datetime.fromisoformat(str(value)).date()
+    except Exception:
+        return None
+
+
+def _defer(case_key, date_text):
+    target = datetime.fromisoformat(str(date_text)).date()
+    database.set_setting(_defer_key(case_key), target.isoformat())
+
+
+def _is_deferred(case_key):
+    target = _deferred_until(case_key)
+    return bool(target and target > _now().date())
+
+
+def _lesson_price(row):
+    """Return the current effective lesson price, not a stale stored snapshot."""
+    stored = int(row["price"] or 0)
+    try:
+        duration = int(row["duration_minutes"] or 60)
+        program_id = row["program_id"]
+        if program_id:
+            hourly = int(database.get_program_rate_info(int(program_id))["effective_rate"])
+        else:
+            hourly = int(database.get_student_rate_info(
+                int(row["user_id"]),
+                row["study_goal"],
+                row["subject"],
+            )["effective_rate"])
+        return int(database.calculate_lesson_price(hourly, duration))
+    except Exception:
+        return stored
+
+
 def _payment_cases():
     c = database.connect()
     try:
@@ -50,6 +92,10 @@ def _payment_cases():
                 l.id AS lesson_id,
                 l.start_time,
                 l.price,
+                l.duration_minutes,
+                l.program_id,
+                l.study_goal,
+                l.subject,
                 l.regular_schedule_id
             FROM users u
             JOIN lessons l
@@ -74,9 +120,7 @@ def _payment_cases():
             if r["regular_schedule_id"]:
                 try:
                     start_date = datetime.fromisoformat(str(r["start_time"])).date()
-                    schedule_dates = database.get_regular_schedule_dates(
-                        int(r["regular_schedule_id"])
-                    )
+                    schedule_dates = database.get_regular_schedule_dates(int(r["regular_schedule_id"]))
                     remaining = sum(1 for day in schedule_dates if day >= start_date)
                 except Exception:
                     remaining = c.execute("""
@@ -96,7 +140,8 @@ def _payment_cases():
                 "telegram_id": int(r["telegram_id"]) if r["telegram_id"] else None,
                 "lesson_id": int(r["lesson_id"]),
                 "start_time": r["start_time"],
-                "price": int(r["price"] or 0),
+                "price": _lesson_price(r),
+                "stored_price": int(r["price"] or 0),
                 "remaining": int(remaining or 0),
             })
         return result
@@ -147,7 +192,10 @@ def review_cases(include_done=False):
     if include_done:
         return cases
     done = _done_cases()
-    return [x for x in cases if x["key"] not in done]
+    return [
+        x for x in cases
+        if x["key"] not in done and not _is_deferred(x["key"])
+    ]
 
 
 def _fmt_start(value):
@@ -174,13 +222,13 @@ def _case_text(case, index, total):
             "💳 ОПЛАТА",
             f"👤 {case['name']}",
             f"📅 Следующее занятие: {_fmt_start(case['start_time'])}",
-            f"💰 Стоимость: {case['price']:,} ₽".replace(",", " "),
+            f"💰 Стоимость занятия: {case['price']:,} ₽".replace(",", " "),
         ]
         if case.get("remaining"):
             lines.append(f"🔁 По постоянному расписанию до срока осталось: {case['remaining']} занятий")
         lines += [
             "",
-            "Ближайшее занятие ждёт оплаты. Дальние занятия серии не считаются отдельными проблемами, пока ближайшее закрыто.",
+            "Проверяем только ближайшее занятие. Остальная серия не создаёт отдельные ежедневные проблемы.",
         ]
         return "\n".join(lines)
 
@@ -201,17 +249,11 @@ def _case_keyboard(case, index):
     rows = []
     if case["kind"] == "PAYMENT_NEXT":
         rows.append([
-            InlineKeyboardButton(
-                "💳 Предложить оплатить следующее",
-                callback_data=f"mh_review_send_next|{index}",
-            )
+            InlineKeyboardButton("💳 Предложить оплатить следующее", callback_data=f"mh_review_send_next|{index}")
         ])
         if int(case.get("remaining") or 0) > 1:
             rows.append([
-                InlineKeyboardButton(
-                    "🎟 Предложить абонемент на серию",
-                    callback_data=f"mh_review_send_pack|{index}",
-                )
+                InlineKeyboardButton("🎟 Предложить абонемент на серию", callback_data=f"mh_review_send_pack|{index}")
             ])
     else:
         rows.append([
@@ -222,15 +264,34 @@ def _case_keyboard(case, index):
         ])
 
     rows.append([
-        InlineKeyboardButton("👤 Открыть ученика", callback_data=f"admin_student|{case['user_id']}")
+        InlineKeyboardButton("👤 Открыть ученика", callback_data=f"student_view|{case['user_id']}")
     ])
     rows.append([
-        InlineKeyboardButton("✅ Решено на сегодня", callback_data=f"mh_review_done|{index}"),
-        InlineKeyboardButton("🕐 Отложить", callback_data=f"mh_review_next|{index}"),
+        InlineKeyboardButton("✅ Решено", callback_data=f"mh_review_done|{index}"),
+        InlineKeyboardButton("📅 Отложить до…", callback_data=f"mh_review_defer_menu|{index}"),
     ])
     rows.append([
+        InlineKeyboardButton("➡️ Следующий", callback_data=f"mh_review_next|{index}"),
         InlineKeyboardButton("✕ Закончить", callback_data="mh_review_finish"),
-        InlineKeyboardButton("🏠 Главная", callback_data="global_home"),
+    ])
+    rows.append([InlineKeyboardButton("🏠 Главная", callback_data="global_home")])
+    return InlineKeyboardMarkup(rows)
+
+
+def _defer_keyboard(index):
+    today = _now().date()
+    rows = []
+    for offset in range(1, 8):
+        day = today + timedelta(days=offset)
+        label = "Завтра" if offset == 1 else day.strftime("%d.%m")
+        rows.append([
+            InlineKeyboardButton(
+                f"📅 {label}",
+                callback_data=f"mh_review_defer|{index}|{day.isoformat()}",
+            )
+        ])
+    rows.append([
+        InlineKeyboardButton("⬅️ Назад", callback_data=f"mh_review_back|{index}")
     ])
     return InlineKeyboardMarkup(rows)
 
@@ -242,10 +303,8 @@ async def _show(q, context, index=0):
     if not cases:
         await q.edit_message_text(
             "💜 АДЕЛИЯ • РАЗБОР ДНЯ\n\n🟢 Сейчас нет случаев, которые требуют действия.\n\n"
-            "Оплаченные ближайшие занятия не создают шум, ученики на паузе не попадают в список.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🏠 Главная", callback_data="global_home")]
-            ]),
+            "Оплаченные ближайшие занятия не создают шум, отложенные задачи вернутся в выбранный день, а ученики на паузе не попадают в список.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главная", callback_data="global_home")]]),
         )
         return
 
@@ -269,17 +328,24 @@ def _cached_case(context, index):
 async def _send_message(context, case, text, keyboard):
     tid = case.get("telegram_id")
     if not tid:
-        return False, "У ученика нет Telegram ID."
+        return "ERROR", "У ученика нет Telegram ID."
     try:
         await context.bot.send_message(int(tid), text, reply_markup=keyboard)
-        return True, "Отправлено"
+        return "OK", "Отправлено"
     except Forbidden as exc:
         if "blocked by the user" in str(exc).lower():
             database.set_user_active(case["user_id"], False)
-            return False, "Ученик заблокировал бота — я убрала его из активных."
-        return False, str(exc)
+            return "BLOCKED", "Ученик заблокировал бота — убрала его из активных и перехожу дальше."
+        return "ERROR", str(exc)
     except Exception as exc:
-        return False, str(exc)
+        return "ERROR", str(exc)
+
+
+async def _after_send(q, context, case, index, status, detail):
+    await q.answer(detail, show_alert=True)
+    if status in ("OK", "BLOCKED"):
+        _mark_done(case["key"])
+        await _show(q, context, index)
 
 
 async def callbacks(update, context):
@@ -301,7 +367,7 @@ async def callbacks(update, context):
     if data == "mh_review_finish":
         await q.answer()
         await q.edit_message_text(
-            "💜 Разбор завершён.\n\nТо, что не отмечено решённым, останется в очереди.",
+            "💜 Разбор завершён.\n\nНерешённые случаи останутся в очереди, а отложенные вернутся в выбранную дату.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("▶️ Продолжить разбор", callback_data="mh_review_start")],
                 [InlineKeyboardButton("🏠 Главная", callback_data="global_home")],
@@ -309,8 +375,20 @@ async def callbacks(update, context):
         )
         return
 
+    if data.startswith("mh_review_defer|"):
+        parts = data.split("|", 2)
+        if len(parts) == 3:
+            index = int(parts[1])
+            case = _cached_case(context, index)
+            if case:
+                _defer(case["key"], parts[2])
+                target = datetime.fromisoformat(parts[2]).strftime("%d.%m")
+                await q.answer(f"Отложено до {target}")
+                await _show(q, context, index)
+                return
+
     try:
-        index = int(data.rsplit("|", 1)[1])
+        index = int(data.split("|")[1]) if "|" in data else int(context.user_data.get("mh_review_index", 0) or 0)
     except Exception:
         index = int(context.user_data.get("mh_review_index", 0) or 0)
 
@@ -318,6 +396,22 @@ async def callbacks(update, context):
     if not case:
         await q.answer()
         await _show(q, context, 0)
+        return
+
+    if data.startswith("mh_review_defer_menu|"):
+        await q.answer()
+        await q.edit_message_text(
+            f"📅 ОТЛОЖИТЬ ЗАДАЧУ\n\n👤 {case['name']}\n\nВ какой день вернуть этот пункт в разбор?",
+            reply_markup=_defer_keyboard(index),
+        )
+        return
+
+    if data.startswith("mh_review_back|"):
+        await q.answer()
+        await q.edit_message_text(
+            _case_text(case, index, len(context.user_data.get("mh_review_cases") or [case])),
+            reply_markup=_case_keyboard(case, index),
+        )
         return
 
     if data.startswith("mh_review_done|"):
@@ -343,11 +437,8 @@ async def callbacks(update, context):
             [InlineKeyboardButton("💳 Оплатить следующее занятие", callback_data=f"payment_lesson|{lesson_id}")],
             [InlineKeyboardButton("🏠 Главная", callback_data="global_home")],
         ])
-        ok, detail = await _send_message(context, case, text, keyboard)
-        await q.answer(detail, show_alert=True)
-        if ok:
-            _mark_done(case["key"])
-            await _show(q, context, index)
+        status, detail = await _send_message(context, case, text, keyboard)
+        await _after_send(q, context, case, index, status, detail)
         return
 
     if data.startswith("mh_review_send_pack|"):
@@ -360,11 +451,8 @@ async def callbacks(update, context):
             [InlineKeyboardButton("💳 Оплатить только следующее", callback_data=f"payment_lesson|{case['lesson_id']}")],
             [InlineKeyboardButton("🏠 Главная", callback_data="global_home")],
         ])
-        ok, detail = await _send_message(context, case, text, keyboard)
-        await q.answer(detail, show_alert=True)
-        if ok:
-            _mark_done(case["key"])
-            await _show(q, context, index)
+        status, detail = await _send_message(context, case, text, keyboard)
+        await _after_send(q, context, case, index, status, detail)
         return
 
     if data.startswith("mh_review_send_book|"):
@@ -384,11 +472,8 @@ async def callbacks(update, context):
             [InlineKeyboardButton(label, callback_data="booking")],
             [InlineKeyboardButton("🏠 Главная", callback_data="global_home")],
         ])
-        ok, detail = await _send_message(context, case, text, keyboard)
-        await q.answer(detail, show_alert=True)
-        if ok:
-            _mark_done(case["key"])
-            await _show(q, context, index)
+        status, detail = await _send_message(context, case, text, keyboard)
+        await _after_send(q, context, case, index, status, detail)
         return
 
     await q.answer()
