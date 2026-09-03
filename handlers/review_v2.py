@@ -9,6 +9,7 @@ from telegram.ext import CallbackQueryHandler
 
 import database
 from automation import schedule_tools
+from core import admin_roles
 
 
 def _tz():
@@ -49,10 +50,7 @@ def _payment_cases():
                 l.id AS lesson_id,
                 l.start_time,
                 l.price,
-                l.study_goal,
-                l.subject,
-                l.regular_schedule_id,
-                l.duration_minutes
+                l.regular_schedule_id
             FROM users u
             JOIN lessons l
               ON l.id = (
@@ -192,7 +190,7 @@ def _case_text(case, index, total):
     )
 
 
-def _case_keyboard(case, index, total):
+def _case_keyboard(case, index):
     rows = []
     if case["kind"] == "PAYMENT_NEXT":
         rows.append([
@@ -249,7 +247,7 @@ async def _show(q, context, index=0):
     case = cases[index]
     await q.edit_message_text(
         _case_text(case, index, len(cases)),
-        reply_markup=_case_keyboard(case, index, len(cases)),
+        reply_markup=_case_keyboard(case, index),
     )
 
 
@@ -281,15 +279,20 @@ async def callbacks(update, context):
     q = update.callback_query
     if not q or not q.data.startswith("mh_review"):
         return
-    await q.answer()
+    if not admin_roles.is_admin_id(q.from_user.id):
+        await q.answer("Нет доступа", show_alert=True)
+        return
+
     data = q.data
 
     if data == "mh_review_start":
+        await q.answer()
         context.user_data["mh_review_started_at"] = _now().isoformat(timespec="seconds")
         await _show(q, context, 0)
         return
 
     if data == "mh_review_finish":
+        await q.answer()
         await q.edit_message_text(
             "💜 Разбор завершён.\n\nТо, что не отмечено решённым, останется в очереди.",
             reply_markup=InlineKeyboardMarkup([
@@ -306,15 +309,18 @@ async def callbacks(update, context):
 
     case = _cached_case(context, index)
     if not case:
+        await q.answer()
         await _show(q, context, 0)
         return
 
     if data.startswith("mh_review_done|"):
+        await q.answer("Отметила решённым на сегодня")
         _mark_done(case["key"])
         await _show(q, context, index)
         return
 
     if data.startswith("mh_review_next|"):
+        await q.answer()
         await _show(q, context, index + 1)
         return
 
@@ -378,10 +384,14 @@ async def callbacks(update, context):
             await _show(q, context, index)
         return
 
+    await q.answer()
+
 
 def install(application):
-    """Install the new review flow and redirect the admin's first menu button."""
-    application.add_handler(CallbackQueryHandler(callbacks, pattern=r"^mh_review"), group=-10)
+    application.add_handler(
+        CallbackQueryHandler(callbacks, pattern=r"^mh_review"),
+        group=-10,
+    )
 
     try:
         import admin
