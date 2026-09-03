@@ -9,7 +9,7 @@ from telegram.error import Forbidden
 import database
 from core import admin_roles
 from automation import schedule_tools
-from handlers import runtime_patch_v2, review_v2
+from handlers import runtime_patch_v2, review_v2, pricing_ux_patch
 
 
 def _admins():
@@ -46,23 +46,6 @@ def _weekly_text():
             WHERE cancelled_at IS NOT NULL
               AND datetime(cancelled_at)>=datetime('now','-7 days')
         """).fetchone()[0]
-        unpaid = c.execute("""
-            SELECT COUNT(*),COALESCE(SUM(l.price),0)
-            FROM users u
-            JOIN lessons l
-              ON l.id = (
-                  SELECT l2.id
-                  FROM lessons l2
-                  WHERE l2.user_id=u.id
-                    AND l2.lesson_status='CONFIRMED'
-                    AND l2.cancelled_at IS NULL
-                    AND datetime(l2.start_time)>=datetime('now')
-                  ORDER BY datetime(l2.start_time)
-                  LIMIT 1
-              )
-            WHERE u.active=1
-              AND l.payment_status='AWAITING_PAYMENT'
-        """).fetchone()
         active = c.execute(
             "SELECT COUNT(*) FROM users WHERE active=1"
         ).fetchone()[0]
@@ -79,14 +62,17 @@ def _weekly_text():
     finally:
         c.close()
 
+    unpaid = pricing_ux_patch.weekly_payment_snapshot()
+
     return (
         "💜 АДЕЛИЯ • НЕДЕЛЯ\n\n"
         "Я собрала короткий итог за последние 7 дней.\n\n"
         f"✅ Проведено занятий: {done}\n"
         f"❌ Отменено: {cancelled}\n"
         f"💬 Входящих сообщений: {msgs}\n"
-        f"💳 Ближайших занятий ждут оплаты: {int(unpaid[0] or 0)} · {int(unpaid[1] or 0):,} ₽\n"
+        f"💳 Ближайших занятий ждут оплаты: {int(unpaid['count'])} · {int(unpaid['amount']):,} ₽\n"
         f"👥 Активных учеников: {active}\n\n"
+        "Сумма ожидания оплаты считается по актуальным индивидуальным ставкам и только по ближайшему занятию каждого ученика.\n\n"
         "Если хотите разобраться подробнее — откройте «Разобрать всё»."
     ).replace(",", " ")
 
@@ -241,6 +227,7 @@ async def weekly_dispatcher(context):
 def register(application):
     runtime_patch_v2.install(application)
     review_v2.install(application)
+    pricing_ux_patch.install(application)
 
     jq = application.job_queue
     if not jq:
