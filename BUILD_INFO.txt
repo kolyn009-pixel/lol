@@ -1,0 +1,6 @@
+ADELIA FINAL ROOT UX
+Build date: 2026-08-27
+Base: FINAL UX + BRIEFS
+Root UI: compact dynamic teacher dashboard
+Admin root: /admin = /start(admin) = global_home(admin)
+AI model policy: openrouter/free via server env

@@ -1,0 +1,11 @@
+TutorBot FINAL FREEZE
+
+- Shared isolated test lab with persistent tester profiles and one sandbox for all testers.
+- Owner appoints TESTER administrators with /addtester; /deltester restores ADMIN.
+- Owner notification when testing begins.
+- Release checklist, scenario of the day, sandbox health and stats.
+- Tester tools hidden under System -> Maintenance.
+- Admin message badge counts unread incoming messages only.
+- Student is offered TutorBot messaging before personal Telegram.
+- Global /home and Home callbacks for supported nested flows.
+- Maintenance mode continues to allow administrators/testers while regular users are blocked.

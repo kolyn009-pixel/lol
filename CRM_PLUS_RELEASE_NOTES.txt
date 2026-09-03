@@ -1,0 +1,24 @@
+TutorBot CRM+ release
+
+Added on top of FINAL EXCHANGE UI FIX:
+- Teacher -> student messaging directly from student card, with target choice: student / parents / all.
+- Communication history inside TutorBot.
+- Quick reply/open-card actions in "Messages from students".
+- Pinned private student note shown in the student card.
+- Time-limited student agreements / important arrangements.
+- Quiet hours for outbound teacher messages (default 22:00-09:00 Moscow time) with queued delivery.
+- Targeted broadcasts: all students / EGE / OGE / Physics / Chemistry, with confirmation before send.
+- "What matters today" dashboard and automatic 08:30 Moscow daily brief.
+- Student attention reasons (no next lesson, overdue homework, low minute balance).
+- Quick post-lesson review entry from CRM card; uses existing topic/level quick review.
+- Smart next-lesson shortcut through existing safe booking flow.
+- Parent monthly report preview + explicit send.
+- Student pause shortcut.
+- Global student search by name, Telegram, phone, or pinned note.
+- Payment/minute renewal offer generated from current individual tariff and minute model, with preview before send.
+- Existing FINAL EXCHANGE UI fixes, minute model, reminders, Google Calendar and all Stage1/2/3 features preserved.
+
+Safety notes:
+- No direct destructive database edits are performed by CRM+ UI.
+- Broadcasts and payment offers require a preview/explicit click before sending.
+- SERVER archive excludes tutor.db, credentials.json and token.json.

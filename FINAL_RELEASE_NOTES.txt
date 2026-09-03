@@ -1,0 +1,36 @@
+TutorBot FINAL — minute subscriptions + unified admin inbox
+
+This release is based on Stage 3 and includes all previous Stage 1/2/3 modules and live server fixes.
+
+Minute model
+- Main subscription balance unit is minutes.
+- OGE/EGE/Olympiad default base lesson duration: 90 min; school program: 60 min.
+- Admin can change the base duration for every student program from the student card.
+- Student may choose the base duration or a longer lesson, never shorter than the configured base.
+- Planned minutes are reserved at booking.
+- Teacher overtime is not charged to the student.
+- If the teacher finishes early, the missing planned minutes are credited to the student's bonus-minute pool.
+- Bonus minutes are consumed before paid minutes.
+- Purchase UI keeps a familiar equivalent such as “10 lessons • 900 min”; price and discount are calculated for the whole minute package at the student's effective rate.
+
+Admin UX
+- “Inbox” is directly in the main admin menu and aggregates lesson requests, regular schedule requests, unpaid items, receipts/payments awaiting action, homework review, waiting list and system/admin events.
+- “Messages from students” is a separate main-menu queue for direct organizational messages to the teacher.
+- Student card includes minute balance management and per-program base lesson duration.
+
+Preserved server/live fixes
+- Financial earned value counts only completed, non-cancelled lessons with finished_at and filters periods by finished_at.
+- Manual balance entry point is present in the student card.
+- Google Calendar HTTP 410 on deletion is treated as already deleted, like 404.
+- Cancelled lessons are removed from Google Calendar; completed lessons remain as history.
+- Reminder chain is preserved: 24h / 2h / 30m / 10m.
+- Formula libraries are unchanged: physics 7–11, chemistry 8–11, EGE formulas and reference library.
+
+Deployment
+1. Stop tutorbot.service.
+2. Back up /opt/tutorbot and tutor.db.
+3. Overlay the SERVER archive while preserving tutor.db, token.json, credentials.json and venv/.
+4. Run: ./venv/bin/python minute_model_selftest.py
+5. Run: ./venv/bin/python stage3_selftest.py
+6. Run: ./venv/bin/python -m compileall -q .
+7. Start/restart tutorbot.service and inspect journalctl.

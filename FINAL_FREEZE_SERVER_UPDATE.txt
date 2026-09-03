@@ -1,0 +1,23 @@
+TutorBot FINAL FREEZE - server notes
+
+Persistent production files to preserve during deployment:
+- /opt/tutorbot/tutor.db
+- /opt/tutorbot/venv/
+- /opt/tutorbot/token.json
+- /opt/tutorbot/credentials.json
+
+Persistent test sandbox (do NOT delete during later code updates):
+- /opt/tutorbot_data/tutor_test.db
+
+After deployment:
+1. ./venv/bin/python -m compileall -q .
+2. ./venv/bin/python -c "import database; database.create_tables()"
+3. ./venv/bin/python final_freeze_selftest.py
+4. Existing self-tests.
+5. restart tutorbot.service
+
+Tester management (owner only):
+/addtester TELEGRAM_ID Name
+/deltester TELEGRAM_ID
+Tester starts with /test.
+Owner opens shared lab with /testlab or System -> Maintenance -> Test lab.
