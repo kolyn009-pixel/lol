@@ -72,14 +72,21 @@ def _payment_cases():
         for r in rows:
             remaining = 0
             if r["regular_schedule_id"]:
-                remaining = c.execute("""
-                    SELECT COUNT(*)
-                    FROM lessons
-                    WHERE regular_schedule_id=?
-                      AND lesson_status='CONFIRMED'
-                      AND cancelled_at IS NULL
-                      AND datetime(start_time)>=datetime(?)
-                """, (r["regular_schedule_id"], r["start_time"])).fetchone()[0]
+                try:
+                    start_date = datetime.fromisoformat(str(r["start_time"])).date()
+                    schedule_dates = database.get_regular_schedule_dates(
+                        int(r["regular_schedule_id"])
+                    )
+                    remaining = sum(1 for day in schedule_dates if day >= start_date)
+                except Exception:
+                    remaining = c.execute("""
+                        SELECT COUNT(*)
+                        FROM lessons
+                        WHERE regular_schedule_id=?
+                          AND lesson_status='CONFIRMED'
+                          AND cancelled_at IS NULL
+                          AND datetime(start_time)>=datetime(?)
+                    """, (r["regular_schedule_id"], r["start_time"])).fetchone()[0]
 
             result.append({
                 "key": f"pay:{int(r['lesson_id'])}",
@@ -170,7 +177,7 @@ def _case_text(case, index, total):
             f"💰 Стоимость: {case['price']:,} ₽".replace(",", " "),
         ]
         if case.get("remaining"):
-            lines.append(f"🔁 В постоянной серии осталось занятий: {case['remaining']}")
+            lines.append(f"🔁 По постоянному расписанию до срока осталось: {case['remaining']} занятий")
         lines += [
             "",
             "Ближайшее занятие ждёт оплаты. Дальние занятия серии не считаются отдельными проблемами, пока ближайшее закрыто.",
