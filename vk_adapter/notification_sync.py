@@ -116,11 +116,10 @@ def _lesson_text(user, lesson, reminder_type):
     )
 
     if reminder_type == "LESSON_LINK_10M":
-        board_url = str(user["board_url"] or "").strip()
-        if board_url:
-            text += f"\n\n🔗 Ссылка на занятие:\n{board_url}"
-        else:
-            text += "\n\n⚠️ Ссылка на занятие ещё не сохранена. Напиши преподавателю."
+        text += (
+            "\n\nПреподаватель сейчас подготовит актуальную ссылку на Телемост. "
+            "Как только он отправит её, здесь придут и ссылка для подключения, и ссылка на доску."
+        )
     return text
 
 
@@ -145,11 +144,7 @@ def _payment_text(lesson, reminder_type):
 
 
 def tick(send_func):
-    """Duplicate actionable Telegram reminders to linked VK accounts.
-
-    send_func(peer_id, text, linked=True) must raise on delivery failure.
-    Own delivery log prevents VK duplicates and does not interfere with Telegram reminder flags.
-    """
+    """Duplicate actionable Telegram reminders to linked VK accounts."""
     initialize()
     now = datetime.now(_tz())
     c = database.connect()
