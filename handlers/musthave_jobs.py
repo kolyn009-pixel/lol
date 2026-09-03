@@ -10,6 +10,7 @@ import database
 from core import admin_roles
 from automation import schedule_tools
 from handlers import runtime_patch_v2, review_v2
+from vk_adapter import telegram_link
 
 
 def _admins():
@@ -241,6 +242,7 @@ async def weekly_dispatcher(context):
 def register(application):
     runtime_patch_v2.install(application)
     review_v2.install(application)
+    telegram_link.register(application)
 
     jq = application.job_queue
     if not jq:
