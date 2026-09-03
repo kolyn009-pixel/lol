@@ -56,6 +56,36 @@ def attention_reasons(student_id):
     return reasons
 
 
+def _nearest_future_rows():
+    c = database.connect()
+    try:
+        return c.execute("""
+            SELECT
+                u.id AS user_id,
+                l.id AS lesson_id,
+                l.lesson_status,
+                l.payment_status,
+                l.start_time,
+                l.price
+            FROM users u
+            JOIN lessons l
+              ON l.id = (
+                  SELECT l2.id
+                  FROM lessons l2
+                  WHERE l2.user_id=u.id
+                    AND l2.lesson_status IN ('PENDING','CONFIRMED','IN_PROGRESS')
+                    AND l2.cancelled_at IS NULL
+                    AND l2.finished_at IS NULL
+                    AND datetime(l2.start_time)>=datetime('now')
+                  ORDER BY datetime(l2.start_time)
+                  LIMIT 1
+              )
+            WHERE u.active=1
+        """).fetchall()
+    finally:
+        c.close()
+
+
 def today_dashboard():
     c = database.connect()
     try:
@@ -71,28 +101,18 @@ def today_dashboard():
         open_msgs = c.execute(
             "SELECT COUNT(*) n FROM teacher_inbox WHERE status='OPEN'"
         ).fetchone()["n"]
-        nearest = c.execute("""
-            SELECT l.payment_status
-            FROM users u
-            JOIN lessons l
-              ON l.id = (
-                  SELECT l2.id
-                  FROM lessons l2
-                  WHERE l2.user_id=u.id
-                    AND l2.lesson_status='CONFIRMED'
-                    AND l2.cancelled_at IS NULL
-                    AND datetime(l2.start_time)>=datetime('now')
-                  ORDER BY datetime(l2.start_time)
-                  LIMIT 1
-              )
-            WHERE u.active=1
-        """).fetchall()
-        unpaid = sum(1 for r in nearest if r["payment_status"] == "AWAITING_PAYMENT")
         students = c.execute(
             "SELECT id,name FROM users WHERE active=1 ORDER BY name"
         ).fetchall()
     finally:
         c.close()
+
+    nearest = _nearest_future_rows()
+    unpaid = sum(
+        1 for r in nearest
+        if r["lesson_status"] == "CONFIRMED"
+        and r["payment_status"] == "AWAITING_PAYMENT"
+    )
 
     attention = []
     for u in students:
@@ -122,13 +142,15 @@ def debts(limit=40):
                   SELECT l2.id
                   FROM lessons l2
                   WHERE l2.user_id=u.id
-                    AND l2.lesson_status='CONFIRMED'
+                    AND l2.lesson_status IN ('PENDING','CONFIRMED','IN_PROGRESS')
                     AND l2.cancelled_at IS NULL
+                    AND l2.finished_at IS NULL
                     AND datetime(l2.start_time)>=datetime('now')
                   ORDER BY datetime(l2.start_time)
                   LIMIT 1
               )
             WHERE u.active=1
+              AND l.lesson_status='CONFIRMED'
               AND l.payment_status='AWAITING_PAYMENT'
             ORDER BY datetime(l.start_time)
             LIMIT ?
@@ -244,6 +266,24 @@ async def sync_google_calendar(application=None):
     return {"created": created, "deleted": deleted}
 
 
+def _install_regular_generation_rule():
+    """Every approved permanent series is generated through its real end_date."""
+    if getattr(database.generate_regular_lessons, "_adelia_full_horizon", False):
+        return
+
+    original = database.generate_regular_lessons
+
+    def full_horizon(schedule_id, until_date=None):
+        schedule = database.get_regular_schedule(int(schedule_id))
+        if schedule is not None and schedule["status"] == "APPROVED" and schedule["end_date"]:
+            until_date = str(schedule["end_date"])
+        return original(int(schedule_id), until_date=until_date)
+
+    full_horizon._adelia_full_horizon = True
+    full_horizon._original = original
+    database.generate_regular_lessons = full_horizon
+
+
 async def regular_series_sync_job(context):
     import __main__ as runtime
 
@@ -265,10 +305,7 @@ async def regular_series_sync_job(context):
     total_created = 0
     for schedule in schedules:
         try:
-            result = database.generate_regular_lessons(
-                int(schedule["id"]),
-                until_date=str(schedule["end_date"]),
-            )
+            result = database.generate_regular_lessons(int(schedule["id"]))
         except Exception as exc:
             print("REGULAR SERIES FULL SYNC ERROR:", schedule["id"], repr(exc))
             continue
@@ -300,6 +337,8 @@ def install(application):
     from crm_plus import service as crm_service
     from handlers import musthave_admin
     from ux_final import service as ux_service
+
+    _install_regular_generation_rule()
 
     crm_service.attention_reasons = attention_reasons
     crm_service.today_dashboard = today_dashboard
