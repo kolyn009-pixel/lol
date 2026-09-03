@@ -1,0 +1,16 @@
+[Unit]
+Description=TutorBot VK transport
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tutorbot
+EnvironmentFile=/etc/tutorbot.env
+ExecStart=/opt/tutorbot/venv/bin/python -m vk_adapter.app
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
