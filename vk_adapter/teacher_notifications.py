@@ -486,6 +486,141 @@ def _send_started(
 
 
 # ============================================================
+# ENDING SOON
+# ============================================================
+
+def _ending_lessons():
+
+    c = database.connect()
+
+    try:
+
+        return list(
+            c.execute("""
+                SELECT
+
+                    l.id,
+                    l.user_id,
+                    l.end_time,
+                    l.subject,
+
+                    u.name,
+                    u.board_url
+
+                FROM lessons l
+
+                JOIN users u
+                  ON u.id=l.user_id
+
+                WHERE
+                    l.lesson_status=
+                    'IN_PROGRESS'
+
+                  AND
+                    l.cancelled_at
+                    IS NULL
+
+                  AND
+                    l.end_time
+                    IS NOT NULL
+
+                ORDER BY
+                    l.end_time
+            """).fetchall()
+        )
+
+    finally:
+
+        c.close()
+
+
+def _send_ending(
+    peers,
+    send_teacher,
+):
+
+    now = datetime.now(
+        _timezone()
+    )
+
+    sent = 0
+
+    for lesson in (
+        _ending_lessons()
+    ):
+
+        try:
+
+            end = _lesson_dt(
+                lesson[
+                    "end_time"
+                ]
+            )
+
+        except Exception:
+
+            continue
+
+
+        seconds = (
+            end - now
+        ).total_seconds()
+
+
+        if not (
+            0
+            <= seconds
+            <= 5 * 60
+        ):
+
+            continue
+
+
+        key = (
+            "lesson_end5:"
+            f"{lesson['id']}:"
+            f"{end:%Y%m%d%H%M}"
+        )
+
+
+        if not _claim(
+            key
+        ):
+
+            continue
+
+
+        text = (
+            "⏳ ДО КОНЦА ЗАНЯТИЯ 5 МИНУТ\n\n"
+
+            f"👤 {lesson['name']}\n"
+
+            f"📖 "
+            f"{_subject(lesson['subject'])}\n"
+
+            f"🕐 По плану до {end:%H:%M}"
+
+            f"{_board_line(lesson['board_url'])}"
+
+            "\n\nМожно подводить итог "
+            "и подготовить домашнее задание."
+        )
+
+
+        for peer in peers:
+
+            send_teacher(
+                int(peer),
+                text,
+            )
+
+            sent += 1
+
+
+    return sent
+
+
+# ============================================================
 # TICK
 # ============================================================
 
@@ -518,6 +653,12 @@ def tick(
 
 
     sent += _send_started(
+        peers,
+        send_teacher,
+    )
+
+
+    sent += _send_ending(
         peers,
         send_teacher,
     )
