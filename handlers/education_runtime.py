@@ -45,9 +45,6 @@ def _walk(application):
 
 
 def install(application):
-    """Activate education support without replacing legacy registration completion."""
-    # Save the real completion callback first: it contains parent/timezone/admin
-    # behavior that must remain exactly as production currently implements it.
     original_phone = None
     for h in _walk(application):
         cb=getattr(h,"callback",None)
@@ -56,22 +53,19 @@ def install(application):
     education_profile.install_runtime()
     education_admin.initialize()
     import __main__ as bot
-
-    patched_name=getattr(bot,"registration_name",None)
-    patched_grade=getattr(bot,"registration_grade",None)
+    patched_name=getattr(bot,"registration_name",None);patched_grade=getattr(bot,"registration_grade",None)
 
     async def registration_phone_preserved(update, context):
+        # The legacy callback clears user_data on success, so snapshot our two
+        # additive education values before calling it.
+        etype=context.user_data.get("reg_education_type","SCHOOL")
+        elevel=context.user_data.get("reg_education_level") or context.user_data.get("reg_grade")
         result = await original_phone(update, context)
         try:
             user = database.get_user_by_telegram_id(int(update.effective_user.id))
-            if user and context.user_data.get("reg_education_type"):
-                education_profile.set_profile(
-                    int(user["id"]),
-                    context.user_data.get("reg_education_type","SCHOOL"),
-                    int(context.user_data.get("reg_education_level") or context.user_data.get("reg_grade") or user["grade"]),
-                )
-        except Exception as exc:
-            print("EDUCATION REGISTRATION FINALIZE ERROR:",repr(exc))
+            if user and elevel:
+                education_profile.set_profile(int(user["id"]),etype,int(elevel))
+        except Exception as exc: print("EDUCATION REGISTRATION FINALIZE ERROR:",repr(exc))
         return result
 
     for h in _walk(application):
