@@ -24,6 +24,23 @@ def linked_user(vk_user_id):
     return database.get_user(uid) if uid else None
 
 
+def vk_peer_for_user(user_id):
+    c = database.connect()
+    try:
+        row = c.execute(
+            """
+            SELECT external_id
+            FROM channel_identities
+            WHERE user_id=? AND channel='VK' AND enabled=1
+            LIMIT 1
+            """,
+            (int(user_id),),
+        ).fetchone()
+        return int(row["external_id"]) if row else None
+    finally:
+        c.close()
+
+
 def _row_value(row, *names, default=None):
     if row is None:
         return default
@@ -135,41 +152,54 @@ def study_text(user_id):
     return "\n".join(lines)
 
 
-def formulas_text(user_id):
+def student_grade(user_id):
     user = database.get_user(int(user_id))
     try:
-        grade = int(str(user["grade"]).split()[0]) if user else None
+        return int(str(user["grade"]).split()[0]) if user else None
     except Exception:
-        grade = None
+        return None
 
-    lines = ["🧮 ФОРМУЛЫ И СПРАВОЧНИК", ""]
-    if grade in FORMULA_LIBRARY:
-        lines.append(f"🎓 {grade} класс")
-        for subject, topics in FORMULA_LIBRARY[grade].items():
-            lines.append(f"\n{SUBJECT_NAMES.get(subject, subject)}:")
-            for item in list(topics.values())[:8]:
-                lines.append(f"• {item.get('title', 'Тема')}")
-        lines += ["", "Напиши название темы сообщением — я постараюсь найти её в справочнике."]
-    else:
-        grades = ", ".join(str(x) for x in sorted(FORMULA_LIBRARY))
-        lines.append(f"Доступные классы: {grades}")
-    return "\n".join(lines)
+
+def formula_grades(user_id):
+    current = student_grade(user_id)
+    grades = sorted(FORMULA_LIBRARY.keys())
+    if current in grades:
+        grades.remove(current)
+        grades.insert(0, current)
+    return grades
+
+
+def formula_subjects(grade):
+    return list(FORMULA_LIBRARY.get(int(grade), {}).keys())
+
+
+def formula_topics(grade, subject):
+    topics = FORMULA_LIBRARY.get(int(grade), {}).get(str(subject), {})
+    return [(key, item.get("title", key)) for key, item in topics.items()]
+
+
+def formula_topic(grade, subject, topic):
+    item = FORMULA_LIBRARY.get(int(grade), {}).get(str(subject), {}).get(str(topic))
+    return str(item.get("text") or item.get("title")) if item else None
+
+
+def formulas_text(user_id):
+    current = student_grade(user_id)
+    if current in FORMULA_LIBRARY:
+        return "🧮 ФОРМУЛЫ И СПРАВОЧНИК\n\nВыбери класс. Твой класс показан первым 👇"
+    return "🧮 ФОРМУЛЫ И СПРАВОЧНИК\n\nВыбери класс 👇"
 
 
 def formula_topic_text(user_id, query):
     q = str(query or "").strip().lower()
     if not q:
         return None
-    user = database.get_user(int(user_id))
-    try:
-        grade = int(str(user["grade"]).split()[0]) if user else None
-    except Exception:
-        grade = None
+    current = student_grade(user_id)
     libraries = []
-    if grade in FORMULA_LIBRARY:
-        libraries.append(FORMULA_LIBRARY[grade])
+    if current in FORMULA_LIBRARY:
+        libraries.append(FORMULA_LIBRARY[current])
     for g, lib in FORMULA_LIBRARY.items():
-        if g != grade:
+        if g != current:
             libraries.append(lib)
     for lib in libraries:
         for _subject, topics in lib.items():
