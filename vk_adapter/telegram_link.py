@@ -86,6 +86,9 @@ def register(application):
     from handlers import education_runtime
     education_runtime.install(application)
 
+    from handlers import admin_student_router
+    admin_student_router.install(application)
+
     from handlers import teacher_end_notifications
     teacher_end_notifications.install(application)
 

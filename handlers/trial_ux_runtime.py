@@ -1481,15 +1481,8 @@ def install(
     # Выполняется после обычной
     # student_view карточки.
 
-    application.add_handler(
-        CallbackQueryHandler(
-            student_card_post,
-
-            pattern=r"^student_view\|",
-        ),
-
-        group=999,
-    )
+    # student_view is owned by handlers.admin_student_router.
+    # No late reply_markup rewrite is needed here.
 
 
     if application.job_queue:
