@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import database
+import education_profile
 from automation import messaging
 from core import event_center
 from crm_plus import service as crm_service
@@ -62,7 +63,7 @@ def study_text(user_id):
     c=database.connect()
     try:programs=c.execute("SELECT study_goal,subject,custom_hourly_rate,is_primary FROM student_programs WHERE user_id=? AND active=1 ORDER BY is_primary DESC,id",(int(user_id),)).fetchall()
     finally:c.close()
-    lines=["📚 МОЯ УЧЁБА","",f"👤 {u['name']} · {u['grade']} класс"]
+    lines=["📚 МОЯ УЧЁБА","",f"👤 {u['name']} · {education_profile.label(u)}"]
     if programs:
         lines += ["","Направления:"]
         for r in programs:lines.append(f"• {SUBJECT_NAMES.get(str(r['subject'] or ''),str(r['subject'] or ''))} · {GOAL_NAMES.get(str(r['study_goal'] or ''),str(r['study_goal'] or ''))}"+(" ⭐" if r['is_primary'] else ""))
@@ -71,18 +72,19 @@ def study_text(user_id):
     except Exception:pass
     lines.append(f"📅 Ближайших занятий: {len(list(database.get_upcoming_lessons(int(user_id))))}");return "\n".join(lines)
 def student_grade(user_id):
-    u=database.get_user(int(user_id))
-    try:return int(str(u["grade"]).split()[0]) if u else None
-    except Exception:return None
+    profile=education_profile.get(int(user_id))
+    if profile['type']=='COLLEGE':return None
+    return profile['level']
 def formula_grades(user_id):
-    current=student_grade(user_id);grades=sorted(FORMULA_LIBRARY.keys())
-    if current in grades:grades.remove(current);grades.insert(0,current)
-    return grades
+    return education_profile.formula_grades(int(user_id),FORMULA_LIBRARY)
 def formula_subjects(grade):return [(key,SUBJECT_NAMES.get(key,key)) for key in FORMULA_LIBRARY.get(int(grade),{}).keys()]
 def formula_topics(grade,subject):return [(key,item.get("title",key)) for key,item in FORMULA_LIBRARY.get(int(grade),{}).get(str(subject),{}).items()]
 def formula_topic(grade,subject,topic):
     item=FORMULA_LIBRARY.get(int(grade),{}).get(str(subject),{}).get(str(topic));return str(item.get("text") or item.get("title")) if item else None
-def formulas_text(user_id):return "🧮 ФОРМУЛЫ И СПРАВОЧНИК\n\nВыбери класс. Твой класс показан первым 👇" if student_grade(user_id) in FORMULA_LIBRARY else "🧮 ФОРМУЛЫ И СПРАВОЧНИК\n\nВыбери класс 👇"
+def formulas_text(user_id):
+    profile=education_profile.get(int(user_id))
+    if profile['type']=='COLLEGE':return f"🧮 ФОРМУЛЫ И СПРАВОЧНИК\n\n🎓 {profile['label']}\nДоступны все школьные разделы. Сначала показываю старшие классы 👇"
+    return "🧮 ФОРМУЛЫ И СПРАВОЧНИК\n\nВыбери класс. Твой класс показан первым 👇" if student_grade(user_id) in FORMULA_LIBRARY else "🧮 ФОРМУЛЫ И СПРАВОЧНИК\n\nВыбери класс 👇"
 def formula_topic_text(user_id,query):
     q=str(query or "").strip().lower()
     if not q:return None
@@ -104,7 +106,7 @@ def more_text(user_id):
     c=database.connect()
     try:unpaid=c.execute("SELECT COUNT(*) AS n FROM lessons WHERE user_id=? AND lesson_status='CONFIRMED' AND payment_status='AWAITING_PAYMENT' AND cancelled_at IS NULL",(int(user_id),)).fetchone()["n"]
     finally:c.close()
-    return f"⚙️ ЕЩЁ\n\n👤 {u['name']} · {u['grade']} класс\n💳 Занятий ожидают оплаты: {int(unpaid or 0)}\n🔗 VK подключён к общей карточке TutorBot."
+    return f"⚙️ ЕЩЁ\n\n👤 {u['name']} · {education_profile.label(u)}\n💳 Занятий ожидают оплаты: {int(unpaid or 0)}\n🔗 VK подключён к общей карточке TutorBot."
 def message_history_text(user_id,limit=12):
     rows=crm_service.message_history(int(user_id),int(limit))
     if not rows:return "💬 Переписки с преподавателем пока нет."
@@ -133,4 +135,4 @@ def submit_booking_request(user_id,text):
     except Exception as exc:print("VK TEACHER BOOKING ALERT ERROR:",repr(exc))
     return True,"✅ Запрос на запись отправлен преподавателю."
 def identity_status(vk_user_id):
-    u=linked_user(vk_user_id);return {"user_id":int(u["id"]),"name":u["name"],"grade":u["grade"],"active":bool(u["active"])} if u else None
+    u=linked_user(vk_user_id);return {"user_id":int(u["id"]),"name":u["name"],"grade":u["grade"],"education":education_profile.label(u),"active":bool(u["active"])} if u else None
