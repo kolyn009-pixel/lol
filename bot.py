@@ -1957,43 +1957,221 @@ def student_home_text(user=None):
     configured = bool(tid and database.timezone_configured(tid))
     time_line = f"🌍 Ваше время: {user_timezone.user_label(tid, TIMEZONE_NAME)}" if configured else "🌍 Ваше время ещё не настроено"
     return (
-        "💜 АДЕЛИЯ • ГЛАВНАЯ\n\n"
-        f"{hello} Я рядом и собрала главное в одном месте.\n\n"
+        "💜 АДЕЛИЯ • УЧЕНИК\n\n"
+        f"{hello} Всё для занятий теперь на одном экране.\n\n"
         f"{time_line}\n\n"
         "📅 Ближайшее занятие, домашнее задание и баланс всегда доступны ниже."
     )
 
 
 def student_menu(user_id=None):
+    """
+    Canonical TutorBot student home menu V3.
+
+    This is the single source of truth for the student's
+    Telegram main menu. Do not create competing home menus
+    in feature modules.
+    """
+
     rows = []
+
+    user = None
     tz_configured = False
+
     if user_id is not None:
+
         try:
-            _u = database.get_user(int(user_id))
-            tz_configured = bool(_u and _u["telegram_id"] and database.timezone_configured(int(_u["telegram_id"])))
+
+            user = database.get_user(
+                int(user_id)
+            )
+
         except Exception:
+
+            user = None
+
+
+        try:
+
+            tz_configured = bool(
+                user
+                and user["telegram_id"]
+                and database.timezone_configured(
+                    int(user["telegram_id"])
+                )
+            )
+
+        except Exception:
+
             tz_configured = False
-    if user_id is not None:
+
+
+        # ====================================================
+        # TRIAL
+        # ====================================================
+
         try:
-            if not database.has_used_trial(int(user_id)):
-                rows.append([InlineKeyboardButton("🎁 Бесплатное пробное занятие", callback_data="trial")])
+
+            from handlers import trial_ux_runtime
+
+            trial_ok = (
+                trial_ux_runtime
+                .trial_available(
+                    int(user_id)
+                )
+            )
+
         except Exception:
-            pass
+
+            try:
+
+                trial_ok = (
+                    not database.has_used_trial(
+                        int(user_id)
+                    )
+                )
+
+            except Exception:
+
+                trial_ok = False
+
+
+        if trial_ok:
+
+            rows.append([
+                InlineKeyboardButton(
+                    "🎁 Бесплатное пробное занятие",
+                    callback_data="trial",
+                )
+            ])
+
+
+        # ====================================================
+        # ACTIVE HOMEWORK
+        # ====================================================
+
         try:
-            _active_hw = database.get_student_homework(int(user_id), active_only=True)
-            if _active_hw:
-                rows.append([InlineKeyboardButton(f"▶️ Продолжить ДЗ • {len(_active_hw)}", callback_data="homework")])
+
+            active_hw = (
+                database
+                .get_student_homework(
+                    int(user_id),
+                    active_only=True,
+                )
+            )
+
         except Exception:
-            pass
+
+            active_hw = []
+
+
+        if active_hw:
+
+            rows.append([
+                InlineKeyboardButton(
+                    (
+                        "▶️ Продолжить ДЗ"
+                        f" • {len(active_hw)}"
+                    ),
+                    callback_data="homework",
+                )
+            ])
+
+
+    # ========================================================
+    # MAIN ACTIONS
+    # ========================================================
+
     rows.extend([
-        [InlineKeyboardButton("📅 Мои занятия", callback_data="lessons"), InlineKeyboardButton("📝 Домашнее задание", callback_data="homework")],
-        [InlineKeyboardButton("📚 Моя учёба", callback_data="uxs3_study"), InlineKeyboardButton("🧮 Формулы", callback_data="fh_home")],
-        [InlineKeyboardButton("💬 Написать преподавателю", callback_data="student_chat"), InlineKeyboardButton("🖥 Доска", callback_data="student_board")],
-        [InlineKeyboardButton("➕ Записаться", callback_data="booking"), InlineKeyboardButton("••• Ещё", callback_data="student_more_menu")],
-        [InlineKeyboardButton("🌍 Сменить часовой пояс" if tz_configured else "🌍 Выбрать часовой пояс", callback_data="tz_menu")],
-        [InlineKeyboardButton("🏠 Главная", callback_data="global_home")],
+
+        [
+            InlineKeyboardButton(
+                "📅 Мои занятия",
+                callback_data="lessons",
+            ),
+
+            InlineKeyboardButton(
+                "➕ Записаться",
+                callback_data="booking",
+            ),
+        ],
+
+        [
+            InlineKeyboardButton(
+                "📝 Домашнее задание",
+                callback_data="homework",
+            ),
+
+            InlineKeyboardButton(
+                "📚 Моя учёба",
+                callback_data="uxs3_study",
+            ),
+        ],
+
+        [
+            InlineKeyboardButton(
+                "🧮 Формулы",
+                callback_data="fh_home",
+            ),
+
+            InlineKeyboardButton(
+                "🖥 Доска",
+                callback_data="student_board",
+            ),
+        ],
+
+        [
+            InlineKeyboardButton(
+                "💬 Преподаватель",
+                callback_data="student_chat",
+            ),
+
+            InlineKeyboardButton(
+                "🎓 Мой профиль",
+                callback_data="student_profile",
+            ),
+        ],
+
+        [
+            InlineKeyboardButton(
+                "••• Ещё",
+                callback_data="student_more_menu",
+            )
+        ],
     ])
-    return InlineKeyboardMarkup(rows)
+
+
+    # ========================================================
+    # VK
+    # ========================================================
+
+    rows.append([
+        InlineKeyboardButton(
+            "💙 Подключить / проверить VK",
+            callback_data="vk_link_start",
+        )
+    ])
+
+
+    # ========================================================
+    # TIMEZONE
+    # ========================================================
+
+    rows.append([
+        InlineKeyboardButton(
+            (
+                "🌍 Сменить часовой пояс"
+                if tz_configured
+                else "🌍 Выбрать часовой пояс"
+            ),
+            callback_data="tz_menu",
+        )
+    ])
+
+
+    return InlineKeyboardMarkup(
+        rows
+    )
 
 
 async def show_formula_grades(query, user):
