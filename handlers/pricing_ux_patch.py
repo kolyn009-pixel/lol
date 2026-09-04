@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import database
+from telegram.ext import CallbackQueryHandler
 from handlers import review_v2, runtime_patch_v2
 
 
@@ -55,6 +56,40 @@ def _patch_review_grade():
     review_v2._no_next_cases = no_next_cases
     review_v2._case_text = case_text
     review_v2._adelia_grade_patch = True
+
+
+async def _primary_review_entry(update, context):
+    """Route every daily-review entry to the sequential review_v2 flow.
+
+    Older ux_final review screens used the ux_review_start callback and showed
+    grouped summaries. The production workflow is now review_v2: exactly one
+    actionable problem at a time, with Done / Defer-to-date / Next controls.
+    """
+    q = update.callback_query
+    if not q:
+        return
+
+    await q.answer()
+    context.user_data["mh_review_started_at"] = review_v2._now().isoformat(timespec="seconds")
+    context.user_data["mh_review_entry"] = str(q.data or "ux_review_start")
+    await review_v2._show(q, context, 0)
+
+
+def _install_primary_review_route(application):
+    if application is None:
+        return
+    if getattr(application, "_adelia_primary_review_route", False):
+        return
+
+    # Negative group makes this route win before the legacy ux_final handler.
+    application.add_handler(
+        CallbackQueryHandler(
+            _primary_review_entry,
+            pattern=r"^ux_review_start(?:\|.*)?$",
+        ),
+        group=-100,
+    )
+    application._adelia_primary_review_route = True
 
 
 def debts(limit=40):
@@ -119,6 +154,7 @@ def weekly_payment_snapshot():
 
 def install(application=None):
     _patch_review_grade()
+    _install_primary_review_route(application)
 
     try:
         from handlers import musthave_admin
