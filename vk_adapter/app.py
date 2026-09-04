@@ -14,6 +14,10 @@ API_VERSION = os.getenv("VK_API_VERSION", "5.199").strip() or "5.199"
 GROUP_ID = os.getenv("VK_GROUP_ID", "").strip()
 TOKEN = os.getenv("VK_TOKEN", "").strip()
 
+# Small per-process conversation state. It contains no business data; the
+# actual messages/requests are persisted in the shared TutorBot DB.
+_PENDING = {}
+
 
 def _http_json(url, data=None, timeout=35):
     body = None
@@ -49,28 +53,38 @@ def _button(label, command, color="secondary"):
     }
 
 
-def keyboard(linked=False):
+def keyboard(linked=False, mode="home"):
     if not linked:
         buttons = [
             [_button("🔗 Связать с Telegram", "link_help", "primary")],
             [_button("ℹ️ Как это работает", "help")],
         ]
+    elif mode == "cancel":
+        buttons = [[_button("❌ Отмена", "cancel")], [_button("🏠 Главная", "home")]]
+    elif mode == "more":
+        buttons = [
+            [_button("💳 Профиль и оплата", "profile", "primary")],
+            [_button("💬 История сообщений", "chat_history")],
+            [_button("🔗 Связь с Telegram", "linked")],
+            [_button("🏠 Главная", "home")],
+        ]
     else:
         buttons = [
-            [_button("📅 Моё расписание", "schedule", "primary")],
-            [_button("🏠 Главное меню", "home")],
-            [_button("🔗 Связь с Telegram", "linked")],
+            [_button("📅 Мои занятия", "lessons", "primary"), _button("📝 Домашнее задание", "homework")],
+            [_button("📚 Моя учёба", "study"), _button("🧮 Формулы", "formulas")],
+            [_button("💬 Преподаватель", "teacher"), _button("🖥 Доска", "board")],
+            [_button("➕ Записаться", "booking", "positive"), _button("••• Ещё", "more")],
         ]
     return json.dumps({"one_time": False, "inline": False, "buttons": buttons}, ensure_ascii=False)
 
 
-def send(peer_id, text, linked=False):
+def send(peer_id, text, linked=False, mode="home"):
     return api(
         "messages.send",
         peer_id=int(peer_id),
         random_id=random.randint(1, 2_000_000_000),
         message=str(text),
-        keyboard=keyboard(linked=linked),
+        keyboard=keyboard(linked=linked, mode=mode),
     )
 
 
@@ -84,8 +98,20 @@ def _extract_command(message):
             pass
     text = str(message.get("text") or "").strip().lower()
     mapping = {
-        "📅 моё расписание": "schedule",
+        "📅 мои занятия": "lessons",
+        "📅 моё расписание": "lessons",
+        "📝 домашнее задание": "homework",
+        "📚 моя учёба": "study",
+        "🧮 формулы": "formulas",
+        "💬 преподаватель": "teacher",
+        "🖥 доска": "board",
+        "➕ записаться": "booking",
+        "••• ещё": "more",
+        "💳 профиль и оплата": "profile",
+        "💬 история сообщений": "chat_history",
         "🏠 главное меню": "home",
+        "🏠 главная": "home",
+        "❌ отмена": "cancel",
         "🔗 связь с telegram": "linked",
         "🔗 связать с telegram": "link_help",
         "ℹ️ как это работает": "help",
@@ -94,7 +120,7 @@ def _extract_command(message):
         "start": "home",
         "/start": "home",
     }
-    return mapping.get(text, text)
+    return mapping.get(text, "")
 
 
 def _profile(vk_id):
@@ -109,6 +135,15 @@ def _profile(vk_id):
     except Exception:
         pass
     return {"display_name": None, "username": None}
+
+
+def _home(peer_id, user):
+    send(
+        peer_id,
+        f"💜 АДЕЛИЯ • ГЛАВНАЯ\n\n{user['name']}, я рядом и собрала главное в одном месте.\n\n"
+        "📅 Занятия, домашнее задание, учёба и связь с преподавателем доступны ниже.",
+        linked=True,
+    )
 
 
 def handle_message(message):
@@ -149,7 +184,7 @@ def handle_message(message):
             send(
                 peer_id,
                 "VK работает как второй вход в TutorBot.\n\n"
-                "Если ты уже зарегистрирован в Telegram, получи там одноразовый код командой /vklink и отправь его сюда.",
+                "Если ты уже зарегистрирован в Telegram, нажми там «🔗 Привязать VK» и отправь полученный код сюда.",
                 linked=False,
             )
         else:
@@ -157,29 +192,91 @@ def handle_message(message):
                 peer_id,
                 "💜 АДЕЛИЯ\n\n"
                 "Чтобы не создавать второго ученика, сначала свяжем VK с существующей карточкой TutorBot.\n"
-                "В Telegram отправь /vklink, затем пришли полученный код сюда.",
+                "В Telegram нажми «🔗 Привязать VK», затем пришли полученный код сюда.",
                 linked=False,
             )
         return
 
-    if command == "schedule":
+    # Conversation continuations. Button payloads always win over free text.
+    pending = _PENDING.get(vk_id)
+    if pending and not command:
+        _PENDING.pop(vk_id, None)
+        if pending == "teacher_message":
+            _ok, reply = service.submit_teacher_message(int(user["id"]), raw_text, source_vk_id=vk_id)
+            send(peer_id, reply, linked=True)
+            return
+        if pending == "booking":
+            _ok, reply = service.submit_booking_request(int(user["id"]), raw_text)
+            send(peer_id, reply, linked=True)
+            return
+        if pending == "formula":
+            result = service.formula_topic_text(int(user["id"]), raw_text)
+            if result:
+                send(peer_id, result, linked=True)
+            else:
+                send(peer_id, "Не нашла тему по этому названию. Нажми «🧮 Формулы» и попробуй название из списка.", linked=True)
+            return
+
+    if command == "cancel":
+        _PENDING.pop(vk_id, None)
+        send(peer_id, "Хорошо, действие отменено 💜", linked=True)
+        return
+    if command in ("home", ""):
+        _home(peer_id, user)
+        return
+    if command == "lessons":
         send(peer_id, service.upcoming_text(int(user["id"])), linked=True)
+        return
+    if command == "homework":
+        send(peer_id, service.homework_text(int(user["id"])), linked=True)
+        return
+    if command == "study":
+        send(peer_id, service.study_text(int(user["id"])), linked=True)
+        return
+    if command == "formulas":
+        _PENDING[vk_id] = "formula"
+        send(peer_id, service.formulas_text(int(user["id"])), linked=True, mode="cancel")
+        return
+    if command == "board":
+        send(peer_id, service.board_text(int(user["id"])), linked=True)
+        return
+    if command == "teacher":
+        _PENDING[vk_id] = "teacher_message"
+        send(
+            peer_id,
+            service.message_history_text(int(user["id"]))
+            + "\n\n✍️ Напиши следующим сообщением текст для преподавателя.",
+            linked=True,
+            mode="cancel",
+        )
+        return
+    if command == "chat_history":
+        send(peer_id, service.message_history_text(int(user["id"])), linked=True, mode="more")
+        return
+    if command == "booking":
+        _PENDING[vk_id] = "booking"
+        send(
+            peer_id,
+            "➕ ЗАПИСАТЬСЯ\n\nНапиши следующим сообщением желаемый день, время и предмет.\n"
+            "Например: «Физика, вторник после 17:00». Я передам запрос преподавателю.",
+            linked=True,
+            mode="cancel",
+        )
+        return
+    if command in ("more", "profile"):
+        send(peer_id, service.more_text(int(user["id"])), linked=True, mode="more")
         return
     if command == "linked":
         send(
             peer_id,
             f"✅ VK связан с карточкой «{user['name']}».\n"
-            "Telegram и VK используют одну базу занятий и оплат.",
+            "Telegram и VK используют одну базу занятий, оплат, ДЗ и сообщений.",
             linked=True,
+            mode="more",
         )
         return
 
-    send(
-        peer_id,
-        f"💜 {user['name']}, привет!\n\n"
-        "VK подключён к твоему TutorBot. Выбери действие кнопками ниже.",
-        linked=True,
-    )
+    _home(peer_id, user)
 
 
 def long_poll_server():
