@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CommandHandler
+from telegram.ext import CallbackQueryHandler, CommandHandler
 
 import database
 from . import schema, lesson_link_bridge
 
 
-async def vklink_cmd(update, context):
+async def _send_link_code(update, context):
     tg_id = int(update.effective_user.id)
     c = database.connect()
     try:
@@ -18,14 +18,16 @@ async def vklink_cmd(update, context):
     finally:
         c.close()
 
+    target = update.callback_query.message if update.callback_query else update.message
+
     if not user:
-        await update.message.reply_text(
+        await target.reply_text(
             "Сначала завершите регистрацию ученика в TutorBot."
         )
         return
 
     code = schema.create_link_code(int(user["id"]), minutes=15)
-    await update.message.reply_text(
+    await target.reply_text(
         "🔗 ПОДКЛЮЧЕНИЕ VK\n\n"
         "Откройте сообщения сообщества Аделии во ВКонтакте и отправьте туда этот код:\n\n"
         f"{code}\n\n"
@@ -37,7 +39,50 @@ async def vklink_cmd(update, context):
     )
 
 
+async def vklink_cmd(update, context):
+    await _send_link_code(update, context)
+
+
+async def vklink_callback(update, context):
+    await update.callback_query.answer()
+    await _send_link_code(update, context)
+
+
+def _install_student_menu_patch():
+    import bot as bot_module
+
+    original = getattr(bot_module, "student_menu", None)
+    if not callable(original):
+        return
+    if getattr(original, "_vk_link_button_installed", False):
+        return
+
+    def student_menu_with_vk(user_id=None):
+        markup = original(user_id)
+        if markup is None:
+            return markup
+
+        rows = [list(row) for row in markup.inline_keyboard]
+        if not any(
+            button.callback_data == "vk_link_start"
+            for row in rows
+            for button in row
+        ):
+            rows.append([
+                InlineKeyboardButton(
+                    "🔗 Привязать VK",
+                    callback_data="vk_link_start",
+                )
+            ])
+        return InlineKeyboardMarkup(rows)
+
+    student_menu_with_vk._vk_link_button_installed = True
+    bot_module.student_menu = student_menu_with_vk
+
+
 def register(application):
     schema.initialize()
     lesson_link_bridge.install()
+    _install_student_menu_patch()
     application.add_handler(CommandHandler("vklink", vklink_cmd))
+    application.add_handler(CallbackQueryHandler(vklink_callback, pattern=r"^vk_link_start$"))
