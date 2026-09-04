@@ -1896,26 +1896,94 @@ async def show_students(
                 keyboard.append([InlineKeyboardButton('🕘 НЕДАВНИЕ',callback_data='ux_noop')])
                 for u in recent: keyboard.append([InlineKeyboardButton(f"🕘 {u['name']} • {u['grade']} кл.",callback_data=f"student_view|{u['id']}")])
         except Exception: pass
-        for r in rows:
+        # ШКОЛА: считаем только школьников.
+        conn = database.connect()
+        try:
+            school_rows = conn.execute(
+                """
+                SELECT
+                    grade,
+                    COUNT(*) AS total
+                FROM users
+                WHERE active=1
+                  AND COALESCE(education_type, 'SCHOOL') != 'COLLEGE'
+                GROUP BY grade
+                ORDER BY CAST(grade AS INTEGER)
+                """
+            ).fetchall()
+
+            college_rows = conn.execute(
+                """
+                SELECT
+                    CAST(COALESCE(education_level, 1) AS INTEGER) AS course,
+                    COUNT(*) AS total
+                FROM users
+                WHERE active=1
+                  AND education_type='COLLEGE'
+                GROUP BY CAST(COALESCE(education_level, 1) AS INTEGER)
+                ORDER BY course
+                """
+            ).fetchall()
+        finally:
+            conn.close()
+
+        if school_rows:
             keyboard.append([
                 InlineKeyboardButton(
-                    f"🎓 {r['grade']} класс • {r['total']}",
-                    callback_data=f"admin_students_grade|{r['grade']}"
+                    "🏫 ШКОЛА",
+                    callback_data="ux_noop",
                 )
             ])
+
+            for r in school_rows:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"🎓 {r['grade']} класс • {r['total']}",
+                        callback_data=f"admin_students_grade|{r['grade']}",
+                    )
+                ])
+
+        if college_rows:
+            keyboard.append([
+                InlineKeyboardButton(
+                    "🏫 КОЛЛЕДЖ",
+                    callback_data="ux_noop",
+                )
+            ])
+
+            for r in college_rows:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"📚 {r['course']} курс • {r['total']}",
+                        callback_data=f"admin_students_college|{r['course']}",
+                    )
+                ])
         keyboard.extend([[InlineKeyboardButton('🔎 Найти ученика',callback_data='crm_search')],[InlineKeyboardButton(f'🚫 Заблокированные • {blocked}',callback_data='mh_blocked_students')],[InlineKeyboardButton('⬅️ Админка',callback_data='admin_main'),InlineKeyboardButton('🏠 Главная',callback_data='global_home')]])
         await query.edit_message_text(
             f"👥 УЧЕНИКИ\n\n"
             f"Учеников: {active}\n\n"
-            f"Выберите класс:",
+            f"Выберите класс или курс:",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
         return
 
-    users=database.get_users_by_grade(
-        grade_filter,
-        active_only=True,
+    users = list(
+        database.get_users_by_grade(
+            grade_filter,
+            active_only=True,
+        )
     )
+
+    users = [
+        u
+        for u in users
+        if str(
+            u["education_type"]
+            if "education_type" in u.keys()
+            and u["education_type"]
+            else "SCHOOL"
+        ).upper() != "COLLEGE"
+    ]
 
     keyboard=[
         [
@@ -1942,6 +2010,49 @@ async def show_student(
     if user is None:
         return
 
+    education_type = str(
+        user["education_type"]
+        if "education_type" in user.keys()
+        and user["education_type"]
+        else "SCHOOL"
+    ).upper()
+
+    education_level = (
+        user["education_level"]
+        if "education_level" in user.keys()
+        else None
+    )
+
+    if education_type == "COLLEGE":
+        try:
+            college_course = int(
+                education_level or 1
+            )
+        except Exception:
+            college_course = 1
+
+        education_label = (
+            f"{college_course} курс колледжа"
+        )
+    else:
+        education_label = (
+            f"{user['grade']} класс"
+        )
+
+    def program_display_title(program):
+        subject_label = SUBJECT_NAMES.get(
+            program["subject"],
+            program["subject"],
+        )
+
+        if education_type == "COLLEGE":
+            return f"Колледж • {subject_label}"
+
+        return program_title(
+            program["study_goal"],
+            program["subject"],
+        )
+
     programs = (
         database.get_student_programs(
             user_id,
@@ -1954,7 +2065,7 @@ async def show_student(
         "👤 КАРТОЧКА УЧЕНИКА\n\n"
 
         f"Имя: {user['name']}\n"
-        f"🎓 {user['grade']} класс\n"
+        f"🎓 {education_label}\n"
 
         f"Telegram: "
         f"@{user['telegram_username'] or '—'}\n"
@@ -2022,7 +2133,7 @@ async def show_student(
 
             text += (
                 f"\n{index}. {primary_icon}"
-                f"{program_title(program['study_goal'], program['subject'])}\n"
+                f"{program_display_title(program)}\n"
                 f"   💰 {rate_text}"
             )
 
@@ -2071,6 +2182,18 @@ async def show_student(
 
     keyboard = []
 
+    # Education management — canonical admin student card.
+    keyboard.append([
+        InlineKeyboardButton(
+            "🎓 Школа / колледж",
+            callback_data=f"edu_profile|{user_id}",
+        ),
+        InlineKeyboardButton(
+            "📚 Направления",
+            callback_data=f"edu_programs|{user_id}",
+        ),
+    ])
+
     for program in active_programs:
 
         icon = (
@@ -2083,7 +2206,7 @@ async def show_student(
             InlineKeyboardButton(
                 (
                     f"{icon} "
-                    f"{program_title(program['study_goal'], program['subject'])}"
+                    f"{program_display_title(program)}"
                 ),
                 callback_data=(
                     f"admin_program|{program['id']}"
@@ -2227,6 +2350,63 @@ async def show_program(
 
         return
 
+    user = database.get_user(
+        int(program["user_id"])
+    )
+
+    if user is None:
+        await query.answer(
+            "Ученик не найден.",
+            show_alert=True,
+        )
+        return
+
+    education_type = str(
+        user["education_type"]
+        if "education_type" in user.keys()
+        and user["education_type"]
+        else "SCHOOL"
+    ).upper()
+
+    education_level = (
+        user["education_level"]
+        if "education_level" in user.keys()
+        else None
+    )
+
+    if education_type == "COLLEGE":
+
+        try:
+            course = int(
+                education_level or 1
+            )
+        except Exception:
+            course = 1
+
+        education_label = (
+            f"{course} курс колледжа"
+        )
+
+        subject_label = SUBJECT_NAMES.get(
+            program["subject"],
+            program["subject"],
+        )
+
+        program_label = (
+            f"Колледж • {subject_label}"
+        )
+
+    else:
+
+        education_label = (
+            f"{user['grade']} класс"
+        )
+
+        program_label = program_title(
+            program["study_goal"],
+            program["subject"],
+        )
+
     rate_info = (
         database.get_program_rate_info(
             program_id
@@ -2249,10 +2429,9 @@ async def show_program(
         "📚 НАПРАВЛЕНИЕ УЧЕНИКА\n\n"
 
         f"👤 {program['name']}\n"
-        f"🎓 {program['grade']} класс\n\n"
+        f"🎓 {education_label}\n\n"
 
-        f"📚 "
-        f"{program_title(program['study_goal'], program['subject'])}\n"
+        f"📚 {program_label}\n"
 
         f"Статус: "
         f"{program_status_name(program['approval_status'])}\n"
@@ -2278,6 +2457,20 @@ async def show_program(
     )
 
     keyboard = [
+        [
+            InlineKeyboardButton(
+                "🎓 Школа / колледж",
+                callback_data=(
+                    f"edu_profile|{program['user_id']}"
+                ),
+            ),
+            InlineKeyboardButton(
+                "📚 Все направления",
+                callback_data=(
+                    f"edu_programs|{program['user_id']}"
+                ),
+            ),
+        ],
 
         [
             InlineKeyboardButton(
@@ -7400,6 +7593,70 @@ async def admin_buttons(
         await show_students(
             query,
             grade_filter=grade,
+        )
+
+        return
+
+
+    if data.startswith(
+        "admin_students_college|"
+    ):
+
+        course = int(
+            data.split("|")[1]
+        )
+
+        conn = database.connect()
+
+        try:
+            users = conn.execute(
+                """
+                SELECT *
+                FROM users
+                WHERE active=1
+                  AND education_type='COLLEGE'
+                  AND CAST(
+                      COALESCE(education_level, 1)
+                      AS INTEGER
+                  )=?
+                ORDER BY name
+                """,
+                (course,),
+            ).fetchall()
+        finally:
+            conn.close()
+
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f"👤 {u['name']}",
+                    callback_data=(
+                        f"admin_student|{u['id']}"
+                    ),
+                )
+            ]
+            for u in users
+        ]
+
+        keyboard.append([
+            InlineKeyboardButton(
+                "⬅️ К ученикам",
+                callback_data="admin_students",
+            ),
+            InlineKeyboardButton(
+                "🏠 Главная",
+                callback_data="global_home",
+            ),
+        ])
+
+        await query.edit_message_text(
+            (
+                f"🏫 {course} КУРС КОЛЛЕДЖА"
+                f" • {len(users)} УЧЕНИКОВ"
+            ),
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            ),
         )
 
         return

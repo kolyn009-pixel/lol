@@ -28,7 +28,7 @@ def keyboard(linked=False,mode="home",data=None):
  if mode=="teacher_student":
   uid=int(data["user_id"]);return _keyboard_rows([[_button("📝 Задать ДЗ",f"t_hw_user|{uid}","primary"),_button("💬 Написать",f"t_msg_user|{uid}")],[_button("👥 Ученики","t_students"),_button("🏠 Главная","t_home")]])
  if mode=="teacher_lesson":
-  lid=int(data["lesson_id"]);uid=int(data["user_id"]);return _keyboard_rows([[_button("🎥 Отправить ссылку",f"t_sendlink|{lid}","positive")],[_button("📝 Задать ДЗ",f"t_hw_user|{uid}")],[_button("📅 Сегодня","t_today"),_button("🏠 Главная","t_home")]])
+  lid=int(data["lesson_id"]);uid=int(data["user_id"]);return _keyboard_rows([[_button("🎥 Отправить ссылку",f"t_sendlink|{lid}","positive")],[_button("⏹ Завершить занятие",f"t_finish|{lid}","negative")],[_button("📝 Задать ДЗ",f"t_hw_user|{uid}")],[_button("📅 Сегодня","t_today"),_button("🏠 Главная","t_home")]])
  if mode=="college_courses":
   courses=data.get("courses",[]);current=data.get("current");rows=[]
   for course in courses:
@@ -166,6 +166,14 @@ def _handle_teacher(p,v,c,raw,attachments=None):
   uid=int(c.split("|",1)[1]);u=database.get_user(uid);send(p,f"👤 {u['name']} · {u['grade']} класс",True,"teacher_student",{"user_id":uid});return
  if c.startswith("t_lesson|"):
   lid=int(c.split("|",1)[1]);l=database.get_lesson(lid);u=database.get_user(int(l['user_id']));send(p,f"🎓 ЗАНЯТИЕ\n\n👤 {u['name']}\n🕐 {str(l['start_time'])[11:16]}",True,"teacher_lesson",{"lesson_id":lid,"user_id":int(u['id'])});return
+ if c.startswith("t_finish|"):
+  lid=int(c.split("|",1)[1])
+  try:
+   result=database.finish_lesson(lid)
+   send(p,f"✅ Занятие завершено.\n\n⏱ Фактически: {result['actual_minutes']} мин\n⏳ Недоработано: {result['underworked_minutes']} мин\n🎁 Бонус ученику: {result['bonus_minutes_awarded']} мин",True,"teacher")
+  except Exception as exc:
+   send(p,f"❌ Не удалось завершить занятие: {exc}",True,"teacher")
+  return
  if c.startswith("t_sendlink|"):_PENDING[v]=("t_link",int(c.split("|",1)[1]));send(p,"🎥 Пришли следующим сообщением ссылку на Телемост.",True,"teacher");return
  if c.startswith("t_hw_user|"):_PENDING[v]=("t_hw",int(c.split("|",1)[1]));send(p,"📝 Пришли текст ДЗ и/или прикрепи фото/файл. Всё уйдёт ученику в Telegram и VK.",True,"teacher");return
  if c.startswith("t_msg_user|"):_PENDING[v]=("t_msg",int(c.split("|",1)[1]));send(p,"💬 Пришли текст, фото или файл ученику.",True,"teacher");return

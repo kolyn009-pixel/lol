@@ -16,7 +16,6 @@ async def student_view(update, context):
     if not q:
         return
 
-    # Карточка ученика — только для преподавателя / админа.
     if not admin_roles.is_admin_id(
         q.from_user.id
     ):
@@ -25,45 +24,31 @@ async def student_view(update, context):
     await q.answer()
 
     try:
-
         user_id = int(
-            q.data.split(
-                "|",
-                1
-            )[1]
+            q.data.split("|", 1)[1]
         )
-
     except Exception:
-
         raise ApplicationHandlerStop
 
-
     print(
-        "ADMIN STUDENT ROUTER:",
+        "ADMIN_STUDENT_V4:",
+        q.from_user.id,
+        "user_id=",
         user_id,
-        "-> students_admin.show_student"
+        flush=True,
     )
 
-
-    # Единственный канонический экран карточки.
     await students_admin.show_student(
         q,
         user_id,
     )
 
-
-    # КРИТИЧЕСКИ:
-    # никакой handler из group 0 / 999 после этого
-    # не имеет права снова перерисовать student_view.
     raise ApplicationHandlerStop
 
 
-def install(application):
+def handler():
 
-    application.add_handler(
-        CallbackQueryHandler(
-            student_view,
-            pattern=r"^student_view\|",
-        ),
-        group=-168,
+    return CallbackQueryHandler(
+        student_view,
+        pattern=r"^student_view\|",
     )

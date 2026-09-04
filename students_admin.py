@@ -528,7 +528,7 @@ async def show_student(
     )
 
     text = (
-        "👤 КАРТОЧКА УЧЕНИКА\n\n"
+        "👤 КАРТОЧКА УЧЕНИКА • V4\n\n"
 
         f"Имя: {user['name']}\n"
         f"🎓 Класс: {user['grade']}\n"

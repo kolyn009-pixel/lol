@@ -80,6 +80,7 @@ from handlers import adelia_content
 from handlers import student_message_handlers
 from handlers import message_center_handlers
 from handlers import global_home_handlers
+from handlers import admin_student_router
 from handlers import timezone_handlers
 from final_features import schema as final_schema
 from final_features import curriculum_full as final_curriculum
@@ -8874,6 +8875,23 @@ async def cancel_registration(
     )
 
 
+
+async def callback_probe(update, context):
+    q = update.callback_query
+
+    if not q:
+        return
+
+    print(
+        "CALLBACK_PROBE:",
+        "from=",
+        q.from_user.id if q.from_user else None,
+        "data=",
+        repr(q.data),
+        flush=True,
+    )
+
+
 # ============================================================
 # MAIN
 # ============================================================
@@ -8932,10 +8950,22 @@ def main():
     # ========================================================
     # Routing runs before maintenance so tester updates use the isolated DB.
     app.add_handler(MessageHandler(filters.ALL, core_test_lab.route_update), group=-200)
+    app.add_handler(
+        CallbackQueryHandler(callback_probe),
+        group=-1000,
+    )
+
     app.add_handler(CallbackQueryHandler(core_test_lab.route_callback), group=-200)
     for _h in core_test_lab.management_handlers():
         app.add_handler(_h, group=-190)
     app.add_handler(TypeHandler(Update, blocked_student_guard), group=-185)
+    # Canonical admin student card.
+    # Must run before every legacy/default callback handler.
+    app.add_handler(
+        admin_student_router.handler(),
+        group=-181,
+    )
+
     for _h in global_home_handlers.handlers():
         app.add_handler(_h, group=-180)
     for _h in timezone_handlers.handlers():

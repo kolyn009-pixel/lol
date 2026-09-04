@@ -501,7 +501,12 @@ def _ending_lessons():
 
                     l.id,
                     l.user_id,
+
+                    l.start_time,
                     l.end_time,
+                    l.started_at,
+                    l.duration_minutes,
+
                     l.subject,
 
                     u.name,
@@ -513,19 +518,18 @@ def _ending_lessons():
                   ON u.id=l.user_id
 
                 WHERE
-                    l.lesson_status=
-                    'IN_PROGRESS'
+                    l.lesson_status='IN_PROGRESS'
 
                   AND
-                    l.cancelled_at
-                    IS NULL
+                    l.cancelled_at IS NULL
 
                   AND
-                    l.end_time
-                    IS NOT NULL
+                    l.started_at IS NOT NULL
 
-                ORDER BY
-                    l.end_time
+                  AND
+                    l.end_time IS NOT NULL
+
+                ORDER BY l.end_time
             """).fetchall()
         )
 
@@ -545,43 +549,86 @@ def _send_ending(
 
     sent = 0
 
-    for lesson in (
-        _ending_lessons()
-    ):
+    for lesson in _ending_lessons():
 
         try:
 
-            end = _lesson_dt(
-                lesson[
-                    "end_time"
-                ]
+            plan_start = _lesson_dt(
+                lesson["start_time"]
+            )
+
+            plan_end = _lesson_dt(
+                lesson["end_time"]
+            )
+
+            actual_start = _lesson_dt(
+                lesson["started_at"]
+            )
+
+            duration = int(
+                lesson["duration_minutes"]
+                or round(
+                    (
+                        plan_end
+                        - plan_start
+                    ).total_seconds()
+                    / 60
+                )
+            )
+
+            from datetime import timedelta
+
+            actual_end = (
+                actual_start
+                + timedelta(
+                    minutes=duration
+                )
             )
 
         except Exception:
 
             continue
 
+        delta = round(
+            (
+                actual_start
+                - plan_start
+            ).total_seconds()
+            / 60
+        )
+
+        late = max(
+            delta,
+            0,
+        )
+
+        early = max(
+            -delta,
+            0,
+        )
+
+        notification_end = (
+            actual_end
+            if actual_start < plan_start
+            else plan_end
+        )
 
         seconds = (
-            end - now
+            notification_end
+            - now
         ).total_seconds()
 
-
         if not (
-            0
-            <= seconds
-            <= 5 * 60
+            0 <= seconds <= 5 * 60
         ):
 
             continue
 
-
         key = (
-            "lesson_end5:"
+            "lesson_smart_end5:"
             f"{lesson['id']}:"
-            f"{end:%Y%m%d%H%M}"
+            f"{notification_end:%Y%m%d%H%M}"
         )
-
 
         if not _claim(
             key
@@ -589,23 +636,54 @@ def _send_ending(
 
             continue
 
-
         text = (
             "⏳ ДО КОНЦА ЗАНЯТИЯ 5 МИНУТ\n\n"
-
             f"👤 {lesson['name']}\n"
-
-            f"📖 "
-            f"{_subject(lesson['subject'])}\n"
-
-            f"🕐 По плану до {end:%H:%M}"
-
-            f"{_board_line(lesson['board_url'])}"
-
-            "\n\nМожно подводить итог "
-            "и подготовить домашнее задание."
+            f"📖 {_subject(lesson['subject'])}\n\n"
+            f"📅 План: "
+            f"{plan_start:%H:%M}"
+            "–"
+            f"{plan_end:%H:%M}\n"
+            f"▶️ Фактически начали: "
+            f"{actual_start:%H:%M}\n"
         )
 
+        if early:
+
+            text += (
+                f"⏹ Полное время закончится: "
+                f"{actual_end:%H:%M}\n"
+                f"✅ Начали раньше на "
+                f"{early} мин."
+            )
+
+        elif late:
+
+            text += (
+                f"🕐 По расписанию до: "
+                f"{plan_end:%H:%M}\n"
+                f"⏱ Полные {duration} минут: "
+                f"до {actual_end:%H:%M}\n"
+                f"⚠️ Нужно задержаться на "
+                f"{late} мин."
+            )
+
+        else:
+
+            text += (
+                f"⏹ Окончание: "
+                f"{plan_end:%H:%M}"
+            )
+
+        text += _board_line(
+            lesson["board_url"]
+        )
+
+        text += (
+            "\n\nВ Telegram доступны быстрые действия: "
+            "завершить сейчас, завершить по расписанию "
+            "и подтвердить предупреждение следующему ученику."
+        )
 
         for peer in peers:
 
@@ -615,7 +693,6 @@ def _send_ending(
             )
 
             sent += 1
-
 
     return sent
 
