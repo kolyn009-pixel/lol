@@ -133,11 +133,12 @@ def _payment_text(lesson, reminder_type):
         amount = int(effective_pricing.effective_lesson_price(lesson))
     except Exception:
         amount = int(lesson["price"] or 0)
+    amount_text = f"{amount:,}".replace(",", " ")
     tail = "До занятия осталось меньше суток." if reminder_type == "PAYMENT_24H" else "До занятия осталось около 8 часов."
     return (
         "💳 Небольшое напоминание об оплате 💜\n\n"
         f"📅 {start.strftime('%d.%m.%Y в %H:%M')}\n"
-        f"💰 {amount:,} ₽\n\n".replace(",", " ")
+        f"💰 {amount_text} ₽\n\n"
         f"{tail}\n\n"
         "Пожалуйста, подтверди оплату не позднее чем за 2 часа до занятия."
     )
