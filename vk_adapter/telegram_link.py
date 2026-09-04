@@ -84,5 +84,8 @@ def register(application):
     schema.initialize()
     lesson_link_bridge.install()
     _install_student_menu_patch()
-    application.add_handler(CommandHandler("vklink", vklink_cmd))
-    application.add_handler(CallbackQueryHandler(vklink_callback, pattern=r"^vk_link_start$"))
+    application.add_handler(CommandHandler("vklink", vklink_cmd), group=-100)
+    application.add_handler(
+        CallbackQueryHandler(vklink_callback, pattern=r"^vk_link_start$"),
+        group=-100,
+    )
