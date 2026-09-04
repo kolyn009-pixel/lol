@@ -44,7 +44,7 @@ def today_lessons(limit=12):
     try:
         rows = c.execute(
             """
-            SELECT l.id,l.user_id,l.start_time,l.duration,l.subject,l.lesson_status,u.name
+            SELECT l.id,l.user_id,l.start_time,l.subject,l.lesson_status,u.name
             FROM lessons l JOIN users u ON u.id=l.user_id
             WHERE l.start_time>=? AND l.start_time<?
               AND l.cancelled_at IS NULL

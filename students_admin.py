@@ -1376,17 +1376,70 @@ async def show_homework(
             f"{homework['source_reference']}"
         )
 
-    keyboard = [
-        [
+    try:
+        import homework_attachments
+
+        attachment_count = (
+            homework_attachments
+            .count_for_homework(
+                homework_id
+            )
+        )
+
+    except Exception as exc:
+
+        print(
+            "HOMEWORK ATTACHMENT COUNT ERROR:",
+            repr(exc),
+        )
+
+        attachment_count = 0
+
+
+    if attachment_count:
+
+        text += (
+            "\n\n📎 Вложения: "
+            f"{attachment_count}"
+        )
+
+
+    keyboard = []
+
+
+    if attachment_count:
+
+        keyboard.append([
             InlineKeyboardButton(
-                "⬅️ Все ДЗ ученика",
+                "📎 Показать вложения",
                 callback_data=(
-                    f"student_homeworks|"
-                    f"{user['id']}"
+                    f"student_homework_files|"
+                    f"{homework_id}"
                 )
             )
-        ]
-    ]
+        ])
+
+        keyboard.append([
+            InlineKeyboardButton(
+                "📤 Отправить ученику ещё раз",
+                callback_data=(
+                    f"student_homework_resend|"
+                    f"{homework_id}"
+                )
+            )
+        ])
+
+
+    keyboard.append([
+        InlineKeyboardButton(
+            "⬅️ Все ДЗ ученика",
+            callback_data=(
+                f"student_homeworks|"
+                f"{user['id']}"
+            )
+        )
+    ])
+
 
     await query.edit_message_text(
         text,
@@ -2122,6 +2175,83 @@ async def students_buttons(
 
 
     # ========================================================
+    # HOMEWORK ATTACHMENTS
+    # ========================================================
+
+    if data.startswith(
+        "student_homework_files|"
+    ):
+
+        homework_id = int(
+            data.split("|")[1]
+        )
+
+        import homework_attachments
+
+        sent = (
+            homework_attachments
+            .send_to_admin_telegram(
+                homework_id,
+                query.message.chat_id,
+                (
+                    "📎 Вложения "
+                    f"ДЗ #{homework_id}"
+                ),
+            )
+        )
+
+        if sent:
+
+            await query.message.reply_text(
+                (
+                    "✅ Вложения отправлены сюда.\n"
+                    f"Файлов: {sent}"
+                )
+            )
+
+        else:
+
+            await query.message.reply_text(
+                "⚠️ Вложения сейчас недоступны."
+            )
+
+        return
+
+
+    if data.startswith(
+        "student_homework_resend|"
+    ):
+
+        homework_id = int(
+            data.split("|")[1]
+        )
+
+        import homework_attachments
+
+        result = (
+            homework_attachments
+            .resend_to_student(
+                homework_id,
+                (
+                    "📝 Повторная отправка "
+                    f"вложений ДЗ #{homework_id}"
+                ),
+            )
+        )
+
+        await query.message.reply_text(
+            (
+                "📤 Вложения отправлены повторно.\n\n"
+                f"Telegram: {result['telegram']}\n"
+                f"VK: {result['vk']}\n"
+                f"Всего вложений: {result['count']}"
+            )
+        )
+
+        return
+
+
+    # ========================================================
     # HOMEWORK VIEW
     # ========================================================
 
@@ -2248,6 +2378,6 @@ def get_students_callback_handler():
         students_buttons,
 
         pattern=(
-            r"^(?:student_grade\||student_homeworks\||student_view\|)"
+            r"^(?:student_grade\||student_homeworks\||student_homework_view\||student_homework_files\||student_homework_resend\||student_view\|)"
         )
     )

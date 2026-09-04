@@ -40,7 +40,7 @@ def _upcoming(minutes=20):
     try:
         return list(c.execute(
             """
-            SELECT l.id,l.start_time,l.subject,l.duration,u.name
+            SELECT l.id,l.start_time,l.subject,u.name
             FROM lessons l JOIN users u ON u.id=l.user_id
             WHERE l.start_time>=? AND l.start_time<=?
               AND l.cancelled_at IS NULL
