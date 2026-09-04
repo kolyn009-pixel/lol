@@ -183,6 +183,12 @@ def handle_message(m):
  if raw.upper().replace(" ","").startswith("ADELIA-"):
   pr=_profile(v);uid,error=schema.consume_link_code(raw,"VK",str(v),pr.get("username"),pr.get("display_name"));send(p,"❌ "+error if error else f"✅ VK подключён к TutorBot.\n\nТеперь это одна карточка ученика: {database.get_user(int(uid))['name']}.",not bool(error));return
  if not u:send(p,"💜 АДЕЛИЯ\n\nДля ученика: получи код «🔗 Привязать VK» в Telegram.\nДля преподавателя: используй /vkadminlink в Telegram.",False);return
+ if c.startswith("trial_keep_slot|"):
+  from handlers import trial_ux_runtime
+  lesson_id=int(c.split("|",1)[1])
+  ok,text=trial_ux_runtime.create_same_time_request(int(u["id"]),lesson_id)
+  send(p,text,True)
+  return
  pending=_PENDING.get(v)
  if pending and not c:
   _PENDING.pop(v,None);uid=int(u['id'])

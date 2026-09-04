@@ -730,6 +730,13 @@ async def show_student(
 
     keyboard = []
 
+    keyboard.append([
+        InlineKeyboardButton(
+            "🎓 Обучение и направления",
+            callback_data=f"edu_programs|{user_id}",
+        )
+    ])
+
     # Направления остаются сверху: это главный контекст ученика.
     for program in active_programs:
         keyboard.append([

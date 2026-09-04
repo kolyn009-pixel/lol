@@ -86,6 +86,9 @@ def register(application):
     from handlers import education_runtime
     education_runtime.install(application)
 
+    from handlers import trial_ux_runtime
+    trial_ux_runtime.install(application)
+
     from handlers import college_curriculum_handlers
     college_curriculum_handlers.install(application)
 
