@@ -36,6 +36,15 @@ def admin_reply_markup(student_id:int, inbox_id:int|None=None):
     return InlineKeyboardMarkup(rows)
 
 
+def _mirror_vk(student_id:int, text:str):
+    try:
+        from vk_adapter.channel_delivery import send_vk
+        return bool(send_vk(int(student_id), text))
+    except Exception as exc:
+        print('CRM VK MIRROR ERROR:',repr(exc))
+        return False
+
+
 async def notify_admins(context, student_id:int, body:str, created_at:str, inbox_id:int|None=None, delayed:bool=False):
     user=database.get_user(int(student_id))
     name=user['name'] if user else f'Ученик #{student_id}'
@@ -51,6 +60,19 @@ async def notify_admins(context, student_id:int, body:str, created_at:str, inbox
             pass
 
 
+def _notify_vk_teacher(student_id:int, body:str, delayed=False):
+    try:
+        from vk_adapter import app as vk_app, schema as vk_schema
+        user=database.get_user(int(student_id))
+        name=user['name'] if user else f'Ученик #{student_id}'
+        prefix='💬 Новое сообщение' if not delayed else '💬 Отложенное сообщение'
+        text=f"{prefix} от {name}\n\n{body}\n\nОткрой «💬 Сообщения» в меню преподавателя."
+        for peer in vk_schema.get_admin_external_ids('VK'):
+            vk_app.send(int(peer),text,linked=True,mode='teacher')
+    except Exception as exc:
+        print('CRM VK TEACHER NOTIFY ERROR:',repr(exc))
+
+
 async def send_teacher_message(context, student_id:int, text:str, admin_id:int|None=None, target:str='STUDENT', force_now:bool=False):
     """Send or queue a teacher message. Returns a status dict."""
     schema.initialize()
@@ -63,16 +85,20 @@ async def send_teacher_message(context, student_id:int, text:str, admin_id:int|N
 
     user=database.get_user(uid)
     sent=0
-    if target in ('STUDENT','ALL') and user and user['telegram_id']:
-        try:
-            await context.bot.send_message(
-                int(user['telegram_id']),
-                f"👨‍🏫 Сообщение от преподавателя\n\n{text}",
-                reply_markup=student_reply_markup(uid),
-            )
+    student_text=f"👨‍🏫 Сообщение от преподавателя\n\n{text}"
+    if target in ('STUDENT','ALL'):
+        if user and user['telegram_id']:
+            try:
+                await context.bot.send_message(
+                    int(user['telegram_id']),
+                    student_text,
+                    reply_markup=student_reply_markup(uid),
+                )
+                sent+=1
+            except Exception:
+                pass
+        if _mirror_vk(uid,student_text):
             sent+=1
-        except Exception:
-            pass
     if target in ('PARENTS','ALL'):
         for tid in service.parent_ids(uid):
             try:
@@ -116,7 +142,6 @@ async def delivery_job(context):
         delivered_inbound.append(row)
 
     if delivered_inbound:
-        # One calm digest after a lesson/reception pause instead of a burst of notifications.
         lines=['🔔 ПОКА ВЫ БЫЛИ ЗАНЯТЫ','',f'💬 Новых сообщений: {len(delivered_inbound)}','']
         for row in delivered_inbound[:8]:
             u=database.get_user(int(row['student_id'])); name=u['name'] if u else f"Ученик #{row['student_id']}"
@@ -126,13 +151,18 @@ async def delivery_job(context):
             if not a['active'] or not a['telegram_id']:continue
             try: await context.bot.send_message(int(a['telegram_id']),'\n'.join(lines),reply_markup=kb)
             except Exception: pass
+        for row in delivered_inbound:
+            _notify_vk_teacher(int(row['student_id']),str(row['body']),delayed=True)
 
     for row in outbound:
         uid=int(row['student_id']); user=database.get_user(uid); sent=0; target=row['target'] or 'STUDENT'
-        if target in ('STUDENT','ALL') and user and user['telegram_id']:
-            try:
-                await context.bot.send_message(int(user['telegram_id']),f"👨‍🏫 Сообщение от преподавателя\n\n{row['body']}",reply_markup=student_reply_markup(uid)); sent+=1
-            except Exception: pass
+        student_text=f"👨‍🏫 Сообщение от преподавателя\n\n{row['body']}"
+        if target in ('STUDENT','ALL'):
+            if user and user['telegram_id']:
+                try:
+                    await context.bot.send_message(int(user['telegram_id']),student_text,reply_markup=student_reply_markup(uid)); sent+=1
+                except Exception: pass
+            if _mirror_vk(uid,student_text): sent+=1
         if target in ('PARENTS','ALL'):
             for tid in service.parent_ids(uid):
                 try: await context.bot.send_message(int(tid),f"👨‍🏫 Сообщение преподавателя\n\n{row['body']}"); sent+=1
