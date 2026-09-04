@@ -4,7 +4,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler
 
 import database
-from . import schema
+from . import schema, lesson_link_bridge
 
 
 async def vklink_cmd(update, context):
@@ -39,4 +39,5 @@ async def vklink_cmd(update, context):
 
 def register(application):
     schema.initialize()
+    lesson_link_bridge.install()
     application.add_handler(CommandHandler("vklink", vklink_cmd))
