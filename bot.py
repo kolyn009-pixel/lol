@@ -8376,6 +8376,11 @@ async def student_buttons(
 async def post_init(
     application
 ):
+    # Consolidated runtime patches must be active before startup sync.
+    # This prevents the legacy Google Calendar policy from deleting
+    # AWAITING_PAYMENT events before V2 restores them.
+    musthave_jobs.runtime_patch_v2.install(application)
+
 
     # ========================================================
     # /start ДЛЯ ВСЕХ
@@ -8763,6 +8768,9 @@ def main():
         app.add_handler(_h, group=-173)
     for _h in stage3_role_ux.handlers():
         app.add_handler(_h, group=-172)
+
+    # VK linking callbacks must exist before broad student handlers.
+    musthave_jobs.telegram_link.register(app)
 
     # ========================================================
     # АВАРИЙНЫЙ РЕЖИМ / ТЕХНИЧЕСКИЕ РАБОТЫ

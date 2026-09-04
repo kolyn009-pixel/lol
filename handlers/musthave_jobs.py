@@ -257,7 +257,7 @@ def register(application):
     runtime_patch_v2.install(application)
     review_v2.install(application)
     pricing_ux_patch.install(application)
-    telegram_link.register(application)
+    # Telegram VK handlers are registered early in bot.py.
     lesson_link_bridge.install()
 
     jq = application.job_queue

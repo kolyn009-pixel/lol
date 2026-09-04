@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackQueryHandler, CommandHandler
 
 import database
@@ -28,13 +28,31 @@ async def _send_link_code(update, context):
 
     code = schema.create_link_code(int(user["id"]), minutes=15)
     await target.reply_text(
-        "🔗 ПОДКЛЮЧЕНИЕ VK\n\n"
-        "Откройте сообщения сообщества Аделии во ВКонтакте и отправьте туда этот код:\n\n"
-        f"{code}\n\n"
-        "Код действует 15 минут и может быть использован только один раз.\n"
-        "После привязки Telegram и VK будут работать с одной карточкой ученика, одним расписанием и одним балансом.",
+        "💙 Подключение VK\n\n"
+        "1️⃣ Нажми «Скопировать код»\n"
+        "2️⃣ Открой VK\n"
+        "3️⃣ Вставь код в сообщения сообщества и отправь\n\n"
+        f"Код: {code}\n\n"
+        "Он действует 15 минут и используется только один раз.",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🏠 Главная", callback_data="global_home")],
+            [
+                InlineKeyboardButton(
+                    "📋 Скопировать код",
+                    copy_text=CopyTextButton(text=code),
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "💙 Открыть VK",
+                    url="https://vk.me/club241263797",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🏠 Главная",
+                    callback_data="global_home",
+                )
+            ],
         ]),
     )
 
@@ -84,8 +102,8 @@ def register(application):
     schema.initialize()
     lesson_link_bridge.install()
     _install_student_menu_patch()
-    application.add_handler(CommandHandler("vklink", vklink_cmd), group=-100)
+    application.add_handler(CommandHandler("vklink", vklink_cmd), group=-171)
     application.add_handler(
         CallbackQueryHandler(vklink_callback, pattern=r"^vk_link_start$"),
-        group=-100,
+        group=-171,
     )
