@@ -55,16 +55,34 @@ def _profile(v):
  return {"display_name":None,"username":None}
 def _student_home(p,u):send(p,f"💜 АДЕЛИЯ • ГЛАВНАЯ\n\n{u['name']}, я рядом и собрала главное в одном месте.\n\n📅 Занятия, ДЗ, учёба и связь с преподавателем доступны ниже.",True)
 def _teacher_home(p):send(p,teacher_service.home_text(),True,"teacher")
-def _handle_teacher(p,v,c,raw):
- pending=_PENDING.get(v)
+def _attachment_label(attachments):
+ from .attachment_bridge import vk_attachment_descriptor
+ names=[]
+ for x in attachments or []:
+  d=vk_attachment_descriptor(x)
+  if d:names.append(d['filename'])
+ return ', '.join(names)
+def _handle_teacher(p,v,c,raw,attachments=None):
+ attachments=attachments or [];pending=_PENDING.get(v)
  if pending and not c:
   _PENDING.pop(v,None);kind=pending[0]
   if kind=="t_link":
    delivered,error=teacher_service.send_lesson_link(int(pending[1]),raw);send(p,"❌ "+error if error else f"✅ Ссылка отправлена.\nTelegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
   if kind=="t_hw":
-   hid,delivered=teacher_service.create_homework(int(pending[1]),raw);send(p,f"✅ ДЗ #{hid} создано.\nTelegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
+   if not raw and attachments:raw='📎 '+_attachment_label(attachments)
+   hid,delivered=teacher_service.create_homework(int(pending[1]),raw);uid=int(pending[1])
+   if attachments:
+    from .attachment_bridge import vk_forward_to_student
+    files=vk_forward_to_student(uid,attachments,f"📝 ДЗ #{hid}\n\n{raw}")
+   send(p,f"✅ ДЗ #{hid} создано.\nTelegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
   if kind=="t_msg":
-   uid=int(pending[1]);from crm_plus import service as crm;from .channel_delivery import send_student;delivered=send_student(uid,f"👨‍🏫 Сообщение от преподавателя\n\n{raw}");crm.log_message(uid,'OUT',raw,int(teacher_service.is_teacher(v)),'STUDENT','SENT' if any(delivered.values()) else 'FAILED');send(p,f"✅ Отправлено. Telegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
+   uid=int(pending[1]);from crm_plus import service as crm;from .channel_delivery import send_student
+   delivered=send_student(uid,f"👨‍🏫 Сообщение от преподавателя\n\n{raw}") if raw else {'telegram':False,'vk':False}
+   if attachments:
+    from .attachment_bridge import vk_forward_to_student
+    files=vk_forward_to_student(uid,attachments,raw or '👨‍🏫 Файл от преподавателя')
+    delivered['telegram']=delivered['telegram'] or files['telegram']>0;delivered['vk']=delivered['vk'] or files['vk']>0
+   label=raw+(('\n' if raw else '')+f"📎 {_attachment_label(attachments)}" if attachments else '');crm.log_message(uid,'OUT',label,int(teacher_service.is_teacher(v)),'STUDENT','SENT' if any(delivered.values()) else 'FAILED');send(p,f"✅ Отправлено. Telegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
  if c in ("t_home","home",""):_teacher_home(p);return
  if c in ("t_today","t_link"):
   rows=teacher_service.today_lessons();send(p,"📅 СЕГОДНЯ\n\nВыбери занятие:" if rows else "📅 Сегодня занятий нет.",True,"teacher_lessons",{"lessons":rows});return
@@ -74,27 +92,36 @@ def _handle_teacher(p,v,c,raw):
   uid=int(c.split("|",1)[1]);u=database.get_user(uid);send(p,f"👤 {u['name']} · {u['grade']} класс",True,"teacher_student",{"user_id":uid});return
  if c.startswith("t_lesson|"):
   lid=int(c.split("|",1)[1]);l=database.get_lesson(lid);u=database.get_user(int(l['user_id']));send(p,f"🎓 ЗАНЯТИЕ\n\n👤 {u['name']}\n🕐 {str(l['start_time'])[11:16]}",True,"teacher_lesson",{"lesson_id":lid,"user_id":int(u['id'])});return
- if c.startswith("t_sendlink|"):_PENDING[v]=("t_link",int(c.split("|",1)[1]));send(p,"🎥 Пришли следующим сообщением ссылку на Телемост.\nОна уйдёт ученику в Telegram и VK.",True,"teacher");return
- if c.startswith("t_hw_user|"):_PENDING[v]=("t_hw",int(c.split("|",1)[1]));send(p,"📝 Пришли следующим сообщением текст домашнего задания.\nОно сохранится в общей базе и придёт ученику в Telegram и VK.",True,"teacher");return
- if c.startswith("t_msg_user|"):_PENDING[v]=("t_msg",int(c.split("|",1)[1]));send(p,"💬 Пришли следующим сообщением текст ученику.",True,"teacher");return
+ if c.startswith("t_sendlink|"):_PENDING[v]=("t_link",int(c.split("|",1)[1]));send(p,"🎥 Пришли следующим сообщением ссылку на Телемост.",True,"teacher");return
+ if c.startswith("t_hw_user|"):_PENDING[v]=("t_hw",int(c.split("|",1)[1]));send(p,"📝 Пришли текст ДЗ и/или прикрепи фото/файл. Всё уйдёт ученику в Telegram и VK.",True,"teacher");return
+ if c.startswith("t_msg_user|"):_PENDING[v]=("t_msg",int(c.split("|",1)[1]));send(p,"💬 Пришли текст, фото или файл ученику.",True,"teacher");return
  if c in ("t_messages","t_events"):send(p,"🔔 Уведомления преподавателя активны. Новые сообщения учеников и напоминания перед занятиями будут приходить сюда автоматически.",True,"teacher");return
  _teacher_home(p)
 def handle_message(m):
  v=int(m.get("from_id") or 0);p=int(m.get("peer_id") or v)
  if v<=0:return
- c=_extract_command(m);raw=str(m.get("text") or "").strip()
+ c=_extract_command(m);raw=str(m.get("text") or "").strip();attachments=m.get('attachments') or []
  if raw.upper().replace(" ","").startswith("ADELIA-ADMIN-"):
   pr=_profile(v);aid,error=schema.consume_admin_link_code(raw,"VK",str(v),pr.get("username"),pr.get("display_name"));send(p,"❌ "+error if error else "✅ VK преподавателя подключён к TutorBot.\n\nТеперь рабочие уведомления и действия доступны здесь.",not bool(error),"teacher" if not error else "home");return
- if teacher_service.is_teacher(v):_handle_teacher(p,v,c,raw);return
+ if teacher_service.is_teacher(v):_handle_teacher(p,v,c,raw,attachments);return
  u=service.linked_user(v)
  if raw.upper().replace(" ","").startswith("ADELIA-"):
   pr=_profile(v);uid,error=schema.consume_link_code(raw,"VK",str(v),pr.get("username"),pr.get("display_name"));send(p,"❌ "+error if error else f"✅ VK подключён к TutorBot.\n\nТеперь это одна карточка ученика: {database.get_user(int(uid))['name']}.",not bool(error));return
  if not u:send(p,"💜 АДЕЛИЯ\n\nДля ученика: получи код «🔗 Привязать VK» в Telegram.\nДля преподавателя: используй /vkadminlink в Telegram.",False);return
  pending=_PENDING.get(v)
  if pending and not c:
-  _PENDING.pop(v,None)
-  if pending=="teacher_message":_,r=service.submit_teacher_message(int(u['id']),raw,v);send(p,r,True);return
-  if pending=="booking":_,r=service.submit_booking_request(int(u['id']),raw);send(p,r,True);return
+  _PENDING.pop(v,None);uid=int(u['id'])
+  if pending=="teacher_message":
+   label=raw+(('\n' if raw else '')+f"📎 {_attachment_label(attachments)}" if attachments else '')
+   if not label:send(p,'Пришли текст, фото или файл 💜',True);return
+   _,r=service.submit_teacher_message(uid,label,v)
+   if attachments:
+    try:
+     from .attachment_bridge import vk_forward_to_admin_telegram
+     vk_forward_to_admin_telegram(attachments,f"💬 Файл от {u['name']}\n\n{raw}")
+    except Exception as exc:print('VK STUDENT ATTACHMENT ERROR:',repr(exc))
+   send(p,r,True);return
+  if pending=="booking":_,r=service.submit_booking_request(uid,raw);send(p,r,True);return
  if c=="cancel":_PENDING.pop(v,None);send(p,"Хорошо, действие отменено 💜",True);return
  if c in ("home",""):_student_home(p,u);return
  uid=int(u['id'])
@@ -109,7 +136,7 @@ def handle_message(m):
  if c.startswith("ft|"):
   _,g,s,t=c.split("|",3);send(p,service.formula_topic(int(g),s,t) or "Тема не найдена.",True,"formula_topics",{"grade":int(g),"subject":s,"topics":service.formula_topics(int(g),s)});return
  if c=="board":send(p,service.board_text(uid),True);return
- if c=="teacher":_PENDING[v]="teacher_message";send(p,service.message_history_text(uid)+"\n\n✍️ Напиши следующим сообщением текст преподавателю.",True,"cancel");return
+ if c=="teacher":_PENDING[v]="teacher_message";send(p,service.message_history_text(uid)+"\n\n✍️ Напиши текст или прикрепи фото/файл преподавателю.",True,"cancel");return
  if c=="chat_history":send(p,service.message_history_text(uid),True,"more");return
  if c=="booking":_PENDING[v]="booking";send(p,"➕ Напиши желаемый день, время и предмет одним сообщением.",True,"cancel");return
  if c in ("more","profile"):send(p,service.more_text(uid),True,"more");return
