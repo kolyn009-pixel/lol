@@ -35,6 +35,16 @@ async def student360_cmd(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
 def student_menu(uid):
     return InlineKeyboardMarkup([
+      [
+        InlineKeyboardButton(
+          '🎓 Школа / колледж',
+          callback_data=f'edu_profile|{uid}'
+        ),
+        InlineKeyboardButton(
+          '📚 Направления',
+          callback_data=f'edu_programs|{uid}'
+        ),
+      ],
       [InlineKeyboardButton('⚡ Следующее действие',callback_data=f'ff_student|{uid}'),InlineKeyboardButton('📦 Продление',callback_data=f'ff_renew|{uid}')],
       [InlineKeyboardButton('🧪 Пробники',callback_data=f'ff_mocks|{uid}'),InlineKeyboardButton('📜 История',callback_data=f'ff_timeline|{uid}')],
       [InlineKeyboardButton('📈 Прогноз результата',callback_data=f'ff_performance|{uid}'),InlineKeyboardButton('🔄 Обмен окнами',callback_data=f'ff_swap|{uid}')],

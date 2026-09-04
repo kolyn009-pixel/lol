@@ -92,8 +92,18 @@ def _student_name(uid: int) -> str:
 
 
 def _student_menu(uid: int):
-    # Kept here to avoid a circular import back into handlers.py.
+    # Canonical admin student actions.
     return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "🎓 Школа / колледж",
+                callback_data=f"edu_profile|{uid}",
+            ),
+            InlineKeyboardButton(
+                "📚 Направления",
+                callback_data=f"edu_programs|{uid}",
+            ),
+        ],
         [
             InlineKeyboardButton("⚡ Следующее действие", callback_data=f"ff_student|{uid}"),
             InlineKeyboardButton("📦 Продление", callback_data=f"ff_renew|{uid}"),
