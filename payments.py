@@ -3177,7 +3177,7 @@ def get_payment_handler():
                 # если он ушёл на главную.
                 CallbackQueryHandler(
                     receipt_cancel_to_home,
-                    pattern=r"^(?:main|global_home)$"
+                    pattern=r"^main$"
                 ),
             ],
 
