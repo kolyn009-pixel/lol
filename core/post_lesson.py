@@ -16,6 +16,10 @@ LEVEL_LABELS = {
 }
 
 
+def _columns(c, table: str) -> set[str]:
+    return {str(r["name"]) for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
 def initialize():
     c = database.connect()
     try:
@@ -29,6 +33,8 @@ def initialize():
                 completed_channel TEXT,
                 homework_status TEXT NOT NULL DEFAULT 'PENDING',
                 homework_id INTEGER,
+                selected_json TEXT NOT NULL DEFAULT '[]',
+                selected_at TEXT,
                 updated_at TEXT NOT NULL
             );
 
@@ -38,6 +44,12 @@ def initialize():
             );
             """
         )
+        cols = _columns(c, "post_lesson_review_sync")
+        if "selected_json" not in cols:
+            c.execute("ALTER TABLE post_lesson_review_sync ADD COLUMN selected_json TEXT NOT NULL DEFAULT '[]'")
+        if "selected_at" not in cols:
+            c.execute("ALTER TABLE post_lesson_review_sync ADD COLUMN selected_at TEXT")
+        c.execute("UPDATE post_lesson_review_sync SET selected_json='[]' WHERE selected_json IS NULL OR selected_json='' ")
         c.commit()
     finally:
         c.close()
@@ -97,6 +109,69 @@ def sync_row(lesson_id: int):
         c.close()
 
 
+def _normalize_marks(marks):
+    result = []
+    for item in marks or []:
+        try:
+            topic_id, level, comment = item
+            result.append((int(topic_id), str(level), comment if comment is None else str(comment)))
+        except Exception:
+            continue
+    return result
+
+
+def draft_marks(lesson_id: int):
+    row = sync_row(int(lesson_id))
+    if not row:
+        return []
+    try:
+        raw = json.loads(row["selected_json"] or "[]")
+    except Exception:
+        return []
+    return _normalize_marks(raw)
+
+
+def save_draft_marks(lesson_id: int, user_id: int, marks, channel: str | None = None):
+    ensure_sync(int(lesson_id), int(user_id), channel)
+    normalized = _normalize_marks(marks)
+    c = database.connect()
+    try:
+        c.execute(
+            """
+            UPDATE post_lesson_review_sync
+            SET selected_json=?,selected_at=?,updated_at=?
+            WHERE lesson_id=?
+            """,
+            (
+                json.dumps(normalized, ensure_ascii=False),
+                now_iso(),
+                now_iso(),
+                int(lesson_id),
+            ),
+        )
+        c.commit()
+    finally:
+        c.close()
+    return normalized
+
+
+def clear_draft_marks(lesson_id: int):
+    initialize()
+    c = database.connect()
+    try:
+        c.execute(
+            """
+            UPDATE post_lesson_review_sync
+            SET selected_json='[]',selected_at=NULL,updated_at=?
+            WHERE lesson_id=?
+            """,
+            (now_iso(), int(lesson_id)),
+        )
+        c.commit()
+    finally:
+        c.close()
+
+
 def review_completed(lesson_id: int) -> bool:
     c = database.connect()
     try:
@@ -133,6 +208,8 @@ def mark_completed(
                 completed_channel=?,
                 homework_status=?,
                 homework_id=?,
+                selected_json='[]',
+                selected_at=NULL,
                 updated_at=?
             WHERE lesson_id=?
             """,
