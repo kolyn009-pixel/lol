@@ -239,6 +239,15 @@ def _send_ending(peers, send_teacher):
 
 def tick(send_teacher):
     initialize()
+    # The VK app is fully defined by the time notification ticks begin. Install
+    # the shared post-lesson interaction once here to avoid a circular import
+    # during module initialization.
+    try:
+        from . import app as vk_app
+        from . import teacher_post_lesson
+        teacher_post_lesson.install(vk_app)
+    except Exception as exc:
+        print("VK POST LESSON INSTALL ERROR:", repr(exc))
     peers = schema.get_admin_external_ids("VK")
     if not peers:
         return 0
