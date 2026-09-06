@@ -85,6 +85,11 @@ def register(application):
     from handlers import calendar_runtime
     calendar_runtime.install(application)
 
+    # Schedule exceptions V2 supports both a whole day off and a closed time
+    # interval inside an otherwise working day. It runs before the legacy flow.
+    from handlers import schedule_exceptions_v2
+    schedule_exceptions_v2.install(application)
+
     from handlers import education_runtime
     education_runtime.install(application)
 
