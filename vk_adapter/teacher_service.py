@@ -129,6 +129,7 @@ def create_homework(user_id: int, description: str, deadline=None, program_id=No
 
 
 def send_lesson_link(lesson_id: int, url: str):
+    """Deliver a connection link without changing lesson lifecycle state."""
     lesson = database.get_lesson(int(lesson_id))
     if not lesson:
         return None, "Занятие не найдено."
@@ -138,18 +139,13 @@ def send_lesson_link(lesson_id: int, url: str):
     value = str(url or "").strip()
     if not (value.startswith("https://") or value.startswith("http://")):
         return None, "Пришлите полную ссылку, начинающуюся с https://"
-    try:
-        if str(lesson["lesson_status"] or "").upper() != "IN_PROGRESS":
-            database.start_lesson(int(lesson_id), force=True)
-    except Exception as exc:
-        return None, f"Не удалось начать занятие: {exc}"
     subject = SUBJECT_NAMES.get(str(lesson["subject"] or "").upper(), str(lesson["subject"] or "Занятие"))
     parts = [
-        "▶️ ЗАНЯТИЕ НАЧАЛОСЬ",
+        "🎥 ССЫЛКА НА ЗАНЯТИЕ",
         "",
         f"📖 {subject}",
         "",
-        "🎥 Подключиться к занятию:",
+        "Подключиться:",
         value,
     ]
     board_url = str(user["board_url"] or "").strip()
@@ -158,6 +154,22 @@ def send_lesson_link(lesson_id: int, url: str):
     parts += ["", "Можно подключаться 💜"]
     delivered = channel_delivery.send_student(int(user["id"]), "\n".join(parts))
     return delivered, None
+
+
+def start_lesson(lesson_id: int):
+    lesson = database.get_lesson(int(lesson_id))
+    if not lesson:
+        return None, "Занятие не найдено."
+    status = str(lesson["lesson_status"] or "").upper()
+    if status == "IN_PROGRESS":
+        return database.get_lesson(int(lesson_id)), None
+    if status != "CONFIRMED":
+        return None, f"Нельзя начать занятие со статусом {status or '—'}."
+    try:
+        database.start_lesson(int(lesson_id), force=True)
+    except Exception as exc:
+        return None, f"Не удалось начать занятие: {exc}"
+    return database.get_lesson(int(lesson_id)), None
 
 
 def teacher_alert_peers():

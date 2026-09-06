@@ -35,10 +35,18 @@ def telegram_chat(user_id: int):
     return int(user["telegram_id"])
 
 
-def send_telegram_chat(chat_id: int, text: str):
+def send_telegram_chat(chat_id: int, text: str, reply_markup=None):
     if not BOT_TOKEN or not chat_id:
         return False
-    payload = urlencode({"chat_id": int(chat_id), "text": str(text)}).encode("utf-8")
+    values = {"chat_id": int(chat_id), "text": str(text)}
+    if reply_markup is not None:
+        if hasattr(reply_markup, "to_dict"):
+            reply_markup = reply_markup.to_dict()
+        if isinstance(reply_markup, str):
+            values["reply_markup"] = reply_markup
+        else:
+            values["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+    payload = urlencode(values).encode("utf-8")
     req = Request(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         data=payload,
@@ -53,9 +61,9 @@ def send_telegram_chat(chat_id: int, text: str):
         return False
 
 
-def send_telegram(user_id: int, text: str):
+def send_telegram(user_id: int, text: str, reply_markup=None):
     chat_id = telegram_chat(int(user_id))
-    return send_telegram_chat(chat_id, text) if chat_id else False
+    return send_telegram_chat(chat_id, text, reply_markup=reply_markup) if chat_id else False
 
 
 def send_vk(user_id: int, text: str):
@@ -71,10 +79,10 @@ def send_vk(user_id: int, text: str):
         return False
 
 
-def send_student(user_id: int, text: str, telegram=True, vk=True):
+def send_student(user_id: int, text: str, telegram=True, vk=True, telegram_reply_markup=None):
     result = {"telegram": False, "vk": False}
     if telegram:
-        result["telegram"] = send_telegram(int(user_id), text)
+        result["telegram"] = send_telegram(int(user_id), text, reply_markup=telegram_reply_markup)
     if vk:
         result["vk"] = send_vk(int(user_id), text)
     return result
