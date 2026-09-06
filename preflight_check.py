@@ -6,6 +6,12 @@ ROOT = Path(__file__).resolve().parent
 required = [
     'bot.py', 'admin.py', 'database.py', 'channel_admin.py', 'schedule_admin.py', 'schedule_parity_selftest.py',
     'handlers/musthave_admin.py', 'handlers/musthave_jobs.py', 'handlers/adelia_content.py',
+    'handlers/calendar_runtime.py', 'handlers/receipt_center.py', 'handlers/post_lesson_review.py',
+    'handlers/teacher_end_notifications.py', 'handlers/schedule_exceptions_v2.py', 'handlers/briefs_v2.py',
+    'handlers/college_curriculum_handlers.py', 'core/calendar_policy.py', 'core/lesson_lifecycle.py',
+    'core/lesson_time.py', 'core/post_lesson.py', 'core/teacher_tasks.py',
+    'vk_adapter/teacher_post_lesson.py', 'vk_adapter/telegram_link.py', 'vk_adapter/app.py',
+    'learning/homework_flow.py',
     'ai_assistant/__init__.py', 'ai_assistant/client.py', 'ai_assistant/context.py',
     'crm_plus/jobs.py', 'handlers/admin_inbox_handlers.py',
 ]
@@ -28,6 +34,16 @@ checks = {
     'bot.py': ['admin_students is intentionally handled by admin.py'],
     'schedule_admin.py': ['⚙️ МОЁ РАСПИСАНИЕ', 'schedule_week|ODD', 'schedule_week|EVEN', '31 августа – 6 сентября 2026', 'Сделать выходным'],
     'database.py': ['ODD_WEEK_ANCHOR = date(2026, 8, 31)', 'get_effective_working_hours', 'teacher_week_day_off'],
+    'core/calendar_policy.py': ['COLOR_COMPLETED = "10"', 'COLOR_ATTENTION = "11"', 'Пробное занятие бесплатное', 'PAYMENT_DUE_24H'],
+    'handlers/calendar_runtime.py': ['calendar_lesson_state', 'calendar_special_events', 'should_delete_lesson_event'],
+    'handlers/receipt_center.py': ['🧾 ЦЕНТР ЧЕКОВ', 'payadmin_offer_preview', 'payment_admin_approve'],
+    'handlers/post_lesson_review.py': ['📝 Задать ДЗ по этим темам', 'save_draft_marks', 'review_completed'],
+    'handlers/briefs_v2.py': ['💜 АДЕЛИЯ • ДОБРОЕ УТРО', '💜 АДЕЛИЯ • ИТОГ ДНЯ', 'Темы выбраны / ДЗ не отправлено'],
+    'handlers/schedule_exceptions_v2.py': ['Указать промежуток', 'Целый день'],
+    'core/teacher_tasks.py': ['unpaid_next:', 'nearest upcoming lesson', 'COALESCE(l.is_trial,0)=0'],
+    'vk_adapter/app.py': ['teacher_post_lesson.install', 't_finish|'],
+    'vk_adapter/teacher_post_lesson.py': ['🧠 Пройти опрос', '📝 Задать ДЗ по этим темам', 'ОПРОС ПОСЛЕ ЗАНЯТИЯ ПРОЙДЕН В VK'],
+    'vk_adapter/telegram_link.py': ['briefs_v2.install', 'calendar_runtime.install', 'schedule_exceptions_v2.install'],
 }
 failed = []
 for name, markers in checks.items():
@@ -75,7 +91,7 @@ for _f,_tokens in {
  'handlers/task_admin.py':['📌 МОИ ЗАДАЧИ','task_add_user'],
  'handlers/ai_provider_admin.py':['AI-ПРОВАЙДЕРЫ','API-КЛЮЧ'],
  'ai_assistant/providers.py':['openrouter_env','gemini','deepseek'],
- 'core/teacher_tasks.py':['teacher_tasks','Проверить оплату'],
+ 'core/teacher_tasks.py':['teacher_tasks','Оплата следующего занятия'],
 }.items():
     _txt=(ROOT/_f).read_text(encoding='utf-8')
     for _t in _tokens:
