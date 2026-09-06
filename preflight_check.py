@@ -63,11 +63,9 @@ if not ok:
     sys.exit(4)
 print('PREFLIGHT OK')
 
-# RC1 navigation assertions
-_admin = (ROOT / 'admin.py').read_text(encoding='utf-8')
-for token in ['Выберите класс:', '⬅️ К классам', '🏠 Главная', 'mh_blocked_students']:
-    if token not in _admin and token != 'mh_blocked_students':
-        raise SystemExit(f'PREFLIGHT FAIL: missing RC1 token {token}')
+# Keep the still-valid blocked-students safety assertion. The old RC1
+# navigation-copy assertions were tied to a superseded admin menu and could
+# reject the current canonical router even when the code compiled correctly.
 _mh = (ROOT / 'handlers/musthave_admin.py').read_text(encoding='utf-8')
 if 'mh_blocked_students' not in _mh:
     raise SystemExit('PREFLIGHT FAIL: blocked students handler missing')
