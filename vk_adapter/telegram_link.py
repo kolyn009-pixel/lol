@@ -80,6 +80,11 @@ def register(application):
     lesson_link_bridge.install()
     _install_student_menu_patch()
 
+    # Install the shared Calendar policy before the legacy scheduled sync starts
+    # calling its entry points.
+    from handlers import calendar_runtime
+    calendar_runtime.install(application)
+
     from handlers import education_runtime
     education_runtime.install(application)
 
