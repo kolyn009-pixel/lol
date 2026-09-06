@@ -80,12 +80,8 @@ def register(application):
     lesson_link_bridge.install()
     _install_student_menu_patch()
 
-    # Install education migration + college-aware registration and admin controls
-    # before polling starts. The runtime installer safely swaps only the three
-    # registration callbacks in the already-created ConversationHandler.
     from handlers import education_runtime
     education_runtime.install(application)
-
 
     from handlers import teacher_end_notifications
     teacher_end_notifications.install(application)
@@ -95,6 +91,12 @@ def register(application):
 
     from handlers import college_curriculum_handlers
     college_curriculum_handlers.install(application)
+
+    # Central payment/receipt workbench. Negative group keeps its callbacks
+    # authoritative before legacy generic admin routers.
+    from handlers import receipt_center
+    for handler in receipt_center.handlers():
+        application.add_handler(handler, group=-172)
 
     application.add_handler(CommandHandler("vklink", vklink_cmd), group=-171)
     application.add_handler(CommandHandler("vkadminlink", vkadminlink_cmd), group=-171)
