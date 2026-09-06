@@ -3,7 +3,6 @@ from __future__ import annotations
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, ConversationHandler, MessageHandler, filters
 
-import database
 from core import admin_roles, post_lesson
 
 REVIEW = 9211
@@ -60,6 +59,15 @@ def _homework_keyboard():
     ])
 
 
+def _persist(st, channel="TG"):
+    st["marks"] = post_lesson.save_draft_marks(
+        st["lesson_id"],
+        st["uid"],
+        st.get("marks", []),
+        channel,
+    )
+
+
 async def entry(update: Update, context):
     q = update.callback_query
     if not q or not _admin(q.from_user.id):
@@ -84,10 +92,11 @@ async def entry(update: Update, context):
 
     sections = post_lesson.sections_for_student(user_id, lesson_id)
     post_lesson.ensure_sync(lesson_id, user_id, "TG")
+    restored = post_lesson.draft_marks(lesson_id)
     st = {
         "lesson_id": lesson_id,
         "uid": user_id,
-        "marks": [],
+        "marks": restored,
         "sections": sections,
     }
     context.user_data["post_lesson_review"] = st
@@ -97,10 +106,11 @@ async def entry(update: Update, context):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Завершить без отметок", callback_data="plr_finish_empty")]]),
         )
         return REVIEW
-    await q.edit_message_text(
-        "📚 Что прошли на занятии?\n\nВыберите раздел, затем можно отметить одну или несколько тем.",
-        reply_markup=_sections_keyboard(st),
-    )
+    intro = "📚 Что прошли на занятии?\n\n"
+    if restored:
+        intro += _summary(st) + "\n\nМожно продолжить с того места, где остановились.\n\n"
+    intro += "Выберите раздел, затем можно отметить одну или несколько тем."
+    await q.edit_message_text(intro, reply_markup=_sections_keyboard(st))
     return REVIEW
 
 
@@ -189,6 +199,7 @@ async def callback(update: Update, context):
             return REVIEW
         topic_id, level = pending
         st["marks"] = post_lesson.upsert_mark(st["marks"], topic_id, level, None)
+        _persist(st)
         await q.edit_message_text(
             "✅ Тема отмечена.\n\n" + _summary(st),
             reply_markup=_after_mark_keyboard(),
@@ -199,6 +210,7 @@ async def callback(update: Update, context):
         if not st["marks"]:
             await q.answer("Сначала отметьте хотя бы одну тему.", show_alert=True)
             return REVIEW
+        _persist(st)
         await q.edit_message_text(
             "📚 Темы занятия\n\n" + _summary(st) + "\n\nЧто делаем с домашним заданием?",
             reply_markup=_homework_keyboard(),
@@ -253,6 +265,7 @@ async def comment(update: Update, context):
         return ConversationHandler.END
     topic_id, level = pending
     st["marks"] = post_lesson.upsert_mark(st["marks"], topic_id, level, (update.message.text or "").strip())
+    _persist(st)
     await update.message.reply_text(
         "✅ Комментарий сохранён.\n\n" + _summary(st),
         reply_markup=_after_mark_keyboard(),
