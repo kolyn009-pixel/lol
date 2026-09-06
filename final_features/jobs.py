@@ -36,67 +36,25 @@ def _homework_sync_status(c, lesson_id):
         return ''
 
 
-async def _send_missing_homework_prompt(context, row, stage, draft=None):
-    lesson_id=int(row['id']);uid=int(row['user_id']);name=row['name']
-    is_followup=(stage=='followup')
-    if draft:
-        text=(
-            f"📝 {'НАПОМИНАНИЕ: ' if is_followup else ''}ДЗ ЕЩЁ НЕ ОТПРАВЛЕНО\n\n"
-            f"👤 {name}\n"
-            f"Занятие #{lesson_id} завершено, а черновик ДЗ всё ещё не отправлен ученику."
-        )
-        tg_cb=f"hw2_step1|{int(draft['id'])}"
-        tg_label="▶️ Продолжить ДЗ"
-    else:
-        text=(
-            f"📝 {'НАПОМИНАНИЕ: ' if is_followup else ''}ПОСЛЕ ЗАНЯТИЯ НЕТ ДЗ\n\n"
-            f"👤 {name}\n"
-            f"Занятие #{lesson_id} завершено, но домашнее задание ещё не задано."
-        )
-        tg_cb=f"admin_homework_create|{lesson_id}"
-        tg_label="📝 Задать ДЗ"
-    text += "\n\nЕсли ДЗ не нужно, отметьте «Без ДЗ» в итогах занятия."
-
-    try:
-        from telegram import InlineKeyboardButton,InlineKeyboardMarkup
-        kb=InlineKeyboardMarkup([
-            [InlineKeyboardButton(tg_label,callback_data=tg_cb)],
-            [InlineKeyboardButton('🧠 Итоги занятия',callback_data=f"ff_review_start|{lesson_id}|{uid}")],
-            [InlineKeyboardButton('🏠 Главное меню',callback_data='admin_main')],
-        ])
-        for aid in _admins()[:3]:
-            try:await context.bot.send_message(aid,text,reply_markup=kb)
-            except Exception:pass
-    except Exception:pass
-
-    try:
-        from vk_adapter import app as vk_app,teacher_service
-        for peer in teacher_service.teacher_alert_peers():
-            try:
-                vk_app.send(int(peer),text,True,"teacher_lesson",{"lesson_id":lesson_id,"user_id":uid})
-            except Exception:pass
-    except Exception:pass
-
-
 async def missing_homework_job(context):
-    """Remind the teacher in both channels when a finished lesson still has no HW.
+    """Keep missing-homework state current without chat spam.
 
-    First prompt: roughly 10 minutes after the lesson is closed.
-    Follow-up: roughly 60 minutes after closing if nothing was sent yet.
-    Explicit SKIPPED suppresses reminders.
+    The teacher sees all unsent homework in the dedicated Homework inbox with a
+    counter on the admin home screen. Individual 10/60 minute reminder messages
+    are intentionally disabled; morning/evening briefs can still summarize the
+    count without duplicating one message per lesson.
     """
     post_lesson.initialize()
     c=database.connect()
     try:
         rows=c.execute("""
-            SELECT l.id,l.user_id,l.finished_at,u.name
-            FROM lessons l JOIN users u ON u.id=l.user_id
+            SELECT l.id,l.user_id,l.finished_at
+            FROM lessons l
             WHERE l.finished_at IS NOT NULL
               AND l.cancelled_at IS NULL
             ORDER BY l.finished_at DESC
-            LIMIT 40
+            LIMIT 80
         """).fetchall()
-        now=datetime.now(timezone.utc)
         for r in rows:
             lid=int(r['id'])
             if _homework_for_lesson(c,lid):
@@ -104,20 +62,9 @@ async def missing_homework_job(context):
             status=_homework_sync_status(c,lid)
             if status in ('SKIPPED','SENT'):
                 continue
-            try:
-                finished=actual_datetime(r['finished_at']).astimezone(timezone.utc)
-                age=(now-finished).total_seconds()
-            except Exception:
-                continue
-            draft=_homework_draft_for_lesson(c,lid)
-            stages=[]
-            if age>=10*60:stages.append('first')
-            if age>=60*60:stages.append('followup')
-            for stage in stages:
-                key=f"missing_homework:{lid}:{stage}"
-                if not post_lesson.claim(key):
-                    continue
-                await _send_missing_homework_prompt(context,r,stage,draft=draft)
+            # Ensure a sync row exists so the Homework inbox can represent the
+            # action consistently even for older completed lessons.
+            post_lesson.ensure_sync(lid,int(r['user_id']),None)
     finally:
         c.close()
 
