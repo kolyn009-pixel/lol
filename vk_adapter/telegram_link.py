@@ -86,8 +86,6 @@ def register(application):
     from handlers import schedule_exceptions_v2
     schedule_exceptions_v2.install(application)
 
-    # Replace the legacy teacher morning/evening content while preserving the
-    # existing configurable dispatcher, ON/OFF switches and test buttons.
     from handlers import briefs_v2
     briefs_v2.install(application)
 
@@ -102,6 +100,10 @@ def register(application):
 
     from handlers import college_curriculum_handlers
     college_curriculum_handlers.install(application)
+
+    from handlers import homework_attention
+    for handler in homework_attention.handlers():
+        application.add_handler(handler, group=-173)
 
     from handlers import receipt_center
     for handler in receipt_center.handlers():
