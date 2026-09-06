@@ -105,6 +105,9 @@ def register(application):
     for handler in homework_attention.handlers():
         application.add_handler(handler, group=-173)
 
+    from handlers import admin_home_v2
+    admin_home_v2.install(application)
+
     from handlers import receipt_center
     for handler in receipt_center.handlers():
         application.add_handler(handler, group=-172)
