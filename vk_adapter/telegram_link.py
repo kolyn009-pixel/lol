@@ -80,15 +80,16 @@ def register(application):
     lesson_link_bridge.install()
     _install_student_menu_patch()
 
-    # Install the shared Calendar policy before the legacy scheduled sync starts
-    # calling its entry points.
     from handlers import calendar_runtime
     calendar_runtime.install(application)
 
-    # Schedule exceptions V2 supports both a whole day off and a closed time
-    # interval inside an otherwise working day. It runs before the legacy flow.
     from handlers import schedule_exceptions_v2
     schedule_exceptions_v2.install(application)
+
+    # Replace the legacy teacher morning/evening content while preserving the
+    # existing configurable dispatcher, ON/OFF switches and test buttons.
+    from handlers import briefs_v2
+    briefs_v2.install(application)
 
     from handlers import education_runtime
     education_runtime.install(application)
@@ -102,8 +103,6 @@ def register(application):
     from handlers import college_curriculum_handlers
     college_curriculum_handlers.install(application)
 
-    # Central payment/receipt workbench. Negative group keeps its callbacks
-    # authoritative before legacy generic admin routers.
     from handlers import receipt_center
     for handler in receipt_center.handlers():
         application.add_handler(handler, group=-172)
