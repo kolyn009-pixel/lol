@@ -1,8 +1,9 @@
 """Structured homework delivery and automatic scoring.
 
 Teacher-only task_bank.answer/solution are never returned by student payloads.
-Student homework pages receive statements and metadata only. Responses are
-stored independently and scored server-side against normalized hidden answers.
+Interactive web submissions are also written into TutorBot's canonical
+homework_submissions/homework_reviews tables so Telegram, VK, teacher portal and
+analytics all see one homework lifecycle.
 """
 import math
 import re
@@ -10,13 +11,19 @@ from database import connect, now_iso
 from web_backend.library import ensure_tables as ensure_library_tables
 from web_backend.homework_notifications import enqueue_teacher_auto_result
 
+AUTO_ACCEPT_PERCENT = 100.0
+
 
 def ensure_tables():
     ensure_library_tables();conn=connect();conn.executescript("""
     CREATE TABLE IF NOT EXISTS homework_task_settings(id INTEGER PRIMARY KEY AUTOINCREMENT,homework_id INTEGER NOT NULL,task_id INTEGER NOT NULL,points REAL NOT NULL DEFAULT 1,answer_type TEXT NOT NULL DEFAULT 'TEXT',tolerance REAL,required INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,UNIQUE(homework_id,task_id),FOREIGN KEY(homework_id) REFERENCES homework(id) ON DELETE CASCADE,FOREIGN KEY(task_id) REFERENCES task_bank(id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS homework_task_responses(id INTEGER PRIMARY KEY AUTOINCREMENT,homework_id INTEGER NOT NULL,task_id INTEGER NOT NULL,user_id INTEGER NOT NULL,attempt_number INTEGER NOT NULL DEFAULT 1,response_text TEXT,is_correct INTEGER,points_awarded REAL,checked_at TEXT,created_at TEXT NOT NULL,updated_at TEXT,UNIQUE(homework_id,task_id,user_id,attempt_number),FOREIGN KEY(homework_id) REFERENCES homework(id) ON DELETE CASCADE,FOREIGN KEY(task_id) REFERENCES task_bank(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
-    CREATE TABLE IF NOT EXISTS homework_auto_results(homework_id INTEGER NOT NULL,user_id INTEGER NOT NULL,attempt_number INTEGER NOT NULL DEFAULT 1,total_points REAL NOT NULL DEFAULT 0,earned_points REAL NOT NULL DEFAULT 0,score_percent REAL NOT NULL DEFAULT 0,correct_tasks INTEGER NOT NULL DEFAULT 0,total_tasks INTEGER NOT NULL DEFAULT 0,completed_at TEXT NOT NULL,PRIMARY KEY(homework_id,user_id,attempt_number),FOREIGN KEY(homework_id) REFERENCES homework(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
-    """);conn.commit();conn.close()
+    CREATE TABLE IF NOT EXISTS homework_auto_results(homework_id INTEGER NOT NULL,user_id INTEGER NOT NULL,attempt_number INTEGER NOT NULL DEFAULT 1,total_points REAL NOT NULL DEFAULT 0,earned_points REAL NOT NULL DEFAULT 0,score_percent REAL NOT NULL DEFAULT 0,correct_tasks INTEGER NOT NULL DEFAULT 0,total_tasks INTEGER NOT NULL DEFAULT 0,completed_at TEXT NOT NULL,submission_id INTEGER,review_id INTEGER,PRIMARY KEY(homework_id,user_id,attempt_number),FOREIGN KEY(homework_id) REFERENCES homework(id) ON DELETE CASCADE,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,FOREIGN KEY(submission_id) REFERENCES homework_submissions(id) ON DELETE SET NULL,FOREIGN KEY(review_id) REFERENCES homework_reviews(id) ON DELETE SET NULL);
+    """);
+    cols={r['name'] for r in conn.execute("PRAGMA table_info(homework_auto_results)").fetchall()}
+    if 'submission_id' not in cols:conn.execute("ALTER TABLE homework_auto_results ADD COLUMN submission_id INTEGER")
+    if 'review_id' not in cols:conn.execute("ALTER TABLE homework_auto_results ADD COLUMN review_id INTEGER")
+    conn.commit();conn.close()
 
 
 def _norm(value):
@@ -49,19 +56,40 @@ def student_homework_payload(homework_id,user_id):
     rows=conn.execute("""SELECT t.id,t.subject,t.grade,t.study_goal,t.section,t.topic,t.source_label,t.task_number,t.title,t.statement,t.difficulty,COALESCE(s.points,1) points,COALESCE(s.answer_type,'TEXT') answer_type FROM homework_task_links l JOIN task_bank t ON t.id=l.task_id LEFT JOIN homework_task_settings s ON s.homework_id=l.homework_id AND s.task_id=l.task_id WHERE l.homework_id=? AND t.active=1 ORDER BY l.sort_order,l.id""",(int(homework_id),)).fetchall();materials=conn.execute("""SELECT m.id,m.title,m.description,m.material_type,m.external_url,m.original_filename,m.mime_type,m.size_bytes FROM homework_material_links h JOIN materials m ON m.id=h.material_id WHERE h.homework_id=? AND m.active=1 ORDER BY h.id""",(int(homework_id),)).fetchall();conn.close();return {'homework':dict(hw),'tasks':[dict(r) for r in rows],'materials':[dict(r) for r in materials]}
 
 
+def _canonical_submission(conn,homework_id,user_id,attempt_number,submitted_at,student_comment):
+    row=conn.execute("SELECT id,status FROM homework_submissions WHERE homework_id=? AND user_id=? AND attempt_number=? ORDER BY id DESC LIMIT 1",(int(homework_id),int(user_id),int(attempt_number))).fetchone()
+    if row:
+        conn.execute("UPDATE homework_submissions SET student_comment=?,status='SUBMITTED',submitted_from='WEB',submitted_at=?,reviewed_at=NULL WHERE id=?",(student_comment,submitted_at,int(row['id'])))
+        return int(row['id'])
+    cur=conn.execute("INSERT INTO homework_submissions(homework_id,user_id,attempt_number,student_comment,status,submitted_from,submitted_at) VALUES(?,?,?,?, 'SUBMITTED','WEB',?)",(int(homework_id),int(user_id),int(attempt_number),student_comment,submitted_at));return int(cur.lastrowid)
+
+
+def _auto_review(conn,homework_id,submission_id,percent,correct,total,now):
+    # Fully machine-checkable and perfect -> canonical ACCEPTED review.
+    if total>0 and float(percent)>=AUTO_ACCEPT_PERCENT:
+        cur=conn.execute("INSERT INTO homework_reviews(homework_id,submission_id,result,tutor_comment,reviewed_at,total_tasks,correct_tasks,accuracy_percent) VALUES(?,?, 'ACCEPTED',?,?,?, ?,?)",(int(homework_id),int(submission_id),'Автопроверка: все ответы верны.',now,int(total),int(correct),float(percent)))
+        review_id=int(cur.lastrowid);conn.execute("UPDATE homework_submissions SET status='REVIEWED',reviewed_at=? WHERE id=?",(now,int(submission_id)));conn.execute("UPDATE homework SET status='COMPLETED',submitted_at=?,reviewed_at=?,updated_at=? WHERE id=?",(now,now,now,int(homework_id)));return review_id
+    # Any non-perfect or partially machine-checkable result stays in teacher queue.
+    conn.execute("UPDATE homework SET status='SUBMITTED',submitted_at=?,updated_at=? WHERE id=?",(now,now,int(homework_id)));return None
+
+
 def submit_structured(homework_id,user_id,responses,attempt_number=1):
     ensure_tables();payload=student_homework_payload(homework_id,user_id)
     if not payload:raise PermissionError('homework_not_found')
-    responses=responses or {};conn=connect();now=now_iso();total=earned=0.0;correct=count=0;details=[]
+    responses=responses or {};conn=connect();now=now_iso();total=earned=0.0;correct=count=0;details=[];unchecked=0
     for task in payload['tasks']:
         tid=int(task['id']);row=conn.execute("""SELECT t.answer,COALESCE(s.points,1) points,COALESCE(s.answer_type,'TEXT') answer_type,s.tolerance FROM task_bank t LEFT JOIN homework_task_settings s ON s.homework_id=? AND s.task_id=t.id WHERE t.id=?""",(int(homework_id),tid)).fetchone();points=float(row['points'] or 1);response=responses.get(str(tid),responses.get(tid,''));ok=_check(response,row['answer'],row['answer_type'],row['tolerance'])
         if ok is not None:
             total+=points;count+=1
             if ok:earned+=points;correct+=1
+        else:unchecked+=1
         conn.execute("""INSERT INTO homework_task_responses(homework_id,task_id,user_id,attempt_number,response_text,is_correct,points_awarded,checked_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(homework_id,task_id,user_id,attempt_number) DO UPDATE SET response_text=excluded.response_text,is_correct=excluded.is_correct,points_awarded=excluded.points_awarded,checked_at=excluded.checked_at,updated_at=excluded.updated_at""",(int(homework_id),tid,int(user_id),int(attempt_number),str(response or ''),None if ok is None else int(ok),None if ok is None else (points if ok else 0),now,now,now));details.append({'task_id':tid,'auto_checked':ok is not None,'is_correct':ok,'points_awarded':None if ok is None else (points if ok else 0),'max_points':points})
-    percent=round((earned/total*100),1) if total else 0.0;result={'status':'ok','score_percent':percent,'earned_points':earned,'total_points':total,'correct_tasks':correct,'total_tasks':count,'details':details}
-    conn.execute("""INSERT OR REPLACE INTO homework_auto_results(homework_id,user_id,attempt_number,total_points,earned_points,score_percent,correct_tasks,total_tasks,completed_at) VALUES(?,?,?,?,?,?,?,?,?)""",(int(homework_id),int(user_id),int(attempt_number),total,earned,percent,correct,count,now));conn.execute("UPDATE homework SET status='UNDER_REVIEW',submitted_at=?,updated_at=? WHERE id=?",(now,now,int(homework_id)));user=conn.execute("SELECT name FROM users WHERE id=?",(int(user_id),)).fetchone();conn.commit();conn.close()
-    enqueue_teacher_auto_result(int(homework_id),int(user_id),(user['name'] if user else 'Ученик'),result);return result
+    percent=round((earned/total*100),1) if total else 0.0;summary=f"Интерактивное ДЗ: {correct}/{count} авто-проверено, {percent}%"+(f"; ручная проверка: {unchecked}" if unchecked else '')
+    submission_id=_canonical_submission(conn,homework_id,user_id,attempt_number,now,summary);review_id=None
+    if unchecked==0:review_id=_auto_review(conn,homework_id,submission_id,percent,correct,count,now)
+    else:conn.execute("UPDATE homework SET status='SUBMITTED',submitted_at=?,updated_at=? WHERE id=?",(now,now,int(homework_id)))
+    result={'status':'ok','score_percent':percent,'earned_points':earned,'total_points':total,'correct_tasks':correct,'total_tasks':count,'unchecked_tasks':unchecked,'submission_id':submission_id,'auto_accepted':bool(review_id),'details':details}
+    conn.execute("""INSERT OR REPLACE INTO homework_auto_results(homework_id,user_id,attempt_number,total_points,earned_points,score_percent,correct_tasks,total_tasks,completed_at,submission_id,review_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",(int(homework_id),int(user_id),int(attempt_number),total,earned,percent,correct,count,now,submission_id,review_id));user=conn.execute("SELECT name FROM users WHERE id=?",(int(user_id),)).fetchone();conn.commit();conn.close();enqueue_teacher_auto_result(int(homework_id),int(user_id),(user['name'] if user else 'Ученик'),result);return result
 
 
 def teacher_result(homework_id,user_id,attempt_number=1):
