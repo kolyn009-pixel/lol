@@ -9,6 +9,7 @@ from web_backend.student_auth import consume_student_login_code
 from web_backend.teacher_auth import consume_teacher_login_code
 from web_backend.teacher_portal import dashboard as teacher_dashboard, students as teacher_students, student_card, review_submission
 from web_backend.homework_authoring import create_assignment
+from web_backend.homework_center import list_homework as teacher_homework_list, stats as teacher_homework_stats, detail as teacher_homework_detail
 from web_backend.library import list_materials, grant_student, link_to_homework, list_collections, list_tasks, create_material, create_collection, add_material_to_collection, add_task
 from web_backend.unified_messages import inbox as message_inbox, conversation, queue_teacher_reply
 from web_backend.lesson_workspace import workspace as lesson_workspace, start_lesson, finish_lesson
@@ -28,7 +29,7 @@ def _allowed(ip):
  if now-start>60:start,count=now,0
  count+=1;_attempts[ip]=(start,count);return count<=12
 class Handler(BaseHTTPRequestHandler):
- server_version='AdeliaWeb/0.7'
+ server_version='AdeliaWeb/0.8'
  def log_message(self,fmt,*args):print('[web-api]',self.address_string(),fmt%args)
  def _json(self,status,payload,cookie=None):
   data=json.dumps(payload,ensure_ascii=False,default=str).encode();self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
@@ -63,6 +64,9 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/students':return self._json(200,teacher_students())
     if path=='/api/teacher/student':
      item=student_card(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
+    if path=='/api/teacher/homework-center':return self._json(200,{'stats':teacher_homework_stats(),'items':teacher_homework_list(status=q.get('status',[None])[0],user_id=q.get('user_id',[None])[0],mode=q.get('mode',[None])[0],search=q.get('q',[None])[0])})
+    if path=='/api/teacher/homework-center/detail':
+     item=teacher_homework_detail(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'homework_not_found'})
     if path=='/api/teacher/library':return self._json(200,{'items':list_materials(subject=q.get('subject',[None])[0],search=q.get('q',[None])[0])})
     if path=='/api/teacher/library/collections':return self._json(200,{'items':list_collections(subject=q.get('subject',[None])[0])})
     if path=='/api/teacher/library/tasks':return self._json(200,{'items':list_tasks(subject=q.get('subject',[None])[0],grade=q.get('grade',[None])[0],topic=q.get('topic',[None])[0],search=q.get('q',[None])[0],collection_id=q.get('collection_id',[None])[0])})
