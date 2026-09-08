@@ -1,70 +1,131 @@
 """Teacher web-cabinet queries and safe mutations over TutorBot's database."""
 
 from datetime import datetime, timedelta
+from time import monotonic
+from threading import Lock
 
 from database import connect, create_homework, get_user, now_iso
+
+_CACHE = {}
+_CACHE_LOCK = Lock()
 
 
 def _dict(row):
     return dict(row) if row else None
 
 
+def _cached(key, ttl, loader):
+    now = monotonic()
+    with _CACHE_LOCK:
+        item = _CACHE.get(key)
+        if item and now - item[0] < ttl:
+            return item[1]
+    value = loader()
+    with _CACHE_LOCK:
+        _CACHE[key] = (now, value)
+    return value
+
+
+def _week_bounds(now):
+    monday = now.date() - timedelta(days=now.weekday())
+    start = datetime.combine(monday, datetime.min.time())
+    end = start + timedelta(days=7)
+    return start.isoformat(timespec="seconds"), end.isoformat(timespec="seconds")
+
+
 def dashboard():
-    conn = connect()
-    now = datetime.now()
-    today = now.date().isoformat()
-    tomorrow = (now.date() + timedelta(days=1)).isoformat()
-    students = conn.execute("SELECT COUNT(*) n FROM users WHERE active=1").fetchone()["n"]
-    lessons_today = conn.execute(
-        "SELECT COUNT(*) n FROM lessons WHERE start_time>=? AND start_time<? AND lesson_status NOT IN ('CANCELLED')",
-        (today, tomorrow),
-    ).fetchone()["n"]
-    submissions = conn.execute(
-        "SELECT COUNT(*) n FROM homework_submissions WHERE status='SUBMITTED'"
-    ).fetchone()["n"]
-    unpaid = conn.execute(
-        "SELECT COALESCE(SUM(total_amount),0) n FROM payments WHERE status IN ('WAITING','PENDING')"
-    ).fetchone()["n"]
-    next_lessons = conn.execute(
-        """
-        SELECT l.id,l.start_time,l.end_time,l.subject,l.study_goal,l.lesson_status,
-               l.payment_status,l.price,u.id user_id,u.name,u.grade
-          FROM lessons l JOIN users u ON u.id=l.user_id
-         WHERE l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','COMPLETED')
-         ORDER BY l.start_time LIMIT 8
-        """, (now.isoformat(timespec="seconds"),)
-    ).fetchall()
-    pending = conn.execute(
-        """
-        SELECT s.id submission_id,s.homework_id,s.submitted_at,s.student_comment,
-               h.title,h.subject,u.id user_id,u.name
-          FROM homework_submissions s
-          JOIN homework h ON h.id=s.homework_id
-          JOIN users u ON u.id=s.user_id
-         WHERE s.status='SUBMITTED'
-         ORDER BY s.submitted_at ASC LIMIT 12
-        """
-    ).fetchall()
-    conn.close()
-    return {
-        "stats": {"students": students, "lessons_today": lessons_today, "submissions": submissions, "unpaid": unpaid},
-        "next_lessons": [_dict(x) for x in next_lessons],
-        "pending_reviews": [_dict(x) for x in pending],
-    }
+    """Fast teacher home snapshot; cached briefly to make repeated navigation instant."""
+    def load():
+        conn = connect()
+        now = datetime.now()
+        today = now.date().isoformat()
+        tomorrow = (now.date() + timedelta(days=1)).isoformat()
+        week_start, week_end = _week_bounds(now)
+
+        # One round trip for the small counters.
+        counters = conn.execute(
+            """
+            SELECT
+              (SELECT COUNT(*) FROM users WHERE active=1) students,
+              (SELECT COUNT(*) FROM lessons
+                WHERE start_time>=? AND start_time<? AND lesson_status!='CANCELLED') lessons_today,
+              (SELECT COUNT(*) FROM homework_submissions WHERE status='SUBMITTED') submissions
+            """,
+            (today, tomorrow),
+        ).fetchone()
+
+        # Expected revenue means lessons in this calendar week, not historical debt.
+        # Prefer the canonical lesson price because it is tied to the scheduled lesson.
+        expected_week = conn.execute(
+            """
+            SELECT COALESCE(SUM(COALESCE(price,0)),0) n
+              FROM lessons
+             WHERE start_time>=? AND start_time<?
+               AND lesson_status NOT IN ('CANCELLED','REJECTED','SICKNESS')
+               AND payment_status IN ('AWAITING_PAYMENT','UNPAID')
+            """,
+            (week_start, week_end),
+        ).fetchone()["n"]
+
+        next_lessons = conn.execute(
+            """
+            SELECT l.id,l.start_time,l.end_time,l.subject,l.study_goal,l.lesson_status,
+                   l.payment_status,l.price,u.id user_id,u.name,u.grade
+              FROM lessons l INDEXED BY idx_lessons_start_time
+              JOIN users u ON u.id=l.user_id
+             WHERE l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','COMPLETED')
+             ORDER BY l.start_time LIMIT 8
+            """,
+            (now.isoformat(timespec="seconds"),),
+        ).fetchall()
+        pending = conn.execute(
+            """
+            SELECT s.id submission_id,s.homework_id,s.submitted_at,s.student_comment,
+                   h.title,h.subject,u.id user_id,u.name
+              FROM homework_submissions s
+              JOIN homework h ON h.id=s.homework_id
+              JOIN users u ON u.id=s.user_id
+             WHERE s.status='SUBMITTED'
+             ORDER BY s.submitted_at ASC LIMIT 12
+            """
+        ).fetchall()
+        conn.close()
+        return {
+            "stats": {
+                "students": counters["students"],
+                "lessons_today": counters["lessons_today"],
+                "submissions": counters["submissions"],
+                "unpaid": expected_week,
+                "expected_week": expected_week,
+            },
+            "next_lessons": [_dict(x) for x in next_lessons],
+            "pending_reviews": [_dict(x) for x in pending],
+        }
+
+    return _cached("dashboard", 8.0, load)
 
 
 def students():
-    conn = connect()
-    rows = conn.execute(
-        """
-        SELECT u.id,u.name,u.grade,u.study_goal,u.main_subject,u.telegram_username,
-               (SELECT start_time FROM lessons l WHERE l.user_id=u.id AND l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','COMPLETED') ORDER BY l.start_time LIMIT 1) next_lesson,
-               (SELECT COUNT(*) FROM homework h WHERE h.user_id=u.id AND h.status IN ('ASSIGNED','SUBMITTED')) homework_open
-          FROM users u WHERE u.active=1 ORDER BY u.name COLLATE NOCASE
-        """, (datetime.now().isoformat(timespec="seconds"),)
-    ).fetchall()
-    conn.close()
-    return [_dict(x) for x in rows]
+    def load():
+        conn = connect()
+        now = datetime.now().isoformat(timespec="seconds")
+        rows = conn.execute(
+            """
+            SELECT u.id,u.name,u.grade,u.study_goal,u.main_subject,u.telegram_username,
+                   MIN(CASE WHEN l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','COMPLETED') THEN l.start_time END) next_lesson,
+                   COUNT(DISTINCT CASE WHEN h.status IN ('ASSIGNED','SUBMITTED') THEN h.id END) homework_open
+              FROM users u
+              LEFT JOIN lessons l ON l.user_id=u.id
+              LEFT JOIN homework h ON h.user_id=u.id
+             WHERE u.active=1
+             GROUP BY u.id
+             ORDER BY u.name COLLATE NOCASE
+            """,
+            (now,),
+        ).fetchall()
+        conn.close()
+        return [_dict(x) for x in rows]
+    return _cached("students", 15.0, load)
 
 
 def student_card(user_id):
@@ -93,6 +154,7 @@ def create_simple_homework(user_id, title, description, deadline=None, lesson_id
         description, title=title, lesson_id=int(lesson_id) if lesson_id else None,
         deadline=str(deadline).strip() or None if deadline is not None else None,
     )
+    _CACHE.clear()
     return {"status": "ok", "homework_id": int(hid)}
 
 
@@ -115,5 +177,5 @@ def review_submission(submission_id, result, comment="", total_tasks=None, corre
     )
     conn.execute("UPDATE homework_submissions SET status='REVIEWED',reviewed_at=? WHERE id=?", (now, int(submission_id)))
     conn.execute("UPDATE homework SET status=?,reviewed_at=?,updated_at=? WHERE id=?", ("COMPLETED" if result == "ACCEPTED" else "REVIEWED", now, now, int(sub["homework_id"])))
-    conn.commit(); conn.close()
+    conn.commit(); conn.close(); _CACHE.clear()
     return {"status": "ok", "accuracy_percent": accuracy}
