@@ -41,8 +41,6 @@ def dashboard():
         today = now.date().isoformat()
         tomorrow = (now.date() + timedelta(days=1)).isoformat()
         week_start, week_end = _week_bounds(now)
-
-        # One round trip for the small counters.
         counters = conn.execute(
             """
             SELECT
@@ -53,9 +51,6 @@ def dashboard():
             """,
             (today, tomorrow),
         ).fetchone()
-
-        # Expected revenue means lessons in this calendar week, not historical debt.
-        # Prefer the canonical lesson price because it is tied to the scheduled lesson.
         expected_week = conn.execute(
             """
             SELECT COALESCE(SUM(COALESCE(price,0)),0) n
@@ -66,12 +61,11 @@ def dashboard():
             """,
             (week_start, week_end),
         ).fetchone()["n"]
-
         next_lessons = conn.execute(
             """
             SELECT l.id,l.start_time,l.end_time,l.subject,l.study_goal,l.lesson_status,
                    l.payment_status,l.price,u.id user_id,u.name,u.grade
-              FROM lessons l INDEXED BY idx_lessons_start_time
+              FROM lessons l
               JOIN users u ON u.id=l.user_id
              WHERE l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','COMPLETED')
              ORDER BY l.start_time LIMIT 8
@@ -101,7 +95,6 @@ def dashboard():
             "next_lessons": [_dict(x) for x in next_lessons],
             "pending_reviews": [_dict(x) for x in pending],
         }
-
     return _cached("dashboard", 8.0, load)
 
 
