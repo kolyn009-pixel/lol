@@ -12,6 +12,8 @@ from web_backend.library import list_materials, grant_student, link_to_homework,
 from web_backend.unified_messages import inbox as message_inbox, conversation, queue_teacher_reply
 from web_backend.lesson_workspace import workspace as lesson_workspace, start_lesson, finish_lesson
 from web_backend.post_lesson_flow import state as post_lesson_state, save_marks as post_lesson_save_marks, complete_review as post_lesson_complete_review, skip_homework as post_lesson_skip_homework, link_created_homework
+from web_backend.external_homework import attach_external_link, teacher_completion_feed
+from web_backend.student_homework import list_homework as student_homework_list, detail as student_homework_detail, submit_answers, open_external, external_status
 HOST=os.getenv('ADELIA_WEB_HOST','127.0.0.1');PORT=int(os.getenv('ADELIA_WEB_PORT','8765'));SESSION_TTL=60*60*24*30
 _sessions={};_attempts={}
 def _session(role,entity_id):
@@ -25,7 +27,7 @@ def _allowed(ip):
  if now-start>60:start,count=now,0
  count+=1;_attempts[ip]=(start,count);return count<=12
 class Handler(BaseHTTPRequestHandler):
- server_version='AdeliaWeb/0.5'
+ server_version='AdeliaWeb/0.6'
  def log_message(self,fmt,*args):print('[web-api]',self.address_string(),fmt%args)
  def _json(self,status,payload,cookie=None):
   data=json.dumps(payload,ensure_ascii=False,default=str).encode();self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
@@ -39,6 +41,8 @@ class Handler(BaseHTTPRequestHandler):
   return item if item and item['expires']>=time.time() else None
  def _teacher(self):
   a=self._auth();return a if a and a['role']=='teacher' else None
+ def _student(self):
+  a=self._auth();return a if a and a['role']=='student' else None
  def do_GET(self):
   u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
   try:
@@ -47,6 +51,12 @@ class Handler(BaseHTTPRequestHandler):
    if path=='/api/public/reviews':return self._json(200,{'items':list_public_reviews(12)})
    if path=='/api/auth/me':
     a=self._auth();return self._json(200,{'authenticated':bool(a),'session':a if a else None})
+   if path.startswith('/api/student/'):
+    a=self._student()
+    if not a:return self._json(401,{'error':'unauthorized'})
+    if path=='/api/student/homework':return self._json(200,{'items':student_homework_list(a['id'])})
+    if path=='/api/student/homework/detail':
+     item=student_homework_detail(int(q.get('id',['0'])[0]),a['id']);return self._json(200,item) if item else self._json(404,{'error':'homework_not_found'})
    if path.startswith('/api/teacher/'):
     if not self._teacher():return self._json(401,{'error':'unauthorized'})
     if path=='/api/teacher/dashboard':return self._json(200,teacher_dashboard())
@@ -56,6 +66,7 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/library':return self._json(200,{'items':list_materials(subject=q.get('subject',[None])[0],search=q.get('q',[None])[0])})
     if path=='/api/teacher/library/collections':return self._json(200,{'items':list_collections(subject=q.get('subject',[None])[0])})
     if path=='/api/teacher/library/tasks':return self._json(200,{'items':list_tasks(subject=q.get('subject',[None])[0],grade=q.get('grade',[None])[0],topic=q.get('topic',[None])[0],search=q.get('q',[None])[0],collection_id=q.get('collection_id',[None])[0])})
+    if path=='/api/teacher/external-homework/feed':return self._json(200,{'items':teacher_completion_feed()})
     if path=='/api/teacher/messages':
      uid=int(q.get('user_id',['0'])[0] or 0);return self._json(200,{'items':conversation(uid) if uid else message_inbox()})
     if path=='/api/teacher/lesson':
@@ -75,6 +86,12 @@ class Handler(BaseHTTPRequestHandler):
     if path.endswith('student/code'):
      entity=result['student'];token=_session('student',entity['id']);return self._json(200,{'ok':True,'student':entity},token)
     token=_session('teacher',result['admin_telegram_id']);return self._json(200,{'ok':True,'role':'teacher'},token)
+   if path.startswith('/api/student/'):
+    a=self._student()
+    if not a:return self._json(401,{'error':'unauthorized'})
+    if path=='/api/student/homework/submit':return self._json(200,submit_answers(int(body.get('homework_id')),a['id'],body.get('responses') or {},int(body.get('attempt_number') or 1)))
+    if path=='/api/student/homework/external/open':return self._json(200,open_external(int(body.get('homework_id')),a['id'],body.get('reminder_due_at')))
+    if path=='/api/student/homework/external/status':return self._json(200,external_status(int(body.get('homework_id')),a['id'],body.get('status')))
    if path.startswith('/api/teacher/'):
     if not self._teacher():return self._json(401,{'error':'unauthorized'})
     if path=='/api/teacher/homework':
@@ -82,6 +99,7 @@ class Handler(BaseHTTPRequestHandler):
      if r['status']=='ok' and lesson_id:link_created_homework(int(lesson_id),int(r['homework_id']))
      for material_id in body.get('material_ids') or []:link_to_homework(int(material_id),int(r['homework_id']))
      for task_id in body.get('task_ids') or []:link_task_to_homework(int(task_id),int(r['homework_id']))
+     if r['status']=='ok' and body.get('external_url'):attach_external_link(int(r['homework_id']),body.get('external_url'),body.get('external_title') or body.get('title'))
      return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/review':
      r=review_submission(body.get('submission_id'),body.get('result'),body.get('comment'),body.get('total_tasks'),body.get('correct_tasks'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
