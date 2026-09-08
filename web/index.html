@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#6f46d9" />
+  <title>Аделия | TutorBot</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Аделия | TutorBot</div>
+        <h1>Добрый день 👋</h1>
+      </div>
+      <button class="icon-btn" aria-label="Уведомления">🔔</button>
+    </header>
+
+    <main class="content" id="content">
+      <section class="hero-card">
+        <div class="hero-copy">
+          <span class="pill">Сегодня</span>
+          <h2>Занятие по физике</h2>
+          <p>18:30 · 60 минут</p>
+        </div>
+        <button class="primary-btn">Открыть занятие</button>
+      </section>
+
+      <section class="quick-actions">
+        <button class="action-card"><span>📅</span><b>Расписание</b><small>Ближайшие занятия</small></button>
+        <button class="action-card"><span>📚</span><b>Домашка</b><small>1 задание ждёт</small></button>
+        <button class="action-card"><span>💳</span><b>Оплата</b><small>Баланс и чеки</small></button>
+        <button class="action-card"><span>📈</span><b>Прогресс</b><small>Результаты и цели</small></button>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h3>Ближайшее</h3><button class="text-btn">Все</button></div>
+        <article class="list-card">
+          <div class="date-badge"><b>10</b><span>сен</span></div>
+          <div class="list-copy"><b>Физика</b><span>18:30 · 60 минут</span></div>
+          <button class="mini-btn">Подробнее</button>
+        </article>
+        <article class="list-card">
+          <div class="date-badge"><b>12</b><span>сен</span></div>
+          <div class="list-copy"><b>Математика</b><span>17:00 · 90 минут</span></div>
+          <button class="mini-btn">Подробнее</button>
+        </article>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h3>Что требует внимания</h3></div>
+        <article class="notice warning">
+          <div><b>Домашнее задание</b><p>Срок сдачи — завтра до 20:00.</p></div>
+          <button class="mini-btn">Открыть</button>
+        </article>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Основная навигация">
+      <button class="nav-item active" data-tab="home"><span>⌂</span><small>Главная</small></button>
+      <button class="nav-item" data-tab="schedule"><span>▦</span><small>Занятия</small></button>
+      <button class="nav-item" data-tab="homework"><span>✓</span><small>Домашка</small></button>
+      <button class="nav-item" data-tab="profile"><span>◉</span><small>Профиль</small></button>
+    </nav>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
