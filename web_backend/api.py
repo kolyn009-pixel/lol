@@ -8,6 +8,9 @@ from web_backend.public_reviews import list_public_reviews
 from web_backend.student_auth import consume_student_login_code
 from web_backend.teacher_auth import consume_teacher_login_code
 from web_backend.teacher_portal import dashboard as teacher_dashboard, students as teacher_students, student_card, create_simple_homework, review_submission
+from web_backend.library import list_materials, grant_student, link_to_homework
+from web_backend.unified_messages import inbox as message_inbox, conversation, queue_teacher_reply
+from web_backend.lesson_workspace import workspace as lesson_workspace, start_lesson, finish_lesson
 HOST=os.getenv('ADELIA_WEB_HOST','127.0.0.1');PORT=int(os.getenv('ADELIA_WEB_PORT','8765'));SESSION_TTL=60*60*24*30
 _sessions={};_attempts={}
 def _session(role,entity_id):
@@ -21,7 +24,7 @@ def _allowed(ip):
  if now-start>60:start,count=now,0
  count+=1;_attempts[ip]=(start,count);return count<=12
 class Handler(BaseHTTPRequestHandler):
- server_version='AdeliaWeb/0.2'
+ server_version='AdeliaWeb/0.3'
  def log_message(self,fmt,*args):print('[web-api]',self.address_string(),fmt%args)
  def _json(self,status,payload,cookie=None):
   data=json.dumps(payload,ensure_ascii=False,default=str).encode();self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
@@ -36,7 +39,7 @@ class Handler(BaseHTTPRequestHandler):
  def _teacher(self):
   a=self._auth();return a if a and a['role']=='teacher' else None
  def do_GET(self):
-  u=urlparse(self.path);path=u.path
+  u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
   try:
    if path=='/api/health':return self._json(200,{'ok':True,'service':'adelia-web'})
    if path=='/api/public/prices':return self._json(200,{'items':get_public_price_catalog()})
@@ -48,7 +51,13 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/dashboard':return self._json(200,teacher_dashboard())
     if path=='/api/teacher/students':return self._json(200,teacher_students())
     if path=='/api/teacher/student':
-     q=parse_qs(u.query);item=student_card(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
+     item=student_card(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
+    if path=='/api/teacher/library':
+     return self._json(200,{'items':list_materials(subject=q.get('subject',[None])[0],search=q.get('q',[None])[0])})
+    if path=='/api/teacher/messages':
+     uid=int(q.get('user_id',['0'])[0] or 0);return self._json(200,{'items':conversation(uid) if uid else message_inbox()})
+    if path=='/api/teacher/lesson':
+     item=lesson_workspace(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'lesson_not_found'})
    return self._json(404,{'error':'not_found'})
   except Exception as e:return self._json(500,{'error':'server_error','detail':str(e)[:180]})
  def do_POST(self):
@@ -68,6 +77,18 @@ class Handler(BaseHTTPRequestHandler):
      r=create_simple_homework(body.get('user_id'),body.get('title'),body.get('description'),body.get('deadline'),body.get('lesson_id'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/review':
      r=review_submission(body.get('submission_id'),body.get('result'),body.get('comment'),body.get('total_tasks'),body.get('correct_tasks'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
+    if path=='/api/teacher/message':
+     text=str(body.get('text') or '').strip()
+     if not text:return self._json(400,{'error':'text_required'})
+     mid=queue_teacher_reply(int(body.get('user_id')),text);return self._json(200,{'status':'ok','message_id':mid,'delivery':'queued'})
+    if path=='/api/teacher/lesson/start':
+     r=start_lesson(int(body.get('lesson_id')));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
+    if path=='/api/teacher/lesson/finish':
+     r=finish_lesson(int(body.get('lesson_id')),body.get('attendance_status','PRESENT'),body.get('tutor_comment'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
+    if path=='/api/teacher/material/grant':
+     grant_student(int(body.get('material_id')),int(body.get('user_id')));return self._json(200,{'status':'ok'})
+    if path=='/api/teacher/material/link-homework':
+     link_to_homework(int(body.get('material_id')),int(body.get('homework_id')),body.get('note'));return self._json(200,{'status':'ok'})
    if path=='/api/parent/student/find':
     a=self._auth()
     if not a or a['role']!='parent':return self._json(401,{'error':'unauthorized'})
