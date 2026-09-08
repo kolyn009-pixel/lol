@@ -1,27 +1,6 @@
-async function loadPrices(){
-  const root=document.querySelector('#priceGrid');
-  if(!root)return;
-  try{
-    const r=await fetch('/api/public/prices',{headers:{Accept:'application/json'}});
-    if(!r.ok)throw new Error('prices_unavailable');
-    const items=await r.json();
-    root.innerHTML=items.map(x=>`<article class="price-card"><span>${x.title}</span><b>${Number(x.hourly_rate).toLocaleString('ru-RU')} ₽</b><small>за 60 минут</small></article>`).join('');
-  }catch(e){
-    root.innerHTML='<div class="data-note">Актуальные направления и цены появятся после подключения сайта к TutorBot.</div>';
-  }
-}
-
-async function loadReviews(){
-  const root=document.querySelector('#reviewsGrid');
-  if(!root)return;
-  try{
-    const r=await fetch('/api/public/reviews',{headers:{Accept:'application/json'}});
-    if(!r.ok)throw new Error('reviews_unavailable');
-    const items=await r.json();
-    root.innerHTML=items.slice(0,6).map(x=>`<article class="review-card"><div class="stars">★★★★★</div><p>${escapeHtml(x.text)}</p><footer><b>${escapeHtml(x.author||'Ученик')}</b><span>${escapeHtml(x.source||'Профи.ру')}</span></footer></article>`).join('');
-  }catch(e){
-    root.innerHTML='<div class="data-note">Отзывы с Профи.ру добавим после импорта подтверждённых отзывов.</div>';
-  }
-}
+async function loadPrices(){const root=document.querySelector('#priceGrid');if(!root)return;try{const r=await fetch('/api/public/prices',{headers:{Accept:'application/json'}});if(!r.ok)throw 0;const data=await r.json(),items=Array.isArray(data)?data:data.items||[];root.innerHTML=items.map(x=>`<article class="price-card"><span>${escapeHtml(x.title)}</span><b>${Number(x.hourly_rate).toLocaleString('ru-RU')} ₽</b><small>за 60 минут</small></article>`).join('')}catch(e){root.innerHTML='<div class="data-note">Актуальные направления и цены появятся после подключения сайта к TutorBot.</div>'}}
+async function loadReviews(){const root=document.querySelector('#reviewsGrid');if(!root)return;try{const r=await fetch('/api/public/reviews',{headers:{Accept:'application/json'}});if(!r.ok)throw 0;const data=await r.json(),items=Array.isArray(data)?data:data.items||[];root.innerHTML=items.slice(0,6).map(x=>`<article class="review-card"><div class="stars">★★★★★</div><p>${escapeHtml(x.text)}</p><footer><b>${escapeHtml(x.author||'Ученик')}</b><span>${escapeHtml(x.source||'Профи.ру')}</span></footer></article>`).join('')||'<div class="data-note">Скоро здесь появятся подтверждённые отзывы учеников.</div>'}catch(e){root.innerHTML='<div class="data-note">Отзывы с Профи.ру добавим после импорта подтверждённых отзывов.</div>'}}
 function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-loadPrices();loadReviews();
+const demos={schedule:{icon:'📅',eyebrow:'Сегодня',title:'Физика · 18:30',body:'Занятие уже в расписании. Перенос, отмена и история занятий доступны в одном месте.',action:'Открыть занятие'},homework:{icon:'📚',eyebrow:'Домашняя работа',title:'Механика · 6 задач',body:'Ученик видит срок, прикрепляет решение и получает результат проверки без поиска файлов в переписке.',action:'Перейти к заданию'},progress:{icon:'📈',eyebrow:'Прогресс',title:'Механика · 82%',body:'Темы, динамика и результаты собраны в понятной картине — и для ученика, и для родителя.',action:'Посмотреть прогресс'},payment:{icon:'💳',eyebrow:'Баланс',title:'4 занятия в абонементе',body:'Стоимость, оплаты, чеки и история операций всегда под рукой и синхронизированы с TutorBot.',action:'Открыть оплату'}};
+function renderDemo(key){const d=demos[key],root=document.querySelector('#demoScreen');if(!d||!root)return;root.innerHTML=`<div class="demo-icon">${d.icon}</div><small>${d.eyebrow}</small><h3>${d.title}</h3><p>${d.body}</p><button>${d.action}</button>`;document.querySelectorAll('[data-demo]').forEach(b=>b.classList.toggle('active',b.dataset.demo===key))}
+document.querySelectorAll('[data-demo]').forEach(b=>b.addEventListener('click',()=>renderDemo(b.dataset.demo)));renderDemo('schedule');loadPrices();loadReviews();
