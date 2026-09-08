@@ -8,7 +8,7 @@ from web_backend.public_reviews import list_public_reviews
 from web_backend.student_auth import consume_student_login_code
 from web_backend.teacher_auth import consume_teacher_login_code
 from web_backend.teacher_portal import dashboard as teacher_dashboard, students as teacher_students, student_card, create_simple_homework, review_submission
-from web_backend.library import list_materials, grant_student, link_to_homework
+from web_backend.library import list_materials, grant_student, link_to_homework, list_collections, list_tasks, create_material, create_collection, add_material_to_collection, add_task, link_task_to_homework
 from web_backend.unified_messages import inbox as message_inbox, conversation, queue_teacher_reply
 from web_backend.lesson_workspace import workspace as lesson_workspace, start_lesson, finish_lesson
 from web_backend.post_lesson_flow import state as post_lesson_state, save_marks as post_lesson_save_marks, complete_review as post_lesson_complete_review, skip_homework as post_lesson_skip_homework, link_created_homework
@@ -25,7 +25,7 @@ def _allowed(ip):
  if now-start>60:start,count=now,0
  count+=1;_attempts[ip]=(start,count);return count<=12
 class Handler(BaseHTTPRequestHandler):
- server_version='AdeliaWeb/0.4'
+ server_version='AdeliaWeb/0.5'
  def log_message(self,fmt,*args):print('[web-api]',self.address_string(),fmt%args)
  def _json(self,status,payload,cookie=None):
   data=json.dumps(payload,ensure_ascii=False,default=str).encode();self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
@@ -54,6 +54,8 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/student':
      item=student_card(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
     if path=='/api/teacher/library':return self._json(200,{'items':list_materials(subject=q.get('subject',[None])[0],search=q.get('q',[None])[0])})
+    if path=='/api/teacher/library/collections':return self._json(200,{'items':list_collections(subject=q.get('subject',[None])[0])})
+    if path=='/api/teacher/library/tasks':return self._json(200,{'items':list_tasks(subject=q.get('subject',[None])[0],grade=q.get('grade',[None])[0],topic=q.get('topic',[None])[0],search=q.get('q',[None])[0],collection_id=q.get('collection_id',[None])[0])})
     if path=='/api/teacher/messages':
      uid=int(q.get('user_id',['0'])[0] or 0);return self._json(200,{'items':conversation(uid) if uid else message_inbox()})
     if path=='/api/teacher/lesson':
@@ -78,6 +80,8 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/homework':
      lesson_id=body.get('lesson_id');r=create_simple_homework(body.get('user_id'),body.get('title'),body.get('description'),body.get('deadline'),lesson_id)
      if r['status']=='ok' and lesson_id:link_created_homework(int(lesson_id),int(r['homework_id']))
+     for material_id in body.get('material_ids') or []:link_to_homework(int(material_id),int(r['homework_id']))
+     for task_id in body.get('task_ids') or []:link_task_to_homework(int(task_id),int(r['homework_id']))
      return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/review':
      r=review_submission(body.get('submission_id'),body.get('result'),body.get('comment'),body.get('total_tasks'),body.get('correct_tasks'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
@@ -95,6 +99,14 @@ class Handler(BaseHTTPRequestHandler):
      r=post_lesson_complete_review(int(body.get('lesson_id')),body.get('marks') or []);return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/post-lesson/homework/skip':
      r=post_lesson_skip_homework(int(body.get('lesson_id')));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
+    if path=='/api/teacher/library/material':
+     mid=create_material(body.get('title'),body.get('description'),body.get('subject'),body.get('grade_min'),body.get('grade_max'),body.get('material_type','LINK'),external_url=body.get('external_url'),tags=body.get('tags') or []);return self._json(200,{'status':'ok','material_id':mid})
+    if path=='/api/teacher/library/collection':
+     cid=create_collection(body.get('title'),body.get('description'),body.get('subject'),body.get('grade'),body.get('collection_type','BOOK'));return self._json(200,{'status':'ok','collection_id':cid})
+    if path=='/api/teacher/library/collection/material':
+     add_material_to_collection(int(body.get('collection_id')),int(body.get('material_id')),int(body.get('sort_order') or 100));return self._json(200,{'status':'ok'})
+    if path=='/api/teacher/library/task':
+     tid=add_task(body.get('subject'),body.get('statement'),body.get('grade'),body.get('study_goal'),body.get('section'),body.get('topic'),body.get('collection_id'),body.get('source_label'),body.get('task_number'),body.get('title'),body.get('answer'),body.get('solution'),body.get('difficulty',2),body.get('tags') or []);return self._json(200,{'status':'ok','task_id':tid})
     if path=='/api/teacher/material/grant':
      grant_student(int(body.get('material_id')),int(body.get('user_id')));return self._json(200,{'status':'ok'})
     if path=='/api/teacher/material/link-homework':
