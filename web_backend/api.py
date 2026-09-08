@@ -52,8 +52,7 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/students':return self._json(200,teacher_students())
     if path=='/api/teacher/student':
      item=student_card(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
-    if path=='/api/teacher/library':
-     return self._json(200,{'items':list_materials(subject=q.get('subject',[None])[0],search=q.get('q',[None])[0])})
+    if path=='/api/teacher/library':return self._json(200,{'items':list_materials(subject=q.get('subject',[None])[0],search=q.get('q',[None])[0])})
     if path=='/api/teacher/messages':
      uid=int(q.get('user_id',['0'])[0] or 0);return self._json(200,{'items':conversation(uid) if uid else message_inbox()})
     if path=='/api/teacher/lesson':
@@ -84,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/lesson/start':
      r=start_lesson(int(body.get('lesson_id')));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/lesson/finish':
-     r=finish_lesson(int(body.get('lesson_id')),body.get('attendance_status','PRESENT'),body.get('tutor_comment'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
+     r=finish_lesson(int(body.get('lesson_id')),body.get('attendance_status','PRESENT'),body.get('tutor_comment'),body.get('mode','NOW'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status'],'detail':r.get('detail')})
     if path=='/api/teacher/material/grant':
      grant_student(int(body.get('material_id')),int(body.get('user_id')));return self._json(200,{'status':'ok'})
     if path=='/api/teacher/material/link-homework':
