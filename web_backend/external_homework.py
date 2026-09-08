@@ -8,6 +8,7 @@ API is configured separately.
 """
 from urllib.parse import urlparse
 from database import connect, now_iso
+from web_backend.homework_notifications import enqueue_teacher_external_status
 
 SUPPORTED_PROVIDERS={
     'reshuege.ru':'RESHU_EGE',
@@ -85,10 +86,12 @@ def mark_opened(homework_id,user_id,reminder_due_at=None,source_channel='WEB'):
 def set_student_status(homework_id,user_id,status,source_channel='WEB'):
     ensure_tables();status=str(status or '').upper()
     if status not in {'DONE','WORKING','NEED_MORE_TIME'}:raise ValueError('invalid_status')
-    now=now_iso();conn=connect();owner=conn.execute("SELECT 1 FROM homework WHERE id=? AND user_id=?",(int(homework_id),int(user_id))).fetchone()
-    if not owner:conn.close();raise PermissionError('homework_not_found')
+    now=now_iso();conn=connect();ctx=conn.execute("""SELECT h.title,u.name,l.external_url FROM homework h JOIN users u ON u.id=h.user_id JOIN external_homework_links l ON l.homework_id=h.id WHERE h.id=? AND h.user_id=?""",(int(homework_id),int(user_id))).fetchone()
+    if not ctx:conn.close();raise PermissionError('homework_not_found')
     conn.execute("""INSERT INTO external_homework_state(homework_id,user_id,student_status,student_status_at) VALUES(?,?,?,?) ON CONFLICT(homework_id,user_id) DO UPDATE SET student_status=excluded.student_status,student_status_at=excluded.student_status_at""",(int(homework_id),int(user_id),status,now))
-    conn.execute("INSERT INTO external_homework_events(homework_id,user_id,event_type,source_channel,created_at) VALUES(?,?,?,?,?)",(int(homework_id),int(user_id),'STATUS_'+status,str(source_channel or 'WEB').upper(),now));conn.commit();conn.close();return {'status':'ok','student_status':status,'updated_at':now}
+    conn.execute("INSERT INTO external_homework_events(homework_id,user_id,event_type,source_channel,created_at) VALUES(?,?,?,?,?)",(int(homework_id),int(user_id),'STATUS_'+status,str(source_channel or 'WEB').upper(),now));conn.commit();conn.close()
+    enqueue_teacher_external_status(int(homework_id),int(user_id),status,ctx['name'],ctx['title'],ctx['external_url'])
+    return {'status':'ok','student_status':status,'updated_at':now}
 
 
 def reminders_due(now=None,limit=100):
