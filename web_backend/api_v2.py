@@ -19,11 +19,14 @@ from web_backend.stage6_api import Stage6Mixin
 from web_backend.stage7_api import Stage7Mixin
 from web_backend.stage8_api import Stage8Mixin
 from web_backend.stage9_api import Stage9Mixin
+from web_backend.stage10_api import Stage10Mixin
 
-class Handler(Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Handler):
-    server_version="AdeliaWeb/2.4"
+class Handler(Stage10Mixin,Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Handler):
+    server_version="AdeliaWeb/2.5"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
+        handled=self.stage10_get(path,q)
+        if handled is not False:return handled
         handled=self.stage9_get(path,q)
         if handled is not False:return handled
         handled=self.stage8_get(path,q)
@@ -74,6 +77,8 @@ class Handler(Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        handled=self.stage10_post(path)
+        if handled is not False:return handled
         handled=self.stage9_post(path)
         if handled is not False:return handled
         handled=self.stage8_post(path)
