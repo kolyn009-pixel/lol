@@ -11,6 +11,7 @@ import secrets
 import time
 
 from database import connect, now_iso
+from core import admin_roles
 
 SESSION_TTL = 60 * 60 * 24 * 30
 
@@ -43,6 +44,23 @@ def ensure_table() -> None:
     conn.close()
 
 
+def _identity_active(conn, role, entity_id):
+    role = str(role or "").lower()
+    entity_id = int(entity_id)
+    if role == "student":
+        row = conn.execute(
+            "SELECT id FROM users WHERE id=? AND active=1 LIMIT 1",
+            (entity_id,),
+        ).fetchone()
+        return bool(row)
+    if role == "teacher":
+        try:
+            return admin_roles.role_for(entity_id) in {"OWNER", "ADMIN"}
+        except Exception:
+            return False
+    return False
+
+
 def create_session(role, entity_id, ttl_seconds=SESSION_TTL):
     ensure_table()
     role = str(role or "").strip().lower()
@@ -53,6 +71,9 @@ def create_session(role, entity_id, ttl_seconds=SESSION_TTL):
     token = secrets.token_urlsafe(32)
     expires = int(time.time()) + ttl_seconds
     conn = connect()
+    if not _identity_active(conn, role, entity_id):
+        conn.close()
+        raise PermissionError("session_identity_inactive")
     conn.execute(
         """
         INSERT INTO web_sessions(
@@ -87,6 +108,14 @@ def read_session(token):
     ).fetchone()
     if not row:
         conn.execute("DELETE FROM web_sessions WHERE expires_at < ?", (now,))
+        conn.commit()
+        conn.close()
+        return None
+    if not _identity_active(conn, row["role"], row["entity_id"]):
+        conn.execute(
+            "UPDATE web_sessions SET revoked_at=? WHERE id=?",
+            (now_iso(), int(row["id"])),
+        )
         conn.commit()
         conn.close()
         return None
