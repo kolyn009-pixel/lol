@@ -4,6 +4,7 @@ const money=n=>Number(n||0).toLocaleString('ru-RU')+' ₽';
 const titles={home:'Главная',schedule:'Занятия',homework:'Домашка',payments:'Оплата',messages:'Сообщения',profile:'Профиль',studentLogin:'Вход'};
 let auth=null;
 let current='home';
+let authMode='password';
 
 async function api(path,opt={}){
   const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});
@@ -18,7 +19,10 @@ function goalName(v){return ({EGE:'ЕГЭ',OGE:'ОГЭ',SCHOOL:'Школьный
 function payStatus(v){return ({PAID:'Оплачено',AWAITING_PAYMENT:'Ожидает оплаты',WAITING:'Ожидает оплаты',PENDING:'На проверке',CONFIRMED:'Подтверждено',CANCELLED:'Отменено'})[String(v||'').toUpperCase()]||v||'—'}
 function lessonStatus(v){return ({CONFIRMED:'Подтверждено',PENDING:'Ожидает подтверждения',IN_PROGRESS:'Идёт занятие',COMPLETED:'Завершено',CANCELLED:'Отменено',REJECTED:'Отклонено'})[String(v||'').toUpperCase()]||v||'—'}
 function loading(){return '<div class="skeleton-stack"><div class="skeleton hero-skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>'}
-function authCard(){return `<section class="form-card auth-card"><span class="status">Аделия 💜</span><h2>Вход в личный кабинет</h2><p>Получите одноразовый код в TutorBot и введите его здесь. Код действует 10 минут.</p><label>Код из бота</label><input class="code-input" id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"><button class="form-primary" id="studentLoginButton">Войти</button><div id="loginResult"></div></section>`}
+function authCard(){
+ if(authMode==='code')return `<section class="form-card auth-card"><span class="status">Аделия 💜</span><h2>Первый вход или восстановление</h2><p>Получите одноразовый код в TutorBot. После подтверждения создайте логин и пароль — код каждый раз больше не понадобится.</p><label>Код из бота</label><input class="code-input" id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"><label>Новый логин</label><input id="newLogin" autocomplete="username" autocapitalize="none" placeholder="например, ivan.petrov"><label>Новый пароль</label><input id="newPassword" type="password" autocomplete="new-password" placeholder="минимум 8 символов"><button class="form-primary" id="studentSetupButton">Подтвердить и сохранить</button><button class="mini-btn" id="showPasswordLogin">Уже есть логин и пароль</button><div id="loginResult"></div></section>`;
+ return `<section class="form-card auth-card"><span class="status">Аделия 💜</span><h2>Вход в личный кабинет</h2><p>Введите постоянный логин и пароль. На этом устройстве кабинет останется открытым после перезапуска браузера или приложения.</p><label>Логин</label><input id="loginName" autocomplete="username" autocapitalize="none" placeholder="Логин"><label>Пароль</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Пароль"><button class="form-primary" id="studentPasswordLoginButton">Войти</button><button class="mini-btn" id="showCodeLogin">Первый вход / забыли пароль?</button><div id="loginResult"></div></section>`;
+}
 
 async function ensureAuth(){
   try{const d=await api('/auth/me');auth=d.session||null}catch{auth=null}
@@ -69,6 +73,7 @@ async function homeworkDetail(id){
 }
 
 function loginView(){return authCard()}
+function showAuth(mode){authMode=mode;$('#content').innerHTML=loginView();bind()}
 
 async function render(tab='home'){
   current=tab;$('#content').innerHTML=loading();$('#pageTitle').textContent=titles[tab]||tab;
@@ -82,7 +87,8 @@ async function render(tab='home'){
 
 async function openHomework(id){$('#content').innerHTML=loading();$('#content').innerHTML=await homeworkDetail(id);bind();const ext=$('#openExternal');if(ext)ext.onclick=async()=>{try{const r=await api('/student/homework/external/open',{method:'POST',body:JSON.stringify({homework_id:+id})});window.open(r.url,'_blank','noopener')}catch{$('#hwResult').innerHTML='<p class="form-error">Не удалось открыть вариант.</p>'}};document.querySelectorAll('[data-ext-status]').forEach(x=>x.onclick=async()=>{try{await api('/student/homework/external/status',{method:'POST',body:JSON.stringify({homework_id:+id,status:x.dataset.extStatus})});$('#hwResult').innerHTML='<div class="form-success">✓ Статус отправлен преподавателю</div>'}catch{$('#hwResult').innerHTML='<p class="form-error">Не удалось отправить статус.</p>'}});const submit=$('#submitInteractive');if(submit)submit.onclick=async()=>{const responses={};document.querySelectorAll('[data-answer]').forEach(x=>responses[x.dataset.answer]=x.value);try{const r=await api('/student/homework/submit',{method:'POST',body:JSON.stringify({homework_id:+id,responses})});$('#hwResult').innerHTML=`<div class="form-success"><b>${r.score_percent}%</b><br>${r.correct_tasks} из ${r.total_tasks} автоматически проверяемых заданий · ${r.earned_points} / ${r.total_points} баллов</div>`}catch{$('#hwResult').innerHTML='<p class="form-error">Не удалось проверить ответы.</p>'}}}
 
-async function doLogin(){const input=$('#loginCode'),out=$('#loginResult');const code=(input?.value||'').replace(/\D/g,'');if(code.length!==6){out.innerHTML='<p class="form-error">Введите 6 цифр.</p>';return}try{const r=await api('/auth/student/code',{method:'POST',body:JSON.stringify({code})});auth={role:'student',id:r.student?.id};out.innerHTML='<div class="form-success">✓ Вход выполнен</div>';setTimeout(()=>render('home'),250)}catch(e){out.innerHTML=`<p class="form-error">${e.message==='expired'?'Код истёк. Получите новый в боте.':'Код неверный или уже использован.'}</p>`}}
+async function doPasswordLogin(){const out=$('#loginResult'),login=($('#loginName')?.value||'').trim().toLowerCase(),password=$('#loginPassword')?.value||'';if(!login||!password){out.innerHTML='<p class="form-error">Введите логин и пароль.</p>';return}try{const r=await api('/auth/student/code',{method:'POST',body:JSON.stringify({code:`login:${login}:${password}`})});auth={role:'student',id:r.student?.id};out.innerHTML='<div class="form-success">✓ Вход выполнен</div>';setTimeout(()=>render('home'),180)}catch{out.innerHTML='<p class="form-error">Неверный логин или пароль.</p>'}}
+async function doSetupLogin(){const out=$('#loginResult'),code=($('#loginCode')?.value||'').replace(/\D/g,''),login=($('#newLogin')?.value||'').trim().toLowerCase(),password=$('#newPassword')?.value||'';if(code.length!==6){out.innerHTML='<p class="form-error">Введите 6 цифр из TutorBot.</p>';return}if(!/^[a-z0-9._-]{4,32}$/.test(login)){out.innerHTML='<p class="form-error">Логин: 4–32 символа, латинские буквы, цифры, . _ -</p>';return}if(password.length<8){out.innerHTML='<p class="form-error">Пароль должен быть не короче 8 символов.</p>';return}try{const r=await api('/auth/student/code',{method:'POST',body:JSON.stringify({code:`setup:${code}:${login}:${password}`})});auth={role:'student',id:r.student?.id};out.innerHTML='<div class="form-success">✓ Данные для входа сохранены</div>';setTimeout(()=>render('home'),220)}catch(e){const m=e.message==='expired'?'Код истёк. Получите новый в TutorBot.':e.message==='login_taken'?'Этот логин уже занят.':'Не удалось подтвердить код или сохранить данные.';out.innerHTML=`<p class="form-error">${m}</p>`}}
 
 function bind(){
   document.querySelectorAll('[data-go]').forEach(x=>x.onclick=()=>render(x.dataset.go));
@@ -90,7 +96,10 @@ function bind(){
   document.querySelectorAll('[data-external]').forEach(x=>x.onclick=()=>window.open(x.dataset.external,'_blank','noopener'));
   document.querySelectorAll('[data-lesson]').forEach(x=>x.onclick=()=>location.href='/app/lesson/?id='+encodeURIComponent(x.dataset.lesson));
   document.querySelectorAll('[data-schedule-tab]').forEach(x=>x.onclick=()=>{document.querySelectorAll('[data-schedule-tab]').forEach(b=>b.classList.toggle('active',b===x));$('#futurePane').classList.toggle('hidden',x.dataset.scheduleTab!=='future');$('#pastPane').classList.toggle('hidden',x.dataset.scheduleTab!=='past')});
-  const l=$('#studentLoginButton');if(l)l.onclick=doLogin;
+  const pl=$('#studentPasswordLoginButton');if(pl)pl.onclick=doPasswordLogin;
+  const sl=$('#studentSetupButton');if(sl)sl.onclick=doSetupLogin;
+  const sc=$('#showCodeLogin');if(sc)sc.onclick=()=>showAuth('code');
+  const sp=$('#showPasswordLogin');if(sp)sp.onclick=()=>showAuth('password');
   const send=$('#sendMessage');if(send)send.onclick=async()=>{const t=$('#messageText'),out=$('#messageResult'),text=(t.value||'').trim();if(!text)return;send.disabled=true;try{await api('/student/message',{method:'POST',body:JSON.stringify({text})});t.value='';out.innerHTML='<div class="form-success">✓ Сообщение отправлено</div>';setTimeout(()=>render('messages'),250)}catch{out.innerHTML='<p class="form-error">Не удалось отправить сообщение.</p>'}finally{send.disabled=false}};
 }
 
