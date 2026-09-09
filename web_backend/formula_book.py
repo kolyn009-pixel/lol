@@ -101,7 +101,8 @@ def _normalize(fields,creating=False):
 def _validate_effective(data):
     level=str(data.get('education_level') or 'ALL').upper();subject=str(data.get('subject') or '').upper()
     cmin=data.get('course_min');cmax=data.get('course_max')
-    if level=='COLLEGE' and subject=='PHYSICS':
+    if level=='COLLEGE':
+        if subject!='PHYSICS':raise ValueError('college_subject_not_supported')
         if cmin is not None and int(cmin)>2:raise ValueError('physics_college_course_out_of_range')
         if cmax is not None and int(cmax)>2:raise ValueError('physics_college_course_out_of_range')
     return data
