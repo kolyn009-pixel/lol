@@ -9,6 +9,8 @@ from __future__ import annotations
 from database import connect, now_iso
 from web_backend.library import ensure_tables as ensure_library_tables, list_materials
 from web_backend.unified_messages import conversation, queue_teacher_reply
+from web_backend.teacher_crm import student as crm_student
+from web_backend.homework_status import payload as homework_status_payload
 
 
 def _lesson(lesson_id):
@@ -25,12 +27,20 @@ def context(lesson_id):
     notes=conn.execute("SELECT id,text,created_at FROM lesson_notes WHERE lesson_id=? ORDER BY created_at,id",(int(lesson_id),)).fetchall()
     homework=conn.execute("SELECT id,title,status,deadline,homework_type,source_type,source_url,assigned_at FROM homework WHERE user_id=? ORDER BY assigned_at DESC,id DESC LIMIT 8",(int(row['user_id']),)).fetchall()
     conn.close()
+    hw=[]
+    for item in homework:
+        d=dict(item);d['status_ui']=homework_status_payload(d.get('status'));hw.append(d)
+    crm=crm_student(int(row['user_id']))
     return {
         'lesson_id':int(row['id']),
         'user_id':int(row['user_id']),
+        'student':crm.get('student') if crm else None,
+        'student_stats':crm.get('stats') if crm else {},
+        'next_lesson':crm.get('next_lesson') if crm else None,
+        'recent_lessons':crm.get('recent_lessons') if crm else [],
         'notes':[dict(x) for x in notes],
         'materials':list_materials(user_id=int(row['user_id']),subject=row['subject'],limit=30),
-        'homework':[dict(x) for x in homework],
+        'homework':hw,
         'messages':conversation(int(row['user_id']),limit=40),
     }
 
