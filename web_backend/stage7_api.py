@@ -9,30 +9,37 @@ def _truth(value,default=True):
     if isinstance(value,bool):return value
     return str(value).strip().lower() in {'1','true','yes','on'}
 
+def _browse_profile(q,profile):
+    own_type=str(profile.get('type') or 'SCHOOL').upper();own_level=int(profile.get('level') or 0) or None
+    requested=str(q.get('education_level',[own_type])[0] or own_type).upper()
+    if requested not in {'SCHOOL','COLLEGE'}:requested=own_type
+    raw=q.get('level',[None])[0]
+    try:level=int(raw) if raw not in (None,'') else (own_level if requested==own_type else None)
+    except Exception:level=None
+    if requested=='SCHOOL' and level is not None and not 1<=level<=11:level=None
+    if requested=='COLLEGE' and level is not None and not 1<=level<=4:level=None
+    return requested,level
+
+def _level_filter(items,kind,level):
+    if level is None:return items
+    if kind=='SCHOOL':return [x for x in items if (x.get('grade_min') is None or int(x['grade_min'])<=level) and (x.get('grade_max') is None or int(x['grade_max'])>=level)]
+    return [x for x in items if (x.get('course_min') is None or int(x['course_min'])<=level) and (x.get('course_max') is None or int(x['course_max'])>=level]
+
 class Stage7Mixin:
     def stage7_get(self,path,q):
         if path=='/api/student/formulas':
             a=self._student()
             if not a:return self._json(401,{'error':'unauthorized'})
             try:
-                profile=education_profile.get(int(a['id']))
-                items=list_formulas(int(a['id']),q.get('subject',[None])[0],q.get('section',[None])[0],q.get('topic',[None])[0],q.get('q',[None])[0],str(q.get('favorites',['0'])[0]).lower() in {'1','true','yes'},q.get('limit',[300])[0],profile['type'])
-                level=profile.get('level')
-                if level:
-                    if profile['type']=='SCHOOL':items=[x for x in items if (x.get('grade_min') is None or int(x['grade_min'])<=int(level)) and (x.get('grade_max') is None or int(x['grade_max'])>=int(level))]
-                    elif profile['type']=='COLLEGE':items=[x for x in items if (x.get('course_min') is None or int(x['course_min'])<=int(level)) and (x.get('course_max') is None or int(x['course_max'])>=int(level))]
-                return self._json(200,{'items':items,'facets':facets(),'education':profile})
+                profile=education_profile.get(int(a['id']));kind,level=_browse_profile(q,profile)
+                items=list_formulas(int(a['id']),q.get('subject',[None])[0],q.get('section',[None])[0],q.get('topic',[None])[0],q.get('q',[None])[0],str(q.get('favorites',['0'])[0]).lower() in {'1','true','yes'},q.get('limit',[300])[0],kind)
+                items=_level_filter(items,kind,level)
+                return self._json(200,{'items':items,'facets':facets(),'education':profile,'browse':{'education_level':kind,'level':level}})
             except Exception as exc:print('[web-api] student formulas error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/student/formula':
             a=self._student()
             if not a:return self._json(401,{'error':'unauthorized'})
-            try:
-                item=formula_detail(int(q.get('id',['0'])[0]),int(a['id']));profile=education_profile.get(int(a['id']))
-                if item and item.get('education_level') not in ('ALL',profile['type']):item=None
-                if item and profile.get('level'):
-                    level=int(profile['level'])
-                    if profile['type']=='SCHOOL' and ((item.get('grade_min') is not None and int(item['grade_min'])>level) or (item.get('grade_max') is not None and int(item['grade_max'])<level)):item=None
-                    if profile['type']=='COLLEGE' and ((item.get('course_min') is not None and int(item['course_min'])>level) or (item.get('course_max') is not None and int(item['course_max'])<level)):item=None
+            try:item=formula_detail(int(q.get('id',['0'])[0]),int(a['id']))
             except Exception:item=None
             return self._json(200,item) if item else self._json(404,{'error':'formula_not_found'})
         if path=='/api/teacher/formulas':
