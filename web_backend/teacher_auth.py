@@ -2,6 +2,7 @@
 
 The bot can call issue_teacher_login_code(admin_telegram_id) and send the code
 to the teacher. Codes are short-lived, one-time, and stored in tutor.db.
+Only active OWNER and ADMIN accounts may enter the teacher web cabinet.
 """
 
 import secrets
@@ -11,6 +12,16 @@ from database import connect, now_iso
 from core import admin_roles
 
 TTL_MINUTES = 10
+TEACHER_WEB_ROLES = {"OWNER", "ADMIN"}
+
+
+def _can_use_teacher_web(telegram_id):
+    if telegram_id is None:
+        return False
+    try:
+        return admin_roles.role_for(int(telegram_id)) in TEACHER_WEB_ROLES
+    except (TypeError, ValueError):
+        return False
 
 
 def ensure_table():
@@ -36,8 +47,8 @@ def ensure_table():
 
 def issue_teacher_login_code(admin_telegram_id, ttl_minutes=TTL_MINUTES):
     admin_telegram_id = int(admin_telegram_id)
-    if not admin_roles.is_admin_id(admin_telegram_id):
-        raise PermissionError("not_admin")
+    if not _can_use_teacher_web(admin_telegram_id):
+        raise PermissionError("teacher_web_access_denied")
 
     ensure_table()
     ttl_minutes = max(1, min(int(ttl_minutes), 30))
@@ -78,7 +89,7 @@ def consume_teacher_login_code(code):
         conn.close()
         return {"status": "expired"}
     admin_tid = int(row["admin_telegram_id"])
-    if not admin_roles.is_admin_id(admin_tid):
+    if not _can_use_teacher_web(admin_tid):
         conn.close()
         return {"status": "invalid"}
     conn.execute("UPDATE teacher_web_login_codes SET used_at=? WHERE id=?", (now_iso(), int(row["id"])))
