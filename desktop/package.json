@@ -9,7 +9,7 @@
     "selftest": "node selftest.js",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win nsis",
-    "dist:mac": "electron-builder --mac dmg"
+    "dist:mac": "electron-builder --mac"
   },
   "dependencies": {
     "electron-updater": "6.6.2"
@@ -23,7 +23,7 @@
     "productName": "Аделия",
     "artifactName": "Adelia-${version}-${os}-${arch}.${ext}",
     "asar": true,
-    "files": ["main.js", "preload.js", "selftest.js", "package.json"],
+    "files": ["main.js", "preload.js", "package.json"],
     "directories": {"output": "dist"},
     "publish": [{
       "provider": "generic",
