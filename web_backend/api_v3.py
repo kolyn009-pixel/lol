@@ -5,6 +5,7 @@ import time
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse
 
+from core import admin_roles
 from web_backend import api as v1
 from web_backend import api_v2
 from web_backend.lesson_join import student_join
@@ -12,6 +13,12 @@ from web_backend.lesson_join import student_join
 _AUTH_LIMITS = {}
 _AUTH_WINDOW = 300
 _AUTH_MAX = 8
+_OWNER_ONLY_POST = {
+    "/api/teacher/finance/price",
+    "/api/teacher/finance/override",
+    "/api/teacher/finance/override/delete",
+    "/api/teacher/finance/package",
+}
 
 
 def _auth_allowed(ip, route):
@@ -30,7 +37,7 @@ def _auth_allowed(ip, route):
 
 
 class Handler(api_v2.Handler):
-    server_version = "AdeliaWeb/3.2"
+    server_version = "AdeliaWeb/3.3"
 
     def log_message(self, fmt, *args):
         try:
@@ -46,7 +53,12 @@ class Handler(api_v2.Handler):
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'",
+            "default-src 'self'; "
+            "base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; "
+            "script-src 'self' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "font-src 'self' data: https://cdn.jsdelivr.net; "
+            "img-src 'self' data: blob:; connect-src 'self'",
         )
         super().end_headers()
 
@@ -65,21 +77,40 @@ class Handler(api_v2.Handler):
             return False
         return parsed.netloc.lower() == host
 
+    def _owner(self):
+        auth = self._teacher()
+        if not auth:
+            return None
+        try:
+            return auth if admin_roles.role_for(int(auth["id"])) == "OWNER" else None
+        except Exception:
+            return None
+
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/api/auth/me":
             auth = self._auth()
             if not auth:
                 return self._json(200, {"authenticated": False, "session": None})
-            # Preserve the old response shape for existing web/PWA clients while
-            # exposing only the role. Internal entity ids and expiry stay server-side.
-            return self._json(200, {"authenticated": True, "role": auth.get("role"), "session": {"role": auth.get("role")}})
+            return self._json(
+                200,
+                {
+                    "authenticated": True,
+                    "role": auth.get("role"),
+                    "session": {"role": auth.get("role")},
+                },
+            )
         return super().do_GET()
 
     def do_POST(self):
         path = urlparse(self.path).path
         if not self._same_origin_write():
             return self._json(403, {"error": "cross_origin_forbidden"})
+
+        if path in _OWNER_ONLY_POST and not self._owner():
+            # Do not reveal whether the current teacher is merely an ADMIN or
+            # unauthenticated; both are forbidden from changing global pricing.
+            return self._json(403, {"error": "owner_required"})
 
         if path in {"/api/auth/student/code", "/api/auth/teacher/code", "/api/auth/parent/code"}:
             if not _auth_allowed(self.client_address[0], path):
