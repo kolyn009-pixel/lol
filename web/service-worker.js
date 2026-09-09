@@ -1,22 +1,28 @@
-const CACHE='adelia-shell-v5';
+const CACHE='adelia-shell-v6';
 const SHELL=[
   '/app/',
   '/app/styles.css',
-  '/app/app.js',
   '/app/student_homework_plus.css',
-  '/app/student_homework_plus.js',
   '/app/formulas.css',
-  '/app/student_formulas.js',
+  '/app/stage11_mobile.css',
   '/app/pwa.js',
   '/app/app_shell_plus.js',
   '/app/manifest.webmanifest',
-  '/app/lesson/',
+  '/app/lesson/'
+];
+const OPTIONAL=[
+  '/app/app.js',
+  '/app/student_homework_plus.js',
+  '/app/student_formulas.js',
   '/app/lesson/lesson.js',
   '/app/lesson/lesson.css'
 ];
 
 self.addEventListener('install',event=>{
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then(async cache=>{
+    await cache.addAll(SHELL);
+    await Promise.allSettled(OPTIONAL.map(url=>cache.add(url)));
+  }).then(()=>self.skipWaiting()));
 });
 
 self.addEventListener('activate',event=>{
