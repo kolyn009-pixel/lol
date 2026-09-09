@@ -1,6 +1,7 @@
 """Stage 8 API: teacher finance, actual payments and editable pricing."""
 from __future__ import annotations
-from web_backend.finance_pricing import list_prices,set_price,list_overrides,set_override,delete_override,list_packages,save_package,quote,package_quote,history
+from web_backend.finance_pricing import list_prices,set_price,list_overrides,list_packages,save_package,history
+from web_backend.finance_price_sync import set_override,delete_override,quote,package_quote
 from web_backend.finance_reporting import dashboard,student_finance,calendar_analytics
 from web_backend.finance_receipts import list_receipts,summary as receipt_summary,review as review_receipt
 
