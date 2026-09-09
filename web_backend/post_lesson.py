@@ -1,4 +1,4 @@
-"""Shared post-lesson quick survey for web/PWA/desktop and bot adapters."""
+"""Shared short post-lesson survey for web/PWA/desktop and bot adapters."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -19,6 +19,7 @@ def ensure_schema():
             understood INTEGER,
             mood INTEGER,
             comment TEXT,
+            next_topic TEXT,
             source TEXT NOT NULL DEFAULT 'WEB',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
@@ -26,6 +27,9 @@ def ensure_schema():
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
+    cols = {r['name'] for r in conn.execute('PRAGMA table_info(lesson_feedback)').fetchall()}
+    if 'next_topic' not in cols:
+        conn.execute('ALTER TABLE lesson_feedback ADD COLUMN next_topic TEXT')
     conn.execute("CREATE INDEX IF NOT EXISTS idx_lesson_feedback_user_created ON lesson_feedback(user_id, created_at DESC)")
     conn.commit(); conn.close()
 
@@ -47,43 +51,42 @@ def get_feedback(user_id, lesson_id):
     return {'required': row is None, 'feedback': dict(row) if row else None}
 
 
-def submit_feedback(user_id, lesson_id, rating, difficulty=None, understood=None, mood=None, comment=None, source='WEB'):
+def submit_feedback(user_id, lesson_id, rating, next_topic=None, comment=None, source='WEB', **_legacy):
+    """Save the intentionally short student survey: liked it + next lesson wish."""
     ensure_schema(); lesson = _lesson_owned(user_id, lesson_id)
     if not lesson['finished_at']:
         raise ValueError('lesson_not_finished')
     rating = int(rating)
-    if rating < 1 or rating > 5:
+    if rating < 1 or rating > 3:
         raise ValueError('invalid_rating')
-    def optional_scale(value, name):
-        if value in (None, ''): return None
-        value = int(value)
-        if value < 1 or value > 5: raise ValueError(f'invalid_{name}')
-        return value
-    difficulty = optional_scale(difficulty, 'difficulty')
-    understood = optional_scale(understood, 'understood')
-    mood = optional_scale(mood, 'mood')
+    next_topic = str(next_topic or '').strip()[:500] or None
     comment = str(comment or '').strip()[:500] or None
     now = datetime.now().isoformat(timespec='seconds')
     conn = database.connect()
     conn.execute("""
-        INSERT INTO lesson_feedback(lesson_id,user_id,rating,difficulty,understood,mood,comment,source,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?)
+        INSERT INTO lesson_feedback(lesson_id,user_id,rating,comment,next_topic,source,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?)
         ON CONFLICT(lesson_id) DO UPDATE SET
-            rating=excluded.rating,difficulty=excluded.difficulty,understood=excluded.understood,
-            mood=excluded.mood,comment=excluded.comment,source=excluded.source,updated_at=excluded.updated_at
-    """, (int(lesson_id), int(user_id), rating, difficulty, understood, mood, comment, str(source or 'WEB')[:20], now, now))
+            rating=excluded.rating,comment=excluded.comment,next_topic=excluded.next_topic,
+            source=excluded.source,updated_at=excluded.updated_at
+    """, (int(lesson_id), int(user_id), rating, comment, next_topic, str(source or 'WEB')[:20], now, now))
     conn.commit(); conn.close()
-    if rating <= 2 or (understood is not None and understood <= 2) or (mood is not None and mood <= 2):
-        try:
-            user = database.get_user(int(user_id))
+    user = database.get_user(int(user_id))
+    name = user['name'] if user else 'Ученик'
+    try:
+        if next_topic:
             event_center.push(
-                'LESSON_FEEDBACK_ATTENTION',
-                f"Обратная связь после урока: {user['name'] if user else 'ученик'}",
-                f"Оценка: {rating}/5" + (f" · понимание: {understood}/5" if understood else '') + (f" · {comment}" if comment else ''),
+                'NEXT_LESSON_WISH', f'Пожелание к следующему уроку: {name}', next_topic,
+                'INFO', 'lesson', int(lesson_id), f'next_lesson_wish:{int(lesson_id)}',
+            )
+        if rating == 1:
+            event_center.push(
+                'LESSON_FEEDBACK_ATTENTION', f'Обратная связь после урока: {name}',
+                'Ученику не понравилось занятие' + (f' · {comment}' if comment else ''),
                 'ATTENTION', 'lesson', int(lesson_id), f'lesson_feedback:{int(lesson_id)}',
             )
-        except Exception:
-            pass
+    except Exception:
+        pass
     return {'status': 'ok', 'lesson_id': int(lesson_id), 'saved': True}
 
 
