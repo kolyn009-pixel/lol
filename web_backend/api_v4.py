@@ -17,13 +17,36 @@ from web_backend.student_finance import (
     create_package_payment, create_lesson_payment,
     history as finance_history, attach_receipt,
 )
+from web_backend.finance_receipts import web_receipt_file
 
 
 class Handler(api_v3.Handler):
-    server_version = 'AdeliaWeb/4.2'
+    server_version = 'AdeliaWeb/4.3'
+
+    def _send_receipt_file(self, receipt_id):
+        if not self._teacher():
+            return self._json(401, {'error': 'unauthorized'})
+        try:
+            path, mime = web_receipt_file(int(receipt_id))
+            data = path.read_bytes()
+        except (TypeError, ValueError) as exc:
+            return self._json(404, {'error': str(exc) or 'receipt_not_found'})
+        except Exception as exc:
+            print('[web-api] receipt file error:', type(exc).__name__, flush=True)
+            return self._json(500, {'error': 'server_error'})
+        self.send_response(200)
+        self.send_header('Content-Type', mime)
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Content-Disposition', f'inline; filename="receipt-{int(receipt_id)}{path.suffix.lower()}"')
+        self.send_header('Cache-Control', 'private, no-store, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_GET(self):
         u = urlparse(self.path); path, q = u.path, parse_qs(u.query)
+        if path == '/api/teacher/finance/receipt/file':
+            return self._send_receipt_file(q.get('receipt_id', ['0'])[0])
         booking = {'/api/student/booking/programs', '/api/student/booking/free-slots'}
         changes = {'/api/student/reschedule/free-slots', '/api/student/reschedule/outgoing', '/api/student/exchanges/incoming'}
         finance = {'/api/student/finance/overview', '/api/student/finance/history', '/api/student/finance/quote'}
@@ -98,7 +121,7 @@ class Handler(api_v3.Handler):
 
 def main():
     if not otp_secret.configured(): raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes(); print(f'Adelia web API v4.2 listening on http://{v1.HOST}:{v1.PORT}')
+    ensure_indexes(); print(f'Adelia web API v4.3 listening on http://{v1.HOST}:{v1.PORT}')
     ThreadingHTTPServer((v1.HOST, v1.PORT), Handler).serve_forever()
 
 
