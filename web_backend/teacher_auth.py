@@ -1,10 +1,11 @@
 """One-time login codes for the teacher web cabinet.
 
 The bot can call issue_teacher_login_code(admin_telegram_id) and send the code
-to the teacher. Codes are short-lived, one-time, and stored in tutor.db.
-Only active OWNER and ADMIN accounts may enter the teacher web cabinet.
+to the teacher. Codes are short-lived, one-time, and stored only as SHA-256
+digests in tutor.db. Only active OWNER and ADMIN accounts may enter.
 """
 
+import hashlib
 import secrets
 from datetime import datetime, timedelta
 
@@ -13,6 +14,10 @@ from core import admin_roles
 
 TTL_MINUTES = 10
 TEACHER_WEB_ROLES = {"OWNER", "ADMIN"}
+
+
+def _digest(code):
+    return hashlib.sha256(str(code or "").strip().encode("utf-8")).hexdigest()
 
 
 def _can_use_teacher_web(telegram_id):
@@ -60,12 +65,13 @@ def issue_teacher_login_code(admin_telegram_id, ttl_minutes=TTL_MINUTES):
     )
     while True:
         code = f"{secrets.randbelow(1_000_000):06d}"
-        exists = conn.execute("SELECT 1 FROM teacher_web_login_codes WHERE code=?", (code,)).fetchone()
+        digest = _digest(code)
+        exists = conn.execute("SELECT 1 FROM teacher_web_login_codes WHERE code=?", (digest,)).fetchone()
         if not exists:
             break
     conn.execute(
         "INSERT INTO teacher_web_login_codes(admin_telegram_id,code,expires_at,created_at) VALUES(?,?,?,?)",
-        (admin_telegram_id, code, expires_at, now_iso()),
+        (admin_telegram_id, digest, expires_at, now_iso()),
     )
     conn.commit()
     conn.close()
@@ -80,7 +86,7 @@ def consume_teacher_login_code(code):
     conn = connect()
     row = conn.execute(
         "SELECT * FROM teacher_web_login_codes WHERE code=? LIMIT 1",
-        (code,),
+        (_digest(code),),
     ).fetchone()
     if not row or row["used_at"]:
         conn.close()
