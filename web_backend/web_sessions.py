@@ -13,10 +13,8 @@ import time
 from database import connect, now_iso
 from core import admin_roles
 
-# A trusted browser/PWA should not ask a student to sign in again after every
-# restart. Six months is long-lived but still finite; logout/revocation remains
-# immediate and Stage 12 will add device/session management.
 SESSION_TTL = 60 * 60 * 24 * 180
+_ALLOWED_ROLES = {"student", "parent", "teacher"}
 
 
 def _digest(token: str) -> str:
@@ -41,6 +39,8 @@ def ensure_table() -> None:
             ON web_sessions(token_hash);
         CREATE INDEX IF NOT EXISTS idx_web_sessions_expiry
             ON web_sessions(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_web_sessions_identity
+            ON web_sessions(role,entity_id,revoked_at,expires_at);
         """
     )
     conn.commit()
@@ -56,6 +56,12 @@ def _identity_active(conn, role, entity_id):
             (entity_id,),
         ).fetchone()
         return bool(row)
+    if role == "parent":
+        row = conn.execute(
+            "SELECT id FROM parent_accounts WHERE id=? AND active=1 LIMIT 1",
+            (entity_id,),
+        ).fetchone()
+        return bool(row)
     if role == "teacher":
         try:
             return admin_roles.role_for(entity_id) in {"OWNER", "ADMIN"}
@@ -67,7 +73,7 @@ def _identity_active(conn, role, entity_id):
 def create_session(role, entity_id, ttl_seconds=SESSION_TTL):
     ensure_table()
     role = str(role or "").strip().lower()
-    if role not in {"student", "teacher"}:
+    if role not in _ALLOWED_ROLES:
         raise ValueError("invalid_session_role")
     entity_id = int(entity_id)
     ttl_seconds = max(300, min(int(ttl_seconds), SESSION_TTL))
@@ -114,7 +120,7 @@ def read_session(token):
         conn.commit()
         conn.close()
         return None
-    if not _identity_active(conn, row["role"], row["entity_id"]):
+    if row["role"] not in _ALLOWED_ROLES or not _identity_active(conn, row["role"], row["entity_id"]):
         conn.execute(
             "UPDATE web_sessions SET revoked_at=? WHERE id=?",
             (now_iso(), int(row["id"])),
@@ -149,3 +155,24 @@ def revoke_session(token):
     changed = bool(cur.rowcount)
     conn.close()
     return changed
+
+
+def revoke_identity_sessions(role, entity_id):
+    """Revoke every browser/PWA session for one account (lost device/password reset)."""
+    role = str(role or "").strip().lower()
+    if role not in _ALLOWED_ROLES:
+        return 0
+    ensure_table()
+    conn = connect()
+    cur = conn.execute(
+        """
+        UPDATE web_sessions
+        SET revoked_at=?
+        WHERE role=? AND entity_id=? AND revoked_at IS NULL
+        """,
+        (now_iso(), role, int(entity_id)),
+    )
+    conn.commit()
+    count = int(cur.rowcount or 0)
+    conn.close()
+    return count
