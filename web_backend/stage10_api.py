@@ -2,6 +2,18 @@
 from __future__ import annotations
 from web_backend import unified_messaging as um
 from web_backend.message_delivery import send_teacher_reply
+from vk_adapter import channel_delivery
+
+
+def _conversation_items(limit,unread_only=False):
+    items=um.conversations(limit,unread_only)
+    for item in items:
+        uid=int(item['student_id'])
+        item['channels']={
+            'telegram':bool(channel_delivery.telegram_chat(uid)),
+            'vk':bool(channel_delivery.vk_peer(uid)),
+        }
+    return items
 
 
 class Stage10Mixin:
@@ -10,7 +22,8 @@ class Stage10Mixin:
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:
             if path=='/api/teacher/messages':
-                return self._json(200,{'items':um.conversations(q.get('limit',[100])[0],str(q.get('unread',['0'])[0]).lower() in {'1','true','yes'})})
+                unread=str(q.get('unread',['0'])[0]).lower() in {'1','true','yes'}
+                return self._json(200,{'items':_conversation_items(q.get('limit',[100])[0],unread)})
             if path=='/api/teacher/messages/history':
                 cid=int(q.get('conversation_id',['0'])[0])
                 return self._json(200,{'items':list(reversed(um.history(cid,q.get('limit',[100])[0])))})
