@@ -28,8 +28,9 @@ def _period_stats(conn,start,end,now):
     ``planned`` is the economic value of all non-cancelled lessons in the period.
     ``already_paid_before_period`` is the part of that value whose linked payment
     was confirmed before the period began (for example an advance/package bought
-    last week for lessons happening this week). It is shown separately so the
-    teacher does not mentally count the same cash twice.
+    last week for lessons happening this week). ``received_confirmed`` is actual
+    cash confirmed during this calendar period, regardless of which lessons that
+    payment covers. Keeping both numbers separate prevents double counting.
     """
     planned=conn.execute("""
       SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
@@ -48,6 +49,13 @@ def _period_stats(conn,start,end,now):
       WHERE l.start_time>=? AND l.start_time<? AND l.start_time>=?
         AND l.lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
     """,(start,end,now)).fetchone()
+    received=conn.execute("""
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(total_amount,0)),0) s
+      FROM payments
+      WHERE status='PAID'
+        AND confirmed_at IS NOT NULL
+        AND confirmed_at>=? AND confirmed_at<?
+    """,(start,end)).fetchone()
     prepaid=conn.execute("""
       SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
       FROM lessons l
@@ -74,6 +82,7 @@ def _period_stats(conn,start,end,now):
       'planned':{'lessons':int(planned['c'] or 0),'amount':int(planned['s'] or 0)},
       'worked':{'lessons':int(worked['c'] or 0),'amount':int(worked['s'] or 0)},
       'remaining':{'lessons':int(remaining['c'] or 0),'amount':int(remaining['s'] or 0)},
+      'received_confirmed':{'payments':int(received['c'] or 0),'amount':int(received['s'] or 0)},
       'already_paid_before_period':{'lessons':int(prepaid['c'] or 0),'amount':int(prepaid['s'] or 0)},
       'remaining_already_prepaid':{'lessons':int(prepaid_remaining['c'] or 0),'amount':int(prepaid_remaining['s'] or 0)},
     }
