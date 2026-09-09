@@ -4,6 +4,7 @@ from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from web_backend import api as v1
 from web_backend.student_portal import dashboard as student_dashboard, schedule as student_schedule, payments as student_payments, profile as student_profile, conversation_for_student
+from web_backend.student_homework import submit_answers
 from web_backend.unified_messages import add_message
 from web_backend.lesson_join import student_workspace, student_join, teacher_open_entry, join_events
 from web_backend.lesson_context import context as lesson_context, add_note as lesson_add_note, send_teacher_message
@@ -13,7 +14,7 @@ from web_backend.homework_center import update_homework
 from web_backend.assessment import save_task_feedback, student_feedback
 
 class Handler(v1.Handler):
-    server_version="AdeliaWeb/1.5"
+    server_version="AdeliaWeb/1.6"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
         if path.startswith('/api/student/'):
@@ -59,6 +60,18 @@ class Handler(v1.Handler):
             if len(text)>4000:return self._json(400,{'error':'text_too_long'})
             try:return self._json(200,{'status':'ok','message_id':add_message(int(auth['id']),'IN','STUDENT','WEB',text=text)})
             except Exception as exc:print('[web-api] student message error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+        if path=='/api/student/homework/submit':
+            auth=self._student()
+            if not auth:return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if body is None:return self._json(400,{'error':'invalid_json'})
+            try:
+                attempt=body.get('attempt_number')
+                r=submit_answers(int(body.get('homework_id')),int(auth['id']),body.get('responses') or {},attempt if attempt not in ('',None) else None)
+                return self._json(200,r)
+            except PermissionError:return self._json(404,{'error':'homework_not_found'})
+            except ValueError as exc:return self._json(409,{'error':str(exc)})
+            except Exception as exc:print('[web-api] student homework submit error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/student/lesson/join':
             auth=self._student()
             if not auth:return self._json(401,{'error':'unauthorized'})
