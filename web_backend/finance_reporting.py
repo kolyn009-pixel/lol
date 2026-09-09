@@ -23,32 +23,59 @@ def _iso_end(value):
 
 
 def _period_stats(conn,start,end,now):
-    """Return planned, already worked and still-to-work value for a calendar period.
+    """Return workload value plus cash timing for a calendar period.
 
-    lesson.price is an immutable snapshot, therefore changing tariffs later does
-    not rewrite these historical/forecast numbers.
+    ``planned`` is the economic value of all non-cancelled lessons in the period.
+    ``already_paid_before_period`` is the part of that value whose linked payment
+    was confirmed before the period began (for example an advance/package bought
+    last week for lessons happening this week). It is shown separately so the
+    teacher does not mentally count the same cash twice.
     """
     planned=conn.execute("""
-      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(price,0)),0) s
-      FROM lessons
-      WHERE start_time>=? AND start_time<?
-        AND lesson_status NOT IN ('CANCELLED','REJECTED')
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
+      FROM lessons l
+      WHERE l.start_time>=? AND l.start_time<?
+        AND l.lesson_status NOT IN ('CANCELLED','REJECTED')
     """,(start,end)).fetchone()
     worked=conn.execute("""
-      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(price,0)),0) s
-      FROM lessons
-      WHERE start_time>=? AND start_time<? AND lesson_status='COMPLETED'
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
+      FROM lessons l
+      WHERE l.start_time>=? AND l.start_time<? AND l.lesson_status='COMPLETED'
     """,(start,end)).fetchone()
     remaining=conn.execute("""
-      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(price,0)),0) s
-      FROM lessons
-      WHERE start_time>=? AND start_time<? AND start_time>=?
-        AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
+      FROM lessons l
+      WHERE l.start_time>=? AND l.start_time<? AND l.start_time>=?
+        AND l.lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
     """,(start,end,now)).fetchone()
+    prepaid=conn.execute("""
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
+      FROM lessons l
+      LEFT JOIN lesson_packages lp ON lp.id=l.package_id
+      LEFT JOIN payments p ON p.id=COALESCE(l.payment_id,lp.payment_id)
+      WHERE l.start_time>=? AND l.start_time<?
+        AND l.lesson_status NOT IN ('CANCELLED','REJECTED')
+        AND l.payment_status='PAID'
+        AND p.status='PAID'
+        AND COALESCE(p.confirmed_at,p.created_at)<?
+    """,(start,end,start)).fetchone()
+    prepaid_remaining=conn.execute("""
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
+      FROM lessons l
+      LEFT JOIN lesson_packages lp ON lp.id=l.package_id
+      LEFT JOIN payments p ON p.id=COALESCE(l.payment_id,lp.payment_id)
+      WHERE l.start_time>=? AND l.start_time<? AND l.start_time>=?
+        AND l.lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
+        AND l.payment_status='PAID'
+        AND p.status='PAID'
+        AND COALESCE(p.confirmed_at,p.created_at)<?
+    """,(start,end,now,start)).fetchone()
     return {
       'planned':{'lessons':int(planned['c'] or 0),'amount':int(planned['s'] or 0)},
       'worked':{'lessons':int(worked['c'] or 0),'amount':int(worked['s'] or 0)},
       'remaining':{'lessons':int(remaining['c'] or 0),'amount':int(remaining['s'] or 0)},
+      'already_paid_before_period':{'lessons':int(prepaid['c'] or 0),'amount':int(prepaid['s'] or 0)},
+      'remaining_already_prepaid':{'lessons':int(prepaid_remaining['c'] or 0),'amount':int(prepaid_remaining['s'] or 0)},
     }
 
 
