@@ -1,8 +1,8 @@
 """Stage 9 parent portal read model.
 
 All reads are scoped through parent_student_links. A parent never receives data for
-an unlinked student even if they guess an id. This module is intentionally read-only;
-write actions will be added separately after parent web authentication is in place.
+an unlinked student even if they guess an id. Private teacher notes, answers and
+internal CRM fields are intentionally excluded from the parent read model.
 """
 from __future__ import annotations
 from datetime import datetime, timedelta
@@ -38,7 +38,7 @@ def _assert_link(parent_id,student_id):
 
 
 def _programs(conn,uid):
-    try:rows=conn.execute("SELECT id,study_goal,subject,custom_hourly_rate,is_primary,approval_status FROM student_programs WHERE user_id=? AND active=1 ORDER BY is_primary DESC,id",(uid,)).fetchall()
+    try:rows=conn.execute("SELECT id,study_goal,subject,is_primary,approval_status FROM student_programs WHERE user_id=? AND active=1 ORDER BY is_primary DESC,id",(uid,)).fetchall()
     except Exception:rows=[]
     return [dict(r) for r in rows]
 
@@ -50,13 +50,37 @@ def _package_summary(conn,uid):
     return {'lessons_left':left,'items':items}
 
 
+def _progress(conn,uid):
+    out={'topics':{'total':0,'started':0,'mastered':0,'average_mastery':0},'goal':None,'exam_results':[],'diagnostics':[],'homework':{'assigned':0,'submitted':0,'completed':0,'overdue':0,'average_score':None}}
+    try:
+        row=conn.execute("""SELECT COUNT(*) total,SUM(CASE WHEN p.status<>'NOT_STARTED' OR COALESCE(p.mastery,0)>0 THEN 1 ELSE 0 END) started,SUM(CASE WHEN p.status IN ('MASTERED','DONE','COMPLETED') OR COALESCE(p.mastery,0)>=80 THEN 1 ELSE 0 END) mastered,AVG(COALESCE(p.mastery,0)) avg_mastery FROM student_topic_progress p WHERE p.user_id=?""",(uid,)).fetchone()
+        out['topics']={'total':int(row['total'] or 0),'started':int(row['started'] or 0),'mastered':int(row['mastered'] or 0),'average_mastery':round(float(row['avg_mastery'] or 0))}
+    except Exception:pass
+    try:
+        row=conn.execute("SELECT subject,study_goal,target_text,target_score,target_date FROM student_goals WHERE user_id=? AND status='ACTIVE' ORDER BY id DESC LIMIT 1",(uid,)).fetchone();out['goal']=dict(row) if row else None
+    except Exception:pass
+    try:
+        rows=conn.execute("SELECT subject,exam_type,exam_date,primary_score,test_score,max_score FROM exam_results WHERE user_id=? ORDER BY exam_date DESC,id DESC LIMIT 8",(uid,)).fetchall();out['exam_results']=[dict(r) for r in rows]
+    except Exception:pass
+    try:
+        rows=conn.execute("SELECT mode,subject,study_goal,score,target_score,summary,created_at FROM learning_diagnostics WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 5",(uid,)).fetchall();out['diagnostics']=[dict(r) for r in rows]
+    except Exception:pass
+    try:
+        h=conn.execute("""SELECT COUNT(*) total,SUM(CASE WHEN status IN ('ASSIGNED','REVISION') THEN 1 ELSE 0 END) assigned,SUM(CASE WHEN status IN ('SUBMITTED','UNDER_REVIEW','REVIEWED') THEN 1 ELSE 0 END) submitted,SUM(CASE WHEN status='COMPLETED' THEN 1 ELSE 0 END) completed,SUM(CASE WHEN deadline IS NOT NULL AND datetime(deadline)<datetime('now') AND status NOT IN ('COMPLETED','CANCELLED') THEN 1 ELSE 0 END) overdue FROM homework WHERE user_id=?""",(uid,)).fetchone()
+        score=conn.execute("SELECT AVG(score_percent) s FROM homework_auto_results WHERE user_id=?",(uid,)).fetchone()
+        out['homework']={'total':int(h['total'] or 0),'assigned':int(h['assigned'] or 0),'submitted':int(h['submitted'] or 0),'completed':int(h['completed'] or 0),'overdue':int(h['overdue'] or 0),'average_score':round(float(score['s']),1) if score and score['s'] is not None else None}
+    except Exception:pass
+    return out
+
+
 def student(parent_id,student_id):
     uid=_assert_link(parent_id,student_id);conn=connect();u=conn.execute("SELECT id,name,grade,study_goal,main_subject,active,COALESCE(education_type,'SCHOOL') education_type,education_level FROM users WHERE id=?",(uid,)).fetchone()
     if not u:conn.close();return None
     payments=conn.execute("SELECT id,study_goal,subject,lessons_count,total_amount,status,created_at,confirmed_at FROM payments WHERE user_id=? ORDER BY id DESC LIMIT 20",(uid,)).fetchall()
     completed=conn.execute("SELECT COUNT(*) c,COALESCE(SUM(price),0) amount FROM lessons WHERE user_id=? AND lesson_status='COMPLETED'",(uid,)).fetchone()
     upcoming=conn.execute("SELECT COUNT(*) c FROM lessons WHERE user_id=? AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')",(uid,datetime.now().isoformat(timespec='seconds'))).fetchone()
-    out={'student':dict(u),'programs':_programs(conn,uid),'payments':[dict(r) for r in payments],'lessons':{'completed':int(completed['c'] or 0),'completed_value':int(completed['amount'] or 0),'upcoming':int(upcoming['c'] or 0)},'packages':_package_summary(conn,uid)};conn.close();return out
+    recent_lessons=conn.execute("SELECT id,start_time,duration_minutes,subject,study_goal,lesson_status,payment_status FROM lessons WHERE user_id=? ORDER BY start_time DESC LIMIT 12",(uid,)).fetchall()
+    out={'student':dict(u),'programs':_programs(conn,uid),'payments':[dict(r) for r in payments],'lessons':{'completed':int(completed['c'] or 0),'completed_value':int(completed['amount'] or 0),'upcoming':int(upcoming['c'] or 0),'recent':[dict(r) for r in recent_lessons]},'packages':_package_summary(conn,uid),'progress':_progress(conn,uid)};conn.close();return out
 
 
 def schedule(parent_id,student_id=None,days=45,limit=120):
