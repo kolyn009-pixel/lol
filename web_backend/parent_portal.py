@@ -7,6 +7,7 @@ internal CRM fields are intentionally excluded from the parent read model.
 from __future__ import annotations
 from datetime import datetime, timedelta
 from database import connect
+from core import minute_balance
 
 
 def _limit(value, default=50, maximum=200):
@@ -16,8 +17,6 @@ def _limit(value, default=50, maximum=200):
 
 
 def parent(parent_id):
-    # Keep the browser read model minimal. Contact/channel identifiers stay on
-    # the server and are not needed to render the parent cabinet.
     conn=connect();row=conn.execute("SELECT id,name FROM parent_accounts WHERE id=? AND active=1",(int(parent_id),)).fetchone();conn.close();return dict(row) if row else None
 
 
@@ -35,27 +34,16 @@ def linked_students(parent_id):
 
 
 def _linked_ids(parent_id, requested_ids=None):
-    """Resolve linked students in one query to avoid per-child authorization N+1."""
     pid=int(parent_id);conn=connect()
     if requested_ids:
-        ids=sorted({int(x) for x in requested_ids})
-        marks=','.join('?' for _ in ids)
-        rows=conn.execute(f"""
-          SELECT l.student_id
-          FROM parent_student_links l
-          JOIN parent_accounts p ON p.id=l.parent_id
-          JOIN users u ON u.id=l.student_id
-          WHERE l.parent_id=? AND p.active=1 AND u.active=1
-            AND l.student_id IN ({marks})
-        """,(pid,*ids)).fetchall()
+        ids=sorted({int(x) for x in requested_ids});marks=','.join('?' for _ in ids)
+        rows=conn.execute(f"""SELECT l.student_id FROM parent_student_links l
+          JOIN parent_accounts p ON p.id=l.parent_id JOIN users u ON u.id=l.student_id
+          WHERE l.parent_id=? AND p.active=1 AND u.active=1 AND l.student_id IN ({marks})""",(pid,*ids)).fetchall()
     else:
-        rows=conn.execute("""
-          SELECT l.student_id
-          FROM parent_student_links l
-          JOIN parent_accounts p ON p.id=l.parent_id
-          JOIN users u ON u.id=l.student_id
-          WHERE l.parent_id=? AND p.active=1 AND u.active=1
-        """,(pid,)).fetchall()
+        rows=conn.execute("""SELECT l.student_id FROM parent_student_links l
+          JOIN parent_accounts p ON p.id=l.parent_id JOIN users u ON u.id=l.student_id
+          WHERE l.parent_id=? AND p.active=1 AND u.active=1""",(pid,)).fetchall()
     conn.close();return {int(r['student_id']) for r in rows}
 
 
@@ -76,6 +64,14 @@ def _package_summary(conn,uid):
     except Exception:rows=[]
     items=[dict(r) for r in rows];left=sum(max(0,int(x.get('lessons_total') or 0)-int(x.get('lessons_used') or 0)) for x in items if str(x.get('status') or '').upper()=='ACTIVE')
     return {'lessons_left':left,'items':items}
+
+
+def _minute_balance(uid):
+    try:
+        b=minute_balance.get_balance(int(uid)) or {}
+        return {'paid':int(b.get('paid') or 0),'bonus':int(b.get('bonus') or 0),'total':int(b.get('total') or 0)}
+    except Exception:
+        return {'paid':0,'bonus':0,'total':0}
 
 
 def _progress(conn,uid):
@@ -105,10 +101,11 @@ def student(parent_id,student_id):
     uid=_assert_link(parent_id,student_id);conn=connect();u=conn.execute("SELECT id,name,grade,study_goal,main_subject,active,COALESCE(education_type,'SCHOOL') education_type,education_level FROM users WHERE id=?",(uid,)).fetchone()
     if not u:conn.close();return None
     payments=conn.execute("SELECT id,study_goal,subject,lessons_count,total_amount,status,created_at,confirmed_at FROM payments WHERE user_id=? ORDER BY id DESC LIMIT 20",(uid,)).fetchall()
+    waiting=conn.execute("SELECT COUNT(*) c,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id=? AND status IN ('WAITING','PENDING','RECEIPT_SENT')",(uid,)).fetchone()
     completed=conn.execute("SELECT COUNT(*) c,COALESCE(SUM(price),0) amount FROM lessons WHERE user_id=? AND lesson_status='COMPLETED'",(uid,)).fetchone()
     upcoming=conn.execute("SELECT COUNT(*) c FROM lessons WHERE user_id=? AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')",(uid,datetime.now().isoformat(timespec='seconds'))).fetchone()
     recent_lessons=conn.execute("SELECT id,start_time,duration_minutes,subject,study_goal,lesson_status,payment_status FROM lessons WHERE user_id=? ORDER BY start_time DESC LIMIT 12",(uid,)).fetchall()
-    out={'student':dict(u),'programs':_programs(conn,uid),'payments':[dict(r) for r in payments],'lessons':{'completed':int(completed['c'] or 0),'completed_value':int(completed['amount'] or 0),'upcoming':int(upcoming['c'] or 0),'recent':[dict(r) for r in recent_lessons]},'packages':_package_summary(conn,uid),'progress':_progress(conn,uid)};conn.close();return out
+    out={'student':dict(u),'programs':_programs(conn,uid),'payments':[dict(r) for r in payments],'payment_summary':{'waiting_count':int(waiting['c'] or 0),'waiting_amount':int(waiting['amount'] or 0)},'minute_balance':_minute_balance(uid),'lessons':{'completed':int(completed['c'] or 0),'completed_value':int(completed['amount'] or 0),'upcoming':int(upcoming['c'] or 0),'recent':[dict(r) for r in recent_lessons]},'packages':_package_summary(conn,uid),'progress':_progress(conn,uid)};conn.close();return out
 
 
 def schedule(parent_id,student_id=None,days=45,limit=120):
@@ -117,21 +114,20 @@ def schedule(parent_id,student_id=None,days=45,limit=120):
         requested=[int(student_id)];linked=_linked_ids(pid,requested)
         if set(requested)!=linked:raise PermissionError('student_not_linked')
         uids=requested
-    else:
-        uids=sorted(_linked_ids(pid))
+    else:uids=sorted(_linked_ids(pid))
     if not uids:return []
     now=datetime.now();end=now+timedelta(days=max(1,min(int(days or 45),180)));marks=','.join('?' for _ in uids);params=[*uids,now.isoformat(timespec='seconds'),end.isoformat(timespec='seconds'),_limit(limit,120,500)];conn=connect();rows=conn.execute(f"""
       SELECT l.id,l.user_id,u.name,l.start_time,l.end_time,l.duration_minutes,l.subject,l.study_goal,l.lesson_status,l.payment_status,l.price
       FROM lessons l JOIN users u ON u.id=l.user_id
-      WHERE l.user_id IN ({marks}) AND l.start_time>=? AND l.start_time<?
-        AND l.lesson_status NOT IN ('CANCELLED','REJECTED')
-      ORDER BY l.start_time LIMIT ?
-    """,params).fetchall();conn.close();return [dict(r) for r in rows]
+      WHERE l.user_id IN ({marks}) AND l.start_time>=? AND l.start_time<? AND l.lesson_status NOT IN ('CANCELLED','REJECTED')
+      ORDER BY l.start_time LIMIT ?""",params).fetchall();conn.close();return [dict(r) for r in rows]
 
 
 def dashboard(parent_id):
     pid=int(parent_id);p=parent(pid)
     if not p:return None
     students=linked_students(pid);uids=[int(x['id']) for x in students]
-    if not uids:return {'parent':p,'students':[],'summary':{'students':0,'upcoming_lessons':0,'waiting_payments':0,'waiting_amount':0,'lessons_left':0},'upcoming':[]}
-    marks=','.join('?' for _ in uids);now=datetime.now().isoformat(timespec='seconds');conn=connect();upcoming=conn.execute(f"SELECT COUNT(*) c FROM lessons WHERE user_id IN ({marks}) AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')",(*uids,now)).fetchone();waiting=conn.execute(f"SELECT COUNT(*) c,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id IN ({marks}) AND status IN ('WAITING','PENDING')",uids).fetchone();left=conn.execute(f"SELECT COALESCE(SUM(CASE WHEN status='ACTIVE' THEN lessons_total-lessons_used ELSE 0 END),0) c FROM lesson_packages WHERE user_id IN ({marks})",uids).fetchone();conn.close();return {'parent':p,'students':students,'summary':{'students':len(students),'upcoming_lessons':int(upcoming['c'] or 0),'waiting_payments':int(waiting['c'] or 0),'waiting_amount':int(waiting['amount'] or 0),'lessons_left':int(left['c'] or 0)},'upcoming':schedule(pid,None,21,40)}
+    if not uids:return {'parent':p,'students':[],'summary':{'students':0,'upcoming_lessons':0,'waiting_payments':0,'waiting_amount':0,'balance_minutes':0},'upcoming':[]}
+    marks=','.join('?' for _ in uids);now=datetime.now().isoformat(timespec='seconds');conn=connect();upcoming=conn.execute(f"SELECT COUNT(*) c FROM lessons WHERE user_id IN ({marks}) AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')",(*uids,now)).fetchone();waiting=conn.execute(f"SELECT COUNT(*) c,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id IN ({marks}) AND status IN ('WAITING','PENDING','RECEIPT_SENT')",uids).fetchone();conn.close()
+    total_minutes=sum(_minute_balance(uid)['total'] for uid in uids)
+    return {'parent':p,'students':students,'summary':{'students':len(students),'upcoming_lessons':int(upcoming['c'] or 0),'waiting_payments':int(waiting['c'] or 0),'waiting_amount':int(waiting['amount'] or 0),'balance_minutes':int(total_minutes)},'upcoming':schedule(pid,None,21,40)}
