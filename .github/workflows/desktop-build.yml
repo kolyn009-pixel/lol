@@ -32,10 +32,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-      - name: Install dependencies
-        run: npm ci
+      - name: Install pinned dependencies
+        run: npm install --no-audit --no-fund
+      - name: Desktop selftest
+        run: npm run selftest
       - name: Build desktop package
         run: ${{ matrix.command }}
         env:
