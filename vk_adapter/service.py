@@ -6,6 +6,7 @@ import database
 import education_profile
 from automation import messaging
 from core import event_center
+from core import homework_channel_ui
 from crm_plus import service as crm_service
 from formula_library import FORMULA_LIBRARY
 
@@ -23,19 +24,16 @@ def vk_peer_for_user(user_id):
     try:
         r=c.execute("SELECT external_id FROM channel_identities WHERE user_id=? AND channel='VK' AND enabled=1 LIMIT 1",(int(user_id),)).fetchone();return int(r["external_id"]) if r else None
     finally:c.close()
-
 def _row_value(row,*names,default=None):
     if row is None:return default
     keys=set(row.keys()) if hasattr(row,"keys") else set()
     for n in names:
         if n in keys and row[n] not in (None,""):return row[n]
     return default
-
 def _fmt_dt(raw):
     if not raw:return ""
     try:return datetime.fromisoformat(str(raw)).strftime("%d.%m в %H:%M")
     except Exception:return str(raw)
-
 def upcoming_text(user_id,limit=5):
     rows=list(database.get_upcoming_lessons(int(user_id)))[:int(limit)]
     if not rows:return "📅 Ближайших занятий пока нет."
@@ -45,18 +43,11 @@ def upcoming_text(user_id,limit=5):
         pl={"PAID":"✅ оплачено","FREE":"🎁 бесплатно","AWAITING_PAYMENT":"💳 ожидает оплаты","RESERVED_BALANCE":"🎟 абонемент"}.get(p,"");lines.append(f"• {_fmt_dt(_row_value(r,'start_time'))} — {sn}"+(f" · {pl}" if pl else ""))
     return "\n".join(lines)
 def homework_text(user_id,limit=8):
-    try:rows=list(database.get_student_homework(int(user_id),active_only=True))[:int(limit)]
-    except Exception:rows=[]
-    if not rows:return "📝 Активных домашних заданий сейчас нет."
-    lines=["📝 ДОМАШНЕЕ ЗАДАНИЕ",""]
-    for i,r in enumerate(rows,1):
-        title=_row_value(r,"title","topic","name",default=f"Задание {i}");text=_row_value(r,"task_text","description","text","content",default="");due=_row_value(r,"due_at","deadline","due_date");status=str(_row_value(r,"status",default="") or "")
-        lines.append(f"{i}. {title}")
-        if text:lines.append(str(text).strip().replace("\n"," ")[:500])
-        if due:lines.append(f"⏰ До: {_fmt_dt(due)}")
-        if status:lines.append(f"Статус: {status}")
-        lines.append("")
-    return "\n".join(lines).strip()
+    return homework_channel_ui.list_text(int(user_id),int(limit))
+def homework_detail(user_id,homework_id):
+    return homework_channel_ui.detail(int(user_id),int(homework_id))
+def homework_items(user_id,limit=8):
+    return homework_channel_ui.list_items(int(user_id),int(limit))
 def study_text(user_id):
     u=database.get_user(int(user_id))
     if not u:return "📚 Профиль ученика не найден."
@@ -68,7 +59,7 @@ def study_text(user_id):
         lines += ["","Направления:"]
         for r in programs:lines.append(f"• {SUBJECT_NAMES.get(str(r['subject'] or ''),str(r['subject'] or ''))} · {GOAL_NAMES.get(str(r['study_goal'] or ''),str(r['study_goal'] or ''))}"+(" ⭐" if r['is_primary'] else ""))
     else:lines += ["",f"• {SUBJECT_NAMES.get(str(u['main_subject'] or ''),str(u['main_subject'] or ''))} · {GOAL_NAMES.get(str(u['study_goal'] or ''),str(u['study_goal'] or ''))}"]
-    try:lines += ["",f"📝 Активных ДЗ: {len(database.get_student_homework(int(user_id),active_only=True))}"]
+    try:lines += ["",f"📝 Активных ДЗ: {len(homework_channel_ui.list_items(int(user_id),100))}"]
     except Exception:pass
     lines.append(f"📅 Ближайших занятий: {len(list(database.get_upcoming_lessons(int(user_id))))}");return "\n".join(lines)
 def student_grade(user_id):
