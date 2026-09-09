@@ -5,6 +5,7 @@ from database import connect
 
 PAID={'PAID','CONFIRMED','APPROVED'}
 PENDING={'WAITING','PENDING','REVIEW'}
+EXCLUDED_LESSON_STATUSES={'CANCELLED','REJECTED'}
 
 
 def _iso_start(value,days=30):
@@ -19,6 +20,54 @@ def _iso_end(value):
         try:return datetime.fromisoformat(str(value)).isoformat(timespec='seconds')
         except Exception:pass
     return datetime.now().isoformat(timespec='seconds')
+
+
+def _period_stats(conn,start,end,now):
+    """Return planned, already worked and still-to-work value for a calendar period.
+
+    lesson.price is an immutable snapshot, therefore changing tariffs later does
+    not rewrite these historical/forecast numbers.
+    """
+    planned=conn.execute("""
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(price,0)),0) s
+      FROM lessons
+      WHERE start_time>=? AND start_time<?
+        AND lesson_status NOT IN ('CANCELLED','REJECTED')
+    """,(start,end)).fetchone()
+    worked=conn.execute("""
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(price,0)),0) s
+      FROM lessons
+      WHERE start_time>=? AND start_time<? AND lesson_status='COMPLETED'
+    """,(start,end)).fetchone()
+    remaining=conn.execute("""
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(price,0)),0) s
+      FROM lessons
+      WHERE start_time>=? AND start_time<? AND start_time>=?
+        AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
+    """,(start,end,now)).fetchone()
+    return {
+      'planned':{'lessons':int(planned['c'] or 0),'amount':int(planned['s'] or 0)},
+      'worked':{'lessons':int(worked['c'] or 0),'amount':int(worked['s'] or 0)},
+      'remaining':{'lessons':int(remaining['c'] or 0),'amount':int(remaining['s'] or 0)},
+    }
+
+
+def calendar_analytics(now_value=None):
+    now=datetime.fromisoformat(str(now_value)) if now_value else datetime.now()
+    monday=datetime.combine(now.date()-timedelta(days=now.weekday()),datetime.min.time())
+    week_end=monday+timedelta(days=7)
+    month_start=datetime(now.year,now.month,1)
+    if now.month==12:month_end=datetime(now.year+1,1,1)
+    else:month_end=datetime(now.year,now.month+1,1)
+    now_iso=now.isoformat(timespec='seconds');conn=connect()
+    week=_period_stats(conn,monday.isoformat(timespec='seconds'),week_end.isoformat(timespec='seconds'),now_iso)
+    month=_period_stats(conn,month_start.isoformat(timespec='seconds'),month_end.isoformat(timespec='seconds'),now_iso)
+    conn.close()
+    return {
+      'as_of':now_iso,
+      'week':{'start':monday.isoformat(timespec='seconds'),'end':week_end.isoformat(timespec='seconds'),**week},
+      'month':{'start':month_start.isoformat(timespec='seconds'),'end':month_end.isoformat(timespec='seconds'),**month},
+    }
 
 
 def dashboard(start=None,end=None):
