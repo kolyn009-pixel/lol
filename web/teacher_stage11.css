@@ -1,0 +1,38 @@
+/* Stage 11 mobile polish for the existing teacher cabinet. */
+@media(max-width:900px){
+  .teacher-shell{grid-template-columns:82px 1fr}
+  aside{padding:18px 10px}
+  .brand{padding:0 6px 18px;text-align:center}.brand span{display:none}
+  nav button{padding:12px 8px;text-align:center;font-size:18px}nav button span{display:none}
+  .side-foot small{display:none}.side-foot{text-align:center;padding:12px 4px}
+  main{padding:0 18px 45px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid,.lesson-grid,.hw-builder,.hw-builder-modern{grid-template-columns:1fr}
+  .picker-panel,.hw-picker-card{position:static}
+  .student-grid,.collection-grid,.library-grid,.task-grid,.hw-crm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hw-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hw-crm-tools{grid-template-columns:1fr 160px}
+  .hw-crm-tools>*:last-child{grid-column:1/-1}
+}
+@media(max-width:640px){
+  .teacher-shell{display:block;padding-bottom:76px}
+  aside{position:fixed;z-index:40;left:0;right:0;bottom:0;top:auto;height:auto;padding:6px calc(6px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));display:block;background:#211a2cf4;backdrop-filter:blur(16px)}
+  aside .brand,.side-foot{display:none}
+  aside nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}aside nav::-webkit-scrollbar{display:none}
+  aside nav button{flex:0 0 62px;min-height:52px;padding:7px 4px;border-radius:12px;font-size:17px;display:grid;place-items:center}
+  aside nav button span{display:block;font-size:9px;line-height:1.05;white-space:normal;text-align:center}
+  main{padding:0 12px 28px}
+  header{padding:calc(14px + env(safe-area-inset-top)) 0 10px;align-items:flex-start;gap:10px}header h1{font-size:22px}.header-actions{flex-direction:column;align-items:stretch}.header-actions button{padding:9px 10px;font-size:11px}
+  .stats,.student-grid,.collection-grid,.library-grid,.task-grid,.hw-crm-grid,.hw-kpis,.hw-crm-tools,.library-search,.form-row,.topic-mark,.hm-task-config{grid-template-columns:1fr}
+  .lesson-hero,.post-head,.library-toolbar,.hw-crm-head,.crm-head{flex-direction:column;align-items:flex-start;gap:12px}
+  .lesson-clock{text-align:left}.lesson-actions,.post-buttons,.toolbar-actions{width:100%}.lesson-actions button,.post-buttons button,.toolbar-actions button{flex:1}
+  .panel,.form,.hw-form-card,.hw-picker-card,.modal{padding:15px;border-radius:17px}
+  .row{align-items:flex-start;flex-wrap:wrap}.row>.ghost,.row>.badge{margin-left:auto}
+  .hw-attempt-grid{grid-template-columns:1fr}
+  .modal-backdrop{padding:8px}.modal{max-height:94dvh}
+}
+@media(max-width:360px){
+  main{padding-left:9px;padding-right:9px}.header-actions{max-width:118px}
+  aside nav button{flex-basis:58px}
+  .stat{padding:14px}.stat b{font-size:23px}
+}
