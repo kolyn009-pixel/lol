@@ -7,10 +7,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
 let failed = false;
-function check(ok, label) {
-  console.log(`${ok ? 'OK' : 'FAIL'} ${label}`);
-  if (!ok) failed = true;
-}
+function check(ok, label) { console.log(`${ok ? 'OK' : 'FAIL'} ${label}`); if (!ok) failed = true; }
 function has(pattern) { return pattern.test(main); }
 
 check(pkg.main === 'main.js', 'main entry');
@@ -27,15 +24,20 @@ check(has(/contextIsolation\s*:\s*true/), 'context isolation');
 check(has(/nodeIntegration\s*:\s*false/), 'node integration disabled');
 check(has(/sandbox\s*:\s*true/), 'renderer sandbox');
 check(main.includes('https://telemost.yandex.ru'), 'Telemost allowlist');
-check(has(/\['media',\s*'microphone',\s*'camera',\s*'display-capture'\]/), 'lesson media permissions explicit');
-check(main.includes('shell.openExternal'), 'untrusted links external');
+check(main.includes("myboard.io") && main.includes('trustedBoard'), 'board HTTPS allowlist');
+check(has(/\['media','microphone','camera','display-capture'\]/), 'lesson media permissions explicit');
+check(main.includes("persist:adelia-board") && main.includes('boardSession.setPermissionCheckHandler(()=>false)'), 'board permissions denied');
+check(main.includes("['https:', 'mailto:']"), 'external protocols allowlisted');
 check(main.includes('did-fail-load'), 'offline fallback');
 check(has(/backgroundThrottling\s*:\s*true/), 'idle cabinet background throttling');
 check(has(/backgroundThrottling\s*:\s*false/), 'lesson media stays live in background');
-check(main.includes('lessonWindows.size > 0'), 'updates skipped during lessons');
+check(main.includes('lessonWindows.size>0') || main.includes('lessonWindows.size > 0'), 'updates skipped during lessons');
 check(main.includes('UPDATE_CHECK_MS = 4 * 60 * 60 * 1000'), 'low-frequency update polling');
-check(main.includes('autoUpdater.autoDownload = false'), 'updates require user consent');
+check(main.includes('autoUpdater.autoDownload=false') || main.includes('autoUpdater.autoDownload = false'), 'updates require user consent');
 check(main.includes('autoUpdater.quitAndInstall'), 'downloaded update install flow');
+check(main.includes("ipcMain.handle('adelia:lesson-tool'") && preload.includes("ipcRenderer.invoke('adelia:lesson-tool'"), 'safe lesson IPC bridge');
+check(main.includes("ipcMain.handle('adelia:end-lesson-workspace'") && preload.includes("ipcRenderer.invoke('adelia:end-lesson-workspace'"), 'lesson workspace close bridge');
+check(main.includes('tileLessonWindows') && main.includes('screen.getDisplayMatching'), 'lesson windows tiled on active display');
 check(preload.includes('contextBridge'), 'minimal preload bridge');
 
 if (failed) process.exit(1);
