@@ -68,7 +68,7 @@ def _normalize(fields,creating=False):
         for key in ('subject','title','formula_latex'):
             if not str(out.get(key) or '').strip():raise ValueError(key+'_required')
     for key in ('grade_min','grade_max'):
-        if out.get(key) is not None and not 1<=int(out[key])<=14:raise ValueError('invalid_grade')
+        if out.get(key) is not None and not 1<=int(out[key])<=11:raise ValueError('invalid_grade')
     if out.get('grade_min') is not None and out.get('grade_max') is not None and int(out['grade_min'])>int(out['grade_max']):raise ValueError('invalid_grade_range')
     if 'sort_order' in out and int(out['sort_order'])<0:raise ValueError('invalid_sort_order')
     if 'active' in out:out['active']=1 if int(out['active']) else 0
@@ -112,3 +112,23 @@ def set_favorite(formula_id,user_id,value=True):
 
 def facets():
     ensure_tables();conn=connect();subjects=[r[0] for r in conn.execute("SELECT DISTINCT subject FROM formula_book WHERE active=1 ORDER BY subject")];sections=[dict(r) for r in conn.execute("SELECT subject,section,COUNT(*) count FROM formula_book WHERE active=1 AND section IS NOT NULL GROUP BY subject,section ORDER BY subject,section")];topics=[dict(r) for r in conn.execute("SELECT subject,section,topic,COUNT(*) count FROM formula_book WHERE active=1 AND topic IS NOT NULL GROUP BY subject,section,topic ORDER BY subject,section,topic")];conn.close();return {'subjects':subjects,'sections':sections,'topics':topics}
+
+STARTER_FORMULAS=[
+ {'subject':'PHYSICS','section':'Механика','topic':'Кинематика','title':'Равномерное движение','formula_latex':r's = vt','formula_plain':'s = v*t','description':'Путь при постоянной скорости.','variables_json':['s — путь, м','v — скорость, м/с','t — время, с'],'grade_min':7,'grade_max':11,'tags_json':['механика','кинематика'],'sort_order':10},
+ {'subject':'PHYSICS','section':'Механика','topic':'Динамика','title':'Второй закон Ньютона','formula_latex':r'\vec F = m\vec a','formula_plain':'F = m*a','description':'Равнодействующая сил сообщает телу ускорение.','variables_json':['F — сила, Н','m — масса, кг','a — ускорение, м/с²'],'grade_min':7,'grade_max':11,'study_goal':'EGE','tags_json':['механика','динамика'],'sort_order':20},
+ {'subject':'PHYSICS','section':'Механика','topic':'Энергия','title':'Кинетическая энергия','formula_latex':r'E_k = \frac{mv^2}{2}','formula_plain':'Ek = m*v^2/2','description':'Энергия движущегося тела.','variables_json':['Ek — энергия, Дж','m — масса, кг','v — скорость, м/с'],'grade_min':7,'grade_max':11,'tags_json':['энергия'],'sort_order':30},
+ {'subject':'PHYSICS','section':'Электродинамика','topic':'Постоянный ток','title':'Закон Ома','formula_latex':r'I = \frac{U}{R}','formula_plain':'I = U/R','description':'Связь силы тока, напряжения и сопротивления участка цепи.','variables_json':['I — сила тока, А','U — напряжение, В','R — сопротивление, Ом'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['электричество','закон Ома'],'sort_order':40},
+ {'subject':'PHYSICS','section':'Молекулярная физика','topic':'Количество теплоты','title':'Нагревание и охлаждение','formula_latex':r'Q = cm\Delta T','formula_plain':'Q = c*m*deltaT','description':'Количество теплоты при изменении температуры без фазового перехода.','variables_json':['Q — количество теплоты, Дж','c — удельная теплоёмкость','m — масса, кг','ΔT — изменение температуры'],'grade_min':8,'grade_max':11,'tags_json':['теплота'],'sort_order':50},
+ {'subject':'CHEMISTRY','section':'Расчёты','topic':'Количество вещества','title':'Количество вещества через массу','formula_latex':r'n = \frac{m}{M}','formula_plain':'n = m/M','description':'Расчёт количества вещества по массе и молярной массе.','variables_json':['n — количество вещества, моль','m — масса, г','M — молярная масса, г/моль'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['моль','расчёты'],'sort_order':10},
+ {'subject':'CHEMISTRY','section':'Растворы','topic':'Массовая доля','title':'Массовая доля вещества','formula_latex':r'\omega = \frac{m_{\text{в-ва}}}{m_{\text{р-ра}}}','formula_plain':'w = m(вещества)/m(раствора)','description':'Доля растворённого вещества в массе раствора.','variables_json':['ω — массовая доля','m вещества — масса растворённого вещества','m раствора — масса раствора'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['растворы','массовая доля'],'sort_order':20},
+ {'subject':'CHEMISTRY','section':'Газы','topic':'Молярный объём','title':'Объём газа при н.у.','formula_latex':r'V = nV_m','formula_plain':'V = n*Vm','description':'Связь объёма газа и количества вещества через молярный объём.','variables_json':['V — объём газа, л','n — количество вещества, моль','Vm — молярный объём, л/моль'],'conditions':'Для школьных задач при нормальных условиях используют Vm = 22,4 л/моль.','grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['газы','молярный объём'],'sort_order':30}
+]
+
+def seed_starter_formulas():
+    """Add a small curated starter set without duplicating existing records."""
+    ensure_tables();created=[]
+    for item in STARTER_FORMULAS:
+        conn=connect();row=conn.execute("SELECT id FROM formula_book WHERE subject=? AND title=? AND formula_plain=? LIMIT 1",(item['subject'],item['title'],item['formula_plain'])).fetchone();conn.close()
+        if row:continue
+        created.append(int(create_formula(item)['id']))
+    return {'status':'ok','created':len(created),'formula_ids':created}
