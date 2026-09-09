@@ -11,6 +11,9 @@
     "dist:win": "electron-builder --win nsis",
     "dist:mac": "electron-builder --mac dmg"
   },
+  "dependencies": {
+    "electron-updater": "6.6.2"
+  },
   "devDependencies": {
     "electron": "38.0.0",
     "electron-builder": "26.0.12"
@@ -22,8 +25,12 @@
     "asar": true,
     "files": ["main.js", "preload.js", "selftest.js", "package.json"],
     "directories": {"output": "dist"},
+    "publish": [{
+      "provider": "generic",
+      "url": "https://adeliatutor.ru/desktop-updates/"
+    }],
     "win": {"target": ["nsis"], "requestedExecutionLevel": "asInvoker"},
-    "mac": {"target": ["dmg"], "category": "public.app-category.education"},
+    "mac": {"target": ["dmg", "zip"], "category": "public.app-category.education"},
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
