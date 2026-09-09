@@ -13,10 +13,9 @@ from web_backend.post_lesson_complete import state as completion_state, complete
 from web_backend.homework_center import update_homework
 from web_backend.assessment import save_task_feedback, student_feedback
 from web_backend.homework_review_flow import finalize as finalize_homework_review
-from web_backend.teacher_crm import schedule as teacher_crm_schedule, student as teacher_crm_student, update_student as teacher_crm_update_student
-
+from web_backend.teacher_crm import schedule as teacher_crm_schedule, students as teacher_crm_students, student as teacher_crm_student, update_student as teacher_crm_update_student
 class Handler(v1.Handler):
-    server_version="AdeliaWeb/1.8"
+    server_version="AdeliaWeb/1.9"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
         if path.startswith('/api/student/'):
@@ -41,6 +40,7 @@ class Handler(v1.Handler):
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             try:
                 if path=='/api/teacher/crm/schedule':return self._json(200,teacher_crm_schedule(q.get('start',[None])[0],q.get('end',[None])[0],q.get('limit',[300])[0]))
+                if path=='/api/teacher/crm/students':return self._json(200,teacher_crm_students(q.get('q',[None])[0],q.get('status',[None])[0],q.get('limit',[200])[0]))
                 if path=='/api/teacher/crm/student':
                     item=teacher_crm_student(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
             except (TypeError,ValueError):return self._json(400,{'error':'invalid_request'})
@@ -76,9 +76,7 @@ class Handler(v1.Handler):
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
             try:
-                attempt=body.get('attempt_number')
-                r=submit_answers(int(body.get('homework_id')),int(auth['id']),body.get('responses') or {},attempt if attempt not in ('',None) else None)
-                return self._json(200,r)
+                attempt=body.get('attempt_number');r=submit_answers(int(body.get('homework_id')),int(auth['id']),body.get('responses') or {},attempt if attempt not in ('',None) else None);return self._json(200,r)
             except PermissionError:return self._json(404,{'error':'homework_not_found'})
             except ValueError as exc:return self._json(409,{'error':str(exc)})
             except Exception as exc:print('[web-api] student homework submit error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
@@ -87,8 +85,7 @@ class Handler(v1.Handler):
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
             try:
-                r=teacher_crm_update_student(int(body.get('user_id')),body.get('fields') or {})
-                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status'),'field':r.get('field')})
+                r=teacher_crm_update_student(int(body.get('user_id')),body.get('fields') or {});return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status'),'field':r.get('field')})
             except (TypeError,ValueError):return self._json(400,{'error':'invalid_request'})
             except Exception as exc:print('[web-api] teacher CRM update error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/teacher/homework-center/update':
@@ -96,24 +93,21 @@ class Handler(v1.Handler):
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
             try:
-                r=update_homework(int(body.get('homework_id')),title=body.get('title'),description=body.get('description'),deadline=body.get('deadline'),status=body.get('status'))
-                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
+                r=update_homework(int(body.get('homework_id')),title=body.get('title'),description=body.get('description'),deadline=body.get('deadline'),status=body.get('status'));return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
             except Exception as exc:print('[web-api] homework update error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/teacher/homework-center/task-feedback':
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
             try:
-                r=save_task_feedback(body.get('homework_id'),body.get('task_id'),body.get('user_id'),body.get('attempt_number'),body.get('comment'),body.get('is_correct'),body.get('points_awarded'))
-                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
+                r=save_task_feedback(body.get('homework_id'),body.get('task_id'),body.get('user_id'),body.get('attempt_number'),body.get('comment'),body.get('is_correct'),body.get('points_awarded'));return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
             except Exception as exc:print('[web-api] task feedback error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/teacher/homework-center/finalize':
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
             try:
-                r=finalize_homework_review(body.get('homework_id'),body.get('user_id'),body.get('result'),body.get('comment'),body.get('attempt_number'))
-                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
+                r=finalize_homework_review(body.get('homework_id'),body.get('user_id'),body.get('result'),body.get('comment'),body.get('attempt_number'));return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
             except Exception as exc:print('[web-api] homework finalize error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path.startswith('/api/teacher/lesson/'):
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
@@ -132,8 +126,6 @@ class Handler(v1.Handler):
                 status=r.get('status');return self._json(200,r) if status=='ok' else self._json(409,{'error':status})
             except Exception as exc:print('[web-api] teacher lesson POST error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         return super().do_POST()
-
 def main():
-    print(f"Adelia web API v2 listening on http://{v1.HOST}:{v1.PORT}")
-    ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    print(f"Adelia web API v2 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
