@@ -66,28 +66,20 @@ def dashboard(user_id):
             (uid, now),
         ).fetchone()
         active_hw = conn.execute(
-            """
-            SELECT COUNT(*) n
-              FROM homework
-             WHERE user_id=? AND status NOT IN ('COMPLETED','CHECKED','REVIEWED','CANCELLED')
-            """,
+            "SELECT COUNT(*) n FROM homework WHERE user_id=? AND status NOT IN ('COMPLETED','CHECKED','REVIEWED','CANCELLED')",
             (uid,),
         ).fetchone()["n"]
         pending_payments = conn.execute(
-            """
-            SELECT COUNT(*) n,COALESCE(SUM(total_amount),0) amount
-              FROM payments
-             WHERE user_id=? AND status IN ('WAITING','PENDING')
-            """,
+            "SELECT COUNT(*) n,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id=? AND status IN ('WAITING','PENDING')",
             (uid,),
         ).fetchone()
+        # Stage 10 is the canonical message store. Fall back to zero before the
+        # migration tables exist instead of scanning the legacy conversation table.
+        unified_exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='unified_messages'").fetchone()
         unread = conn.execute(
-            """
-            SELECT COUNT(*) n FROM conversation_messages
-             WHERE user_id=? AND direction='OUT' AND read_at IS NULL
-            """,
+            "SELECT COUNT(*) n FROM unified_messages WHERE student_id=? AND participant_type='STUDENT' AND direction='OUT' AND read_at IS NULL",
             (uid,),
-        ).fetchone()["n"] if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='conversation_messages'").fetchone() else 0
+        ).fetchone()["n"] if unified_exists else 0
         recent_result = conn.execute(
             """
             SELECT r.result,r.accuracy_percent,r.reviewed_at,h.title
@@ -170,10 +162,7 @@ def payments(user_id, limit=50):
         (uid, limit),
     ).fetchall()
     receipts = conn.execute(
-        """
-        SELECT id,payment_id,file_type,status,source_platform,created_at,reviewed_at
-          FROM receipts WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 50
-        """,
+        "SELECT id,payment_id,file_type,status,source_platform,created_at,reviewed_at FROM receipts WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 50",
         (uid,),
     ).fetchall()
     conn.close()
@@ -191,10 +180,11 @@ def profile(user_id):
     user = get_user(int(user_id))
     if not user or not user["active"]:
         return None
+    # Only fields rendered by the student profile are exposed. Parent contact
+    # details, phone and Telegram identifiers remain server-side.
     allowed = [
-        "id","name","grade","study_goal","main_subject","telegram_username",
-        "phone","education_type","education_level","extra_minutes_balance",
-        "bonus_lessons_earned","board_url","parent_name","parent_phone",
+        "name","grade","study_goal","main_subject","education_type","education_level",
+        "extra_minutes_balance","bonus_lessons_earned","board_url",
         "ege_physics_rate","oge_physics_rate","oge_chemistry_rate",
         "olympiad_physics_rate","school_physics_rate","school_chemistry_rate",
     ]
@@ -202,14 +192,7 @@ def profile(user_id):
 
 
 def conversation_for_student(user_id, limit=100):
-    uid = int(user_id)
-    conn = connect()
-    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='conversation_messages'").fetchone()
-    if not exists:
-        conn.close(); return []
-    rows = conn.execute(
-        "SELECT * FROM conversation_messages WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT ?",
-        (uid, max(1, min(int(limit), 200))),
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in reversed(rows)]
+    # Use the canonical Stage 10 store so Telegram/VK/Web history is consistent.
+    # The facade keeps the legacy response shape expected by the current frontend.
+    from web_backend.unified_messages import conversation
+    return conversation(int(user_id), max(1, min(int(limit), 200)))
