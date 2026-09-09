@@ -2,6 +2,7 @@
 from __future__ import annotations
 from web_backend import unified_messaging as um
 from web_backend.message_delivery import send_teacher_reply
+from web_backend.message_read_sync import mark_conversation_read
 from vk_adapter import channel_delivery
 
 
@@ -43,7 +44,7 @@ class Stage10Mixin:
                 result=send_teacher_reply(int(body.get('user_id')),body.get('text'),body.get('channels'),tid)
                 return self._json(200,result) if result['status']=='ok' else self._json(502,result)
             if path=='/api/teacher/messages/read':
-                return self._json(200,um.mark_read(int(body.get('conversation_id'))))
+                return self._json(200,mark_conversation_read(int(body.get('conversation_id'))))
         except ValueError as exc:return self._json(400,{'error':str(exc)})
         except Exception as exc:print('[stage10] teacher messages POST error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         return self._json(404,{'error':'not_found'})
