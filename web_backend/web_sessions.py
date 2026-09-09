@@ -13,7 +13,10 @@ import time
 from database import connect, now_iso
 from core import admin_roles
 
-SESSION_TTL = 60 * 60 * 24 * 30
+# A trusted browser/PWA should not ask a student to sign in again after every
+# restart. Six months is long-lived but still finite; logout/revocation remains
+# immediate and Stage 12 will add device/session management.
+SESSION_TTL = 60 * 60 * 24 * 180
 
 
 def _digest(token: str) -> str:
