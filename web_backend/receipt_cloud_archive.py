@@ -1,14 +1,8 @@
 """Stage 13: durable receipt archive on Yandex Disk.
 
-The accounting database remains the source of truth. This module copies receipt
-files to cloud storage and records an integrity hash/status in a separate table.
-A failed cloud upload never changes payment/receipt state and is safe to retry.
-
-Required environment for the first provider implementation:
-  YANDEX_DISK_OAUTH_TOKEN   OAuth token with Disk access
-  BOT_TOKEN                 Telegram bot token (for Telegram receipt files)
-Optional:
-  ADELIA_RECEIPT_ARCHIVE_ROOT  default: /TutorBot/Receipts
+The accounting database remains the source of truth. Receipt files are copied to
+cloud storage asynchronously; payment/receipt processing never waits for Yandex
+Disk. Failed uploads are retried with bounded exponential backoff.
 """
 from __future__ import annotations
 
@@ -16,7 +10,7 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
@@ -27,6 +21,7 @@ DISK_API = "https://cloud-api.yandex.net/v1/disk"
 TELEGRAM_API = "https://api.telegram.org"
 ARCHIVE_ROOT = os.getenv("ADELIA_RECEIPT_ARCHIVE_ROOT", "/TutorBot/Receipts").rstrip("/")
 MAX_RECEIPT_BYTES = 25 * 1024 * 1024
+MAX_ATTEMPTS = 12
 
 
 def ensure_table():
@@ -112,7 +107,6 @@ def _disk_request(method, path, params=None, data=None, content_type=None):
             raw = resp.read()
             return json.loads(raw.decode("utf-8")) if raw else {}
     except HTTPError as exc:
-        # Existing folders are fine for idempotent mkdir calls.
         if method == "PUT" and path == "/resources" and exc.code == 409: return {}
         raise RuntimeError(f"yandex_disk_http_{exc.code}") from None
 
@@ -148,13 +142,19 @@ def _remote_path(item):
     return f"{ARCHIVE_ROOT}/{dt:%Y}/{dt:%m}/{student}_{int(item['user_id'])}/{name}"
 
 
+def _retry_seconds(attempts):
+    # 1m, 2m, 4m ... capped at 6h. Permanent/unsupported rows stop at MAX_ATTEMPTS.
+    return min(6 * 60 * 60, 60 * (2 ** max(0, min(int(attempts), 8))))
+
+
 def archive_receipt(receipt_id):
-    """Archive one receipt. Idempotent; successful archives are not uploaded twice."""
     ensure_table(); rid = int(receipt_id)
     conn = connect()
     existing = conn.execute("SELECT * FROM receipt_cloud_archives WHERE receipt_id=?", (rid,)).fetchone()
     if existing and str(existing["status"]).upper() == "ARCHIVED":
         result = dict(existing); conn.close(); return {"status": "ok", "archive": result, "already_archived": True}
+    if existing and int(existing["attempts"] or 0) >= MAX_ATTEMPTS:
+        result = dict(existing); conn.close(); return {"status": "failed", "archive": result, "max_attempts": True}
     conn.execute(
         """INSERT INTO receipt_cloud_archives(receipt_id,status,attempts,updated_at)
            VALUES(?, 'PENDING', 0, ?)
@@ -180,21 +180,47 @@ def archive_receipt(receipt_id):
     except Exception as exc:
         error = str(exc)[:160]
         conn = connect(); conn.execute(
-            "UPDATE receipt_cloud_archives SET status='RETRY',attempts=attempts+1,last_error=?,updated_at=? WHERE receipt_id=?",
-            (error, now_iso(), rid),
+            """UPDATE receipt_cloud_archives SET
+               status=CASE WHEN attempts+1>=? THEN 'FAILED' ELSE 'RETRY' END,
+               attempts=attempts+1,last_error=?,updated_at=? WHERE receipt_id=?""",
+            (MAX_ATTEMPTS, error, now_iso(), rid),
         ); conn.commit(); conn.close(); return {"status":"retry","error":error,"receipt_id":rid}
 
 
 def archive_pending(limit=20):
-    """Process a small batch so archiving never blocks the main web/bot loop."""
+    """Process a due batch without retry-hammering cloud APIs."""
     ensure_table(); limit=max(1,min(int(limit),100)); conn=connect()
     rows=conn.execute(
         """
-        SELECT r.id FROM receipts r
+        SELECT r.id,a.attempts,a.updated_at,a.status
+        FROM receipts r
         LEFT JOIN receipt_cloud_archives a ON a.receipt_id=r.id
         WHERE a.receipt_id IS NULL OR a.status IN ('PENDING','RETRY')
         ORDER BY r.id LIMIT ?
         """,
-        (limit,),
+        (max(limit * 5, limit),),
     ).fetchall();conn.close()
-    return [archive_receipt(int(r['id'])) for r in rows]
+    now=datetime.now();due=[]
+    for r in rows:
+        if len(due)>=limit:break
+        if r['status'] is None or str(r['status']).upper()=='PENDING':
+            due.append(int(r['id']));continue
+        try:updated=datetime.fromisoformat(str(r['updated_at']))
+        except Exception:updated=now-timedelta(days=1)
+        if now-updated>=timedelta(seconds=_retry_seconds(r['attempts'] or 0)):
+            due.append(int(r['id']))
+    return [archive_receipt(rid) for rid in due]
+
+
+def queue_stats():
+    """Cheap operational counters for monitoring and pre-production checks."""
+    ensure_table();conn=connect()
+    rows=conn.execute("SELECT status,COUNT(*) c FROM receipt_cloud_archives GROUP BY status").fetchall()
+    total=conn.execute("SELECT COUNT(*) c FROM receipts").fetchone();conn.close()
+    counts={str(r['status']).upper():int(r['c'] or 0) for r in rows}
+    tracked=sum(counts.values())
+    return {
+        'receipts_total':int(total['c'] or 0),'untracked':max(0,int(total['c'] or 0)-tracked),
+        'pending':counts.get('PENDING',0),'retry':counts.get('RETRY',0),
+        'archived':counts.get('ARCHIVED',0),'failed':counts.get('FAILED',0),
+    }
