@@ -4,7 +4,7 @@ from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from web_backend import api as v1, api_v3, otp_secret
 from web_backend.stage12_indexes import ensure_indexes
-from web_backend.student_booking import programs as booking_programs, free_slots as booking_free_slots, request_one_off, cancel_pending
+from web_backend.student_booking import programs as booking_programs, free_slots as booking_free_slots, request_one_off, request_trial, trial_status, cancel_pending
 from web_backend.student_reschedule import free_slots_for_lesson, create_request as create_slot_change, outgoing as outgoing_slot_changes, incoming as incoming_exchanges, respond_to_exchange, cancel_request as cancel_slot_change
 from web_backend.student_finance import overview as finance_overview, quote as finance_quote, create_package_payment, create_lesson_payment, history as finance_history, attach_receipt
 from web_backend.finance_receipts import web_receipt_file
@@ -13,7 +13,7 @@ from web_backend.teacher_cascade import list_requests as cascade_requests, analy
 from final_features import regular_schedule_change, cascade_consents, cascade_shift
 
 class Handler(api_v3.Handler):
-    server_version='AdeliaWeb/4.7'
+    server_version='AdeliaWeb/4.8'
     def _send_receipt_file(self,receipt_id):
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:path,mime=web_receipt_file(int(receipt_id));data=path.read_bytes()
@@ -37,7 +37,7 @@ class Handler(api_v3.Handler):
                 item=regular_schedule_change.get_request(int(q.get('request_id',['0'])[0]))
                 return self._json(200,{'item':item}) if item else self._json(404,{'error':'request_not_found'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
-        booking={'/api/student/booking/programs','/api/student/booking/free-slots'}
+        booking={'/api/student/booking/programs','/api/student/booking/free-slots','/api/student/booking/trial-status'}
         changes={'/api/student/reschedule/free-slots','/api/student/reschedule/outgoing','/api/student/exchanges/incoming'}
         finance={'/api/student/finance/overview','/api/student/finance/history','/api/student/finance/quote'}
         regular={'/api/student/regular-schedules','/api/student/regular-change/requests'}
@@ -48,6 +48,7 @@ class Handler(api_v3.Handler):
                 uid=int(auth['id'])
                 if path.endswith('/booking/programs'):result={'items':booking_programs(uid)}
                 elif path.endswith('/booking/free-slots'):result={'items':booking_free_slots(uid,int(q.get('program_id',['0'])[0]),int(q.get('days',['14'])[0]),int(q.get('duration_minutes',['60'])[0]))}
+                elif path.endswith('/booking/trial-status'):result=trial_status(uid)
                 elif path.endswith('/reschedule/free-slots'):result={'items':free_slots_for_lesson(uid,int(q.get('lesson_id',['0'])[0]),int(q.get('days',['14'])[0]))}
                 elif path.endswith('/reschedule/outgoing'):result={'items':outgoing_slot_changes(uid)}
                 elif path.endswith('/exchanges/incoming'):result={'items':incoming_exchanges(uid)}
@@ -87,7 +88,7 @@ class Handler(api_v3.Handler):
             except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
             except Exception as exc:print('[web-api] teacher schedule POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
-        routes={'/api/student/booking/request','/api/student/booking/cancel','/api/student/reschedule/request','/api/student/reschedule/cancel','/api/student/exchanges/respond','/api/student/cascade/respond','/api/student/finance/package','/api/student/finance/lesson','/api/student/finance/receipt','/api/student/post-lesson','/api/student/regular-change/request'}
+        routes={'/api/student/booking/request','/api/student/booking/trial','/api/student/booking/cancel','/api/student/reschedule/request','/api/student/reschedule/cancel','/api/student/exchanges/respond','/api/student/cascade/respond','/api/student/finance/package','/api/student/finance/lesson','/api/student/finance/receipt','/api/student/post-lesson','/api/student/regular-change/request'}
         if path in routes:
             if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
             auth=self._student()
@@ -97,6 +98,7 @@ class Handler(api_v3.Handler):
             try:
                 uid=int(auth['id'])
                 if path.endswith('/booking/request'):result=request_one_off(uid,int(body.get('program_id')),body.get('start_time'),int(body.get('duration_minutes') or 60))
+                elif path.endswith('/booking/trial'):result=request_trial(uid,int(body.get('program_id')),body.get('start_time'),int(body.get('duration_minutes') or 60))
                 elif path.endswith('/booking/cancel'):result=cancel_pending(uid,int(body.get('lesson_id')))
                 elif path.endswith('/reschedule/request'):result=create_slot_change(uid,int(body.get('lesson_id')),body.get('desired_start'),body.get('note'))
                 elif path.endswith('/reschedule/cancel'):result=cancel_slot_change(uid,int(body.get('request_id')))
@@ -120,5 +122,5 @@ class Handler(api_v3.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes();print(f'Adelia web API v4.7 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();print(f'Adelia web API v4.8 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
