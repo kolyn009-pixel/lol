@@ -9,6 +9,7 @@ from core import event_center
 from core import homework_channel_ui
 from crm_plus import service as crm_service
 from formula_library import FORMULA_LIBRARY
+from web_backend import unified_messaging
 
 from . import schema
 
@@ -99,7 +100,7 @@ def more_text(user_id):
     finally:c.close()
     return f"⚙️ ЕЩЁ\n\n👤 {u['name']} · {education_profile.label(u)}\n💳 Занятий ожидают оплаты: {int(unpaid or 0)}\n🔗 VK подключён к общей карточке TutorBot."
 def message_history_text(user_id,limit=12):
-    rows=crm_service.message_history(int(user_id),int(limit))
+    unified_messaging.import_legacy();conv=unified_messaging.conversation(int(user_id),'STUDENT',None);rows=unified_messaging.history(conv['id'],int(limit))
     if not rows:return "💬 Переписки с преподавателем пока нет."
     lines=["💬 ПРЕПОДАВАТЕЛЬ",""]
     for r in reversed(rows):lines.append(f"{'👨‍🏫' if r['direction']=='OUT' else '👤'} {_fmt_dt(r['created_at'])}\n{r['body']}")
@@ -108,7 +109,8 @@ def submit_teacher_message(user_id,text,source_vk_id=None):
     u=database.get_user(int(user_id));body=str(text or "").strip()
     if not u or not body:return False,"Пустое сообщение не отправлено."
     accepting,deliver_at=crm_service.inbound_delivery_state();status="OPEN" if accepting else "QUEUED";iid=messaging.create_inbox(body,int(u["telegram_id"] or 0),student_id=int(user_id),subject="Сообщение от ученика из VK",status=status)
-    crm_service.log_message(int(user_id),"IN",body,None,"TEACHER","DELIVERED" if accepting else "QUEUED",None if accepting else deliver_at.isoformat(timespec="seconds"),inbox_id=iid)
+    crm_id=crm_service.log_message(int(user_id),"IN",body,None,"TEACHER","DELIVERED" if accepting else "QUEUED",None if accepting else deliver_at.isoformat(timespec="seconds"),inbox_id=iid)
+    unified_messaging.record_message(int(user_id),'IN',body,participant_type='STUDENT',sender_type='STUDENT',sender_id=int(user_id),origin_channel='VK',status='DELIVERED' if accepting else 'QUEUED',legacy_source='crm_student_messages',legacy_id=crm_id)
     event_center.push("TEACHER_INBOX",f"Сообщение из VK от {u['name']}",body[:500],priority="ACTION",entity_type="teacher_inbox",entity_id=iid,dedupe_key=f"inbox:{iid}")
     try:
         from . import app as vk_app
