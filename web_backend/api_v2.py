@@ -15,10 +15,14 @@ from web_backend.homework_center import update_homework
 from web_backend.assessment import save_task_feedback, student_feedback
 from web_backend.homework_review_flow import finalize as finalize_homework_review
 from web_backend.teacher_crm import schedule as teacher_crm_schedule, students as teacher_crm_students, student as teacher_crm_student, update_student as teacher_crm_update_student
-class Handler(v1.Handler):
-    server_version="AdeliaWeb/2.0"
+from web_backend.stage6_api import Stage6Mixin
+
+class Handler(Stage6Mixin,v1.Handler):
+    server_version="AdeliaWeb/2.1"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
+        handled=self.stage6_get(path,q)
+        if handled is not False:return handled
         if path.startswith('/api/student/'):
             auth=self._student()
             if not auth:return self._json(401,{'error':'unauthorized'})
@@ -61,6 +65,8 @@ class Handler(v1.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        handled=self.stage6_post(path)
+        if handled is not False:return handled
         if path=='/api/student/message':
             auth=self._student()
             if not auth:return self._json(401,{'error':'unauthorized'})
