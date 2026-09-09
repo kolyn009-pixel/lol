@@ -1,4 +1,4 @@
-"""Adelia web API v2: real student cabinet and coordinated lesson entry."""
+"""Adelia web API v2: real student, teacher and parent cabinets."""
 from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -18,11 +18,14 @@ from web_backend.teacher_crm import schedule as teacher_crm_schedule, students a
 from web_backend.stage6_api import Stage6Mixin
 from web_backend.stage7_api import Stage7Mixin
 from web_backend.stage8_api import Stage8Mixin
+from web_backend.stage9_api import Stage9Mixin
 
-class Handler(Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Handler):
-    server_version="AdeliaWeb/2.3"
+class Handler(Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Handler):
+    server_version="AdeliaWeb/2.4"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
+        handled=self.stage9_get(path,q)
+        if handled is not False:return handled
         handled=self.stage8_get(path,q)
         if handled is not False:return handled
         handled=self.stage7_get(path,q)
@@ -71,6 +74,8 @@ class Handler(Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        handled=self.stage9_post(path)
+        if handled is not False:return handled
         handled=self.stage8_post(path)
         if handled is not False:return handled
         handled=self.stage7_post(path)
