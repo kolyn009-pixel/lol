@@ -1,4 +1,4 @@
-"""One-off student booking facade using TutorBot's canonical schedule data."""
+"""One-off and trial student booking facade using TutorBot's canonical schedule data."""
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
@@ -34,6 +34,17 @@ def programs(user_id):
     return result
 
 
+def trial_status(user_id):
+    user = database.get_user(int(user_id))
+    if not user:
+        raise PermissionError('student_not_found')
+    return {
+        'available': not bool(user['trial_used']),
+        'trial_used': bool(user['trial_used']),
+        'duration_minutes': DEFAULT_DURATION,
+    }
+
+
 def free_slots(user_id, program_id, days=14, duration_minutes=DEFAULT_DURATION):
     _program_owned(user_id, program_id)
     duration = int(duration_minutes or DEFAULT_DURATION)
@@ -59,11 +70,13 @@ def free_slots(user_id, program_id, days=14, duration_minutes=DEFAULT_DURATION):
     return out
 
 
-def request_one_off(user_id, program_id, start_time, duration_minutes=DEFAULT_DURATION):
+def _request(user_id, program_id, start_time, duration_minutes, is_trial):
     program = _program_owned(user_id, program_id)
     user = database.get_user(int(user_id))
     if not user:
         raise PermissionError('student_not_found')
+    if is_trial and bool(user['trial_used']):
+        raise ValueError('trial_already_used')
     duration = int(duration_minutes or DEFAULT_DURATION)
     if duration < 30 or duration > 180 or duration % 30:
         raise ValueError('invalid_duration')
@@ -81,7 +94,7 @@ def request_one_off(user_id, program_id, start_time, duration_minutes=DEFAULT_DU
     if database.has_student_lesson_on_date(int(user_id), start.date()):
         raise ValueError('student_already_has_lesson_that_day')
     hourly_rate = program['custom_hourly_rate'] or database.get_default_rate(program['study_goal'], program['subject'], user['grade'])
-    price = int(round(int(hourly_rate or 0) * duration / 60))
+    price = 0 if is_trial else int(round(int(hourly_rate or 0) * duration / 60))
     lesson_id = database.create_lesson_request(
         user_id=int(user_id),
         program_id=int(program_id),
@@ -92,9 +105,17 @@ def request_one_off(user_id, program_id, start_time, duration_minutes=DEFAULT_DU
         duration_minutes=duration,
         hourly_rate=int(hourly_rate or 0),
         price=price,
-        is_trial=False,
+        is_trial=bool(is_trial),
     )
-    return {'status': 'ok', 'lesson_id': int(lesson_id), 'price': price, 'start_time': start.isoformat(), 'end_time': end.isoformat()}
+    return {'status': 'ok', 'lesson_id': int(lesson_id), 'price': price, 'is_trial': bool(is_trial), 'start_time': start.isoformat(), 'end_time': end.isoformat()}
+
+
+def request_one_off(user_id, program_id, start_time, duration_minutes=DEFAULT_DURATION):
+    return _request(user_id, program_id, start_time, duration_minutes, False)
+
+
+def request_trial(user_id, program_id, start_time, duration_minutes=DEFAULT_DURATION):
+    return _request(user_id, program_id, start_time, duration_minutes, True)
 
 
 def cancel_pending(user_id, lesson_id):
