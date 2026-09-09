@@ -2,7 +2,6 @@
 import cgi
 import json
 import os
-import secrets
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -22,14 +21,13 @@ from web_backend.external_homework import teacher_completion_feed
 from web_backend.student_homework import list_homework as student_homework_list, detail as student_homework_detail, submit_answers, open_external, external_status
 from web_backend.pdf_workflow import upload_collection as pdf_upload_collection, get_review as pdf_get_review, edit_review_item as pdf_edit_item, set_review_item as pdf_set_item, publish_review as pdf_publish_review
 from web_backend.pdf_storage import MAX_PDF_BYTES
+from web_backend.web_sessions import SESSION_TTL, create_session, read_session, revoke_session
 
-HOST=os.getenv('ADELIA_WEB_HOST','127.0.0.1');PORT=int(os.getenv('ADELIA_WEB_PORT','8765'));SESSION_TTL=60*60*24*30
-_sessions={};_attempts={}
-def _session(role,entity_id):
- token=secrets.token_urlsafe(32);_sessions[token]={'role':role,'id':int(entity_id),'expires':time.time()+SESSION_TTL};return token
+HOST=os.getenv('ADELIA_WEB_HOST','127.0.0.1');PORT=int(os.getenv('ADELIA_WEB_PORT','8765'))
+_attempts={}
+def _session(role,entity_id):return create_session(role,entity_id,SESSION_TTL)
 def _clean():
  now=time.time()
- for k in [k for k,v in _sessions.items() if v['expires']<now]:_sessions.pop(k,None)
  for k in [k for k,v in _attempts.items() if now-v[0]>60]:_attempts.pop(k,None)
 def _allowed(ip):
  _clean();now=time.time();start,count=_attempts.get(ip,(now,0))
@@ -37,11 +35,12 @@ def _allowed(ip):
  count+=1;_attempts[ip]=(start,count);return count<=12
 
 class Handler(BaseHTTPRequestHandler):
- server_version='AdeliaWeb/0.9'
+ server_version='AdeliaWeb/1.0'
  def log_message(self,fmt,*args):print('[web-api]',self.address_string(),fmt%args)
- def _json(self,status,payload,cookie=None):
-  data=json.dumps(payload,ensure_ascii=False,default=str).encode();self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
+ def _json(self,status,payload,cookie=None,clear_cookie=False):
+  data=json.dumps(payload,ensure_ascii=False,default=str).encode();self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('Referrer-Policy','same-origin')
   if cookie:self.send_header('Set-Cookie',f'adelia_session={cookie}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={SESSION_TTL}')
+  elif clear_cookie:self.send_header('Set-Cookie','adelia_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0')
   self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
  def _body(self):
   try:return json.loads(self.rfile.read(min(int(self.headers.get('Content-Length','0')),65536)) or b'{}')
@@ -54,8 +53,9 @@ class Handler(BaseHTTPRequestHandler):
   if not ctype.lower().startswith('multipart/form-data'):raise ValueError('multipart_required')
   env={'REQUEST_METHOD':'POST','CONTENT_TYPE':ctype,'CONTENT_LENGTH':str(total)}
   return cgi.FieldStorage(fp=self.rfile,headers=self.headers,environ=env,keep_blank_values=True)
- def _auth(self):
-  raw=self.headers.get('Cookie','');token=next((p.split('=',1)[1] for p in raw.split('; ') if p.startswith('adelia_session=')),None);item=_sessions.get(token);return item if item and item['expires']>=time.time() else None
+ def _token(self):
+  raw=self.headers.get('Cookie','');return next((p.split('=',1)[1] for p in raw.split('; ') if p.startswith('adelia_session=')),None)
+ def _auth(self):return read_session(self._token())
  def _teacher(self):
   a=self._auth();return a if a and a['role']=='teacher' else None
  def _student(self):
@@ -100,6 +100,8 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   path=urlparse(self.path).path
   try:
+   if path=='/api/auth/logout':
+    revoke_session(self._token());return self._json(200,{'ok':True},clear_cookie=True)
    if path=='/api/teacher/pdf-import/upload':
     if not self._teacher():return self._json(401,{'error':'unauthorized'})
     form=self._multipart();file_item=form['file'] if form is not None and 'file' in form else None
@@ -135,8 +137,7 @@ class Handler(BaseHTTPRequestHandler):
      return self._json(200,r)
     if path=='/api/teacher/pdf-import/item':
      pdf_edit_item(int(body.get('item_id')),body.get('fields') or {});return self._json(200,{'status':'ok'})
-    if path=='/api/teacher/pdf-import/item/status':
-     return self._json(200,pdf_set_item(int(body.get('item_id')),bool(body.get('approved'))))
+    if path=='/api/teacher/pdf-import/item/status':return self._json(200,pdf_set_item(int(body.get('item_id')),bool(body.get('approved'))))
     if path=='/api/teacher/pdf-import/commit':
      r=pdf_publish_review(int(body.get('job_id')));return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status','import_failed')})
     if path=='/api/teacher/review':
@@ -154,7 +155,7 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/post-lesson/review':
      r=post_lesson_complete_review(int(body.get('lesson_id')),body.get('marks') or []);return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/post-lesson/homework/skip':
-     r=post_lesson_skip_homework(int(body.get('lesson_id')));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
+     r=post_lesson_skip_homework(int(body.get('lesson_id'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/library/material':
      mid=create_material(body.get('title'),body.get('description'),body.get('subject'),body.get('grade_min'),body.get('grade_max'),body.get('material_type','LINK'),external_url=body.get('external_url'),tags=body.get('tags') or []);return self._json(200,{'status':'ok','material_id':mid})
     if path=='/api/teacher/library/collection':
