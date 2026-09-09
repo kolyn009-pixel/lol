@@ -16,11 +16,14 @@ from web_backend.assessment import save_task_feedback, student_feedback
 from web_backend.homework_review_flow import finalize as finalize_homework_review
 from web_backend.teacher_crm import schedule as teacher_crm_schedule, students as teacher_crm_students, student as teacher_crm_student, update_student as teacher_crm_update_student
 from web_backend.stage6_api import Stage6Mixin
+from web_backend.stage7_api import Stage7Mixin
 
-class Handler(Stage6Mixin,v1.Handler):
-    server_version="AdeliaWeb/2.1"
+class Handler(Stage7Mixin,Stage6Mixin,v1.Handler):
+    server_version="AdeliaWeb/2.2"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
+        handled=self.stage7_get(path,q)
+        if handled is not False:return handled
         handled=self.stage6_get(path,q)
         if handled is not False:return handled
         if path.startswith('/api/student/'):
@@ -65,6 +68,8 @@ class Handler(Stage6Mixin,v1.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        handled=self.stage7_post(path)
+        if handled is not False:return handled
         handled=self.stage6_post(path)
         if handled is not False:return handled
         if path=='/api/student/message':
