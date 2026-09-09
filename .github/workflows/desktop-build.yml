@@ -29,6 +29,7 @@ jobs:
             command: npm run dist:mac
             files: |
               desktop/dist/*.dmg
+              desktop/dist/*.zip
               desktop/dist/*.yml
               desktop/dist/*.blockmap
     runs-on: ${{ matrix.os }}
