@@ -26,7 +26,6 @@ LEGACY_RATE_FIELDS={
  'EGE_PHYSICS':'ege_physics_rate','OLYMPIAD_PHYSICS':'olympiad_physics_rate',
 }
 
-
 def ensure_tables():
  conn=connect();conn.executescript("""
  CREATE TABLE IF NOT EXISTS price_catalog(tariff_key TEXT PRIMARY KEY,title TEXT NOT NULL,subject TEXT NOT NULL,education_type TEXT NOT NULL,study_goal TEXT,amount INTEGER NOT NULL,currency TEXT NOT NULL DEFAULT 'RUB',duration_minutes INTEGER NOT NULL DEFAULT 60,active INTEGER NOT NULL DEFAULT 1,updated_at TEXT,created_at TEXT NOT NULL);
@@ -36,7 +35,6 @@ def ensure_tables():
  CREATE INDEX IF NOT EXISTS idx_student_price_override ON student_price_overrides(user_id,tariff_key,active);
  CREATE INDEX IF NOT EXISTS idx_package_active ON package_plans(active,sort_order,id);
  """)
- # Seed the web catalog from the established TutorBot price_settings table.
  try:rows=conn.execute('SELECT rate_key,hourly_rate,title,subject,study_goal,active FROM price_settings').fetchall()
  except Exception:rows=[]
  now=now_iso()
@@ -62,18 +60,24 @@ def _history(kind,key,old,new,source='WEB'):
  conn=connect();conn.execute('INSERT INTO pricing_history(entity_type,entity_key,old_value,new_value,changed_at,source) VALUES(?,?,?,?,?,?)',(kind,str(key),json.dumps(old,ensure_ascii=False) if old is not None else None,json.dumps(new,ensure_ascii=False) if new is not None else None,now_iso(),source));conn.commit();conn.close()
 
 def list_prices():
- ensure_tables();conn=connect();rows=conn.execute('SELECT * FROM price_catalog ORDER BY education_type,subject,study_goal,tariff_key').fetchall();conn.close();return [dict(r) for r in rows]
+ ensure_tables();conn=connect();rows=conn.execute('SELECT * FROM price_catalog WHERE tariff_key IN (%s)'%(','.join('?' for _ in TARIFF_KEYS)),tuple(sorted(TARIFF_KEYS))).fetchall();found={r['tariff_key']:dict(r) for r in rows};conn.close()
+ # Return all supported tariff slots even before a price is configured. This is
+ # especially important for college physics, which has no legacy default rate.
+ out=[]
+ for key,meta in TARIFF_META.items():
+  out.append(found.get(key) or {'tariff_key':key,'title':meta[0],'subject':meta[1],'education_type':meta[2],'study_goal':meta[3],'amount':None,'currency':'RUB','duration_minutes':60,'active':0,'configured':False})
+ return out
 
 def set_price(tariff_key,amount,title=None,subject=None,education_type=None,study_goal=None,duration_minutes=60,active=True,source='WEB'):
  ensure_tables();key=_key(tariff_key);amount=_money(amount);duration=int(duration_minutes or 60)
  if duration<15 or duration>300:raise ValueError('invalid_duration')
  meta=TARIFF_META[key];now=now_iso();conn=connect();old=conn.execute('SELECT * FROM price_catalog WHERE tariff_key=?',(key,)).fetchone();previous=dict(old) if old else None
  conn.execute("INSERT INTO price_catalog(tariff_key,title,subject,education_type,study_goal,amount,duration_minutes,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tariff_key) DO UPDATE SET title=excluded.title,subject=excluded.subject,education_type=excluded.education_type,study_goal=excluded.study_goal,amount=excluded.amount,duration_minutes=excluded.duration_minutes,active=excluded.active,updated_at=excluded.updated_at",(key,title or meta[0],subject or meta[1],education_type or meta[2],study_goal if study_goal is not None else meta[3],amount,duration,1 if active else 0,now,now))
- # Keep TutorBot's established price_settings in sync for all legacy flows.
- try:
-  conn.execute('UPDATE price_settings SET hourly_rate=?,active=?,title=?,updated_at=? WHERE rate_key=?',(amount,1 if active else 0,title or meta[0],now,key))
-  if conn.total_changes==0 and key!='COLLEGE_PHYSICS':conn.execute('INSERT OR IGNORE INTO price_settings(rate_key,study_goal,subject,grade_min,grade_max,hourly_rate,title,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(key,meta[3],meta[1],meta[4],meta[5],amount,title or meta[0],1 if active else 0,now,now))
- except Exception:pass
+ if key!='COLLEGE_PHYSICS':
+  try:
+   cur=conn.execute('UPDATE price_settings SET hourly_rate=?,active=?,title=?,updated_at=? WHERE rate_key=?',(amount,1 if active else 0,title or meta[0],now,key))
+   if cur.rowcount==0:conn.execute('INSERT OR IGNORE INTO price_settings(rate_key,study_goal,subject,grade_min,grade_max,hourly_rate,title,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(key,meta[3],meta[1],meta[4],meta[5],amount,title or meta[0],1 if active else 0,now,now))
+  except Exception:pass
  conn.commit();row=dict(conn.execute('SELECT * FROM price_catalog WHERE tariff_key=?',(key,)).fetchone());conn.close();_history('CATALOG',key,previous,row,source);return {'status':'ok','price':row}
 
 def list_overrides(user_id=None):
@@ -94,12 +98,19 @@ def tariff_for(user_id,study_goal=None,subject=None,grade=None,education_type=No
  if not user:raise ValueError('student_not_found')
  def val(name,default=None):return user[name] if name in user.keys() else default
  education=str(education_type or val('education_type','SCHOOL') or 'SCHOOL').upper();subject=str(subject or val('main_subject','PHYSICS') or 'PHYSICS').upper();goal=str(study_goal or val('study_goal','SCHOOL') or 'SCHOOL').upper();grade=int(grade or val('grade',11) or 11)
+ if subject not in {'PHYSICS','CHEMISTRY'}:raise ValueError('subject_not_supported')
  if education=='COLLEGE':
   if subject!='PHYSICS':raise ValueError('college_subject_not_supported')
+  course=val('course',None)
+  if course not in (None,'') and int(course)>2:raise ValueError('physics_college_course_out_of_range')
   return 'COLLEGE_PHYSICS'
- if goal=='EGE' and subject=='PHYSICS':return 'EGE_PHYSICS'
+ if goal=='EGE':
+  if subject!='PHYSICS':raise ValueError('ege_subject_not_supported')
+  return 'EGE_PHYSICS'
  if goal=='OGE':return 'OGE_CHEMISTRY' if subject=='CHEMISTRY' else 'OGE_PHYSICS'
- if goal=='OLYMPIAD' and subject=='PHYSICS':return 'OLYMPIAD_PHYSICS'
+ if goal=='OLYMPIAD':
+  if subject!='PHYSICS':raise ValueError('olympiad_subject_not_supported')
+  return 'OLYMPIAD_PHYSICS'
  band='5_8' if grade<=8 else '9_11';return f'SCHOOL_{subject}_{band}'
 
 def _legacy_rate(user,key):
@@ -124,7 +135,7 @@ def lesson_snapshot(user_id,duration_minutes,study_goal=None,subject=None,grade=
  q=quote(user_id,None,duration_minutes,study_goal,subject,grade,education_type);return {'hourly_rate':round(q['amount']*60/max(int(duration_minutes),1)),'price':q['amount'],'tariff_key':q['tariff_key'],'price_source':q['source']}
 
 def list_packages():
- ensure_tables();conn=connect();rows=conn.execute('SELECT * FROM package_plans ORDER BY active DESC,sort_order,id').fetchall();conn.close();return [dict(r) for r in rows]
+ ensure_tables();conn=connect();rows=conn.execute('SELECT * FROM package_plans ORDER BY active DESC,sort_order,id').fetchall();conn.close();return [dict(r) for r in rows if not r['tariff_key'] or str(r['tariff_key']).upper() in TARIFF_KEYS]
 
 def save_package(code,title,lessons_count,discount_percent=0,fixed_total=None,tariff_key=None,active=True,sort_order=100,source='WEB'):
  ensure_tables();code=str(code or '').strip().upper().replace(' ','_')
