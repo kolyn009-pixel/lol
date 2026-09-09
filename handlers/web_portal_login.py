@@ -1,9 +1,9 @@
 """Telegram entry points for Adelia web cabinets.
 
 This module deliberately owns only code issuance. The website consumes the same
-SQLite tables through web_backend.student_auth / teacher_auth. Codes are
-6-digit, one-time and valid for 10 minutes, which makes them convenient for
-logging in on a desktop while the Telegram button opens the site on a phone.
+SQLite tables through web_backend auth modules. Codes are 6-digit, one-time and
+valid for 10 minutes, which makes them convenient for desktop login while the
+button opens the site directly on a phone.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from telegram.ext import CallbackQueryHandler
 
 import database
 from core import admin_roles
+from web_backend.parent_auth import create_parent_login_code
 
 SITE_URL = "https://adeliatutor.ru"
 TTL_MINUTES = 10
@@ -119,6 +120,26 @@ async def student_code(update, context):
     )
 
 
+async def parent_code(update, context):
+    q = update.callback_query
+    await q.answer()
+    parent = database.get_parent_by_telegram_id(update.effective_user.id)
+    if not parent or not parent["active"]:
+        await q.answer("Активный профиль родителя не найден.", show_alert=True); return
+    issued = create_parent_login_code(int(parent["id"]))
+    code = issued["code"]
+    await q.edit_message_text(
+        "🌐 РОДИТЕЛЬСКИЙ КАБИНЕТ\n\n"
+        f"Код для входа: {code}\n\n"
+        "Код действует 10 минут и только один раз.\n"
+        "В кабинете доступны расписание, прогресс, оплаты и остаток занятий по привязанным ученикам.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🌐 Открыть родительский кабинет", url=f"{SITE_URL}/parent/")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="parent_main")],
+        ]),
+    )
+
+
 async def teacher_code(update, context):
     q = update.callback_query
     await q.answer()
@@ -141,5 +162,6 @@ async def teacher_code(update, context):
 def handlers():
     return [
         CallbackQueryHandler(student_code, pattern=r"^web_student_code$"),
+        CallbackQueryHandler(parent_code, pattern=r"^web_parent_code$"),
         CallbackQueryHandler(teacher_code, pattern=r"^web_teacher_code$"),
     ]
