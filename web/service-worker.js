@@ -1,5 +1,19 @@
-const CACHE='adelia-shell-v4';
-const SHELL=['/app/','/app/styles.css','/app/app.js','/app/student_homework_plus.css','/app/student_homework_plus.js','/app/pwa.js','/app/app_shell_plus.js','/app/manifest.webmanifest'];
+const CACHE='adelia-shell-v5';
+const SHELL=[
+  '/app/',
+  '/app/styles.css',
+  '/app/app.js',
+  '/app/student_homework_plus.css',
+  '/app/student_homework_plus.js',
+  '/app/formulas.css',
+  '/app/student_formulas.js',
+  '/app/pwa.js',
+  '/app/app_shell_plus.js',
+  '/app/manifest.webmanifest',
+  '/app/lesson/',
+  '/app/lesson/lesson.js',
+  '/app/lesson/lesson.css'
+];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
@@ -20,13 +34,17 @@ self.addEventListener('fetch',event=>{
   if(url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;
 
   if(request.mode==='navigate'&&url.pathname.startsWith('/app/')){
-    event.respondWith(fetch(request).catch(()=>caches.match('/app/')));
+    const fallback=url.pathname.startsWith('/app/lesson/')?'/app/lesson/':'/app/';
+    event.respondWith(fetch(request).catch(()=>caches.match(fallback)));
     return;
   }
 
   event.respondWith(caches.match(request).then(cached=>{
     const network=fetch(request).then(response=>{
-      if(response&&response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(request,copy));}
+      if(response&&response.ok){
+        const copy=response.clone();
+        caches.open(CACHE).then(cache=>cache.put(request,copy));
+      }
       return response;
     }).catch(()=>cached||Response.error());
     return cached||network;
