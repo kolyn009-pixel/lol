@@ -2,11 +2,20 @@
 from __future__ import annotations
 import ipaddress,json,time
 from http.server import ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse,parse_qs
 from core import admin_roles
 from web_backend import api as v1,api_v2,otp_secret
 from web_backend.lesson_join import student_join
 from web_backend.stage12_indexes import ensure_indexes
+from web_backend.student_self_service import (
+ regular_schedules as student_regular_schedules,
+ pause_schedule as student_pause_schedule,
+ resume_schedule as student_resume_schedule,
+ sickness as student_sickness,
+ cancel_lesson as student_cancel_lesson,
+ request_reschedule as student_request_reschedule,
+ lesson_actions as student_lesson_actions,
+)
 _AUTH_LIMITS={};_AUTH_WINDOW=300;_AUTH_MAX=8;MAX_JSON_BODY=256*1024
 _OWNER_ONLY_POST={'/api/teacher/finance/price','/api/teacher/finance/override','/api/teacher/finance/override/delete','/api/teacher/finance/package'}
 _LOOPBACKS={'127.0.0.1','::1'}
@@ -22,7 +31,7 @@ def _auth_allowed(ip,route):
    if now-v[0]>_AUTH_WINDOW:_AUTH_LIMITS.pop(k,None)
  return count<=_AUTH_MAX
 class Handler(api_v2.Handler):
- server_version='AdeliaWeb/3.6'
+ server_version='AdeliaWeb/3.7'
  def _client_ip(self):
   peer=_valid_ip(self.client_address[0]) or str(self.client_address[0])
   if peer not in _LOOPBACKS:return peer
@@ -61,12 +70,24 @@ class Handler(api_v2.Handler):
   if not auth:return None
   try:return auth if admin_roles.role_for(int(auth['id']))=='OWNER' else None
   except Exception:return None
+ def _student_self_service_error(self,exc):
+  if isinstance(exc,PermissionError):return self._json(404,{'error':str(exc) or 'not_found'})
+  if isinstance(exc,(TypeError,ValueError)):return self._json(409,{'error':str(exc) or 'invalid_request'})
+  print('[web-api] student self-service error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
  def do_GET(self):
-  path=urlparse(self.path).path
+  u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
   if path=='/api/auth/me':
    auth=self._auth()
    if not auth:return self._json(200,{'authenticated':False,'session':None})
    return self._json(200,{'authenticated':True,'role':auth.get('role'),'session':{'role':auth.get('role')}})
+  if path in {'/api/student/self-service/regular-schedules','/api/student/self-service/lesson-actions'}:
+   auth=self._student()
+   if not auth:return self._json(401,{'error':'unauthorized'})
+   try:
+    uid=int(auth['id'])
+    if path.endswith('/regular-schedules'):return self._json(200,{'items':student_regular_schedules(uid)})
+    return self._json(200,student_lesson_actions(uid,int(q.get('lesson_id',['0'])[0])))
+   except Exception as exc:return self._student_self_service_error(exc)
   return super().do_GET()
  def do_POST(self):
   path=urlparse(self.path).path
@@ -76,6 +97,21 @@ class Handler(api_v2.Handler):
   if declared>MAX_JSON_BODY and path!='/api/teacher/pdf-import/upload':return self._json(413,{'error':'request_too_large'})
   if path in _OWNER_ONLY_POST and not self._owner():return self._json(403,{'error':'owner_required'})
   if path in {'/api/auth/student/code','/api/auth/teacher/code','/api/auth/parent/code'} and not _auth_allowed(self._client_ip(),path):return self._json(429,{'error':'too_many_attempts'})
+  if path.startswith('/api/student/self-service/'):
+   auth=self._student()
+   if not auth:return self._json(401,{'error':'unauthorized'})
+   body=self._body()
+   if body is None:return self._json(413 if getattr(self,'_body_too_large',False) else 400,{'error':'request_too_large' if getattr(self,'_body_too_large',False) else 'invalid_json'})
+   try:
+    uid=int(auth['id'])
+    if path.endswith('/pause'):result=student_pause_schedule(uid,int(body.get('schedule_id')),body.get('pause_until'))
+    elif path.endswith('/resume'):result=student_resume_schedule(uid,int(body.get('schedule_id')))
+    elif path.endswith('/sickness'):result=student_sickness(uid,int(body.get('lesson_id')),body.get('comment'))
+    elif path.endswith('/cancel'):result=student_cancel_lesson(uid,int(body.get('lesson_id')))
+    elif path.endswith('/reschedule'):result=student_request_reschedule(uid,int(body.get('lesson_id')),body.get('reason'))
+    else:return self._json(404,{'error':'not_found'})
+    return self._json(200,result)
+   except Exception as exc:return self._student_self_service_error(exc)
   if path=='/api/student/lesson/join':
    auth=self._student()
    if not auth:return self._json(401,{'error':'unauthorized'})
