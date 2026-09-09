@@ -155,7 +155,7 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/post-lesson/review':
      r=post_lesson_complete_review(int(body.get('lesson_id')),body.get('marks') or []);return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/post-lesson/homework/skip':
-     r=post_lesson_skip_homework(int(body.get('lesson_id'));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
+     r=post_lesson_skip_homework(int(body.get('lesson_id')));return self._json(200,r) if r['status']=='ok' else self._json(400,{'error':r['status']})
     if path=='/api/teacher/library/material':
      mid=create_material(body.get('title'),body.get('description'),body.get('subject'),body.get('grade_min'),body.get('grade_max'),body.get('material_type','LINK'),external_url=body.get('external_url'),tags=body.get('tags') or []);return self._json(200,{'status':'ok','material_id':mid})
     if path=='/api/teacher/library/collection':
