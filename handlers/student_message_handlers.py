@@ -7,6 +7,7 @@ from automation import messaging
 from core import event_center
 from crm_plus import service as crm_service
 from crm_plus import messenger as crm_messenger
+from web_backend import unified_messaging
 
 WAIT_MESSAGE=940
 
@@ -22,11 +23,17 @@ def _chat_markup():
     ])
 
 
+def _unified_history(user_id,limit=20):
+    conv=unified_messaging.conversation(int(user_id),'STUDENT',None)
+    unified_messaging.import_legacy()
+    return unified_messaging.history(conv['id'],int(limit))
+
+
 async def show_chat(update:Update,context:ContextTypes.DEFAULT_TYPE):
     q=update.callback_query; await q.answer(); user=database.get_user_by_telegram_id(q.from_user.id)
     if not user:
         await q.edit_message_text('Сначала нажми /start и зарегистрируйся — тогда я смогу открыть диалог 💜'); return ConversationHandler.END
-    rows=crm_service.message_history(user['id'],20); lines=['💬 ПРЕПОДАВАТЕЛЬ','']
+    rows=_unified_history(user['id'],20); lines=['💬 ПРЕПОДАВАТЕЛЬ','']
     if rows:
         for r in reversed(rows):
             who='👨‍🏫' if r['direction']=='OUT' else '👤'
@@ -84,7 +91,12 @@ async def collect(update:Update,context:ContextTypes.DEFAULT_TYPE):
     if urgent and crm_service.get_setting('urgent_during_lesson','0')=='1': accepting=True
     status='OPEN' if accepting else 'QUEUED'
     iid=messaging.create_inbox(label,update.effective_user.id,student_id=user['id'],subject='Срочное сообщение от ученика' if urgent else 'Сообщение от ученика',status=status)
-    crm_service.log_message(user['id'],'IN',label,None,'TEACHER','DELIVERED' if accepting else 'QUEUED',None if accepting else deliver_at.isoformat(timespec='seconds'),inbox_id=iid)
+    crm_id=crm_service.log_message(user['id'],'IN',label,None,'TEACHER','DELIVERED' if accepting else 'QUEUED',None if accepting else deliver_at.isoformat(timespec='seconds'),inbox_id=iid)
+    unified_messaging.record_message(
+        user['id'],'IN',label,participant_type='STUDENT',sender_type='STUDENT',sender_id=user['id'],
+        origin_channel='TELEGRAM',content_type=(attachment or {}).get('kind','TEXT').upper(),attachment=attachment,
+        status='DELIVERED' if accepting else 'QUEUED',legacy_source='crm_student_messages',legacy_id=crm_id
+    )
     if attachment:
         try:
             from vk_adapter.attachment_bridge import telegram_file_bytes, vk_send_bytes
