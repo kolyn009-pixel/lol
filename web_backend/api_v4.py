@@ -1,4 +1,4 @@
-"""Adelia web API v4: student self-service, finance and post-lesson feedback."""
+"""Adelia web API v4: student self-service, finance, feedback and teacher cascade review."""
 from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -9,18 +9,23 @@ from web_backend.student_reschedule import free_slots_for_lesson, create_request
 from web_backend.student_finance import overview as finance_overview, quote as finance_quote, create_package_payment, create_lesson_payment, history as finance_history, attach_receipt
 from web_backend.finance_receipts import web_receipt_file
 from web_backend.post_lesson import get_feedback, submit_feedback
+from web_backend.teacher_cascade import list_requests as cascade_requests, analyze_request as analyze_cascade, approve_plan as approve_cascade
 
 class Handler(api_v3.Handler):
-    server_version='AdeliaWeb/4.4'
+    server_version='AdeliaWeb/4.5'
     def _send_receipt_file(self,receipt_id):
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:path,mime=web_receipt_file(int(receipt_id));data=path.read_bytes()
         except (TypeError,ValueError) as exc:return self._json(404,{'error':str(exc) or 'receipt_not_found'})
         except Exception as exc:print('[web-api] receipt file error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
-        self.send_response(200);self.send_header('Content-Type',mime);self.send_header('Content-Length',str(len(data)));self.send_header('Content-Disposition',f'inline; filename="receipt-{int(receipt_id)}{path.suffix.lower()}"');self.send_header('Cache-Control','private, no-store, max-age=0');self.send_header('Pragma','no-cache');self.end_headers();self.wfile.write(data)
+        self.send_response(200);self.send_header('Content-Type',mime);self.send_header('X-Content-Type-Options','nosniff');self.send_header('Content-Length',str(len(data)));self.send_header('Content-Disposition',f'inline; filename="receipt-{int(receipt_id)}{path.suffix.lower()}"');self.send_header('Cache-Control','private, no-store, max-age=0');self.send_header('Pragma','no-cache');self.end_headers();self.wfile.write(data)
     def do_GET(self):
         u=urlparse(self.path);path,q=u.path,parse_qs(u.query)
         if path=='/api/teacher/finance/receipt/file':return self._send_receipt_file(q.get('receipt_id',['0'])[0])
+        if path=='/api/teacher/cascade/requests':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            try:return self._json(200,{'items':cascade_requests(int(q.get('limit',['50'])[0]))})
+            except Exception as exc:print('[web-api] cascade GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         booking={'/api/student/booking/programs','/api/student/booking/free-slots'};changes={'/api/student/reschedule/free-slots','/api/student/reschedule/outgoing','/api/student/exchanges/incoming'};finance={'/api/student/finance/overview','/api/student/finance/history','/api/student/finance/quote'}
         if path in booking|changes|finance|{'/api/student/post-lesson'}:
             auth=self._student()
@@ -42,7 +47,21 @@ class Handler(api_v3.Handler):
             except Exception as exc:print('[web-api] student GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         return super().do_GET()
     def do_POST(self):
-        path=urlparse(self.path).path;routes={'/api/student/booking/request','/api/student/booking/cancel','/api/student/reschedule/request','/api/student/reschedule/cancel','/api/student/exchanges/respond','/api/student/finance/package','/api/student/finance/lesson','/api/student/finance/receipt','/api/student/post-lesson'}
+        path=urlparse(self.path).path
+        if path in {'/api/teacher/cascade/analyze','/api/teacher/cascade/approve'}:
+            if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+            teacher=self._teacher()
+            if not teacher:return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if body is None:return self._json(400,{'error':'invalid_json'})
+            try:
+                if path.endswith('/analyze'):result=analyze_cascade(int(body.get('request_id')))
+                else:result=approve_cascade(int(body.get('plan_id')),int(teacher['admin_telegram_id']))
+                return self._json(200,result)
+            except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
+            except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
+            except Exception as exc:print('[web-api] cascade POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
+        routes={'/api/student/booking/request','/api/student/booking/cancel','/api/student/reschedule/request','/api/student/reschedule/cancel','/api/student/exchanges/respond','/api/student/finance/package','/api/student/finance/lesson','/api/student/finance/receipt','/api/student/post-lesson'}
         if path in routes:
             if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
             auth=self._student()
@@ -70,5 +89,5 @@ class Handler(api_v3.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes();print(f'Adelia web API v4.4 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();print(f'Adelia web API v4.5 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
