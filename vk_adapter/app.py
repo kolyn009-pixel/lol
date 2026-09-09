@@ -17,6 +17,7 @@ def api(method,**params):
  if "error" in d:raise RuntimeError(f"VK API {method}: {d['error']}")
  return d.get("response")
 def _button(label,command,color="secondary"):return {"action":{"type":"text","label":label,"payload":json.dumps({"command":command},ensure_ascii=False)},"color":color}
+def _link_button(label,url):return {"action":{"type":"open_link","label":label,"link":str(url)}}
 def _keyboard_rows(rows):return json.dumps({"one_time":False,"inline":False,"buttons":rows},ensure_ascii=False)
 def keyboard(linked=False,mode="home",data=None):
  data=data or {}
@@ -29,17 +30,22 @@ def keyboard(linked=False,mode="home",data=None):
   uid=int(data["user_id"]);return _keyboard_rows([[_button("📝 Задать ДЗ",f"t_hw_user|{uid}","primary"),_button("💬 Написать",f"t_msg_user|{uid}")],[_button("👥 Ученики","t_students"),_button("🏠 Главная","t_home")]])
  if mode=="teacher_lesson":
   lid=int(data["lesson_id"]);uid=int(data["user_id"]);return _keyboard_rows([[_button("🎥 Отправить ссылку",f"t_sendlink|{lid}","positive")],[_button("⏹ Завершить занятие",f"t_finish|{lid}","negative")],[_button("📝 Задать ДЗ",f"t_hw_user|{uid}")],[_button("📅 Сегодня","t_today"),_button("🏠 Главная","t_home")]])
+ if mode=="homework":
+  rows=[]
+  for i,r in enumerate(data.get("items",[])[:8],1):
+   status=str(r['status'] if 'status' in r.keys() else 'ASSIGNED').upper();icon={'ASSIGNED':'🟣','SUBMITTED':'🟡','UNDER_REVIEW':'🟡','REVISION':'🔴','REVIEWED':'🟢','COMPLETED':'✅'}.get(status,'📝');title=service.homework_detail(data['user_id'],r['id']);label=(title['row']['title'] if title and 'title' in title['row'].keys() and title['row']['title'] else f"ДЗ #{r['id']}")
+   rows.append([_button(f"{icon} {str(label)[:32]}",f"hw_view|{r['id']}","primary" if status=='REVISION' else "secondary")])
+  rows.append([_link_button("🌐 Все ДЗ в Аделии","https://adeliatutor.ru/app/?view=homework")]);rows.append([_button("🏠 Главная","home")]);return _keyboard_rows(rows)
+ if mode=="homework_detail":
+  hid=int(data['homework_id']);return _keyboard_rows([[_link_button("🌐 Открыть и выполнить в Аделии",f"https://adeliatutor.ru/app/?homework={hid}")],[_button("⬅️ К домашним заданиям","homework"),_button("🏠 Главная","home")]])
  if mode=="college_courses":
   courses=data.get("courses",[]);current=data.get("current");rows=[]
-  for course in courses:
-   rows.append([_button(f"🎓 {college_curriculum.course_label(course)}",f"cf_course|{course}","primary" if course==current else "secondary")])
+  for course in courses:rows.append([_button(f"🎓 {college_curriculum.course_label(course)}",f"cf_course|{course}","primary" if course==current else "secondary")])
   rows.append([_button("🏠 Главная","home")]);return _keyboard_rows(rows)
  if mode=="college_subjects":
-  course=int(data["course"]);rows=[[_button(f"📖 {label}",f"cf_subject|{course}|{key}","primary")] for key,label in college_curriculum.subjects(course)]
-  rows.append([_button("⬅️ К курсам","formulas"),_button("🏠 Главная","home")]);return _keyboard_rows(rows)
+  course=int(data["course"]);rows=[[_button(f"📖 {label}",f"cf_subject|{course}|{key}","primary")] for key,label in college_curriculum.subjects(course)];rows.append([_button("⬅️ К курсам","formulas"),_button("🏠 Главная","home")]);return _keyboard_rows(rows)
  if mode=="college_topics":
-  course=int(data["course"]);subject=data["subject"];rows=[[_button(title[:38],f"cf_topic|{course}|{subject}|{key}")] for key,title in college_curriculum.topics(course,subject)[:30]]
-  rows.append([_button("⬅️ К предметам",f"cf_course|{course}"),_button("🏠 Главная","home")]);return _keyboard_rows(rows)
+  course=int(data["course"]);subject=data["subject"];rows=[[_button(title[:38],f"cf_topic|{course}|{subject}|{key}")] for key,title in college_curriculum.topics(course,subject)[:30]];rows.append([_button("⬅️ К предметам",f"cf_course|{course}"),_button("🏠 Главная","home")]);return _keyboard_rows(rows)
  if mode=="formula_grades":
   grades=data.get("grades",[]);rows=[]
   for i in range(0,len(grades),2):rows.append([_button(f"🎓 {g} класс",f"fg|{g}","primary" if i==0 else "secondary") for g in grades[i:i+2]])
@@ -56,71 +62,25 @@ def keyboard(linked=False,mode="home",data=None):
 def send(peer_id,text,linked=False,mode="home",data=None):return api("messages.send",peer_id=int(peer_id),random_id=random.randint(1,2_000_000_000),message=str(text),keyboard=keyboard(linked,mode,data))
 def _extract_command(m):
  payload=m.get("payload")
-
  def unpack(value):
   for _ in range(4):
    if isinstance(value,dict):
     cmd=value.get("command") or value.get("cmd")
-    if cmd:
-     return str(cmd).strip()
+    if cmd:return str(cmd).strip()
     value=value.get("payload")
-    if value is None:
-     return ""
+    if value is None:return ""
    elif isinstance(value,str):
     value=value.strip()
-    if not value:
-     return ""
-    try:
-     value=json.loads(value)
-    except Exception:
-     return value
-   else:
-    return ""
+    if not value:return ""
+    try:value=json.loads(value)
+    except Exception:return value
+   else:return ""
   return ""
-
  cmd=unpack(payload)
- if cmd:
-  return cmd
-
- t=" ".join(
-  str(m.get("text") or "")
-  .strip()
-  .lower()
-  .split()
- )
-
- mp={
-  "📅 мои занятия":"lessons",
-  "📝 домашнее задание":"homework",
-  "📚 моя учёба":"study",
-  "🧮 формулы":"formulas",
-  "💬 преподаватель":"teacher",
-  "🖥 доска":"board",
-  "➕ записаться":"booking",
-  "••• ещё":"more",
-  "💳 профиль и оплата":"profile",
-  "💬 история сообщений":"chat_history",
-  "🏠 главное меню":"home",
-  "🏠 главная":"home",
-  "❌ отмена":"cancel",
-  "🔗 связь с telegram":"linked",
-  "🔗 связать с telegram":"link_help",
-  "ℹ️ как это работает":"help",
-  "привет":"home",
-  "начать":"home",
-  "start":"home",
-  "/start":"home",
-
-  "📅 сегодня":"t_today",
-  "👥 ученики":"t_students",
-  "💬 сообщения":"t_messages",
-  "📝 задать дз":"t_hw",
-  "🎥 отправить ссылку":"t_link",
-  "🔔 события":"t_events",
- }
-
+ if cmd:return cmd
+ t=" ".join(str(m.get("text") or "").strip().lower().split())
+ mp={"📅 мои занятия":"lessons","📝 домашнее задание":"homework","📚 моя учёба":"study","🧮 формулы":"formulas","💬 преподаватель":"teacher","🖥 доска":"board","➕ записаться":"booking","••• ещё":"more","💳 профиль и оплата":"profile","💬 история сообщений":"chat_history","🏠 главное меню":"home","🏠 главная":"home","❌ отмена":"cancel","🔗 связь с telegram":"linked","🔗 связать с telegram":"link_help","ℹ️ как это работает":"help","привет":"home","начать":"home","start":"home","/start":"home","📅 сегодня":"t_today","👥 ученики":"t_students","💬 сообщения":"t_messages","📝 задать дз":"t_hw","🎥 отправить ссылку":"t_link","🔔 события":"t_events"}
  return mp.get(t,"")
-
 def _profile(v):
  try:
   rows=api("users.get",user_ids=int(v),fields="screen_name") or []
@@ -140,22 +100,20 @@ def _handle_teacher(p,v,c,raw,attachments=None):
  attachments=attachments or [];pending=_PENDING.get(v)
  if pending and not c:
   _PENDING.pop(v,None);kind=pending[0]
-  if kind=="t_link":
-   delivered,error=teacher_service.send_lesson_link(int(pending[1]),raw);send(p,"❌ "+error if error else f"✅ Ссылка отправлена.\nTelegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
+  if kind=="t_link":delivered,error=teacher_service.send_lesson_link(int(pending[1]),raw);send(p,"❌ "+error if error else f"✅ Ссылка отправлена.\nTelegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
   if kind=="t_hw":
    if not raw and attachments:raw='📎 '+_attachment_label(attachments)
    hid,delivered=teacher_service.create_homework(int(pending[1]),raw);uid=int(pending[1])
    if attachments:
     from .attachment_bridge import vk_forward_to_student
-    files=vk_forward_to_student(uid,attachments,f"📝 ДЗ #{hid}\n\n{raw}")
+    vk_forward_to_student(uid,attachments,f"📝 ДЗ #{hid}\n\n{raw}")
    send(p,f"✅ ДЗ #{hid} создано.\nTelegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
   if kind=="t_msg":
    uid=int(pending[1]);from crm_plus import service as crm;from .channel_delivery import send_student
    delivered=send_student(uid,f"👨‍🏫 Сообщение от преподавателя\n\n{raw}") if raw else {'telegram':False,'vk':False}
    if attachments:
     from .attachment_bridge import vk_forward_to_student
-    files=vk_forward_to_student(uid,attachments,raw or '👨‍🏫 Файл от преподавателя')
-    delivered['telegram']=delivered['telegram'] or files['telegram']>0;delivered['vk']=delivered['vk'] or files['vk']>0
+    files=vk_forward_to_student(uid,attachments,raw or '👨‍🏫 Файл от преподавателя');delivered['telegram']=delivered['telegram'] or files['telegram']>0;delivered['vk']=delivered['vk'] or files['vk']>0
    label=raw+(('\n' if raw else '')+f"📎 {_attachment_label(attachments)}" if attachments else '');crm.log_message(uid,'OUT',label,int(teacher_service.is_teacher(v)),'STUDENT','SENT' if any(delivered.values()) else 'FAILED');send(p,f"✅ Отправлено. Telegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
  if c in ("t_home","home",""):_teacher_home(p);return
  if c in ("t_today","t_link"):
@@ -169,10 +127,8 @@ def _handle_teacher(p,v,c,raw,attachments=None):
  if c.startswith("t_finish|"):
   lid=int(c.split("|",1)[1])
   try:
-   result=database.finish_lesson(lid)
-   send(p,f"✅ Занятие завершено.\n\n⏱ Фактически: {result['actual_minutes']} мин\n⏳ Недоработано: {result['underworked_minutes']} мин\n🎁 Бонус ученику: {result['bonus_minutes_awarded']} мин",True,"teacher")
-  except Exception as exc:
-   send(p,f"❌ Не удалось завершить занятие: {exc}",True,"teacher")
+   result=database.finish_lesson(lid);send(p,f"✅ Занятие завершено.\n\n⏱ Фактически: {result['actual_minutes']} мин\n⏳ Недоработано: {result['underworked_minutes']} мин\n🎁 Бонус ученику: {result['bonus_minutes_awarded']} мин",True,"teacher")
+  except Exception as exc:send(p,f"❌ Не удалось завершить занятие: {exc}",True,"teacher")
   return
  if c.startswith("t_sendlink|"):_PENDING[v]=("t_link",int(c.split("|",1)[1]));send(p,"🎥 Пришли следующим сообщением ссылку на Телемост.",True,"teacher");return
  if c.startswith("t_hw_user|"):_PENDING[v]=("t_hw",int(c.split("|",1)[1]));send(p,"📝 Пришли текст ДЗ и/или прикрепи фото/файл. Всё уйдёт ученику в Telegram и VK.",True,"teacher");return
@@ -193,10 +149,7 @@ def handle_message(m):
  if not u:send(p,"💜 АДЕЛИЯ\n\nДля ученика: получи код «🔗 Привязать VK» в Telegram.\nДля преподавателя: используй /vkadminlink в Telegram.",False);return
  if c.startswith("trial_keep_slot|"):
   from handlers import trial_ux_runtime
-  lesson_id=int(c.split("|",1)[1])
-  ok,text=trial_ux_runtime.create_same_time_request(int(u["id"]),lesson_id)
-  send(p,text,True)
-  return
+  lesson_id=int(c.split("|",1)[1]);ok,text=trial_ux_runtime.create_same_time_request(int(u["id"]),lesson_id);send(p,text,True);return
  pending=_PENDING.get(v)
  if pending and not c:
   _PENDING.pop(v,None);uid=int(u['id'])
@@ -215,13 +168,19 @@ def handle_message(m):
  if c in ("home",""):_student_home(p,u);return
  uid=int(u['id'])
  if c=="lessons":send(p,service.upcoming_text(uid),True);return
- if c=="homework":send(p,service.homework_text(uid),True);return
+ if c=="homework":
+  items=service.homework_items(uid,8);send(p,service.homework_text(uid),True,"homework",{"items":items,"user_id":uid});return
+ if c.startswith("hw_view|"):
+  try:hid=int(c.split("|",1)[1])
+  except Exception:send(p,"Не удалось открыть это ДЗ.",True);return
+  item=service.homework_detail(uid,hid)
+  if not item:send(p,"Это домашнее задание недоступно.",True,"homework",{"items":service.homework_items(uid,8),"user_id":uid});return
+  send(p,item['text'],True,"homework_detail",{"homework_id":hid});return
  if c=="study":send(p,service.study_text(uid),True);return
  if c=="formulas":
   profile=education_profile.get(uid)
   if profile["type"]=="COLLEGE":
-   current=int(profile["level"] or 1)
-   send(p,f"🧮 ФОРМУЛЫ И ТЕМЫ КОЛЛЕДЖА\n\n🎓 {profile['label']}\n\nТвой курс показан первым 👇",True,"college_courses",{"courses":college_curriculum.courses(current),"current":current});return
+   current=int(profile["level"] or 1);send(p,f"🧮 ФОРМУЛЫ И ТЕМЫ КОЛЛЕДЖА\n\n🎓 {profile['label']}\n\nТвой курс показан первым 👇",True,"college_courses",{"courses":college_curriculum.courses(current),"current":current});return
   send(p,service.formulas_text(uid),True,"formula_grades",{"grades":service.formula_grades(uid)});return
  if c.startswith("cf_course|"):
   course=int(c.split("|",1)[1]);send(p,f"🎓 {college_curriculum.course_label(course)}\n\nВыбери предмет:",True,"college_subjects",{"course":course});return
@@ -253,37 +212,16 @@ def run_forever():
    if d.get("failed"):server,key,ts=long_poll_server();continue
    ts=d.get("ts",ts)
    for upd in d.get("updates",[]):
-    utype=upd.get("type")
-    obj=upd.get("object") or {}
-
+    utype=upd.get("type");obj=upd.get("object") or {}
     if utype=="message_new":
      msg=obj.get("message") if isinstance(obj,dict) else None
-     if msg:
-      handle_message(msg)
-
+     if msg:handle_message(msg)
     elif utype=="message_event" and isinstance(obj,dict):
-     event_payload=obj.get("payload")
-     synthetic={
-      "from_id":obj.get("user_id") or obj.get("from_id"),
-      "peer_id":obj.get("peer_id") or obj.get("user_id"),
-      "text":"",
-      "payload":event_payload,
-      "attachments":[],
-     }
-     print(
-      "VK MESSAGE_EVENT:",
-      repr(synthetic),
-      flush=True,
-     )
+     event_payload=obj.get("payload");synthetic={"from_id":obj.get("user_id") or obj.get("from_id"),"peer_id":obj.get("peer_id") or obj.get("user_id"),"text":"","payload":event_payload}
      handle_message(synthetic)
-   now=time.monotonic()
-   if now-last>=30:
-    try:notification_sync.tick(send);teacher_notifications.tick(lambda peer,text:send(peer,text,True,"teacher"))
-    except Exception as exc:print("VK NOTIFICATION ERROR:",repr(exc))
-    last=now
+   now=time.time()
+   if now-last>=20:
+    notification_sync.sync_once();teacher_notifications.sync_once();last=now
   except KeyboardInterrupt:raise
-  except Exception as exc:
-   print("VK LONG POLL ERROR:",repr(exc));time.sleep(3)
-   try:server,key,ts=long_poll_server()
-   except Exception:time.sleep(5)
+  except Exception as exc:print("VK LONG POLL ERROR:",repr(exc));time.sleep(3)
 if __name__=="__main__":run_forever()
