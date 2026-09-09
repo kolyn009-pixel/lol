@@ -5,7 +5,7 @@ schedule pauses write through the same database functions used by TutorBot.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 import database
 
@@ -45,8 +45,7 @@ def regular_schedules(user_id):
     return result
 
 
-def pause_schedule(user_id, schedule_id, pause_until):
-    _schedule_owned(user_id, schedule_id)
+def _validated_pause_until(pause_until):
     if not pause_until:
         raise ValueError('pause_until_required')
     try:
@@ -58,6 +57,12 @@ def pause_schedule(user_id, schedule_id, pause_until):
         raise ValueError('pause_until_in_past')
     if until > today + timedelta(days=180):
         raise ValueError('pause_too_long')
+    return until
+
+
+def pause_schedule(user_id, schedule_id, pause_until):
+    _schedule_owned(user_id, schedule_id)
+    until = _validated_pause_until(pause_until)
     database.pause_regular_schedule(int(schedule_id), until.isoformat())
     return {'status': 'ok', 'schedule_id': int(schedule_id), 'pause_until': until.isoformat()}
 
@@ -66,6 +71,40 @@ def resume_schedule(user_id, schedule_id):
     _schedule_owned(user_id, schedule_id)
     database.resume_regular_schedule(int(schedule_id))
     return {'status': 'ok', 'schedule_id': int(schedule_id)}
+
+
+def vacation(user_id, pause_until):
+    """Pause every active regular schedule for the student through canonical DB calls."""
+    until = _validated_pause_until(pause_until)
+    schedules = database.get_regular_schedules(user_id=int(user_id), approved_only=False)
+    affected = []
+    for row in schedules:
+        item = dict(row)
+        if not item.get('active'):
+            continue
+        status = str(item.get('status') or '').upper()
+        if status in {'REJECTED', 'CANCELLED'}:
+            continue
+        sid = int(item['id'])
+        database.pause_regular_schedule(sid, until.isoformat())
+        affected.append(sid)
+    return {'status': 'ok', 'pause_until': until.isoformat(), 'affected_schedule_ids': affected, 'affected_count': len(affected)}
+
+
+def resume_all(user_id):
+    """Resume all schedules owned by the student that are currently paused."""
+    schedules = database.get_regular_schedules(user_id=int(user_id), approved_only=False)
+    affected = []
+    for row in schedules:
+        item = dict(row)
+        if not item.get('active'):
+            continue
+        if str(item.get('status') or '').upper() != 'PAUSED' and not item.get('pause_until'):
+            continue
+        sid = int(item['id'])
+        database.resume_regular_schedule(sid)
+        affected.append(sid)
+    return {'status': 'ok', 'affected_schedule_ids': affected, 'affected_count': len(affected)}
 
 
 def sickness(user_id, lesson_id, comment=None):
