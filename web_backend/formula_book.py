@@ -6,8 +6,10 @@ from database import connect, now_iso
 EDITABLE={
     'subject','section','topic','title','formula_latex','formula_plain','description',
     'variables_json','conditions','units','derivation','example','exam_note',
-    'grade_min','grade_max','study_goal','tags_json','sort_order','active'
+    'grade_min','grade_max','education_level','course_min','course_max','study_goal',
+    'tags_json','sort_order','active'
 }
+LEVELS={'ALL','SCHOOL','COLLEGE'}
 
 def ensure_tables():
     conn=connect();conn.executescript("""
@@ -28,6 +30,9 @@ def ensure_tables():
       exam_note TEXT,
       grade_min INTEGER,
       grade_max INTEGER,
+      education_level TEXT NOT NULL DEFAULT 'ALL',
+      course_min INTEGER,
+      course_max INTEGER,
       study_goal TEXT,
       tags_json TEXT NOT NULL DEFAULT '[]',
       sort_order INTEGER NOT NULL DEFAULT 100,
@@ -44,9 +49,14 @@ def ensure_tables():
       FOREIGN KEY(formula_id) REFERENCES formula_book(id) ON DELETE CASCADE,
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS idx_formula_filter ON formula_book(subject,section,topic,active,sort_order);
     CREATE INDEX IF NOT EXISTS idx_formula_favorites_user ON formula_favorites(user_id,formula_id);
-    """);conn.commit();conn.close()
+    """)
+    cols={r['name'] for r in conn.execute('PRAGMA table_info(formula_book)').fetchall()}
+    if 'education_level' not in cols:conn.execute("ALTER TABLE formula_book ADD COLUMN education_level TEXT NOT NULL DEFAULT 'ALL'")
+    if 'course_min' not in cols:conn.execute('ALTER TABLE formula_book ADD COLUMN course_min INTEGER')
+    if 'course_max' not in cols:conn.execute('ALTER TABLE formula_book ADD COLUMN course_max INTEGER')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_formula_filter ON formula_book(subject,education_level,section,topic,active,sort_order)')
+    conn.commit();conn.close()
 
 def _json(value,default=None):
     if value is None:return json.dumps(default if default is not None else [],ensure_ascii=False)
@@ -60,16 +70,24 @@ def _normalize(fields,creating=False):
     for key,val in (fields or {}).items():
         if key not in EDITABLE:continue
         if key in {'variables_json','tags_json'}:val=_json(val,[])
-        elif key in {'grade_min','grade_max','sort_order','active'} and val not in (None,''):
+        elif key in {'grade_min','grade_max','course_min','course_max','sort_order','active'} and val not in (None,''):
             val=int(val)
-        elif key not in {'grade_min','grade_max'}:val=str(val or '').strip() if val is not None else None
+        elif key not in {'grade_min','grade_max','course_min','course_max'}:val=str(val or '').strip() if val is not None else None
         out[key]=val
     if creating:
         for key in ('subject','title','formula_latex'):
             if not str(out.get(key) or '').strip():raise ValueError(key+'_required')
     for key in ('grade_min','grade_max'):
         if out.get(key) is not None and not 1<=int(out[key])<=11:raise ValueError('invalid_grade')
+    for key in ('course_min','course_max'):
+        if out.get(key) is not None and not 1<=int(out[key])<=6:raise ValueError('invalid_course')
     if out.get('grade_min') is not None and out.get('grade_max') is not None and int(out['grade_min'])>int(out['grade_max']):raise ValueError('invalid_grade_range')
+    if out.get('course_min') is not None and out.get('course_max') is not None and int(out['course_min'])>int(out['course_max']):raise ValueError('invalid_course_range')
+    level=str(out.get('education_level') or 'ALL').upper()
+    if level not in LEVELS:raise ValueError('invalid_education_level')
+    out['education_level']=level
+    if level=='SCHOOL':out['course_min']=out['course_max']=None
+    if level=='COLLEGE':out['grade_min']=out['grade_max']=None
     if 'sort_order' in out and int(out['sort_order'])<0:raise ValueError('invalid_sort_order')
     if 'active' in out:out['active']=1 if int(out['active']) else 0
     if 'subject' in out:out['subject']=str(out['subject'] or '').upper()
@@ -86,17 +104,21 @@ def update_formula(formula_id,fields):
     if not row:conn.close();return {'status':'not_found'}
     pairs=[k+'=?' for k in data];vals=[data[k] for k in data];vals.extend([now_iso(),int(formula_id)]);cur=conn.execute(f"UPDATE formula_book SET {','.join(pairs)},updated_at=? WHERE id=?",vals);conn.commit();conn.close();return {'status':'ok','changed':int(cur.rowcount),'id':int(formula_id)}
 
-def list_formulas(user_id=None,subject=None,section=None,topic=None,search=None,favorites_only=False,limit=300):
+def list_formulas(user_id=None,subject=None,section=None,topic=None,search=None,favorites_only=False,limit=300,education_level=None):
     ensure_tables();where=['f.active=1'];params=[];join=''
     if user_id is not None:join=' LEFT JOIN formula_favorites fav ON fav.formula_id=f.id AND fav.user_id=? ';params.append(int(user_id))
     if subject:where.append('f.subject=?');params.append(str(subject).upper())
+    if education_level:
+        level=str(education_level).upper()
+        if level not in {'SCHOOL','COLLEGE'}:raise ValueError('invalid_education_level')
+        where.append("f.education_level IN ('ALL',?)");params.append(level)
     if section:where.append('f.section=?');params.append(str(section))
     if topic:where.append('f.topic=?');params.append(str(topic))
     if search:
         q='%'+str(search).strip().lower()+'%';where.append("(LOWER(f.title) LIKE ? OR LOWER(COALESCE(f.description,'')) LIKE ? OR LOWER(COALESCE(f.formula_plain,'')) LIKE ? OR LOWER(COALESCE(f.tags_json,'')) LIKE ?)");params += [q,q,q,q]
     if favorites_only and user_id is not None:where.append('fav.id IS NOT NULL')
     favcol='CASE WHEN fav.id IS NULL THEN 0 ELSE 1 END favorite' if user_id is not None else '0 favorite'
-    conn=connect();rows=conn.execute(f"SELECT f.*,{favcol} FROM formula_book f {join} WHERE {' AND '.join(where)} ORDER BY f.subject,f.sort_order,f.section,f.topic,f.id LIMIT ?",(*params,max(1,min(int(limit),500)))).fetchall();conn.close();return [dict(r) for r in rows]
+    conn=connect();rows=conn.execute(f"SELECT f.*,{favcol} FROM formula_book f {join} WHERE {' AND '.join(where)} ORDER BY f.subject,f.education_level,f.sort_order,f.section,f.topic,f.id LIMIT ?",(*params,max(1,min(int(limit),500)))).fetchall();conn.close();return [dict(r) for r in rows]
 
 def formula_detail(formula_id,user_id=None):
     ensure_tables();conn=connect();params=[int(formula_id)];join='';fav='0 favorite'
@@ -111,21 +133,19 @@ def set_favorite(formula_id,user_id,value=True):
     conn.commit();conn.close();return {'status':'ok','favorite':bool(value)}
 
 def facets():
-    ensure_tables();conn=connect();subjects=[r[0] for r in conn.execute("SELECT DISTINCT subject FROM formula_book WHERE active=1 ORDER BY subject")];sections=[dict(r) for r in conn.execute("SELECT subject,section,COUNT(*) count FROM formula_book WHERE active=1 AND section IS NOT NULL GROUP BY subject,section ORDER BY subject,section")];topics=[dict(r) for r in conn.execute("SELECT subject,section,topic,COUNT(*) count FROM formula_book WHERE active=1 AND topic IS NOT NULL GROUP BY subject,section,topic ORDER BY subject,section,topic")];conn.close();return {'subjects':subjects,'sections':sections,'topics':topics}
+    ensure_tables();conn=connect();subjects=[r[0] for r in conn.execute("SELECT DISTINCT subject FROM formula_book WHERE active=1 ORDER BY subject")];sections=[dict(r) for r in conn.execute("SELECT subject,education_level,section,COUNT(*) count FROM formula_book WHERE active=1 AND section IS NOT NULL GROUP BY subject,education_level,section ORDER BY subject,section")];topics=[dict(r) for r in conn.execute("SELECT subject,education_level,section,topic,COUNT(*) count FROM formula_book WHERE active=1 AND topic IS NOT NULL GROUP BY subject,education_level,section,topic ORDER BY subject,section,topic")];conn.close();return {'subjects':subjects,'education_levels':['SCHOOL','COLLEGE'],'sections':sections,'topics':topics}
 
 STARTER_FORMULAS=[
- {'subject':'PHYSICS','section':'Механика','topic':'Кинематика','title':'Равномерное движение','formula_latex':r's = vt','formula_plain':'s = v*t','description':'Путь при постоянной скорости.','variables_json':['s — путь, м','v — скорость, м/с','t — время, с'],'grade_min':7,'grade_max':11,'tags_json':['механика','кинематика'],'sort_order':10},
- {'subject':'PHYSICS','section':'Механика','topic':'Динамика','title':'Второй закон Ньютона','formula_latex':r'\vec F = m\vec a','formula_plain':'F = m*a','description':'Равнодействующая сил сообщает телу ускорение.','variables_json':['F — сила, Н','m — масса, кг','a — ускорение, м/с²'],'grade_min':7,'grade_max':11,'study_goal':'EGE','tags_json':['механика','динамика'],'sort_order':20},
- {'subject':'PHYSICS','section':'Механика','topic':'Энергия','title':'Кинетическая энергия','formula_latex':r'E_k = \frac{mv^2}{2}','formula_plain':'Ek = m*v^2/2','description':'Энергия движущегося тела.','variables_json':['Ek — энергия, Дж','m — масса, кг','v — скорость, м/с'],'grade_min':7,'grade_max':11,'tags_json':['энергия'],'sort_order':30},
- {'subject':'PHYSICS','section':'Электродинамика','topic':'Постоянный ток','title':'Закон Ома','formula_latex':r'I = \frac{U}{R}','formula_plain':'I = U/R','description':'Связь силы тока, напряжения и сопротивления участка цепи.','variables_json':['I — сила тока, А','U — напряжение, В','R — сопротивление, Ом'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['электричество','закон Ома'],'sort_order':40},
- {'subject':'PHYSICS','section':'Молекулярная физика','topic':'Количество теплоты','title':'Нагревание и охлаждение','formula_latex':r'Q = cm\Delta T','formula_plain':'Q = c*m*deltaT','description':'Количество теплоты при изменении температуры без фазового перехода.','variables_json':['Q — количество теплоты, Дж','c — удельная теплоёмкость','m — масса, кг','ΔT — изменение температуры'],'grade_min':8,'grade_max':11,'tags_json':['теплота'],'sort_order':50},
- {'subject':'CHEMISTRY','section':'Расчёты','topic':'Количество вещества','title':'Количество вещества через массу','formula_latex':r'n = \frac{m}{M}','formula_plain':'n = m/M','description':'Расчёт количества вещества по массе и молярной массе.','variables_json':['n — количество вещества, моль','m — масса, г','M — молярная масса, г/моль'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['моль','расчёты'],'sort_order':10},
- {'subject':'CHEMISTRY','section':'Растворы','topic':'Массовая доля','title':'Массовая доля вещества','formula_latex':r'\omega = \frac{m_{\text{в-ва}}}{m_{\text{р-ра}}}','formula_plain':'w = m(вещества)/m(раствора)','description':'Доля растворённого вещества в массе раствора.','variables_json':['ω — массовая доля','m вещества — масса растворённого вещества','m раствора — масса раствора'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['растворы','массовая доля'],'sort_order':20},
- {'subject':'CHEMISTRY','section':'Газы','topic':'Молярный объём','title':'Объём газа при н.у.','formula_latex':r'V = nV_m','formula_plain':'V = n*Vm','description':'Связь объёма газа и количества вещества через молярный объём.','variables_json':['V — объём газа, л','n — количество вещества, моль','Vm — молярный объём, л/моль'],'conditions':'Для школьных задач при нормальных условиях используют Vm = 22,4 л/моль.','grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['газы','молярный объём'],'sort_order':30}
+ {'subject':'PHYSICS','education_level':'ALL','section':'Механика','topic':'Кинематика','title':'Равномерное движение','formula_latex':r's = vt','formula_plain':'s = v*t','description':'Путь при постоянной скорости.','variables_json':['s — путь, м','v — скорость, м/с','t — время, с'],'tags_json':['механика','кинематика'],'sort_order':10},
+ {'subject':'PHYSICS','education_level':'ALL','section':'Механика','topic':'Динамика','title':'Второй закон Ньютона','formula_latex':r'\vec F = m\vec a','formula_plain':'F = m*a','description':'Равнодействующая сил сообщает телу ускорение.','variables_json':['F — сила, Н','m — масса, кг','a — ускорение, м/с²'],'tags_json':['механика','динамика'],'sort_order':20},
+ {'subject':'PHYSICS','education_level':'ALL','section':'Механика','topic':'Энергия','title':'Кинетическая энергия','formula_latex':r'E_k = \frac{mv^2}{2}','formula_plain':'Ek = m*v^2/2','description':'Энергия движущегося тела.','variables_json':['Ek — энергия, Дж','m — масса, кг','v — скорость, м/с'],'tags_json':['энергия'],'sort_order':30},
+ {'subject':'PHYSICS','education_level':'SCHOOL','section':'Электродинамика','topic':'Постоянный ток','title':'Закон Ома','formula_latex':r'I = \frac{U}{R}','formula_plain':'I = U/R','description':'Связь силы тока, напряжения и сопротивления участка цепи.','variables_json':['I — сила тока, А','U — напряжение, В','R — сопротивление, Ом'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['электричество','закон Ома'],'sort_order':40},
+ {'subject':'PHYSICS','education_level':'COLLEGE','section':'Молекулярная физика','topic':'Идеальный газ','title':'Уравнение Менделеева — Клапейрона','formula_latex':r'pV = \nu RT','formula_plain':'pV = nRT','description':'Уравнение состояния идеального газа.','variables_json':['p — давление, Па','V — объём, м³','ν — количество вещества, моль','R — универсальная газовая постоянная','T — температура, К'],'course_min':1,'course_max':2,'tags_json':['колледж','мкт','газ'],'sort_order':50},
+ {'subject':'PHYSICS','education_level':'COLLEGE','section':'Колебания и волны','topic':'Гармонические колебания','title':'Период пружинного маятника','formula_latex':r'T = 2\pi\sqrt{\frac{m}{k}}','formula_plain':'T = 2*pi*sqrt(m/k)','description':'Период малых колебаний груза на пружине.','variables_json':['T — период, с','m — масса, кг','k — жёсткость пружины, Н/м'],'course_min':1,'course_max':2,'tags_json':['колледж','колебания'],'sort_order':60},
+ {'subject':'CHEMISTRY','education_level':'SCHOOL','section':'Расчёты','topic':'Количество вещества','title':'Количество вещества через массу','formula_latex':r'n = \frac{m}{M}','formula_plain':'n = m/M','description':'Расчёт количества вещества по массе и молярной массе.','variables_json':['n — количество вещества, моль','m — масса, г','M — молярная масса, г/моль'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['моль','расчёты'],'sort_order':10}
 ]
 
 def seed_starter_formulas():
-    """Add a small curated starter set without duplicating existing records."""
     ensure_tables();created=[]
     for item in STARTER_FORMULAS:
         conn=connect();row=conn.execute("SELECT id FROM formula_book WHERE subject=? AND title=? AND formula_plain=? LIMIT 1",(item['subject'],item['title'],item['formula_plain'])).fetchone();conn.close()
