@@ -33,7 +33,6 @@ class Handler(api_v2.Handler):
     server_version = "AdeliaWeb/3.2"
 
     def log_message(self, fmt, *args):
-        # Avoid logging query strings, cookies, codes or other request details.
         try:
             path = urlparse(self.path).path
         except Exception:
@@ -71,8 +70,10 @@ class Handler(api_v2.Handler):
         if path == "/api/auth/me":
             auth = self._auth()
             if not auth:
-                return self._json(200, {"authenticated": False})
-            return self._json(200, {"authenticated": True, "role": auth.get("role")})
+                return self._json(200, {"authenticated": False, "session": None})
+            # Preserve the old response shape for existing web/PWA clients while
+            # exposing only the role. Internal entity ids and expiry stay server-side.
+            return self._json(200, {"authenticated": True, "role": auth.get("role"), "session": {"role": auth.get("role")}})
         return super().do_GET()
 
     def do_POST(self):
