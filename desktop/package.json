@@ -18,11 +18,18 @@
   "build": {
     "appId": "ru.adeliatutor.desktop",
     "productName": "Аделия",
+    "artifactName": "Adelia-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "files": ["main.js", "preload.js", "selftest.js", "package.json"],
     "directories": {"output": "dist"},
-    "win": {"target": ["nsis"]},
+    "win": {"target": ["nsis"], "requestedExecutionLevel": "asInvoker"},
     "mac": {"target": ["dmg"], "category": "public.app-category.education"},
-    "nsis": {"oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true}
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Аделия"
+    }
   }
 }
