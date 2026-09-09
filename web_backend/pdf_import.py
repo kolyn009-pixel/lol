@@ -59,15 +59,18 @@ def approve_item(item_id,approved=True):
   if not str(row['subject'] or '').strip():raise ValueError('subject_required')
  update_item(item_id,status='APPROVED' if approved else 'REJECTED');return {'status':'ok','item_id':int(item_id),'approved':bool(approved)}
 def commit_job(job_id):
- ensure_tables();conn=connect();job=conn.execute('SELECT * FROM pdf_import_jobs WHERE id=?',(int(job_id),)).fetchone()
+ ensure_tables();job_id=int(job_id);conn=connect();job=conn.execute('SELECT * FROM pdf_import_jobs WHERE id=?',(job_id,)).fetchone()
  if not job:conn.close();return {'status':'not_found'}
- rows=conn.execute("SELECT * FROM pdf_import_items WHERE job_id=? AND status='APPROVED' ORDER BY source_order",(int(job_id),)).fetchall();conn.close()
- if not rows:return {'status':'nothing_approved','created':0,'task_ids':[]}
- invalid=[int(r['id']) for r in rows if not str(r['statement'] or '').strip() or not str(r['subject'] or '').strip()]
+ rows=conn.execute("SELECT * FROM pdf_import_items WHERE job_id=? AND status='APPROVED' ORDER BY source_order",(job_id,)).fetchall()
+ if not rows:
+  imported=conn.execute("SELECT task_bank_id FROM pdf_import_items WHERE job_id=? AND status='IMPORTED' AND task_bank_id IS NOT NULL ORDER BY source_order",(job_id,)).fetchall();conn.close()
+  if imported:return {'status':'ok','created':0,'task_ids':[int(r['task_bank_id']) for r in imported],'already_imported':True}
+  return {'status':'nothing_approved','created':0,'task_ids':[],'already_imported':False}
+ conn.close();invalid=[int(r['id']) for r in rows if not str(r['statement'] or '').strip() or not str(r['subject'] or '').strip()]
  if invalid:return {'status':'invalid_approved_items','item_ids':invalid,'created':0,'task_ids':[]}
  created=[]
  for row in rows:
   tid=add_task(row['subject'],row['statement'],row['grade'],row['study_goal'],row['section'],row['topic'],job['collection_id'],job['source_filename'],row['task_number'],row['title'],row['answer'],row['solution'],row['difficulty'] or 2,['pdf-import']);created.append((int(row['id']),tid))
  conn=connect();now=now_iso()
- for iid,tid in created:conn.execute("UPDATE pdf_import_items SET status='IMPORTED',task_bank_id=?,updated_at=? WHERE id=?",(tid,now,iid))
- remaining=conn.execute("SELECT COUNT(*) FROM pdf_import_items WHERE job_id=? AND status IN ('DRAFT','APPROVED')",(int(job_id),)).fetchone()[0];conn.execute('UPDATE pdf_import_jobs SET status=?,updated_at=? WHERE id=?',('IMPORTED' if not remaining else 'REVIEW',now,int(job_id)));conn.commit();conn.close();return {'status':'ok','created':len(created),'task_ids':[x[1] for x in created]}
+ for iid,tid in created:conn.execute("UPDATE pdf_import_items SET status='IMPORTED',task_bank_id=?,updated_at=? WHERE id=? AND status='APPROVED'",(tid,now,iid))
+ remaining=conn.execute("SELECT COUNT(*) FROM pdf_import_items WHERE job_id=? AND status IN ('DRAFT','APPROVED')",(job_id,)).fetchone()[0];conn.execute('UPDATE pdf_import_jobs SET status=?,updated_at=? WHERE id=?',('IMPORTED' if not remaining else 'REVIEW',now,job_id));conn.commit();conn.close();return {'status':'ok','created':len(created),'task_ids':[x[1] for x in created],'already_imported':False}
