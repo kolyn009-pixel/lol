@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, shell, session, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, session, dialog, ipcMain, screen } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -51,17 +51,38 @@ function hardenNavigation(win, allowed) {
   win.webContents.on('will-navigate', (event, url) => { if (!allowed(url)) { event.preventDefault(); openExternalSafe(url); } });
 }
 function focusExisting(win) { if (!win || win.isDestroyed()) return false; if (win.isMinimized()) win.restore(); win.show(); win.focus(); return true; }
+function lessonDisplay() {
+  if (mainWindow && !mainWindow.isDestroyed()) return screen.getDisplayMatching(mainWindow.getBounds());
+  return screen.getPrimaryDisplay();
+}
+function tileLessonWindows() {
+  if (!meetingWindow || meetingWindow.isDestroyed() || !boardWindow || boardWindow.isDestroyed()) return;
+  const area = lessonDisplay().workArea;
+  const gap = 8;
+  if (area.width >= 1280) {
+    const leftWidth = Math.floor((area.width - gap) * 0.46);
+    const rightWidth = area.width - gap - leftWidth;
+    meetingWindow.setBounds({ x: area.x, y: area.y, width: leftWidth, height: area.height });
+    boardWindow.setBounds({ x: area.x + leftWidth + gap, y: area.y, width: rightWidth, height: area.height });
+  } else {
+    const topHeight = Math.floor((area.height - gap) * 0.45);
+    const bottomHeight = area.height - gap - topHeight;
+    meetingWindow.setBounds({ x: area.x, y: area.y, width: area.width, height: topHeight });
+    boardWindow.setBounds({ x: area.x, y: area.y + topHeight + gap, width: area.width, height: bottomHeight });
+  }
+  meetingWindow.show(); boardWindow.show(); boardWindow.focus();
+}
 function openMeetingWindow(url) {
   if (!trustedChild(url)) return false;
-  if (focusExisting(meetingWindow)) { meetingWindow.loadURL(url); return true; }
-  meetingWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:700, minHeight:520, title:'Телемост — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-lesson', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:false } }), 'meeting');
-  hardenNavigation(meetingWindow, trustedChild); meetingWindow.loadURL(url); return true;
+  if (focusExisting(meetingWindow)) { meetingWindow.loadURL(url); tileLessonWindows(); return true; }
+  meetingWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:560, minHeight:400, title:'Телемост — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-lesson', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:false } }), 'meeting');
+  hardenNavigation(meetingWindow, trustedChild); meetingWindow.loadURL(url); tileLessonWindows(); return true;
 }
 function openBoardWindow(url) {
   if (!trustedBoard(url)) return false;
-  if (focusExisting(boardWindow)) { boardWindow.loadURL(url); return true; }
-  boardWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:700, minHeight:520, title:'Доска — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-board', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:true } }), 'board');
-  hardenNavigation(boardWindow, trustedBoard); boardWindow.loadURL(url); return true;
+  if (focusExisting(boardWindow)) { boardWindow.loadURL(url); tileLessonWindows(); return true; }
+  boardWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:560, minHeight:400, title:'Доска — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-board', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:true } }), 'board');
+  hardenNavigation(boardWindow, trustedBoard); boardWindow.loadURL(url); tileLessonWindows(); return true;
 }
 function closeLessonWindows() { for (const win of [...lessonWindows]) if (!win.isDestroyed()) win.close(); lessonWindows.clear(); meetingWindow=null; boardWindow=null; }
 
