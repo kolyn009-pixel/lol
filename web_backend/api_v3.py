@@ -11,6 +11,8 @@ from web_backend.student_self_service import (
  regular_schedules as student_regular_schedules,
  pause_schedule as student_pause_schedule,
  resume_schedule as student_resume_schedule,
+ vacation as student_vacation,
+ resume_all as student_resume_all,
  sickness as student_sickness,
  cancel_lesson as student_cancel_lesson,
  request_reschedule as student_request_reschedule,
@@ -31,7 +33,7 @@ def _auth_allowed(ip,route):
    if now-v[0]>_AUTH_WINDOW:_AUTH_LIMITS.pop(k,None)
  return count<=_AUTH_MAX
 class Handler(api_v2.Handler):
- server_version='AdeliaWeb/3.7'
+ server_version='AdeliaWeb/3.8'
  def _client_ip(self):
   peer=_valid_ip(self.client_address[0]) or str(self.client_address[0])
   if peer not in _LOOPBACKS:return peer
@@ -104,7 +106,9 @@ class Handler(api_v2.Handler):
    if body is None:return self._json(413 if getattr(self,'_body_too_large',False) else 400,{'error':'request_too_large' if getattr(self,'_body_too_large',False) else 'invalid_json'})
    try:
     uid=int(auth['id'])
-    if path.endswith('/pause'):result=student_pause_schedule(uid,int(body.get('schedule_id')),body.get('pause_until'))
+    if path.endswith('/vacation'):result=student_vacation(uid,body.get('pause_until'))
+    elif path.endswith('/resume-all'):result=student_resume_all(uid)
+    elif path.endswith('/pause'):result=student_pause_schedule(uid,int(body.get('schedule_id')),body.get('pause_until'))
     elif path.endswith('/resume'):result=student_resume_schedule(uid,int(body.get('schedule_id')))
     elif path.endswith('/sickness'):result=student_sickness(uid,int(body.get('lesson_id')),body.get('comment'))
     elif path.endswith('/cancel'):result=student_cancel_lesson(uid,int(body.get('lesson_id')))
@@ -128,5 +132,5 @@ class Handler(api_v2.Handler):
   return super().do_POST()
 def main():
  if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
- ensure_indexes();print(f'Adelia web API v3 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+ ensure_indexes();print(f'Adelia web API v3.8 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
