@@ -1,11 +1,17 @@
 (function(){
   let deferredPrompt=null;
   const standalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+  const ios=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;
   window.AdeliaPWA={
     isStandalone:standalone,
-    canInstall:()=>!!deferredPrompt,
+    isIOS:ios,
+    canInstall:()=>!!deferredPrompt||(!standalone()&&ios()),
     async install(){
-      if(!deferredPrompt)return {status:standalone()?'installed':'unavailable'};
+      if(standalone())return {status:'installed'};
+      if(!deferredPrompt){
+        if(ios())return {status:'manual',message:'В Safari нажмите «Поделиться», затем «На экран Домой».'};
+        return {status:'unavailable'};
+      }
       const prompt=deferredPrompt;deferredPrompt=null;
       await prompt.prompt();
       const choice=await prompt.userChoice.catch(()=>null);
