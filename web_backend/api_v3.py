@@ -1,13 +1,13 @@
 """Adelia web API v3: Stage 12 privacy/security hardening on top of api_v2."""
 from __future__ import annotations
-import ipaddress,time
+import ipaddress,json,time
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse
 from core import admin_roles
 from web_backend import api as v1,api_v2,otp_secret
 from web_backend.lesson_join import student_join
 from web_backend.stage12_indexes import ensure_indexes
-_AUTH_LIMITS={};_AUTH_WINDOW=300;_AUTH_MAX=8
+_AUTH_LIMITS={};_AUTH_WINDOW=300;_AUTH_MAX=8;MAX_JSON_BODY=256*1024
 _OWNER_ONLY_POST={'/api/teacher/finance/price','/api/teacher/finance/override','/api/teacher/finance/override/delete','/api/teacher/finance/package'}
 _LOOPBACKS={'127.0.0.1','::1'}
 def _valid_ip(value):
@@ -22,7 +22,7 @@ def _auth_allowed(ip,route):
    if now-v[0]>_AUTH_WINDOW:_AUTH_LIMITS.pop(k,None)
  return count<=_AUTH_MAX
 class Handler(api_v2.Handler):
- server_version='AdeliaWeb/3.5'
+ server_version='AdeliaWeb/3.6'
  def _client_ip(self):
   peer=_valid_ip(self.client_address[0]) or str(self.client_address[0])
   if peer not in _LOOPBACKS:return peer
@@ -33,6 +33,15 @@ class Handler(api_v2.Handler):
    first=_valid_ip(forwarded.split(',',1)[0])
    if first:return first
   return peer
+ def _body(self):
+  try:total=int(self.headers.get('Content-Length','0') or 0)
+  except Exception:return None
+  if total<0:return None
+  if total>MAX_JSON_BODY:
+   self._body_too_large=True;return None
+  self._body_too_large=False
+  try:return json.loads(self.rfile.read(total) or b'{}')
+  except Exception:return None
  def log_message(self,fmt,*args):
   try:path=urlparse(self.path).path
   except Exception:path='?'
@@ -62,13 +71,16 @@ class Handler(api_v2.Handler):
  def do_POST(self):
   path=urlparse(self.path).path
   if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+  try:declared=int(self.headers.get('Content-Length','0') or 0)
+  except Exception:declared=0
+  if declared>MAX_JSON_BODY and path!='/api/teacher/pdf-import/upload':return self._json(413,{'error':'request_too_large'})
   if path in _OWNER_ONLY_POST and not self._owner():return self._json(403,{'error':'owner_required'})
   if path in {'/api/auth/student/code','/api/auth/teacher/code','/api/auth/parent/code'} and not _auth_allowed(self._client_ip(),path):return self._json(429,{'error':'too_many_attempts'})
   if path=='/api/student/lesson/join':
    auth=self._student()
    if not auth:return self._json(401,{'error':'unauthorized'})
    body=self._body()
-   if body is None:return self._json(400,{'error':'invalid_json'})
+   if body is None:return self._json(413 if getattr(self,'_body_too_large',False) else 400,{'error':'request_too_large' if getattr(self,'_body_too_large',False) else 'invalid_json'})
    try:result=student_join(int(body.get('lesson_id')),int(auth['id']))
    except (TypeError,ValueError):return self._json(400,{'error':'invalid_request'})
    except Exception as exc:print('[web-api] student lesson join error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
