@@ -16,7 +16,9 @@ def _limit(value, default=50, maximum=200):
 
 
 def parent(parent_id):
-    conn=connect();row=conn.execute("SELECT id,name,phone,telegram_id,telegram_username,active,created_at,updated_at FROM parent_accounts WHERE id=? AND active=1",(int(parent_id),)).fetchone();conn.close();return dict(row) if row else None
+    # Keep the browser read model minimal. Contact/channel identifiers stay on
+    # the server and are not needed to render the parent cabinet.
+    conn=connect();row=conn.execute("SELECT id,name FROM parent_accounts WHERE id=? AND active=1",(int(parent_id),)).fetchone();conn.close();return dict(row) if row else None
 
 
 def linked_students(parent_id):
@@ -26,14 +28,40 @@ def linked_students(parent_id):
              u.education_level,l.notify_schedule
       FROM parent_student_links l
       JOIN users u ON u.id=l.student_id
-      WHERE l.parent_id=? AND u.active=1
+      JOIN parent_accounts p ON p.id=l.parent_id
+      WHERE l.parent_id=? AND p.active=1 AND u.active=1
       ORDER BY u.name,u.id
     """,(pid,)).fetchall();conn.close();return [dict(r) for r in rows]
 
 
+def _linked_ids(parent_id, requested_ids=None):
+    """Resolve linked students in one query to avoid per-child authorization N+1."""
+    pid=int(parent_id);conn=connect()
+    if requested_ids:
+        ids=sorted({int(x) for x in requested_ids})
+        marks=','.join('?' for _ in ids)
+        rows=conn.execute(f"""
+          SELECT l.student_id
+          FROM parent_student_links l
+          JOIN parent_accounts p ON p.id=l.parent_id
+          JOIN users u ON u.id=l.student_id
+          WHERE l.parent_id=? AND p.active=1 AND u.active=1
+            AND l.student_id IN ({marks})
+        """,(pid,*ids)).fetchall()
+    else:
+        rows=conn.execute("""
+          SELECT l.student_id
+          FROM parent_student_links l
+          JOIN parent_accounts p ON p.id=l.parent_id
+          JOIN users u ON u.id=l.student_id
+          WHERE l.parent_id=? AND p.active=1 AND u.active=1
+        """,(pid,)).fetchall()
+    conn.close();return {int(r['student_id']) for r in rows}
+
+
 def _assert_link(parent_id,student_id):
-    pid=int(parent_id);uid=int(student_id);conn=connect();row=conn.execute("SELECT 1 FROM parent_student_links l JOIN parent_accounts p ON p.id=l.parent_id WHERE l.parent_id=? AND l.student_id=? AND p.active=1",(pid,uid)).fetchone();conn.close()
-    if not row:raise PermissionError('student_not_linked')
+    uid=int(student_id)
+    if uid not in _linked_ids(parent_id,[uid]):raise PermissionError('student_not_linked')
     return uid
 
 
@@ -84,8 +112,13 @@ def student(parent_id,student_id):
 
 
 def schedule(parent_id,student_id=None,days=45,limit=120):
-    pid=int(parent_id);uids=[int(student_id)] if student_id is not None else [int(x['id']) for x in linked_students(pid)]
-    for uid in uids:_assert_link(pid,uid)
+    pid=int(parent_id)
+    if student_id is not None:
+        requested=[int(student_id)];linked=_linked_ids(pid,requested)
+        if set(requested)!=linked:raise PermissionError('student_not_linked')
+        uids=requested
+    else:
+        uids=sorted(_linked_ids(pid))
     if not uids:return []
     now=datetime.now();end=now+timedelta(days=max(1,min(int(days or 45),180)));marks=','.join('?' for _ in uids);params=[*uids,now.isoformat(timespec='seconds'),end.isoformat(timespec='seconds'),_limit(limit,120,500)];conn=connect();rows=conn.execute(f"""
       SELECT l.id,l.user_id,u.name,l.start_time,l.end_time,l.duration_minutes,l.subject,l.study_goal,l.lesson_status,l.payment_status,l.price
