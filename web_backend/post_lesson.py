@@ -51,6 +51,20 @@ def get_feedback(user_id, lesson_id):
     return {'required': row is None, 'feedback': dict(row) if row else None}
 
 
+def pending_for_student(user_id, limit=3):
+    """Return latest completed lessons that still need the intentionally short survey."""
+    ensure_schema(); conn = database.connect()
+    rows = conn.execute("""
+        SELECT l.id AS lesson_id,l.subject,l.study_goal,l.start_time,l.finished_at
+        FROM lessons l
+        LEFT JOIN lesson_feedback f ON f.lesson_id=l.id AND f.user_id=l.user_id
+        WHERE l.user_id=? AND l.finished_at IS NOT NULL AND f.id IS NULL
+          AND l.lesson_status='COMPLETED'
+        ORDER BY l.finished_at DESC,l.id DESC LIMIT ?
+    """, (int(user_id), max(1, min(int(limit), 10)))).fetchall()
+    conn.close(); return [dict(r) for r in rows]
+
+
 def submit_feedback(user_id, lesson_id, rating, next_topic=None, comment=None, source='WEB', **_legacy):
     """Save the intentionally short student survey: liked it + next lesson wish."""
     ensure_schema(); lesson = _lesson_owned(user_id, lesson_id)
