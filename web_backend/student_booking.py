@@ -34,13 +34,29 @@ def programs(user_id):
     return result
 
 
+def _has_paid_booking(user_id):
+    """Any non-trial lesson request means the student already chose paid onboarding."""
+    conn = database.connect()
+    row = conn.execute("""
+        SELECT 1 FROM lessons
+        WHERE user_id=? AND COALESCE(is_trial,0)=0
+          AND lesson_status NOT IN ('REJECTED','CANCELLED')
+        LIMIT 1
+    """, (int(user_id),)).fetchone()
+    conn.close()
+    return bool(row)
+
+
 def trial_status(user_id):
     user = database.get_user(int(user_id))
     if not user:
         raise PermissionError('student_not_found')
+    paid_started = _has_paid_booking(user_id)
+    used = bool(user['trial_used'])
     return {
-        'available': not bool(user['trial_used']),
-        'trial_used': bool(user['trial_used']),
+        'available': not used and not paid_started,
+        'trial_used': used,
+        'paid_booking_started': paid_started,
         'duration_minutes': DEFAULT_DURATION,
     }
 
@@ -75,8 +91,10 @@ def _request(user_id, program_id, start_time, duration_minutes, is_trial):
     user = database.get_user(int(user_id))
     if not user:
         raise PermissionError('student_not_found')
-    if is_trial and bool(user['trial_used']):
-        raise ValueError('trial_already_used')
+    if is_trial:
+        status = trial_status(user_id)
+        if not status['available']:
+            raise ValueError('trial_unavailable')
     duration = int(duration_minutes or DEFAULT_DURATION)
     if duration < 30 or duration > 180 or duration % 30:
         raise ValueError('invalid_duration')
