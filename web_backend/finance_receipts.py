@@ -1,11 +1,11 @@
 """Receipt review facade over TutorBot's existing receipts/payments flow.
 
-Browser responses deliberately exclude Telegram identifiers/file IDs. Mutations
-remain delegated to TutorBot's canonical payment functions. Stage 13 exposes
-only coarse archive health, never cloud paths/hashes/tokens.
+Browser responses deliberately exclude Telegram identifiers. Web receipt files
+are exposed only through authenticated teacher API routes, never as public paths.
 """
 from __future__ import annotations
-from database import connect,approve_payment,reject_payment
+from pathlib import Path
+from database import connect,approve_payment,reject_payment,approve_paid_booking_draft_payment
 
 
 def _limit(v,default=100):
@@ -34,12 +34,26 @@ def list_receipts(status='WAITING',limit=100):
     sql+=' ORDER BY r.id DESC LIMIT ?';params.append(_limit(limit));conn=connect()
     try:rows=conn.execute(sql,params).fetchall()
     except Exception:
-        # Stage 13 table may not exist until first worker/selftest run; finance must still work.
         sql=sql.replace(",\n        COALESCE(a.status,'UNTRACKED') archive_status,a.archived_at,a.verified_at","").replace("\n      LEFT JOIN receipt_cloud_archives a ON a.receipt_id=r.id","")
         rows=conn.execute(sql,params).fetchall();result=[]
-        for r in rows:item=dict(r);item['archive_status']='UNTRACKED';item['archived_at']=None;item['verified_at']=None;result.append(item)
+        for r in rows:item=dict(r);item['archive_status']='UNTRACKED';item['archived_at']=None;item['verified_at']=None;item['can_view_file']=str(item.get('source_platform') or '').upper()=='WEB';result.append(item)
         conn.close();return result
-    conn.close();return [dict(r) for r in rows]
+    conn.close();result=[]
+    for r in rows:
+        item=dict(r);item['can_view_file']=str(item.get('source_platform') or '').upper()=='WEB';result.append(item)
+    return result
+
+def web_receipt_file(receipt_id):
+    conn=connect();row=conn.execute("SELECT id,file_id,file_type,source_platform FROM receipts WHERE id=?",(int(receipt_id),)).fetchone();conn.close()
+    if not row:raise ValueError('receipt_not_found')
+    if str(row['source_platform'] or '').upper()!='WEB':raise ValueError('receipt_file_not_local')
+    path=Path(str(row['file_id'] or ''))
+    root=Path('/opt/tutorbot/data/web_receipts').resolve()
+    try:resolved=path.resolve()
+    except Exception:raise ValueError('receipt_file_invalid') from None
+    if root not in resolved.parents or not resolved.is_file():raise ValueError('receipt_file_not_found')
+    suffix=resolved.suffix.lower();mime={'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','pdf':'application/pdf'}.get(suffix.lstrip('.'),'application/octet-stream')
+    return resolved,mime
 
 def archive_summary():
     conn=connect()
@@ -50,7 +64,7 @@ def archive_summary():
     finally:conn.close()
 
 def summary():
-    conn=connect();rows=conn.execute('SELECT status,COUNT(*) c FROM receipts GROUP BY status').fetchall();waiting_amount=conn.execute("SELECT COALESCE(SUM(p.total_amount),0) s FROM receipts r JOIN payments p ON p.id=r.payment_id AND p.user_id=r.user_id WHERE r.status='WAITING' AND p.status IN ('WAITING','PENDING')").fetchone();conn.close();counts={str(r['status']).upper():int(r['c'] or 0) for r in rows};return {'waiting':counts.get('WAITING',0),'approved':counts.get('APPROVED',0),'rejected':counts.get('REJECTED',0),'waiting_amount':int(waiting_amount['s'] or 0),'archive':archive_summary()}
+    conn=connect();rows=conn.execute('SELECT status,COUNT(*) c FROM receipts GROUP BY status').fetchall();waiting_amount=conn.execute("SELECT COALESCE(SUM(p.total_amount),0) s FROM receipts r JOIN payments p ON p.id=r.payment_id AND p.user_id=r.user_id WHERE r.status='WAITING' AND p.status IN ('WAITING','PENDING','RECEIPT_SENT')").fetchone();conn.close();counts={str(r['status']).upper():int(r['c'] or 0) for r in rows};return {'waiting':counts.get('WAITING',0),'approved':counts.get('APPROVED',0),'rejected':counts.get('REJECTED',0),'waiting_amount':int(waiting_amount['s'] or 0),'archive':archive_summary()}
 
 def review(payment_id,action):
     pid=int(payment_id);action=str(action or '').upper();conn=connect();row=conn.execute('SELECT id,status FROM payments WHERE id=?',(pid,)).fetchone();receipt=conn.execute('SELECT id,status FROM receipts WHERE payment_id=? ORDER BY id DESC LIMIT 1',(pid,)).fetchone();conn.close()
@@ -58,6 +72,10 @@ def review(payment_id,action):
     if not receipt:raise ValueError('receipt_not_found')
     if action=='APPROVE':
         if str(row['status']).upper()=='PAID':return {'status':'ok','payment_id':pid,'already_processed':True,'result':'PAID'}
+        draft_result=approve_paid_booking_draft_payment(pid)
+        if draft_result is not None:
+            package_id,draft_lesson_id=draft_result
+            return {'status':'ok','payment_id':pid,'package_id':package_id,'draft_lesson_id':draft_lesson_id,'result':'PAID'}
         package_id=approve_payment(pid);return {'status':'ok','payment_id':pid,'package_id':package_id,'result':'PAID'}
     if action=='REJECT':
         if str(row['status']).upper()=='REJECTED':return {'status':'ok','payment_id':pid,'already_processed':True,'result':'REJECTED'}
