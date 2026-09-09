@@ -1,6 +1,7 @@
 """Adelia web API v3: Stage 12 privacy/security hardening on top of api_v2."""
 from __future__ import annotations
 
+import ipaddress
 import time
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -9,6 +10,7 @@ from core import admin_roles
 from web_backend import api as v1
 from web_backend import api_v2
 from web_backend.lesson_join import student_join
+from web_backend.stage12_indexes import ensure_indexes
 
 _AUTH_LIMITS = {}
 _AUTH_WINDOW = 300
@@ -19,6 +21,14 @@ _OWNER_ONLY_POST = {
     "/api/teacher/finance/override/delete",
     "/api/teacher/finance/package",
 }
+_LOOPBACKS = {"127.0.0.1", "::1"}
+
+
+def _valid_ip(value):
+    try:
+        return str(ipaddress.ip_address(str(value or "").strip()))
+    except ValueError:
+        return None
 
 
 def _auth_allowed(ip, route):
@@ -37,14 +47,29 @@ def _auth_allowed(ip, route):
 
 
 class Handler(api_v2.Handler):
-    server_version = "AdeliaWeb/3.3"
+    server_version = "AdeliaWeb/3.4"
+
+    def _client_ip(self):
+        """Use proxy IP headers only when the direct peer is local nginx."""
+        peer = _valid_ip(self.client_address[0]) or str(self.client_address[0])
+        if peer not in _LOOPBACKS:
+            return peer
+        real = _valid_ip(self.headers.get("X-Real-IP"))
+        if real:
+            return real
+        forwarded = str(self.headers.get("X-Forwarded-For") or "")
+        if forwarded:
+            first = _valid_ip(forwarded.split(",", 1)[0])
+            if first:
+                return first
+        return peer
 
     def log_message(self, fmt, *args):
         try:
             path = urlparse(self.path).path
         except Exception:
             path = "?"
-        print("[web-api]", self.client_address[0], self.command, path, flush=True)
+        print("[web-api]", self._client_ip(), self.command, path, flush=True)
 
     def end_headers(self):
         self.send_header("X-Frame-Options", "DENY")
@@ -108,12 +133,10 @@ class Handler(api_v2.Handler):
             return self._json(403, {"error": "cross_origin_forbidden"})
 
         if path in _OWNER_ONLY_POST and not self._owner():
-            # Do not reveal whether the current teacher is merely an ADMIN or
-            # unauthenticated; both are forbidden from changing global pricing.
             return self._json(403, {"error": "owner_required"})
 
         if path in {"/api/auth/student/code", "/api/auth/teacher/code", "/api/auth/parent/code"}:
-            if not _auth_allowed(self.client_address[0], path):
+            if not _auth_allowed(self._client_ip(), path):
                 return self._json(429, {"error": "too_many_attempts"})
 
         if path == "/api/student/lesson/join":
@@ -144,6 +167,8 @@ class Handler(api_v2.Handler):
 
 
 def main():
+    # Index creation is startup-only; request handling stays free of migration work.
+    ensure_indexes()
     print(f"Adelia web API v3 listening on http://{v1.HOST}:{v1.PORT}")
     ThreadingHTTPServer((v1.HOST, v1.PORT), Handler).serve_forever()
 
