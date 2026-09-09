@@ -20,6 +20,17 @@ def _legacy_column(key):
     return pricing.LEGACY_RATE_FIELDS.get(key)
 
 
+def _validate_student_scope(uid,key):
+    user=get_user(int(uid))
+    if not user:raise ValueError('student_not_found')
+    if key=='COLLEGE_PHYSICS':
+        education=str(user['education_type'] if 'education_type' in user.keys() and user['education_type'] else 'SCHOOL').upper()
+        if education!='COLLEGE':raise ValueError('student_not_college')
+        level=user['education_level'] if 'education_level' in user.keys() else None
+        if level not in (None,'') and int(level)>2:raise ValueError('physics_college_course_out_of_range')
+    return user
+
+
 def _sync_program(uid,goal,subject,amount):
     conn=connect();now=now_iso()
     rows=conn.execute("SELECT id FROM student_programs WHERE user_id=? AND study_goal=? AND subject=? AND active=1",(uid,goal,subject)).fetchall()
@@ -32,31 +43,36 @@ def _clear_program(uid,goal,subject):
 
 
 def set_override(user_id,tariff_key,amount,note=None,active=True,source='WEB'):
-    uid=int(user_id);key,subject,education,goal=_meta(tariff_key);amount=int(amount)
+    uid=int(user_id);key,subject,education,goal=_meta(tariff_key);amount=int(amount);user=_validate_student_scope(uid,key)
     result=pricing.set_override(uid,key,amount,note,active,source)
-    user=get_user(uid)
-    if not user:return result
     conn=connect();now=now_iso();column=_legacy_column(key)
     if column and column in user.keys():conn.execute(f"UPDATE users SET {column}=?,updated_at=? WHERE id=?",(amount,now,uid))
-    conn.commit();conn.close()
-    _sync_program(uid,goal,subject,amount)
-    result['synced']={'legacy_user_rate':bool(column),'student_programs':True}
-    return result
+    conn.commit();conn.close();synced=_sync_program(uid,goal,subject,amount)
+    result['synced']={'legacy_user_rate':bool(column),'student_programs':synced};return result
 
 
 def delete_override(user_id,tariff_key,source='WEB'):
-    uid=int(user_id);key,subject,education,goal=_meta(tariff_key);result=pricing.delete_override(uid,key,source);user=get_user(uid)
+    uid=int(user_id);key,subject,education,goal=_meta(tariff_key);user=_validate_student_scope(uid,key);result=pricing.delete_override(uid,key,source)
     conn=connect();now=now_iso();column=_legacy_column(key)
-    if user and column and column in user.keys():conn.execute(f"UPDATE users SET {column}=NULL,updated_at=? WHERE id=?",(now,uid))
-    conn.commit();conn.close();_clear_program(uid,goal,subject);result['synced']={'legacy_user_rate':bool(column),'student_programs':True};return result
+    if column and column in user.keys():conn.execute(f"UPDATE users SET {column}=NULL,updated_at=? WHERE id=?",(now,uid))
+    conn.commit();conn.close();cleared=_clear_program(uid,goal,subject);result['synced']={'legacy_user_rate':bool(column),'student_programs':cleared};return result
 
 
 def quote(user_id,tariff_key=None,duration_minutes=60,study_goal=None,subject=None,grade=None,education_type=None):
     """Resolve Web price, falling back to TutorBot program custom rate before defaults."""
-    uid=int(user_id);key=pricing._key(tariff_key) if tariff_key else pricing.tariff_for(uid,study_goal,subject,grade,education_type)
+    uid=int(user_id)
+    if tariff_key:
+        key=pricing._key(tariff_key);_validate_student_scope(uid,key)
+    else:
+        user=get_user(uid)
+        if not user:raise ValueError('student_not_found')
+        education=str(education_type or (user['education_type'] if 'education_type' in user.keys() else None) or 'SCHOOL').upper()
+        if education=='COLLEGE':
+            level=user['education_level'] if 'education_level' in user.keys() else None
+            if level not in (None,'') and int(level)>2:raise ValueError('physics_college_course_out_of_range')
+        key=pricing.tariff_for(uid,study_goal,subject,grade,education_type)
     try:
         q=pricing.quote(uid,key,duration_minutes,study_goal,subject,grade,education_type)
-        # Existing Web override is already strongest and must win.
         if q.get('source')=='STUDENT_OVERRIDE':return q
     except ValueError as exc:
         if str(exc)!='price_not_configured':raise
