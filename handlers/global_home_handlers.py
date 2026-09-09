@@ -20,11 +20,15 @@ from handlers import homework_channel_handlers, web_portal_login
 
 def _with_web_button(markup, role):
     """Add one stable web-cabinet entry without changing legacy menu builders."""
-    if not markup or role not in {"student", "teacher"}:
+    if not markup or role not in {"student", "teacher", "parent"}:
         return markup
     rows = [list(row) for row in markup.inline_keyboard]
-    callback = "web_teacher_code" if role == "teacher" else "web_student_code"
-    label = "🌐 Кабинет преподавателя" if role == "teacher" else "🌐 Личный кабинет"
+    if role == "teacher":
+        callback, label = "web_teacher_code", "🌐 Кабинет преподавателя"
+    elif role == "parent":
+        callback, label = "web_parent_code", "🌐 Родительский кабинет"
+    else:
+        callback, label = "web_student_code", "🌐 Личный кабинет"
     if not any(getattr(button, "callback_data", None) == callback for row in rows for button in row):
         rows.append([InlineKeyboardButton(label, callback_data=callback)])
     return InlineKeyboardMarkup(rows)
@@ -112,6 +116,7 @@ async def home(
                 markup = (
                     b.parent_menu()
                 )
+                web_role = "parent"
 
             else:
 
@@ -252,6 +257,7 @@ async def home(
             markup = (
                 b.parent_menu()
             )
+            web_role = "parent"
 
         elif (
             user
