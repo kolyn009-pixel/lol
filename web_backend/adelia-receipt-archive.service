@@ -1,0 +1,21 @@
+[Unit]
+Description=Adelia Receipt Cloud Archive Worker
+After=network-online.target tutorbot.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tutorbot
+EnvironmentFile=-/etc/tutorbot/adelia.env
+Environment=ADELIA_RECEIPT_ARCHIVE_POLL=60
+Environment=ADELIA_RECEIPT_ARCHIVE_BATCH=10
+ExecStart=/opt/tutorbot/venv/bin/python -m web_backend.receipt_archive_worker
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
