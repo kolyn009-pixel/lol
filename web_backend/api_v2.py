@@ -8,10 +8,11 @@ from web_backend import api as v1
 from web_backend.student_portal import dashboard as student_dashboard, schedule as student_schedule, payments as student_payments, profile as student_profile, conversation_for_student
 from web_backend.unified_messages import add_message
 from web_backend.lesson_join import student_workspace, student_join, teacher_open_entry, join_events
+from web_backend.lesson_context import context as lesson_context, add_note as lesson_add_note, send_teacher_message
 
 
 class Handler(v1.Handler):
-    server_version = "AdeliaWeb/1.1"
+    server_version = "AdeliaWeb/1.2"
 
     def do_GET(self):
         u=urlparse(self.path); path=u.path; q=parse_qs(u.query)
@@ -37,6 +38,12 @@ class Handler(v1.Handler):
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             try:return self._json(200,{'items':join_events(int(q.get('id',['0'])[0]))})
             except Exception:return self._json(500,{'error':'server_error'})
+        if path=='/api/teacher/lesson/context':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            try:
+                item=lesson_context(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'lesson_not_found'})
+            except Exception as exc:
+                print('[web-api] lesson context error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         return super().do_GET()
 
     def do_POST(self):
@@ -71,6 +78,24 @@ class Handler(v1.Handler):
                 r=teacher_open_entry(int(body.get('lesson_id')));return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
             except Exception as exc:
                 print('[web-api] teacher open entry error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+        if path=='/api/teacher/lesson/note':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if body is None:return self._json(400,{'error':'invalid_json'})
+            try:
+                r=lesson_add_note(int(body.get('lesson_id')),body.get('text'))
+                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
+            except Exception as exc:
+                print('[web-api] lesson note error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+        if path=='/api/teacher/lesson/message':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if body is None:return self._json(400,{'error':'invalid_json'})
+            try:
+                r=send_teacher_message(int(body.get('lesson_id')),body.get('text'))
+                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
+            except Exception as exc:
+                print('[web-api] lesson message error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         return super().do_POST()
 
 
