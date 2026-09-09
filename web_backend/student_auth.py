@@ -3,13 +3,14 @@
 Telegram one-time codes are the trusted first-link/recovery channel. After the
 first successful code login a student can create a permanent login/password.
 Passwords are never stored in plaintext: only PBKDF2-SHA256 hashes are kept.
+One-time Telegram codes are also stored only as SHA-256 digests.
 
 The existing /api/auth/student/code HTTP endpoint is intentionally kept for
 backward compatibility. It accepts three payload forms in its single `code`
 field:
-- 123456                         -> legacy one-time-code login
-- login:<login>:<password>       -> permanent credential login
-- setup:<code>:<login>:<password> -> verify Telegram code and create/reset credentials
+- 123456                           -> legacy one-time-code login
+- login:<login>:<password>         -> permanent credential login
+- setup:<code>:<login>:<password>  -> verify Telegram code and create/reset credentials
 """
 
 import base64
@@ -20,11 +21,13 @@ import secrets
 from datetime import datetime, timedelta
 
 from database import connect, now_iso
+from web_backend.web_sessions import revoke_identity_sessions
 
 
 CODE_TTL_MINUTES = 10
 PBKDF2_ITERATIONS = 600_000
 _LOGIN_RE = re.compile(r"^[a-z0-9._-]{4,32}$")
+_DUMMY_SALT = b"adelia-auth-dummy"
 
 
 def ensure_student_web_login_table():
@@ -61,6 +64,10 @@ def ensure_student_web_login_table():
 
 def _new_code():
     return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _code_digest(code):
+    return hashlib.sha256(str(code or "").strip().encode("utf-8")).hexdigest()
 
 
 def _normalize_login(login):
@@ -107,6 +114,13 @@ def _password_matches(password, encoded):
         return False
 
 
+def _dummy_password_work(password):
+    """Reduce username-enumeration signal from missing-login fast paths."""
+    hashlib.pbkdf2_hmac(
+        "sha256", str(password or "").encode("utf-8"), _DUMMY_SALT, PBKDF2_ITERATIONS
+    )
+
+
 def has_student_credentials(student_id):
     ensure_student_web_login_table()
     conn = connect()
@@ -118,7 +132,7 @@ def has_student_credentials(student_id):
     return bool(row)
 
 
-def set_student_credentials(student_id, login, password):
+def set_student_credentials(student_id, login, password, revoke_existing=True):
     ensure_student_web_login_table()
     student_id = int(student_id)
     login = _normalize_login(login)
@@ -153,6 +167,8 @@ def set_student_credentials(student_id, login, password):
         )
     conn.commit()
     conn.close()
+    if revoke_existing:
+        revoke_identity_sessions("student", student_id)
     return {"status": "ok", "login": login}
 
 
@@ -161,6 +177,7 @@ def authenticate_student(login, password):
     try:
         login = _normalize_login(login)
     except ValueError:
+        _dummy_password_work(password)
         return {"status": "invalid", "student": None}
     conn = connect()
     row = conn.execute(
@@ -173,7 +190,11 @@ def authenticate_student(login, password):
         """,
         (login,),
     ).fetchone()
-    if not row or not _password_matches(password, row["password_hash"]):
+    if not row:
+        conn.close()
+        _dummy_password_work(password)
+        return {"status": "invalid", "student": None}
+    if not _password_matches(password, row["password_hash"]):
         conn.close()
         return {"status": "invalid", "student": None}
     student = {
@@ -208,9 +229,10 @@ def issue_student_login_code(student_id, ttl_minutes=CODE_TTL_MINUTES):
 
     while True:
         code = _new_code()
+        digest = _code_digest(code)
         exists = conn.execute(
             "SELECT 1 FROM student_web_login_codes WHERE code = ?",
-            (code,),
+            (digest,),
         ).fetchone()
         if not exists:
             break
@@ -220,7 +242,7 @@ def issue_student_login_code(student_id, ttl_minutes=CODE_TTL_MINUTES):
         INSERT INTO student_web_login_codes(student_id, code, expires_at, created_at)
         VALUES (?, ?, ?, ?)
         """,
-        (student_id, code, expires_at, now_iso()),
+        (student_id, digest, expires_at, now_iso()),
     )
     conn.commit()
     conn.close()
@@ -242,7 +264,7 @@ def _consume_plain_code(code):
         WHERE c.code = ? AND u.active = 1
         LIMIT 1
         """,
-        (code,),
+        (_code_digest(code),),
     ).fetchone()
 
     if not row or row["used_at"]:
@@ -287,7 +309,7 @@ def consume_student_login_code(payload):
         if result.get("status") != "ok":
             return result
         try:
-            set_student_credentials(result["student"]["id"], parts[2], parts[3])
+            set_student_credentials(result["student"]["id"], parts[2], parts[3], revoke_existing=True)
         except ValueError as exc:
             return {"status": str(exc), "student": None}
         return result
