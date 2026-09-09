@@ -12,9 +12,10 @@ from web_backend.post_lesson_flow import state as post_state, save_marks, comple
 from web_backend.post_lesson_complete import state as completion_state, complete as complete_post_lesson
 from web_backend.homework_center import update_homework
 from web_backend.assessment import save_task_feedback, student_feedback
+from web_backend.homework_review_flow import finalize as finalize_homework_review
 
 class Handler(v1.Handler):
-    server_version="AdeliaWeb/1.6"
+    server_version="AdeliaWeb/1.7"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
         if path.startswith('/api/student/'):
@@ -96,6 +97,14 @@ class Handler(v1.Handler):
                 r=save_task_feedback(body.get('homework_id'),body.get('task_id'),body.get('user_id'),body.get('attempt_number'),body.get('comment'),body.get('is_correct'),body.get('points_awarded'))
                 return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
             except Exception as exc:print('[web-api] task feedback error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+        if path=='/api/teacher/homework-center/finalize':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if body is None:return self._json(400,{'error':'invalid_json'})
+            try:
+                r=finalize_homework_review(body.get('homework_id'),body.get('user_id'),body.get('result'),body.get('comment'),body.get('attempt_number'))
+                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
+            except Exception as exc:print('[web-api] homework finalize error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path.startswith('/api/teacher/lesson/'):
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             body=self._body()
