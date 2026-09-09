@@ -13,7 +13,7 @@ from pathlib import Path
 
 import database
 import payments
-from core import minute_balance
+from core import minute_balance, event_center
 
 RECEIPT_ROOT = Path(os.environ.get('ADELIA_WEB_RECEIPT_DIR', '/opt/tutorbot/data/web_receipts'))
 MAX_RECEIPT_BYTES = 8 * 1024 * 1024
@@ -186,7 +186,6 @@ def attach_receipt(user_id, payment_id, filename, mime_type, content_b64):
         raise ValueError('invalid_receipt_data') from None
     if not raw or len(raw) > MAX_RECEIPT_BYTES:
         raise ValueError('receipt_too_large')
-    # Basic magic validation; do not trust browser-provided MIME alone.
     if mime == 'application/pdf' and not raw.startswith(b'%PDF-'):
         raise ValueError('receipt_content_mismatch')
     if mime == 'image/png' and not raw.startswith(b'\x89PNG\r\n\x1a\n'):
@@ -207,4 +206,14 @@ def attach_receipt(user_id, payment_id, filename, mime_type, content_b64):
         payment_id=int(payment_id), user_id=int(user_id), file_id=str(path),
         file_type=file_type, source_platform='WEB',
     )
+    user = _user(user_id)
+    try:
+        event_center.push(
+            'PAYMENT_RECEIPT',
+            f"Новый чек: {user['name']}",
+            f"Платёж #{int(payment_id)} · {int(payment['total_amount'] or 0):,} ₽".replace(',', ' '),
+            'ACTION', 'payment', int(payment_id), f'payment_receipt:{int(payment_id)}',
+        )
+    except Exception:
+        pass
     return {'status': 'ok', 'payment_id': int(payment_id), 'receipt_id': int(receipt_id) if receipt_id is not None else None, 'filename': safe_name}
