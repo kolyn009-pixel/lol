@@ -28,8 +28,7 @@ async function maybeOfferAutostart() {
   const prefs = readPrefs();
   if (prefs.autostartAsked) return;
   const result = await dialog.showMessageBox(mainWindow || undefined, {
-    type: 'question',
-    title: 'Запускать Аделию вместе с компьютером?',
+    type: 'question', title: 'Запускать Аделию вместе с компьютером?',
     message: 'Хотите, чтобы Аделия автоматически запускалась при входе в Windows или macOS?',
     detail: 'Это необязательно. Настройку можно изменить позже в системе.',
     buttons: ['Да, запускать', 'Нет'], defaultId: 0, cancelId: 1, noLink: true
@@ -128,16 +127,25 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // Privacy by design: the desktop shell has no analytics, telemetry or crash uploader.
-  // The main cabinet is denied every Chromium permission request.
+  // Privacy by design: no analytics, telemetry or crash uploader in the desktop shell.
   const mainSession = session.fromPartition('persist:adelia');
+  mainSession.setPermissionCheckHandler(() => false);
   mainSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
 
-  // Camera/microphone/screen sharing may be requested only by the Telemost lesson window.
+  // Telemost is the only origin allowed to use lesson media. The Electron-level
+  // grant is stable across lessons, so users are not re-prompted by the app itself.
+  // The OS may still ask once for camera/microphone, or again only if access was revoked.
   const lessonSession = session.fromPartition('persist:adelia-lesson');
-  lessonSession.setPermissionRequestHandler((wc, permission, callback) => callback(
-    trustedChild(wc.getURL()) && ['media', 'microphone', 'camera', 'display-capture'].includes(permission)
-  ));
+  const lessonMediaAllowed = (webContents, permission, requestingOrigin) => {
+    const origin = requestingOrigin || (webContents ? webContents.getURL() : '');
+    return trustedChild(origin) && ['media', 'microphone', 'camera', 'display-capture'].includes(permission);
+  };
+  lessonSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) =>
+    lessonMediaAllowed(webContents, permission, requestingOrigin)
+  );
+  lessonSession.setPermissionRequestHandler((webContents, permission, callback, details) =>
+    callback(lessonMediaAllowed(webContents, permission, details && details.requestingUrl))
+  );
 
   createWindow();
   await maybeOfferAutostart();
