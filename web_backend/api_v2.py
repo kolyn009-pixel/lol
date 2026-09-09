@@ -9,9 +9,10 @@ from web_backend.lesson_join import student_workspace, student_join, teacher_ope
 from web_backend.lesson_context import context as lesson_context, add_note as lesson_add_note, send_teacher_message
 from web_backend.post_lesson_flow import state as post_state, save_marks, complete_review, skip_homework
 from web_backend.post_lesson_complete import state as completion_state, complete as complete_post_lesson
+from web_backend.homework_center import update_homework
 
 class Handler(v1.Handler):
-    server_version="AdeliaWeb/1.3"
+    server_version="AdeliaWeb/1.4"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
         if path.startswith('/api/student/'):
@@ -64,6 +65,14 @@ class Handler(v1.Handler):
             try:
                 r=student_join(int(body.get('lesson_id')),int(auth['id']));return self._json(200,r) if r.get('status')=='ok' else self._json(409 if r.get('status')=='entry_closed' else 400,{'error':r.get('status')})
             except Exception as exc:print('[web-api] student join error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+        if path=='/api/teacher/homework-center/update':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if body is None:return self._json(400,{'error':'invalid_json'})
+            try:
+                r=update_homework(int(body.get('homework_id')),title=body.get('title'),description=body.get('description'),deadline=body.get('deadline'),status=body.get('status'))
+                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status')})
+            except Exception as exc:print('[web-api] homework update error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path.startswith('/api/teacher/lesson/'):
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             body=self._body()
