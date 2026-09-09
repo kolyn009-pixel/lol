@@ -23,14 +23,13 @@ def _iso_end(value):
 
 
 def _period_stats(conn,start,end,now):
-    """Return workload value plus cash timing for a calendar period.
+    """Return economic workload and cash timing for one calendar period.
 
-    ``planned`` is the economic value of all non-cancelled lessons in the period.
-    ``already_paid_before_period`` is the part of that value whose linked payment
-    was confirmed before the period began (for example an advance/package bought
-    last week for lessons happening this week). ``received_confirmed`` is actual
-    cash confirmed during this calendar period, regardless of which lessons that
-    payment covers. Keeping both numbers separate prevents double counting.
+    planned/worked/remaining describe work. received_confirmed describes actual
+    cash confirmed inside the period. already_paid_before_period shows value that
+    belongs to this period but was paid earlier. expected_to_receive shows future
+    lessons in the period that are not paid yet, so it is the closest answer to
+    "how much new money can still arrive for this period".
     """
     planned=conn.execute("""
       SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
@@ -48,6 +47,20 @@ def _period_stats(conn,start,end,now):
       FROM lessons l
       WHERE l.start_time>=? AND l.start_time<? AND l.start_time>=?
         AND l.lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
+    """,(start,end,now)).fetchone()
+    expected=conn.execute("""
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
+      FROM lessons l
+      WHERE l.start_time>=? AND l.start_time<? AND l.start_time>=?
+        AND l.lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
+        AND COALESCE(l.payment_status,'WAITING') NOT IN ('PAID','FREE','RESERVED_BALANCE')
+    """,(start,end,now)).fetchone()
+    paid_future=conn.execute("""
+      SELECT COUNT(*) c,COALESCE(SUM(COALESCE(l.price,0)),0) s
+      FROM lessons l
+      WHERE l.start_time>=? AND l.start_time<? AND l.start_time>=?
+        AND l.lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
+        AND COALESCE(l.payment_status,'') IN ('PAID','FREE','RESERVED_BALANCE')
     """,(start,end,now)).fetchone()
     received=conn.execute("""
       SELECT COUNT(*) c,COALESCE(SUM(COALESCE(total_amount,0)),0) s
@@ -82,6 +95,8 @@ def _period_stats(conn,start,end,now):
       'planned':{'lessons':int(planned['c'] or 0),'amount':int(planned['s'] or 0)},
       'worked':{'lessons':int(worked['c'] or 0),'amount':int(worked['s'] or 0)},
       'remaining':{'lessons':int(remaining['c'] or 0),'amount':int(remaining['s'] or 0)},
+      'expected_to_receive':{'lessons':int(expected['c'] or 0),'amount':int(expected['s'] or 0)},
+      'future_already_paid':{'lessons':int(paid_future['c'] or 0),'amount':int(paid_future['s'] or 0)},
       'received_confirmed':{'payments':int(received['c'] or 0),'amount':int(received['s'] or 0)},
       'already_paid_before_period':{'lessons':int(prepaid['c'] or 0),'amount':int(prepaid['s'] or 0)},
       'remaining_already_prepaid':{'lessons':int(prepaid_remaining['c'] or 0),'amount':int(prepaid_remaining['s'] or 0)},
