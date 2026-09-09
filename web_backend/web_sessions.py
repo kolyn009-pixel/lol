@@ -9,11 +9,13 @@ from __future__ import annotations
 import hashlib
 import secrets
 import time
+from datetime import datetime, timedelta
 
 from database import connect, now_iso
 from core import admin_roles
 
 SESSION_TTL = 60 * 60 * 24 * 180
+LAST_SEEN_WRITE_INTERVAL = 300
 _ALLOWED_ROLES = {"student", "parent", "teacher"}
 
 
@@ -83,13 +85,14 @@ def create_session(role, entity_id, ttl_seconds=SESSION_TTL):
     if not _identity_active(conn, role, entity_id):
         conn.close()
         raise PermissionError("session_identity_inactive")
+    stamp = now_iso()
     conn.execute(
         """
         INSERT INTO web_sessions(
             token_hash, role, entity_id, expires_at, created_at, last_seen_at
         ) VALUES(?,?,?,?,?,?)
         """,
-        (_digest(token), role, entity_id, expires, now_iso(), now_iso()),
+        (_digest(token), role, entity_id, expires, stamp, stamp),
     )
     conn.execute(
         "DELETE FROM web_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL",
@@ -100,6 +103,16 @@ def create_session(role, entity_id, ttl_seconds=SESSION_TTL):
     return token
 
 
+def _last_seen_due(value):
+    if not value:
+        return True
+    try:
+        seen = datetime.fromisoformat(str(value))
+    except Exception:
+        return True
+    return datetime.now() - seen >= timedelta(seconds=LAST_SEEN_WRITE_INTERVAL)
+
+
 def read_session(token):
     if not token:
         return None
@@ -108,7 +121,7 @@ def read_session(token):
     conn = connect()
     row = conn.execute(
         """
-        SELECT id, role, entity_id, expires_at
+        SELECT id, role, entity_id, expires_at, last_seen_at
         FROM web_sessions
         WHERE token_hash = ? AND revoked_at IS NULL AND expires_at >= ?
         LIMIT 1
@@ -116,8 +129,6 @@ def read_session(token):
         (_digest(token), now),
     ).fetchone()
     if not row:
-        conn.execute("DELETE FROM web_sessions WHERE expires_at < ?", (now,))
-        conn.commit()
         conn.close()
         return None
     if row["role"] not in _ALLOWED_ROLES or not _identity_active(conn, row["role"], row["entity_id"]):
@@ -128,11 +139,12 @@ def read_session(token):
         conn.commit()
         conn.close()
         return None
-    conn.execute(
-        "UPDATE web_sessions SET last_seen_at=? WHERE id=?",
-        (now_iso(), int(row["id"])),
-    )
-    conn.commit()
+    if _last_seen_due(row["last_seen_at"]):
+        conn.execute(
+            "UPDATE web_sessions SET last_seen_at=? WHERE id=?",
+            (now_iso(), int(row["id"])),
+        )
+        conn.commit()
     item = {
         "role": str(row["role"]),
         "id": int(row["entity_id"]),
