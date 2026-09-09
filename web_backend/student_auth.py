@@ -3,6 +3,13 @@
 Telegram one-time codes are the trusted first-link/recovery channel. After the
 first successful code login a student can create a permanent login/password.
 Passwords are never stored in plaintext: only PBKDF2-SHA256 hashes are kept.
+
+The existing /api/auth/student/code HTTP endpoint is intentionally kept for
+backward compatibility. It accepts three payload forms in its single `code`
+field:
+- 123456                         -> legacy one-time-code login
+- login:<login>:<password>       -> permanent credential login
+- setup:<code>:<login>:<password> -> verify Telegram code and create/reset credentials
 """
 
 import base64
@@ -220,8 +227,7 @@ def issue_student_login_code(student_id, ttl_minutes=CODE_TTL_MINUTES):
     return code
 
 
-def consume_student_login_code(code):
-    ensure_student_web_login_table()
+def _consume_plain_code(code):
     code = "".join(ch for ch in str(code or "") if ch.isdigit())
     if len(code) != 6:
         return {"status": "invalid", "student": None}
@@ -260,3 +266,30 @@ def consume_student_login_code(code):
     }
     conn.close()
     return {"status": "ok", "student": student}
+
+
+def consume_student_login_code(payload):
+    """Backward-compatible auth dispatcher used by the existing HTTP route."""
+    ensure_student_web_login_table()
+    raw = str(payload or "")
+
+    if raw.startswith("login:"):
+        parts = raw.split(":", 2)
+        if len(parts) != 3:
+            return {"status": "invalid", "student": None}
+        return authenticate_student(parts[1], parts[2])
+
+    if raw.startswith("setup:"):
+        parts = raw.split(":", 3)
+        if len(parts) != 4:
+            return {"status": "invalid", "student": None}
+        result = _consume_plain_code(parts[1])
+        if result.get("status") != "ok":
+            return result
+        try:
+            set_student_credentials(result["student"]["id"], parts[2], parts[3])
+        except ValueError as exc:
+            return {"status": str(exc), "student": None}
+        return result
+
+    return _consume_plain_code(raw)
