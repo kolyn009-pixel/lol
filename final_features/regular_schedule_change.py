@@ -50,15 +50,32 @@ def schedules_for_student(user_id):
     return [dict(r) for r in rows]
 
 
-def _first_weekday_on_or_after(start_day, weekday):
-    return start_day + timedelta(days=(int(weekday)-start_day.weekday()) % 7)
+def _is_one_off_exception(lesson):
+    keys=set(lesson.keys())
+    return bool(
+        ('rescheduled_from_lesson_id' in keys and lesson['rescheduled_from_lesson_id']) or
+        ('rescheduled_to_lesson_id' in keys and lesson['rescheduled_to_lesson_id']) or
+        ('reschedule_type' in keys and lesson['reschedule_type']) or
+        ('rescheduled_at' in keys and lesson['rescheduled_at'])
+    )
 
 
-def _future_lessons(schedule_id):
+def _future_lessons(schedule_id, include_exceptions=False):
     now=datetime.now().isoformat(timespec='seconds');c=database.connect()
     marks=','.join('?' for _ in ACTIVE_LESSON_STATUSES)
     rows=c.execute(f"""SELECT * FROM lessons WHERE regular_schedule_id=? AND start_time>=?
-      AND lesson_status IN ({marks}) ORDER BY start_time,id""",(int(schedule_id),now,*ACTIVE_LESSON_STATUSES)).fetchall();c.close();return rows
+      AND lesson_status IN ({marks}) ORDER BY start_time,id""",(int(schedule_id),now,*ACTIVE_LESSON_STATUSES)).fetchall();c.close()
+    if include_exceptions:return rows
+    return [r for r in rows if not _is_one_off_exception(r)]
+
+
+def _target_for_same_week(lesson_start, weekday, hh, mm, duration):
+    old=datetime.fromisoformat(str(lesson_start))
+    monday=old.date()-timedelta(days=old.weekday())
+    target_day=monday+timedelta(days=int(weekday))
+    start=datetime.combine(target_day,datetime.min.time()).replace(hour=hh,minute=mm)
+    end=start+timedelta(minutes=int(duration))
+    return start,end
 
 
 def analyze(user_id,schedule_id,weekday,start_time,duration_minutes):
@@ -67,16 +84,19 @@ def analyze(user_id,schedule_id,weekday,start_time,duration_minutes):
     weekday=int(weekday);duration=int(duration_minutes)
     if weekday<0 or weekday>6:raise ValueError('invalid_weekday')
     if duration<30 or duration>180 or duration%30:raise ValueError('invalid_duration')
-    try:hh,mm=map(int,str(start_time).split(':')[:2]); assert 0<=hh<=23 and 0<=mm<=59
+    try:hh,mm=map(int,str(start_time).split(':')[:2]); assert 0<=hh<=23 and 0<=mm<=59 and mm in (0,30)
     except Exception:raise ValueError('invalid_start_time') from None
-    lessons=_future_lessons(schedule_id); affected_ids=[int(x['id']) for x in lessons]
-    base=max(date.today(),datetime.fromisoformat(lessons[0]['start_time']).date() if lessons else date.today())
-    first=_first_weekday_on_or_after(base,weekday)
+    all_lessons=_future_lessons(schedule_id,include_exceptions=True)
+    lessons=[x for x in all_lessons if not _is_one_off_exception(x)]
+    preserved=[x for x in all_lessons if _is_one_off_exception(x)]
+    affected_ids=[int(x['id']) for x in lessons]
     proposed=[];conflicts=[]
     c=database.connect()
-    for i,lesson in enumerate(lessons):
-        d=first+timedelta(days=7*i);start=datetime.combine(d,datetime.min.time()).replace(hour=hh,minute=mm);end=start+timedelta(minutes=duration)
-        if (start-date.today().__class__.fromisoformat(d.isoformat()) if False else None):pass
+    for lesson in lessons:
+        start,end=_target_for_same_week(lesson['start_time'],weekday,hh,mm,duration)
+        if start <= datetime.now():
+            # A schedule change never pulls an already-near lesson backwards into the past.
+            preserved.append(lesson);continue
         marks=','.join('?' for _ in affected_ids) if affected_ids else 'NULL'
         params=[end.isoformat(),start.isoformat()]
         sql="SELECT l.id,l.user_id,l.start_time,l.end_time,u.name FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.lesson_status IN ('PENDING','CONFIRMED','IN_PROGRESS') AND l.start_time < ? AND l.end_time > ?"
@@ -88,7 +108,13 @@ def analyze(user_id,schedule_id,weekday,start_time,duration_minutes):
             item['conflict']={'lesson_id':int(hit['id']),'student_id':int(hit['user_id']),'student_name':hit['name'],'start_time':hit['start_time'],'end_time':hit['end_time']};conflicts.append(item['conflict'])
         proposed.append(item)
     c.close()
-    return {'feasible':not conflicts,'user_id':int(user_id),'regular_schedule_id':int(schedule_id),'weekday':weekday,'start_time':f'{hh:02d}:{mm:02d}','duration_minutes':duration,'affected_lessons':proposed,'conflicts':conflicts,'requires_teacher_approval':True}
+    return {
+      'feasible':not conflicts,'user_id':int(user_id),'regular_schedule_id':int(schedule_id),
+      'weekday':weekday,'start_time':f'{hh:02d}:{mm:02d}','duration_minutes':duration,
+      'affected_lessons':proposed,'conflicts':conflicts,'requires_teacher_approval':True,
+      'preserved_exception_lesson_ids':sorted({int(x['id']) for x in preserved}),
+      'preserved_exceptions_count':len({int(x['id']) for x in preserved}),
+    }
 
 
 def create_request(user_id,schedule_id,weekday,start_time,duration_minutes,source='WEB',note=None):
@@ -131,16 +157,37 @@ def apply_approved(request_id,teacher_id):
     fresh=analyze(req['user_id'],req['regular_schedule_id'],req['proposed_weekday'],req['proposed_start_time'],req['proposed_duration_minutes'])
     if not fresh['feasible']:raise ValueError('schedule_changed_since_approval')
     now=datetime.now().isoformat(timespec='seconds');c=database.connect()
+    affected_ids=[int(x['lesson_id']) for x in fresh['affected_lessons']]
     try:
         c.execute('BEGIN IMMEDIATE')
-        c.execute("UPDATE regular_schedules SET weekday=?,start_time=?,duration_minutes=?,updated_at=? WHERE id=? AND user_id=?",(req['proposed_weekday'],req['proposed_start_time'],req['proposed_duration_minutes'],now,req['regular_schedule_id'],req['user_id']))
+        # Recheck every source row and every target interval while holding the write lock.
         for item in fresh['affected_lessons']:
-            c.execute("UPDATE lessons SET start_time=?,end_time=?,duration_minutes=?,updated_at=? WHERE id=? AND regular_schedule_id=?",(item['to_start'],item['to_end'],req['proposed_duration_minutes'],now,item['lesson_id'],req['regular_schedule_id']))
+            row=c.execute("SELECT * FROM lessons WHERE id=? AND regular_schedule_id=?",(item['lesson_id'],req['regular_schedule_id'])).fetchone()
+            if not row or row['start_time']!=item['from_start'] or row['end_time']!=item['from_end'] or _is_one_off_exception(row):
+                raise ValueError('schedule_changed_since_approval')
+            params=[item['to_end'],item['to_start']]
+            sql="SELECT id FROM lessons WHERE lesson_status IN ('PENDING','CONFIRMED','IN_PROGRESS') AND start_time < ? AND end_time > ?"
+            if affected_ids:
+                marks=','.join('?' for _ in affected_ids);sql+=f" AND id NOT IN ({marks})";params.extend(affected_ids)
+            if c.execute(sql,params).fetchone():raise ValueError('schedule_conflicts_detected')
+        c.execute("UPDATE regular_schedules SET weekday=?,start_time=?,duration_minutes=?,updated_at=? WHERE id=? AND user_id=?",(req['proposed_weekday'],req['proposed_start_time'],req['proposed_duration_minutes'],now,req['regular_schedule_id'],req['user_id']))
+        if c.total_changes < 1:raise ValueError('regular_schedule_changed')
+        for item in fresh['affected_lessons']:
+            cur=c.execute("""UPDATE lessons SET start_time=?,end_time=?,duration_minutes=?,updated_at=?
+              WHERE id=? AND regular_schedule_id=? AND start_time=? AND end_time=?
+                AND rescheduled_from_lesson_id IS NULL AND rescheduled_to_lesson_id IS NULL
+                AND reschedule_type IS NULL AND rescheduled_at IS NULL""",
+              (item['to_start'],item['to_end'],req['proposed_duration_minutes'],now,item['lesson_id'],req['regular_schedule_id'],item['from_start'],item['from_end']))
+            if cur.rowcount!=1:raise ValueError('schedule_changed_since_approval')
         c.execute("UPDATE regular_schedule_change_requests SET status='APPLIED',applied_at=?,analysis_json=? WHERE id=?",(now,json.dumps(fresh,ensure_ascii=False),int(request_id)))
         c.commit()
     except Exception:c.rollback();raise
     finally:c.close()
-    return {'status':'ok','request_id':int(request_id),'regular_schedule_id':int(req['regular_schedule_id']),'affected_lesson_ids':[x['lesson_id'] for x in fresh['affected_lessons']],'calendar_sync_required':True}
+    return {
+      'status':'ok','request_id':int(request_id),'regular_schedule_id':int(req['regular_schedule_id']),
+      'affected_lesson_ids':affected_ids,'preserved_exception_lesson_ids':fresh['preserved_exception_lesson_ids'],
+      'calendar_sync_required':True,'reminder_sync_required':True,
+    }
 
 
 def reject(request_id,teacher_id=None):
