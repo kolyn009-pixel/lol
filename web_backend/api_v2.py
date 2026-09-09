@@ -6,7 +6,7 @@ from web_backend import api as v1
 from web_backend.student_portal import dashboard as student_dashboard, schedule as student_schedule, payments as student_payments, profile as student_profile, conversation_for_student
 from web_backend.student_homework import submit_answers
 from web_backend.manual_homework import submit as submit_manual_homework
-from web_backend.unified_messages import add_message
+from web_backend.message_inbound import receive_web_student_message
 from web_backend.lesson_join import student_workspace, student_join, teacher_open_entry, join_events
 from web_backend.lesson_context import context as lesson_context, add_note as lesson_add_note, send_teacher_message
 from web_backend.post_lesson_flow import state as post_state, save_marks, complete_review, skip_homework
@@ -22,7 +22,7 @@ from web_backend.stage9_api import Stage9Mixin
 from web_backend.stage10_api import Stage10Mixin
 
 class Handler(Stage10Mixin,Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Handler):
-    server_version="AdeliaWeb/2.5"
+    server_version="AdeliaWeb/2.6"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
         handled=self.stage10_get(path,q)
@@ -92,10 +92,8 @@ class Handler(Stage10Mixin,Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Ha
             if not auth:return self._json(401,{'error':'unauthorized'})
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
-            text=str(body.get('text') or '').strip()
-            if not text:return self._json(400,{'error':'text_required'})
-            if len(text)>4000:return self._json(400,{'error':'text_too_long'})
-            try:return self._json(200,{'status':'ok','message_id':add_message(int(auth['id']),'IN','STUDENT','WEB',text=text)})
+            try:return self._json(200,receive_web_student_message(int(auth['id']),body.get('text')))
+            except ValueError as exc:return self._json(400,{'error':str(exc)})
             except Exception as exc:print('[web-api] student message error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/student/homework/submit':
             auth=self._student()
