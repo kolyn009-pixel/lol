@@ -15,6 +15,7 @@ from core import (
     admin_roles,
     test_lab,
 )
+from handlers import homework_channel_handlers
 
 
 async def home(
@@ -37,8 +38,6 @@ async def home(
         else ""
     )
 
-    # Не очищаем parent_acting_student_id до того,
-    # как проверили режим родителя.
     acting_student_id = (
         context.user_data.get(
             "parent_acting_student_id"
@@ -52,10 +51,6 @@ async def home(
             or admin_roles.is_owner(tid)
         )
     )
-
-    # ========================================================
-    # TEST MODE
-    # ========================================================
 
     if test_active:
 
@@ -149,10 +144,6 @@ async def home(
 
                 markup = None
 
-    # ========================================================
-    # ADMIN
-    # ========================================================
-
     elif admin_roles.is_admin_id(
         tid
     ):
@@ -164,10 +155,6 @@ async def home(
         markup = (
             admin.admin_menu()
         )
-
-    # ========================================================
-    # NORMAL USER
-    # ========================================================
 
     else:
 
@@ -186,10 +173,6 @@ async def home(
         )
 
         import bot as b
-
-        # ----------------------------------------------------
-        # Parent acting as student
-        # ----------------------------------------------------
 
         if (
             parent
@@ -236,14 +219,7 @@ async def home(
                         )
                     )
 
-                    # Главное:
-                    # никто после нас уже не
-                    # перерисовывает это сообщение.
                     raise ApplicationHandlerStop
-
-        # ----------------------------------------------------
-        # Parent home
-        # ----------------------------------------------------
 
         if (
             parent
@@ -259,10 +235,6 @@ async def home(
             markup = (
                 b.parent_menu()
             )
-
-        # ----------------------------------------------------
-        # Student home
-        # ----------------------------------------------------
 
         elif (
             user
@@ -291,13 +263,6 @@ async def home(
 
             markup = None
 
-    # После выбора роли уже можно
-    # очистить временные состояния.
-    #
-    # Для обычного возвращения ученика
-    # на главную нам больше ничего
-    # от старого flow не требуется.
-
     if not (
         parent
         if "parent" in locals()
@@ -322,10 +287,6 @@ async def home(
             )
         )
 
-    # КРИТИЧЕСКАЯ ЧАСТЬ:
-    # запрещаем bot.py / payments.py /
-    # другим поздним handler-группам
-    # повторно обработать main/global_home.
     raise ApplicationHandlerStop
 
 
@@ -343,4 +304,5 @@ def handlers():
                 r"^(?:main|global_home)$"
             ),
         ),
+        *homework_channel_handlers.handlers(),
     ]
