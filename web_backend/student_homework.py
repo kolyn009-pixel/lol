@@ -6,14 +6,14 @@ interactive, and tracked external homework in one feed.
 from database import connect
 from web_backend.assessment import student_homework_payload, submit_structured
 from web_backend.external_homework import get_external_link, mark_opened, set_student_status
+from web_backend.homework_status import payload as status_payload
 
 
 def list_homework(user_id,limit=100):
-    conn=connect();rows=conn.execute("""SELECT id,title,description,homework_type,source_type,source_reference,source_url,deadline,status,assigned_at,submitted_at,reviewed_at,subject,study_goal,lesson_id FROM homework WHERE user_id=? ORDER BY CASE WHEN status IN ('ASSIGNED','UNDER_REVIEW','REVISION') THEN 0 ELSE 1 END, COALESCE(deadline,assigned_at) DESC LIMIT ?""",(int(user_id),int(limit))).fetchall();conn.close()
+    conn=connect();rows=conn.execute("""SELECT id,title,description,homework_type,source_type,source_reference,source_url,deadline,status,assigned_at,submitted_at,reviewed_at,subject,study_goal,lesson_id FROM homework WHERE user_id=? ORDER BY CASE WHEN status IN ('ASSIGNED','UNDER_REVIEW','REVISION','SUBMITTED') THEN 0 ELSE 1 END, COALESCE(deadline,assigned_at) DESC LIMIT ?""",(int(user_id),int(limit))).fetchall();conn.close()
     out=[]
     for row in rows:
-        item=dict(row);ext=get_external_link(item['id']);item['external']=ext
-        # Never expose task_bank.answer or task_bank.solution.
+        item=dict(row);item['status_ui']=status_payload(item.get('status'));ext=get_external_link(item['id']);item['external']=ext
         try:
             payload=student_homework_payload(item['id'],user_id)
             item['interactive_task_count']=len(payload['tasks']) if payload else 0
@@ -27,11 +27,12 @@ def list_homework(user_id,limit=100):
 def detail(homework_id,user_id):
     payload=student_homework_payload(homework_id,user_id)
     if not payload:return None
+    payload['homework']['status_ui']=status_payload(payload['homework'].get('status'))
     payload['external']=get_external_link(homework_id)
     return payload
 
 
-def submit_answers(homework_id,user_id,responses,attempt_number=1):
+def submit_answers(homework_id,user_id,responses,attempt_number=None):
     return submit_structured(homework_id,user_id,responses,attempt_number)
 
 
