@@ -1,0 +1,48 @@
+/* Stage 11 mobile/touch polish. Kept additive so the existing visual system stays intact. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{overflow-x:hidden}
+button,a,input,textarea{-webkit-tap-highlight-color:transparent}
+button,.nav-item,.mini-btn,.form-primary,.primary-btn,.menu-list button{touch-action:manipulation}
+input,textarea{font-size:16px}
+
+@media(max-width:430px){
+  .app-shell{width:100%;padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+  .topbar{padding-left:14px;padding-right:14px;gap:10px}
+  .content{padding-left:12px;padding-right:12px}
+  .avatar-btn{width:42px;height:42px;flex:0 0 auto}
+  .welcome,.balance,.progress-card{padding:18px;border-radius:21px}
+  .welcome h2{font-size:21px}
+  .quick-actions{gap:8px;margin-top:10px}
+  .action-card{min-height:112px;padding:14px;border-radius:17px}
+  .action-card>span{margin-bottom:8px}
+  .list-card{align-items:flex-start;padding:11px;gap:9px}
+  .date-badge{width:45px;height:49px}
+  .list-card .mini-btn{min-height:42px;align-self:center}
+  .payment{align-items:flex-start;flex-wrap:wrap}
+  .payment strong{margin-left:auto}
+  .chat-msg{max-width:90%}
+  .chat-compose{left:0;right:0;margin-left:-2px;margin-right:-2px;padding:8px 2px 8px}
+  .chat-compose button{min-width:48px;min-height:48px;padding:0 11px}
+  .form-card{padding:17px;border-radius:17px}
+  .form-card input,.answer-input{min-height:52px}
+  .code-input{font-size:25px}
+  .status-actions{display:grid;grid-template-columns:1fr}
+  .status-actions button{min-height:44px}
+  .bottom-nav{padding-left:2px;padding-right:2px}
+  .nav-item{min-height:58px;min-width:0}
+}
+
+@media(max-width:350px){
+  h1{font-size:21px}
+  .quick-actions{grid-template-columns:1fr}
+  .action-card{min-height:92px}
+  .list-card{display:grid;grid-template-columns:43px minmax(0,1fr)}
+  .list-card .mini-btn{grid-column:1/-1;width:100%}
+  .payment{display:block}
+  .payment strong{display:block;margin-top:8px;white-space:normal}
+  .segmented button{padding:9px 5px;font-size:12px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
