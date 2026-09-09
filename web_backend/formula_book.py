@@ -11,6 +11,7 @@ EDITABLE={
 }
 LEVELS={'ALL','SCHOOL','COLLEGE'}
 
+
 def ensure_tables():
     conn=connect();conn.executescript("""
     CREATE TABLE IF NOT EXISTS formula_book(
@@ -58,12 +59,14 @@ def ensure_tables():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_formula_filter ON formula_book(subject,education_level,section,topic,active,sort_order)')
     conn.commit();conn.close()
 
+
 def _json(value,default=None):
     if value is None:return json.dumps(default if default is not None else [],ensure_ascii=False)
     if isinstance(value,str):
         try:json.loads(value);return value
         except Exception:return json.dumps([value] if value else [],ensure_ascii=False)
     return json.dumps(value,ensure_ascii=False)
+
 
 def _normalize(fields,creating=False):
     out={}
@@ -80,7 +83,7 @@ def _normalize(fields,creating=False):
     for key in ('grade_min','grade_max'):
         if out.get(key) is not None and not 1<=int(out[key])<=11:raise ValueError('invalid_grade')
     for key in ('course_min','course_max'):
-        if out.get(key) is not None and not 1<=int(out[key])<=6:raise ValueError('invalid_course')
+        if out.get(key) is not None and not 1<=int(out[key])<=4:raise ValueError('invalid_course')
     if out.get('grade_min') is not None and out.get('grade_max') is not None and int(out['grade_min'])>int(out['grade_max']):raise ValueError('invalid_grade_range')
     if out.get('course_min') is not None and out.get('course_max') is not None and int(out['course_min'])>int(out['course_max']):raise ValueError('invalid_course_range')
     level=str(out.get('education_level') or 'ALL').upper()
@@ -94,15 +97,28 @@ def _normalize(fields,creating=False):
     if 'study_goal' in out and out['study_goal']:out['study_goal']=str(out['study_goal']).upper()
     return out
 
+
+def _validate_effective(data):
+    level=str(data.get('education_level') or 'ALL').upper();subject=str(data.get('subject') or '').upper()
+    cmin=data.get('course_min');cmax=data.get('course_max')
+    if level=='COLLEGE' and subject=='PHYSICS':
+        if cmin is not None and int(cmin)>2:raise ValueError('physics_college_course_out_of_range')
+        if cmax is not None and int(cmax)>2:raise ValueError('physics_college_course_out_of_range')
+    return data
+
+
 def create_formula(fields):
-    ensure_tables();data=_normalize(fields,True);now=now_iso();cols=list(data);vals=[data[k] for k in cols];conn=connect();cur=conn.execute(f"INSERT INTO formula_book({','.join(cols)},created_at,updated_at) VALUES({','.join('?' for _ in cols)},?,?)",(*vals,now,now));conn.commit();fid=int(cur.lastrowid);conn.close();return {'status':'ok','id':fid}
+    ensure_tables();data=_validate_effective(_normalize(fields,True));now=now_iso();cols=list(data);vals=[data[k] for k in cols];conn=connect();cur=conn.execute(f"INSERT INTO formula_book({','.join(cols)},created_at,updated_at) VALUES({','.join('?' for _ in cols)},?,?)",(*vals,now,now));conn.commit();fid=int(cur.lastrowid);conn.close();return {'status':'ok','id':fid}
+
 
 def update_formula(formula_id,fields):
-    ensure_tables();data=_normalize(fields,False)
-    if not data:return {'status':'ok','changed':0,'id':int(formula_id)}
-    conn=connect();row=conn.execute('SELECT id FROM formula_book WHERE id=?',(int(formula_id),)).fetchone()
+    ensure_tables();patch=_normalize(fields,False)
+    if not patch:return {'status':'ok','changed':0,'id':int(formula_id)}
+    conn=connect();row=conn.execute('SELECT * FROM formula_book WHERE id=?',(int(formula_id),)).fetchone()
     if not row:conn.close();return {'status':'not_found'}
-    pairs=[k+'=?' for k in data];vals=[data[k] for k in data];vals.extend([now_iso(),int(formula_id)]);cur=conn.execute(f"UPDATE formula_book SET {','.join(pairs)},updated_at=? WHERE id=?",vals);conn.commit();conn.close();return {'status':'ok','changed':int(cur.rowcount),'id':int(formula_id)}
+    effective=dict(row);effective.update(patch);_validate_effective(effective)
+    pairs=[k+'=?' for k in patch];vals=[patch[k] for k in patch];vals.extend([now_iso(),int(formula_id)]);cur=conn.execute(f"UPDATE formula_book SET {','.join(pairs)},updated_at=? WHERE id=?",vals);conn.commit();conn.close();return {'status':'ok','changed':int(cur.rowcount),'id':int(formula_id)}
+
 
 def list_formulas(user_id=None,subject=None,section=None,topic=None,search=None,favorites_only=False,limit=300,education_level=None):
     ensure_tables();where=['f.active=1'];params=[];join=''
@@ -120,10 +136,12 @@ def list_formulas(user_id=None,subject=None,section=None,topic=None,search=None,
     favcol='CASE WHEN fav.id IS NULL THEN 0 ELSE 1 END favorite' if user_id is not None else '0 favorite'
     conn=connect();rows=conn.execute(f"SELECT f.*,{favcol} FROM formula_book f {join} WHERE {' AND '.join(where)} ORDER BY f.subject,f.education_level,f.sort_order,f.section,f.topic,f.id LIMIT ?",(*params,max(1,min(int(limit),500)))).fetchall();conn.close();return [dict(r) for r in rows]
 
+
 def formula_detail(formula_id,user_id=None):
     ensure_tables();conn=connect();params=[int(formula_id)];join='';fav='0 favorite'
     if user_id is not None:join=' LEFT JOIN formula_favorites x ON x.formula_id=f.id AND x.user_id=? ';params=[int(user_id),int(formula_id)];fav='CASE WHEN x.id IS NULL THEN 0 ELSE 1 END favorite'
     row=conn.execute(f'SELECT f.*,{fav} FROM formula_book f {join} WHERE f.id=? AND f.active=1',params).fetchone();conn.close();return dict(row) if row else None
+
 
 def set_favorite(formula_id,user_id,value=True):
     ensure_tables();conn=connect();exists=conn.execute('SELECT id FROM formula_book WHERE id=? AND active=1',(int(formula_id),)).fetchone()
@@ -132,8 +150,9 @@ def set_favorite(formula_id,user_id,value=True):
     else:conn.execute('DELETE FROM formula_favorites WHERE formula_id=? AND user_id=?',(int(formula_id),int(user_id)))
     conn.commit();conn.close();return {'status':'ok','favorite':bool(value)}
 
+
 def facets():
-    ensure_tables();conn=connect();subjects=[r[0] for r in conn.execute("SELECT DISTINCT subject FROM formula_book WHERE active=1 ORDER BY subject")];sections=[dict(r) for r in conn.execute("SELECT subject,education_level,section,COUNT(*) count FROM formula_book WHERE active=1 AND section IS NOT NULL GROUP BY subject,education_level,section ORDER BY subject,section")];topics=[dict(r) for r in conn.execute("SELECT subject,education_level,section,topic,COUNT(*) count FROM formula_book WHERE active=1 AND topic IS NOT NULL GROUP BY subject,education_level,section,topic ORDER BY subject,section,topic")];conn.close();return {'subjects':subjects,'education_levels':['SCHOOL','COLLEGE'],'sections':sections,'topics':topics}
+    ensure_tables();conn=connect();subjects=[r[0] for r in conn.execute("SELECT DISTINCT subject FROM formula_book WHERE active=1 ORDER BY subject")];sections=[dict(r) for r in conn.execute("SELECT subject,education_level,section,COUNT(*) count FROM formula_book WHERE active=1 AND section IS NOT NULL GROUP BY subject,education_level,section ORDER BY subject,section")];topics=[dict(r) for r in conn.execute("SELECT subject,education_level,section,topic,COUNT(*) count FROM formula_book WHERE active=1 AND topic IS NOT NULL GROUP BY subject,education_level,section,topic ORDER BY subject,section,topic")];conn.close();return {'subjects':subjects,'education_levels':['SCHOOL','COLLEGE'],'college_courses':[1,2,3,4],'physics_college_courses':[1,2],'sections':sections,'topics':topics}
 
 STARTER_FORMULAS=[
  {'subject':'PHYSICS','education_level':'ALL','section':'Механика','topic':'Кинематика','title':'Равномерное движение','formula_latex':r's = vt','formula_plain':'s = v*t','description':'Путь при постоянной скорости.','variables_json':['s — путь, м','v — скорость, м/с','t — время, с'],'tags_json':['механика','кинематика'],'sort_order':10},
@@ -144,6 +163,7 @@ STARTER_FORMULAS=[
  {'subject':'PHYSICS','education_level':'COLLEGE','section':'Колебания и волны','topic':'Гармонические колебания','title':'Период пружинного маятника','formula_latex':r'T = 2\pi\sqrt{\frac{m}{k}}','formula_plain':'T = 2*pi*sqrt(m/k)','description':'Период малых колебаний груза на пружине.','variables_json':['T — период, с','m — масса, кг','k — жёсткость пружины, Н/м'],'course_min':1,'course_max':2,'tags_json':['колледж','колебания'],'sort_order':60},
  {'subject':'CHEMISTRY','education_level':'SCHOOL','section':'Расчёты','topic':'Количество вещества','title':'Количество вещества через массу','formula_latex':r'n = \frac{m}{M}','formula_plain':'n = m/M','description':'Расчёт количества вещества по массе и молярной массе.','variables_json':['n — количество вещества, моль','m — масса, г','M — молярная масса, г/моль'],'grade_min':8,'grade_max':11,'study_goal':'OGE','tags_json':['моль','расчёты'],'sort_order':10}
 ]
+
 
 def seed_starter_formulas():
     ensure_tables();created=[]
