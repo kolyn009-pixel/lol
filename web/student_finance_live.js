@@ -1,0 +1,11 @@
+(()=>{
+'use strict';
+let timer=null,lastSignature='';
+async function get(){const r=await fetch('/api/student/finance/overview',{credentials:'same-origin'});if(!r.ok)throw new Error('finance_unavailable');return r.json()}
+function sig(d){const w=d.waiting_payment||{};return [d.balance?.paid||0,d.balance?.bonus||0,d.balance?.total||0,w.id||0,w.status||''].join(':')}
+function toast(text,kind='ok'){let el=document.querySelector('#financeLiveToast');if(!el){el=document.createElement('div');el.id='financeLiveToast';el.style.cssText='position:fixed;right:18px;bottom:84px;z-index:1200;max-width:360px;padding:12px 14px;border-radius:14px;background:#fff;box-shadow:0 14px 44px #2d23452b;border:1px solid #e5deef;font:600 13px/1.4 system-ui;transition:.2s';document.body.appendChild(el)}el.textContent=text;el.style.color=kind==='bad'?'#a23d4d':'#287143';el.hidden=false;clearTimeout(el._t);el._t=setTimeout(()=>{el.hidden=true},5500)}
+async function refresh(){if(document.hidden||!location.pathname.startsWith('/app'))return;const title=document.querySelector('#pageTitle')?.textContent||'';if(title!=='Оплата')return;try{const d=await get(),next=sig(d);if(!lastSignature){lastSignature=next;return}if(next!==lastSignature){const before=lastSignature.split(':'),now=next.split(':');const oldStatus=before[4]||'',newStatus=now[4]||'';lastSignature=next;if(oldStatus==='RECEIPT_SENT'&&newStatus==='PAID')toast('✓ Оплата подтверждена. Баланс уже обновлён.');else if(oldStatus==='RECEIPT_SENT'&&newStatus==='REJECTED')toast('Чек отклонён. Открой оплату и отправь корректный чек.','bad');else toast('Данные оплаты обновились.');const content=document.querySelector('#content');if(content){content.dataset.financeMounted='0';document.querySelector('#pageTitle')?.dispatchEvent(new Event('change'));setTimeout(()=>{const tab=document.querySelector('[data-tab="payments"], [data-tab="finance"]');if(tab)tab.click()},30)}}}catch{}}
+function start(){if(timer)return;timer=setInterval(refresh,6000);refresh()}
+function stop(){if(timer){clearInterval(timer);timer=null}}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();else start()});window.addEventListener('online',refresh);window.addEventListener('beforeunload',stop);document.addEventListener('DOMContentLoaded',start);if(document.readyState!=='loading')start();
+})();
