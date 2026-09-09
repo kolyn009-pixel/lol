@@ -1,5 +1,5 @@
-const CACHE='adelia-shell-v3';
-const SHELL=['/app/','/app/styles.css','/app/app.js','/app/pwa.js','/app/manifest.webmanifest'];
+const CACHE='adelia-shell-v4';
+const SHELL=['/app/','/app/styles.css','/app/app.js','/app/student_homework_plus.css','/app/student_homework_plus.js','/app/pwa.js','/app/app_shell_plus.js','/app/manifest.webmanifest'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
