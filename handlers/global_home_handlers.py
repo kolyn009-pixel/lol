@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 
 from telegram.ext import (
     CallbackQueryHandler,
@@ -15,7 +15,19 @@ from core import (
     admin_roles,
     test_lab,
 )
-from handlers import homework_channel_handlers
+from handlers import homework_channel_handlers, web_portal_login
+
+
+def _with_web_button(markup, role):
+    """Add one stable web-cabinet entry without changing legacy menu builders."""
+    if not markup or role not in {"student", "teacher"}:
+        return markup
+    rows = [list(row) for row in markup.inline_keyboard]
+    callback = "web_teacher_code" if role == "teacher" else "web_student_code"
+    label = "🌐 Кабинет преподавателя" if role == "teacher" else "🌐 Личный кабинет"
+    if not any(getattr(button, "callback_data", None) == callback for row in rows for button in row):
+        rows.append([InlineKeyboardButton(label, callback_data=callback)])
+    return InlineKeyboardMarkup(rows)
 
 
 async def home(
@@ -52,6 +64,8 @@ async def home(
         )
     )
 
+    web_role = None
+
     if test_active:
 
         database.set_test_mode(True)
@@ -73,6 +87,7 @@ async def home(
             markup = (
                 admin.admin_menu()
             )
+            web_role = "teacher"
 
         elif role == "PARENT":
 
@@ -133,6 +148,7 @@ async def home(
                         user["id"]
                     )
                 )
+                web_role = "student"
 
             else:
 
@@ -155,6 +171,7 @@ async def home(
         markup = (
             admin.admin_menu()
         )
+        web_role = "teacher"
 
     else:
 
@@ -252,6 +269,7 @@ async def home(
                     user["id"]
                 )
             )
+            web_role = "student"
 
         else:
 
@@ -262,6 +280,8 @@ async def home(
             )
 
             markup = None
+
+    markup = _with_web_button(markup, web_role)
 
     if not (
         parent
@@ -304,5 +324,6 @@ def handlers():
                 r"^(?:main|global_home)$"
             ),
         ),
+        *web_portal_login.handlers(),
         *homework_channel_handlers.handlers(),
     ]
