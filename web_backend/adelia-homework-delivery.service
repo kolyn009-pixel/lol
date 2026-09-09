@@ -1,0 +1,14 @@
+[Unit]
+Description=Adelia Homework Notification Delivery
+After=network.target tutorbot.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tutorbot
+Environment=ADELIA_PUBLIC_URL=https://adeliatutor.ru
+ExecStart=/opt/tutorbot/venv/bin/python -m web_backend.homework_delivery_worker
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
