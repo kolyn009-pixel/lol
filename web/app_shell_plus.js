@@ -3,6 +3,11 @@
     const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});
     const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Ошибка');return j;
   };
+  function showInstallHint(message){
+    let hint=document.querySelector('#adeliaInstallHint');
+    if(!hint){hint=document.createElement('div');hint.id='adeliaInstallHint';hint.className='stage11-network visible';hint.setAttribute('role','status');document.body.append(hint)}
+    hint.textContent=message;hint.classList.add('visible');clearTimeout(showInstallHint.timer);showInstallHint.timer=setTimeout(()=>hint.classList.remove('visible'),6500);
+  }
   function addShellActions(){
     const host=document.querySelector('header')||document.querySelector('.topbar');
     if(!host||document.querySelector('#adeliaShellActions'))return;
@@ -12,7 +17,7 @@
     box.append(install,logout);host.append(box);
     const refresh=()=>{install.hidden=window.AdeliaPWA?.isStandalone?.()||!window.AdeliaPWA?.canInstall?.()};refresh();
     window.addEventListener('adelia:pwa-state',refresh);
-    install.onclick=async()=>{await window.AdeliaPWA?.install?.();refresh()};
+    install.onclick=async()=>{const result=await window.AdeliaPWA?.install?.();if(result?.status==='manual'&&result.message)showInstallHint(result.message);refresh()};
     logout.onclick=async()=>{logout.disabled=true;try{await api('/auth/logout',{method:'POST',body:'{}'})}catch{}location.replace('/app/')};
   }
   function deepLink(){
