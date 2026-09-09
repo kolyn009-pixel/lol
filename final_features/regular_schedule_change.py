@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 import json
 import database
+from core import schedule_sync
 
 HORIZON_DAYS = 56
 ACTIVE_LESSON_STATUSES = ('PENDING','CONFIRMED')
@@ -95,7 +96,6 @@ def analyze(user_id,schedule_id,weekday,start_time,duration_minutes):
     for lesson in lessons:
         start,end=_target_for_same_week(lesson['start_time'],weekday,hh,mm,duration)
         if start <= datetime.now():
-            # A schedule change never pulls an already-near lesson backwards into the past.
             preserved.append(lesson);continue
         marks=','.join('?' for _ in affected_ids) if affected_ids else 'NULL'
         params=[end.isoformat(),start.isoformat()]
@@ -160,7 +160,6 @@ def apply_approved(request_id,teacher_id):
     affected_ids=[int(x['lesson_id']) for x in fresh['affected_lessons']]
     try:
         c.execute('BEGIN IMMEDIATE')
-        # Recheck every source row and every target interval while holding the write lock.
         for item in fresh['affected_lessons']:
             row=c.execute("SELECT * FROM lessons WHERE id=? AND regular_schedule_id=?",(item['lesson_id'],req['regular_schedule_id'])).fetchone()
             if not row or row['start_time']!=item['from_start'] or row['end_time']!=item['from_end'] or _is_one_off_exception(row):
@@ -183,10 +182,17 @@ def apply_approved(request_id,teacher_id):
         c.commit()
     except Exception:c.rollback();raise
     finally:c.close()
+    sync_result={'synced_lesson_ids':[],'failed':[]}
+    if affected_ids:
+        try:
+            sync_result=schedule_sync.sync_lessons_blocking(affected_ids)
+        except Exception as exc:
+            sync_result={'synced_lesson_ids':[],'failed':[{'reason':'schedule_sync_error','detail':type(exc).__name__}]}
     return {
       'status':'ok','request_id':int(request_id),'regular_schedule_id':int(req['regular_schedule_id']),
       'affected_lesson_ids':affected_ids,'preserved_exception_lesson_ids':fresh['preserved_exception_lesson_ids'],
-      'calendar_sync_required':True,'reminder_sync_required':True,
+      'calendar_sync_required':bool(sync_result.get('failed')),'reminder_sync_required':True,
+      'sync':sync_result,
     }
 
 
