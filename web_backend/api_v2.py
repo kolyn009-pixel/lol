@@ -13,9 +13,10 @@ from web_backend.post_lesson_complete import state as completion_state, complete
 from web_backend.homework_center import update_homework
 from web_backend.assessment import save_task_feedback, student_feedback
 from web_backend.homework_review_flow import finalize as finalize_homework_review
+from web_backend.teacher_crm import schedule as teacher_crm_schedule, student as teacher_crm_student, update_student as teacher_crm_update_student
 
 class Handler(v1.Handler):
-    server_version="AdeliaWeb/1.7"
+    server_version="AdeliaWeb/1.8"
     def do_GET(self):
         u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
         if path.startswith('/api/student/'):
@@ -36,6 +37,14 @@ class Handler(v1.Handler):
                 if path=='/api/student/homework/feedback':return self._json(200,student_feedback(int(q.get('id',['0'])[0]),uid))
             except (TypeError,ValueError):return self._json(400,{'error':'invalid_request'})
             except Exception as exc:print('[web-api] student GET error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+        if path.startswith('/api/teacher/crm/'):
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            try:
+                if path=='/api/teacher/crm/schedule':return self._json(200,teacher_crm_schedule(q.get('start',[None])[0],q.get('end',[None])[0],q.get('limit',[300])[0]))
+                if path=='/api/teacher/crm/student':
+                    item=teacher_crm_student(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
+            except (TypeError,ValueError):return self._json(400,{'error':'invalid_request'})
+            except Exception as exc:print('[web-api] teacher CRM GET error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path.startswith('/api/teacher/lesson/'):
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             try:
@@ -73,14 +82,15 @@ class Handler(v1.Handler):
             except PermissionError:return self._json(404,{'error':'homework_not_found'})
             except ValueError as exc:return self._json(409,{'error':str(exc)})
             except Exception as exc:print('[web-api] student homework submit error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
-        if path=='/api/student/lesson/join':
-            auth=self._student()
-            if not auth:return self._json(401,{'error':'unauthorized'})
+        if path=='/api/teacher/crm/student/update':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
             try:
-                r=student_join(int(body.get('lesson_id')),int(auth['id']));return self._json(200,r) if r.get('status')=='ok' else self._json(409 if r.get('status')=='entry_closed' else 400,{'error':r.get('status')})
-            except Exception as exc:print('[web-api] student join error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+                r=teacher_crm_update_student(int(body.get('user_id')),body.get('fields') or {})
+                return self._json(200,r) if r.get('status')=='ok' else self._json(400,{'error':r.get('status'),'field':r.get('field')})
+            except (TypeError,ValueError):return self._json(400,{'error':'invalid_request'})
+            except Exception as exc:print('[web-api] teacher CRM update error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/teacher/homework-center/update':
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             body=self._body()
