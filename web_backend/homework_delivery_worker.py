@@ -1,4 +1,9 @@
-"""Deliver durable homework events to the existing Telegram/VK channel layer."""
+"""Deliver durable homework events to the existing Telegram/VK channel layer.
+
+Deadline evaluation belongs to TutorBot's scheduled homework watchdog. This
+worker has one responsibility: claim and deliver the durable notification
+outbox, so only one process owns retries and channel delivery.
+"""
 from __future__ import annotations
 
 import os
@@ -9,24 +14,18 @@ from vk_adapter.channel_delivery import send_student
 
 POLL_SECONDS=float(os.getenv('ADELIA_HOMEWORK_NOTIFY_POLL','5') or 5)
 BATCH_SIZE=int(os.getenv('ADELIA_HOMEWORK_NOTIFY_BATCH','50') or 50)
-WATCHDOG_SECONDS=float(os.getenv('ADELIA_HOMEWORK_WATCHDOG_POLL','60') or 60)
-_last_watchdog=0.0
 
 
 def _teacher_ids():
     """Resolve active OWNER/ADMIN Telegram users without coupling to one hardcoded id."""
     try:
         import database
-        conn=database.connect()
-        cols={r['name'] for r in conn.execute('PRAGMA table_info(admins)').fetchall()}
+        conn=database.connect();cols={r['name'] for r in conn.execute('PRAGMA table_info(admins)').fetchall()}
         if cols and 'user_id' in cols:
-            active=" AND active=1" if 'active' in cols else ''
-            role=" AND role IN ('OWNER','ADMIN')" if 'role' in cols else ''
-            rows=conn.execute(f"SELECT user_id FROM admins WHERE 1=1{active}{role}").fetchall()
-            conn.close();return [int(r['user_id']) for r in rows]
+            active=" AND active=1" if 'active' in cols else '';role=" AND role IN ('OWNER','ADMIN')" if 'role' in cols else ''
+            rows=conn.execute(f"SELECT user_id FROM admins WHERE 1=1{active}{role}").fetchall();conn.close();return [int(r['user_id']) for r in rows]
         conn.close()
-    except Exception:
-        pass
+    except Exception:pass
     return []
 
 
@@ -43,8 +42,7 @@ def deliver(item):
     recipient=str(item.get('recipient_type') or '').upper();text=_with_action(item);uid=item.get('user_id')
     if recipient=='STUDENT':
         if uid is None:return False,'student_id_missing'
-        result=send_student(int(uid),text,telegram=True,vk=True)
-        return any(result.values()),f"telegram={result.get('telegram')} vk={result.get('vk')}"
+        result=send_student(int(uid),text,telegram=True,vk=True);return any(result.values()),f"telegram={result.get('telegram')} vk={result.get('vk')}"
     if recipient=='TEACHER':
         ids=_teacher_ids()
         if not ids:return False,'teacher_recipient_missing'
@@ -55,28 +53,15 @@ def deliver(item):
     return False,'unsupported_recipient'
 
 
-def _watchdog_tick():
-    global _last_watchdog
-    now=time.monotonic()
-    if now-_last_watchdog < WATCHDOG_SECONDS:return None
-    _last_watchdog=now
-    from web_backend.homework_watchdog import tick as homework_tick
-    return homework_tick()
-
-
 def tick(limit=BATCH_SIZE):
-    watchdog=None
-    try:watchdog=_watchdog_tick()
-    except Exception as exc:print('[homework-watchdog]',repr(exc),flush=True)
     items=claim_pending(limit);sent=0
     for item in items:
         try:
             ok,detail=deliver(item)
             if ok:mark_delivered(item['id']);sent+=1
             else:mark_failed(item['id'],detail)
-        except Exception as exc:
-            mark_failed(item['id'],repr(exc))
-    return {'claimed':len(items),'delivered':sent,'watchdog':watchdog}
+        except Exception as exc:mark_failed(item['id'],repr(exc))
+    return {'claimed':len(items),'delivered':sent}
 
 
 def main():
