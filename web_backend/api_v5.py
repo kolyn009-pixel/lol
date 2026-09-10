@@ -1,12 +1,12 @@
-"""Adelia web API v5: events, attendance, campaigns, live entry and social profile."""
+"""Adelia web API v5: events, attendance, campaigns, live entry, social profile and group space."""
 from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
-from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campaign,student_live_entry,student_social_profile
+from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campaign,student_live_entry,student_social_profile,group_portal
 from web_backend.stage12_indexes import ensure_indexes
 
 class Handler(api_v4.Handler):
-    server_version='AdeliaWeb/5.4'
+    server_version='AdeliaWeb/5.5'
     def do_GET(self):
         u=urlparse(self.path);path,q=u.path,parse_qs(u.query)
         if path in {'/api/teacher/events','/api/teacher/events/choices','/api/teacher/event','/api/teacher/group/attendance','/api/teacher/group-lessons','/api/teacher/group-lesson'}:
@@ -23,18 +23,22 @@ class Handler(api_v4.Handler):
                 return self._json(404 if r.get('error') else 200,r)
             except (TypeError,ValueError,PermissionError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
             except Exception as exc:print('[web-api] event GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
-        if path in {'/api/student/events','/api/student/profile','/api/student/group/members'}:
+        student_get={'/api/student/events','/api/student/profile','/api/student/group/members','/api/student/groups','/api/student/group/summary','/api/student/group/chat'}
+        if path in student_get:
             auth=self._student()
             if not auth:return self._json(401,{'error':'unauthorized'})
             try:
                 uid=int(auth['id'])
                 if path.endswith('/events'):r={'items':event_campaign.feed(uid)}
                 elif path.endswith('/profile'):r=student_social_profile.public_profile(uid,viewer_id=uid)
-                else:r={'items':student_social_profile.group_members(int(q.get('group_id',['0'])[0]),uid)}
+                elif path.endswith('/group/members'):r={'items':student_social_profile.group_members(int(q.get('group_id',['0'])[0]),uid)}
+                elif path.endswith('/groups'):r={'items':group_portal.student_groups(uid)}
+                elif path.endswith('/group/summary'):r=group_portal.student_group_summary(uid,int(q.get('group_id',['0'])[0]))
+                else:r={'items':group_portal.group_chat(int(q.get('group_id',['0'])[0]),uid,int(q.get('limit',['100'])[0]))}
                 return self._json(200,r)
             except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
-            except Exception as exc:print('[web-api] student social GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
+            except Exception as exc:print('[web-api] student group GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
@@ -63,7 +67,7 @@ class Handler(api_v4.Handler):
             except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
             except Exception as exc:print('[web-api] event POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
-        student_routes={'/api/student/event/register','/api/student/event/invite/respond','/api/student/group-lesson/enter','/api/student/group-lesson/leave','/api/student/event/enter','/api/student/event/leave','/api/student/profile','/api/student/presence'}
+        student_routes={'/api/student/event/register','/api/student/event/invite/respond','/api/student/group-lesson/enter','/api/student/group-lesson/leave','/api/student/event/enter','/api/student/event/leave','/api/student/profile','/api/student/presence','/api/student/group/chat'}
         if path in student_routes:
             if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
             auth=self._student()
@@ -81,6 +85,7 @@ class Handler(api_v4.Handler):
                 elif path.endswith('/event/enter'):r=student_live_entry.event_entry(int(body.get('event_id')),uid,'APP')
                 elif path.endswith('/event/leave'):r=student_live_entry.leave_event(int(body.get('event_id')),uid,'APP')
                 elif path.endswith('/presence'):r=student_social_profile.touch_presence(uid,int(body.get('active_seconds') or 120))
+                elif path.endswith('/group/chat'):r=group_portal.post_group_message(int(body.get('group_id')),uid,'STUDENT',body.get('body'))
                 else:r=student_social_profile.update(uid,display_name=body.get('display_name'),avatar_kind=body.get('avatar_kind'),avatar_value=body.get('avatar_value'),manual_status=body.get('manual_status'),study_status_text=body.get('study_status_text'),show_online=body.get('show_online'),allow_group_messages=body.get('allow_group_messages'))
                 return self._json(200,r)
             except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
@@ -89,5 +94,5 @@ class Handler(api_v4.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();print(f'Adelia web API v5.4 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();print(f'Adelia web API v5.5 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
