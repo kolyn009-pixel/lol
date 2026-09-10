@@ -15,7 +15,7 @@ from core import (
     admin_roles,
     test_lab,
 )
-from handlers import homework_channel_handlers, web_portal_login
+from handlers import homework_channel_handlers, web_portal_login, payment_hub_handlers, payment_menu_patch
 
 
 def _with_web_button(markup, role):
@@ -81,6 +81,7 @@ async def home(
         )
 
         import bot as b
+        payment_menu_patch.install()
 
         if role == "TEACHER":
 
@@ -195,6 +196,7 @@ async def home(
         )
 
         import bot as b
+        payment_menu_patch.install()
 
         if (
             parent
@@ -330,6 +332,7 @@ def handlers():
                 r"^(?:main|global_home)$"
             ),
         ),
+        *payment_hub_handlers.handlers(),
         *web_portal_login.handlers(),
         *homework_channel_handlers.handlers(),
     ]
