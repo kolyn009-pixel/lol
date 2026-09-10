@@ -1,0 +1,40 @@
+(()=>{
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=s=>{if(!s)return '';try{return new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(s))}catch{return s}};
+const api=async(path,opt={})=>{const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Ошибка');return j};
+let poll=null;
+
+function avatar(){return '<div class="student-chat-avatar">A</div>'}
+function bubble(x){const mine=x.direction==='IN';return `<article class="student-chat-bubble ${mine?'mine':'teacher'}"><div class="student-chat-meta"><b>${mine?'Вы':'Преподаватель'}</b><span>${fmt(x.created_at)}</span></div><div class="student-chat-text">${esc(x.text||'')}</div>${!mine&&x.read_at?'<small class="student-chat-read">Прочитано</small>':''}</article>`}
+
+async function chatScreen(){
+  const d=await api('/student/messages?limit=200');
+  const items=d.items||[];
+  setTimeout(()=>{const list=document.querySelector('#studentChatHistory');if(list)list.scrollTop=list.scrollHeight},0);
+  return `<section class="student-chat-card"><header class="student-chat-head">${avatar()}<div><h2>Чат с преподавателем</h2><p>Основная переписка хранится в Adelia</p></div><span class="student-chat-live">● online</span></header><div class="student-chat-history" id="studentChatHistory">${items.length?items.map(bubble).join(''):'<div class="student-chat-empty"><b>Начните диалог 💜</b><span>Здесь можно задать вопрос по занятию, домашке или расписанию.</span></div>'}</div><form class="student-chat-compose" id="studentChatForm"><textarea id="studentChatText" maxlength="4000" placeholder="Сообщение преподавателю…" rows="1" required></textarea><button type="submit" aria-label="Отправить">➤</button></form><div class="student-chat-state" id="studentChatState"></div></section>`;
+}
+
+async function send(ev){
+  ev.preventDefault();const text=document.querySelector('#studentChatText')?.value.trim();if(!text)return;
+  const btn=ev.currentTarget.querySelector('button');const state=document.querySelector('#studentChatState');if(btn)btn.disabled=true;if(state)state.textContent='Отправляю…';
+  try{await api('/student/message',{method:'POST',body:JSON.stringify({text})});if(typeof window.render==='function')await window.render('messages');}
+  catch(e){if(state)state.textContent='Не удалось отправить: '+e.message;if(btn)btn.disabled=false}
+}
+
+function bind(){const form=document.querySelector('#studentChatForm');if(form&&!form.dataset.bound){form.dataset.bound='1';form.addEventListener('submit',send)}const ta=document.querySelector('#studentChatText');if(ta&&!ta.dataset.grow){ta.dataset.grow='1';ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=Math.min(120,ta.scrollHeight)+'px'})}}
+
+async function refreshBadge(){
+  try{const d=await api('/student/dashboard');const n=Number(d.unread_messages||0);let nav=document.querySelector('[data-tab="messages"]');if(nav){let badge=nav.querySelector('.chat-nav-badge');if(!badge){badge=document.createElement('i');badge.className='chat-nav-badge';nav.appendChild(badge)}badge.textContent=n>99?'99+':String(n);badge.hidden=!n}}
+  catch{}
+}
+
+const originalRender=window.render;
+window.messages=chatScreen;
+
+if(typeof originalRender==='function'){
+  window.render=async function(view,...args){const out=await originalRender.call(this,view,...args);if(view==='messages'){bind();clearInterval(poll);poll=setInterval(async()=>{if(!document.querySelector('#studentChatHistory'))return;try{const before=document.querySelectorAll('.student-chat-bubble').length;const d=await api('/student/messages?limit=200');if((d.items||[]).length!==before)await window.render('messages')}catch{}},8000);await refreshBadge()}else{clearInterval(poll);await refreshBadge()}return out};
+}
+
+document.addEventListener('DOMContentLoaded',()=>{refreshBadge();setInterval(refreshBadge,30000)});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-tab="messages"],[data-go="messages"]');if(!b)return;setTimeout(bind,0)},true);
+})();
