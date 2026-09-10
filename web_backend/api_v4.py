@@ -8,12 +8,13 @@ from web_backend.student_booking import programs as booking_programs, free_slots
 from web_backend.student_reschedule import free_slots_for_lesson, create_request as create_slot_change, outgoing as outgoing_slot_changes, incoming as incoming_exchanges, respond_to_exchange, cancel_request as cancel_slot_change
 from web_backend.student_finance import overview as finance_overview, quote as finance_quote, create_package_payment, create_lesson_payment, history as finance_history, attach_receipt
 from web_backend.finance_receipts import web_receipt_file
-from web_backend.post_lesson import get_feedback, submit_feedback
+from web_backend.post_lesson import get_feedback, submit_feedback, pending_for_student
 from web_backend.teacher_cascade import list_requests as cascade_requests, analyze_request as analyze_cascade, approve_plan as approve_cascade
+from web_backend import public_trial, trial_conversion, teacher_board
 from final_features import regular_schedule_change, cascade_consents, cascade_shift
 
 class Handler(api_v3.Handler):
-    server_version='AdeliaWeb/4.8'
+    server_version='AdeliaWeb/4.9'
     def _send_receipt_file(self,receipt_id):
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:path,mime=web_receipt_file(int(receipt_id));data=path.read_bytes()
@@ -37,11 +38,23 @@ class Handler(api_v3.Handler):
                 item=regular_schedule_change.get_request(int(q.get('request_id',['0'])[0]))
                 return self._json(200,{'item':item}) if item else self._json(404,{'error':'request_not_found'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
+        if path=='/api/teacher/trials':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            try:return self._json(200,{'items':public_trial.list_for_teacher(q.get('status',[None])[0],int(q.get('limit',['100'])[0]))})
+            except Exception as exc:print('[web-api] trial GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
+        if path=='/api/teacher/trial/share':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            try:return self._json(200,public_trial.teacher_share_payload(int(q.get('request_id',['0'])[0])))
+            except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
+        if path=='/api/teacher/student/board':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            try:return self._json(200,teacher_board.get_board(int(q.get('user_id',['0'])[0])))
+            except (TypeError,ValueError) as exc:return self._json(404,{'error':str(exc) or 'student_not_found'})
         booking={'/api/student/booking/programs','/api/student/booking/free-slots','/api/student/booking/trial-status'}
         changes={'/api/student/reschedule/free-slots','/api/student/reschedule/outgoing','/api/student/exchanges/incoming'}
         finance={'/api/student/finance/overview','/api/student/finance/history','/api/student/finance/quote'}
         regular={'/api/student/regular-schedules','/api/student/regular-change/requests'}
-        if path in booking|changes|finance|regular|{'/api/student/post-lesson','/api/student/cascade/incoming'}:
+        if path in booking|changes|finance|regular|{'/api/student/post-lesson','/api/student/post-lesson/pending','/api/student/cascade/incoming'}:
             auth=self._student()
             if not auth:return self._json(401,{'error':'unauthorized'})
             try:
@@ -53,6 +66,7 @@ class Handler(api_v3.Handler):
                 elif path.endswith('/reschedule/outgoing'):result={'items':outgoing_slot_changes(uid)}
                 elif path.endswith('/exchanges/incoming'):result={'items':incoming_exchanges(uid)}
                 elif path.endswith('/cascade/incoming'):result={'items':cascade_consents.incoming(uid)}
+                elif path.endswith('/post-lesson/pending'):result={'items':pending_for_student(uid)}
                 elif path.endswith('/finance/overview'):result=finance_overview(uid)
                 elif path.endswith('/finance/history'):result={'items':finance_history(uid,int(q.get('limit',['30'])[0]))}
                 elif path.endswith('/finance/quote'):result=finance_quote(uid,int(q.get('selection_key',['0'])[0]),int(q.get('lessons_count',['1'])[0]),q.get('promo_code',[None])[0])
@@ -66,7 +80,13 @@ class Handler(api_v3.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
-        if path in {'/api/teacher/cascade/analyze','/api/teacher/cascade/approve','/api/teacher/cascade/request-consents','/api/teacher/cascade/apply','/api/teacher/regular-change/approve','/api/teacher/regular-change/apply','/api/teacher/regular-change/reject'}:
+        if path=='/api/public/trial':
+            if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+            body=self._body()
+            if body is None:return self._json(400,{'error':'invalid_json'})
+            try:return self._json(200,public_trial.create(body.get('name'),body.get('telegram'),body.get('phone'),body.get('subject'),body.get('study_goal'),body.get('preferred_time'),body.get('note'),body.get('grade'),source='WEB'))
+            except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
+        if path in {'/api/teacher/cascade/analyze','/api/teacher/cascade/approve','/api/teacher/cascade/request-consents','/api/teacher/cascade/apply','/api/teacher/regular-change/approve','/api/teacher/regular-change/apply','/api/teacher/regular-change/reject','/api/teacher/trial/approve','/api/teacher/trial/finish','/api/teacher/trial/status','/api/teacher/student/board'}:
             if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
             teacher=self._teacher()
             if not teacher:return self._json(401,{'error':'unauthorized'})
@@ -83,12 +103,16 @@ class Handler(api_v3.Handler):
                     result=cascade_shift.apply_approved(plan_id,tid)
                 elif path.endswith('/regular-change/approve'):result=regular_schedule_change.approve(int(body.get('request_id')),tid)
                 elif path.endswith('/regular-change/apply'):result=regular_schedule_change.apply_approved(int(body.get('request_id')),tid)
-                else:result=regular_schedule_change.reject(int(body.get('request_id')),tid)
+                elif path.endswith('/regular-change/reject'):result=regular_schedule_change.reject(int(body.get('request_id')),tid)
+                elif path.endswith('/trial/approve'):result=public_trial.approve(int(body.get('request_id')),tid,body.get('trial_start'),body.get('trial_end'),body.get('meeting_url'),body.get('board_url'))
+                elif path.endswith('/trial/finish'):result=public_trial.finish_trial(int(body.get('request_id')),body.get('finished_at'))
+                elif path.endswith('/trial/status'):result=public_trial.set_status(int(body.get('request_id')),body.get('status'),tid)
+                else:result=teacher_board.set_board(int(body.get('user_id')),body.get('board_url'))
                 return self._json(200,result)
             except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
             except Exception as exc:print('[web-api] teacher schedule POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
-        routes={'/api/student/booking/request','/api/student/booking/trial','/api/student/booking/cancel','/api/student/reschedule/request','/api/student/reschedule/cancel','/api/student/exchanges/respond','/api/student/cascade/respond','/api/student/finance/package','/api/student/finance/lesson','/api/student/finance/receipt','/api/student/post-lesson','/api/student/regular-change/request'}
+        routes={'/api/student/booking/request','/api/student/booking/trial','/api/student/booking/cancel','/api/student/reschedule/request','/api/student/reschedule/cancel','/api/student/exchanges/respond','/api/student/cascade/respond','/api/student/finance/package','/api/student/finance/lesson','/api/student/finance/receipt','/api/student/post-lesson','/api/student/regular-change/request','/api/student/trial/claim'}
         if path in routes:
             if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
             auth=self._student()
@@ -111,8 +135,8 @@ class Handler(api_v3.Handler):
                 elif path.endswith('/finance/package'):result=create_package_payment(uid,int(body.get('selection_key')),int(body.get('lessons_count')),body.get('promo_code'))
                 elif path.endswith('/finance/lesson'):result=create_lesson_payment(uid,int(body.get('lesson_id')),body.get('promo_code'))
                 elif path.endswith('/finance/receipt'):result=attach_receipt(uid,int(body.get('payment_id')),body.get('filename'),body.get('mime_type'),body.get('content_b64'))
-                elif path.endswith('/regular-change/request'):
-                    result=regular_schedule_change.create_request(uid,int(body.get('regular_schedule_id')),int(body.get('weekday')),body.get('start_time'),int(body.get('duration_minutes')),source='WEB',note=body.get('note'))
+                elif path.endswith('/regular-change/request'):result=regular_schedule_change.create_request(uid,int(body.get('regular_schedule_id')),int(body.get('weekday')),body.get('start_time'),int(body.get('duration_minutes')),source='WEB',note=body.get('note'))
+                elif path.endswith('/trial/claim'):result=trial_conversion.claim_continuation_code(uid,body.get('code'))
                 else:result=submit_feedback(uid,int(body.get('lesson_id')),int(body.get('rating')),body.get('next_topic'),body.get('comment'),'WEB')
                 return self._json(200,result)
             except PermissionError as exc:return self._json(404,{'error':str(exc) or 'not_found'})
@@ -122,5 +146,5 @@ class Handler(api_v3.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes();print(f'Adelia web API v4.8 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();public_trial.ensure_schema();trial_conversion.ensure_schema();print(f'Adelia web API v4.9 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
