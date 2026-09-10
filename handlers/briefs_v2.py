@@ -103,48 +103,114 @@ def _unfinished_reviews(limit=20):
 
 
 def _homework_gaps(limit=20):
-    post_lesson.initialize()
+    """
+    Canonical homework gaps.
+
+    lessons flags are the source of truth.
+    No separate interpretation of
+    post_lesson_review_sync is required here.
+    """
+
     c = database.connect()
+
     try:
-        rows = list(c.execute(
+        rows = c.execute(
             """
-            SELECT l.id,l.user_id,l.finished_at,u.name,s.homework_status,s.selected_json
+            SELECT
+                l.id AS lesson_id,
+                l.user_id,
+                l.program_id,
+                l.start_time,
+                l.subject,
+                u.name
             FROM lessons l
-            JOIN users u ON u.id=l.user_id
-            LEFT JOIN post_lesson_review_sync s ON s.lesson_id=l.id
-            WHERE l.finished_at IS NOT NULL
-              AND l.cancelled_at IS NULL
-            ORDER BY datetime(l.finished_at) DESC
-            LIMIT 80
-            """
-        ).fetchall())
+            JOIN users u
+              ON u.id=l.user_id
+            WHERE (
+                l.lesson_status IN (
+                    'COMPLETED',
+                    'FINISHED'
+                )
+                OR l.finished_at IS NOT NULL
+            )
+              AND COALESCE(
+                    l.homework_required,
+                    0
+                  )=1
+              AND COALESCE(
+                    l.homework_assigned,
+                    0
+                  )=0
+              AND COALESCE(
+                    l.homework_skipped,
+                    0
+                  )=0
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM homework h
+                  WHERE h.lesson_id=l.id
+              )
+            ORDER BY
+                datetime(
+                    COALESCE(
+                        l.finished_at,
+                        l.start_time
+                    )
+                ) DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+
         out = []
+
         for row in rows:
-            lid = int(row["id"])
-            has_hw = c.execute(
-                "SELECT 1 FROM homeworks WHERE lesson_id=? LIMIT 1",
-                (lid,),
-            ).fetchone()
-            if has_hw:
-                continue
-            status = str(row["homework_status"] or "PENDING").upper()
-            if status in {"SKIPPED", "SENT"}:
-                continue
-            marks = post_lesson.draft_marks(lid)
-            summary = post_lesson.review_summary(lid)
-            topics = summary.get("topics") or [post_lesson.topic_row(m[0])["topic"] for m in marks if post_lesson.topic_row(m[0])]
+            lid = int(
+                row["lesson_id"]
+            )
+
+            try:
+                summary = (
+                    post_lesson
+                    .review_summary(lid)
+                )
+
+                topics = (
+                    summary.get(
+                        "topics"
+                    )
+                    or []
+                )
+
+            except Exception:
+                topics = []
+
             out.append({
                 "lesson_id": lid,
-                "user_id": int(row["user_id"]),
+                "user_id": int(
+                    row["user_id"]
+                ),
+                "program_id": row[
+                    "program_id"
+                ],
                 "name": row["name"],
-                "status": status,
+                "subject": row[
+                    "subject"
+                ],
+                "status": "MISSING",
                 "topics": topics[:3],
             })
-            if len(out) >= limit:
-                break
+
         return out
-    except Exception:
+
+    except Exception as exc:
+        print(
+            "BRIEF HOMEWORK GAPS:",
+            repr(exc),
+        )
+
         return []
+
     finally:
         c.close()
 
@@ -160,14 +226,72 @@ def _today_payment_attention(lessons):
     return result
 
 
-def _queue_markup(morning=False):
-    first = "🌅 Разобрать утро" if morning else "🌙 Закрыть хвосты дня"
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(first, callback_data="ux_review_start")],
-        [InlineKeyboardButton("🧾 Чеки", callback_data="receipt_center"), InlineKeyboardButton("💳 Оплаты", callback_data="mh_debts")],
-        [InlineKeyboardButton("📅 Сегодня", callback_data="crm_today"), InlineKeyboardButton("⚠️ Внимание", callback_data="mh_attention")],
-        [InlineKeyboardButton("🏠 Главная", callback_data="global_home")],
+def _queue_markup(
+    morning=False,
+    hw_gaps=None,
+):
+    first = (
+        "🌅 Разобрать утро"
+        if morning
+        else "🌙 Закрыть хвосты дня"
+    )
+
+    rows = []
+
+    for gap in (
+        hw_gaps or []
+    )[:5]:
+        rows.append([
+            InlineKeyboardButton(
+                (
+                    "📝 Задать ДЗ — "
+                    f"{gap['name']}"
+                )[:60],
+                callback_data=(
+                    f"hw_task_start|"
+                    f"{gap['lesson_id']}"
+                ),
+            )
+        ])
+
+    rows.extend([
+        [
+            InlineKeyboardButton(
+                first,
+                callback_data="ux_review_start",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🧾 Чеки",
+                callback_data="receipt_center",
+            ),
+            InlineKeyboardButton(
+                "💳 Оплаты",
+                callback_data="mh_debts",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "📅 Сегодня",
+                callback_data="crm_today",
+            ),
+            InlineKeyboardButton(
+                "⚠️ Внимание",
+                callback_data="mh_attention",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "🏠 Главная",
+                callback_data="global_home",
+            )
+        ],
     ])
+
+    return InlineKeyboardMarkup(
+        rows
+    )
 
 
 async def morning_brief_job(context):
@@ -213,68 +337,264 @@ async def morning_brief_job(context):
 
     for aid in _admins():
         try:
-            await context.bot.send_message(aid, "\n".join(lines)[:3900], reply_markup=_queue_markup(True))
+            await context.bot.send_message(aid, "\n".join(lines)[:3900], reply_markup=_queue_markup(True, hw_gaps))
             database.set_setting("morning_brief_last_ok", now.isoformat(timespec="minutes"))
             database.log_automation_delivery("morning_brief_v2", "OK", "ADMIN", aid)
         except Exception as exc:
             database.log_automation_delivery("morning_brief_v2", "ERROR", "ADMIN", aid, repr(exc))
 
 
-async def evening_brief_job(context):
-    now = datetime.now(_tz())
+
+def evening_brief_data():
+    now = datetime.now(
+        _tz()
+    )
+
     day = now.date().isoformat()
-    tomorrow = (now.date() + timedelta(days=1)).isoformat()
-    lessons = _today_lessons(day)
-    tomorrow_lessons = _today_lessons(tomorrow)
+
+    tomorrow = (
+        now.date()
+        + timedelta(days=1)
+    ).isoformat()
+
+    lessons = _today_lessons(
+        day
+    )
+
+    tomorrow_lessons = _today_lessons(
+        tomorrow
+    )
+
     receipts = _waiting_receipts()
     messages = _open_messages()
     reviews = _unfinished_reviews()
     hw_gaps = _homework_gaps()
 
-    done = [x for x in lessons if str(x["lesson_status"] or "").upper() == "COMPLETED" or x["finished_at"]]
-    cancelled = [x for x in lessons if str(x["lesson_status"] or "").upper() in {"CANCELLED", "REJECTED"}]
-    unpaid_tomorrow = _today_payment_attention(tomorrow_lessons)
+    done = [
+        x for x in lessons
+        if (
+            str(
+                x["lesson_status"]
+                or ""
+            ).upper()
+            in {
+                "COMPLETED",
+                "FINISHED",
+            }
+            or x["finished_at"]
+        )
+    ]
+
+    running = [
+        x for x in lessons
+        if (
+            str(
+                x["lesson_status"]
+                or ""
+            ).upper()
+            == "IN_PROGRESS"
+            and not x["finished_at"]
+        )
+    ]
+
+    cancelled = [
+        x for x in lessons
+        if str(
+            x["lesson_status"]
+            or ""
+        ).upper()
+        in {
+            "CANCELLED",
+            "REJECTED",
+        }
+    ]
+
+    unfinished = [
+        x for x in lessons
+        if (
+            x not in done
+            and x not in running
+            and x not in cancelled
+        )
+    ]
+
+    unpaid_tomorrow = (
+        _today_payment_attention(
+            tomorrow_lessons
+        )
+    )
+
+    attention = (
+        len(running)
+        + len(unfinished)
+        + len(reviews)
+        + len(hw_gaps)
+        + int(receipts or 0)
+        + int(messages or 0)
+        + len(unpaid_tomorrow)
+    )
+
+    return {
+        "now": now,
+        "lessons": lessons,
+        "tomorrow_lessons": tomorrow_lessons,
+        "done": done,
+        "running": running,
+        "unfinished": unfinished,
+        "cancelled": cancelled,
+        "reviews": reviews,
+        "hw_gaps": hw_gaps,
+        "receipts": receipts,
+        "messages": messages,
+        "unpaid_tomorrow": unpaid_tomorrow,
+        "attention": attention,
+    }
+
+
+def evening_brief_text(data=None):
+    data = (
+        data
+        or evening_brief_data()
+    )
 
     lines = [
         "💜 АДЕЛИЯ • ИТОГ ДНЯ",
         "",
-        "Закрываю день по фактическим данным занятия, опросам, ДЗ и оплатам.",
+        "Закрываю день по фактическим данным.",
         "",
-        f"✅ Проведено занятий: {len(done)}",
+        "━━━━━━━━━━━━━━",
+        "📚 СЕГОДНЯ",
+        "",
+        f"✅ Проведено: {len(data['done'])}",
     ]
-    for lesson in done[:8]:
-        start = _fmt_actual(lesson["started_at"]) if lesson["started_at"] else _fmt_time(lesson["start_time"])
-        finish = _fmt_actual(lesson["finished_at"]) if lesson["finished_at"] else "—"
-        lines.append(f"• {lesson['name']} · факт {start}–{finish}")
+
+    for lesson in data["done"][:8]:
+        start = (
+            _fmt_actual(
+                lesson["started_at"]
+            )
+            if lesson["started_at"]
+            else _fmt_time(
+                lesson["start_time"]
+            )
+        )
+
+        finish = (
+            _fmt_actual(
+                lesson["finished_at"]
+            )
+            if lesson["finished_at"]
+            else "—"
+        )
+
+        lines.append(
+            f"• {lesson['name']} · "
+            f"{start}–{finish}"
+        )
 
     lines += [
-        f"❌ Отменено: {len(cancelled)}",
-        f"🧠 Незавершённых опросов: {len(reviews)}",
-        f"📝 Темы выбраны / ДЗ не отправлено: {len(hw_gaps)}",
-        f"🧾 Чеков ждут проверки: {receipts}",
-        f"💬 Сообщений ждут ответа: {messages}",
-        f"📅 Занятий завтра: {len(tomorrow_lessons)}",
-        f"🔴 Завтра без оплаты: {len(unpaid_tomorrow)}",
+        f"🩷 Сейчас идут: {len(data['running'])}",
+        f"⚠️ Не закрыты: {len(data['unfinished'])}",
+        f"❌ Отменено: {len(data['cancelled'])}",
+        "",
+        "━━━━━━━━━━━━━━",
+        "🧹 ХВОСТЫ",
+        "",
+        f"🧠 Опросы: {len(data['reviews'])}",
+        f"📝 ДЗ: {len(data['hw_gaps'])}",
+        f"🧾 Чеки: {data['receipts']}",
+        f"💬 Сообщения: {data['messages']}",
+        "",
+        "━━━━━━━━━━━━━━",
+        "🌅 ЗАВТРА",
+        "",
+        f"📅 Занятий: {len(data['tomorrow_lessons'])}",
+        (
+            "🟡 Без подтверждённой оплаты: "
+            f"{len(data['unpaid_tomorrow'])}"
+        ),
     ]
 
-    if hw_gaps:
-        lines += ["", "📝 Не закрыты ДЗ:"]
-        for item in hw_gaps[:6]:
-            topic_text = ", ".join(item["topics"]) if item["topics"] else "без сохранённой темы"
-            lines.append(f"• {item['name']} — {topic_text}")
+    for lesson in data[
+        "tomorrow_lessons"
+    ][:8]:
+        pay = str(
+            lesson["payment_status"]
+            or ""
+        ).upper()
 
-    if reviews:
-        lines += ["", "🧠 Не закрыты итоги занятий:"]
-        for item in reviews[:5]:
-            lines.append(f"• {item['name']} · занятие #{item['id']}")
+        if lesson["is_trial"]:
+            icon = "🧪"
+        elif pay in {
+            "PAID",
+            "RESERVED_BALANCE",
+            "FREE",
+        }:
+            icon = "🟣"
+        else:
+            icon = "🟡"
+
+        lines.append(
+            f"• {_fmt_time(lesson['start_time'])}"
+            f" · {icon} {lesson['name']}"
+        )
+
+    if data["attention"]:
+        lines += [
+            "",
+            (
+                "⚠️ Осталось действий: "
+                f"{data['attention']}"
+            ),
+        ]
+    else:
+        lines += [
+            "",
+            "🟢 День полностью закрыт.",
+        ]
+
+    return "\n".join(lines)[:3900]
+
+async def evening_brief_job(context):
+    data = evening_brief_data()
+
+    text = evening_brief_text(
+        data
+    )
 
     for aid in _admins():
         try:
-            await context.bot.send_message(aid, "\n".join(lines)[:3900], reply_markup=_queue_markup(False))
-            database.set_setting("evening_brief_last_ok", now.isoformat(timespec="minutes"))
-            database.log_automation_delivery("evening_brief_v2", "OK", "ADMIN", aid)
+            await context.bot.send_message(
+                aid,
+                text,
+                reply_markup=_queue_markup(
+                    False,
+                    data.get("hw_gaps", []),
+                ),
+            )
+
+            database.set_setting(
+                "evening_brief_last_ok",
+                data["now"].isoformat(
+                    timespec="minutes"
+                ),
+            )
+
+            database.log_automation_delivery(
+                "evening_brief_v2",
+                "OK",
+                "ADMIN",
+                aid,
+            )
+
         except Exception as exc:
-            database.log_automation_delivery("evening_brief_v2", "ERROR", "ADMIN", aid, repr(exc))
+            database.log_automation_delivery(
+                "evening_brief_v2",
+                "ERROR",
+                "ADMIN",
+                aid,
+                repr(exc),
+            )
 
 
 def install(application=None):

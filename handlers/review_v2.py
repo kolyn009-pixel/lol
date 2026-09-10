@@ -187,8 +187,99 @@ def _no_next_cases():
     return result
 
 
+
+def _homework_cases():
+    c = database.connect()
+
+    try:
+        rows = c.execute(
+            """
+            SELECT
+                l.id AS lesson_id,
+                l.user_id,
+                l.program_id,
+                l.start_time,
+                l.subject,
+                u.name,
+                u.telegram_id
+            FROM lessons l
+            JOIN users u
+              ON u.id=l.user_id
+            WHERE (
+                l.lesson_status IN (
+                    'COMPLETED',
+                    'FINISHED'
+                )
+                OR l.finished_at IS NOT NULL
+            )
+              AND COALESCE(
+                    l.homework_required,
+                    0
+                  )=1
+              AND COALESCE(
+                    l.homework_assigned,
+                    0
+                  )=0
+              AND COALESCE(
+                    l.homework_skipped,
+                    0
+                  )=0
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM homework h
+                  WHERE h.lesson_id=l.id
+              )
+            ORDER BY
+                datetime(
+                    COALESCE(
+                        l.finished_at,
+                        l.start_time
+                    )
+                ) DESC
+            """
+        ).fetchall()
+
+        return [
+            {
+                "key": (
+                    f"homework:"
+                    f"{int(r['lesson_id'])}"
+                ),
+                "kind": "HOMEWORK_MISSING",
+                "user_id": int(
+                    r["user_id"]
+                ),
+                "name": r["name"],
+                "telegram_id": (
+                    int(r["telegram_id"])
+                    if r["telegram_id"]
+                    else None
+                ),
+                "lesson_id": int(
+                    r["lesson_id"]
+                ),
+                "program_id": r[
+                    "program_id"
+                ],
+                "start_time": r[
+                    "start_time"
+                ],
+                "subject": r[
+                    "subject"
+                ],
+            }
+            for r in rows
+        ]
+
+    finally:
+        c.close()
+
 def review_cases(include_done=False):
-    cases = _payment_cases() + _no_next_cases()
+    cases = (
+        _payment_cases()
+        + _homework_cases()
+        + _no_next_cases()
+    )
     if include_done:
         return cases
     done = _done_cases()
@@ -213,6 +304,35 @@ def _fmt_start(value):
 
 
 def _case_text(case, index, total):
+    if case["kind"] == "HOMEWORK_MISSING":
+        subject = {
+            "PHYSICS": "Физика",
+            "CHEMISTRY": "Химия",
+        }.get(
+            str(
+                case.get("subject")
+                or ""
+            ).upper(),
+            str(
+                case.get("subject")
+                or "Занятие"
+            ),
+        )
+
+        return (
+            "💜 АДЕЛИЯ • РАЗБОР ДНЯ\n\n"
+            f"Шаг {index + 1} из {total}\n\n"
+            "📝 НЕ ЗАДАНО ДЗ\n"
+            f"👤 {case['name']}\n"
+            f"📚 {subject}\n"
+            f"📅 Урок: "
+            f"{_fmt_start(case['start_time'])}\n\n"
+            "ДЗ было оставлено как нужное, "
+            "но ещё не создано.\n\n"
+            "Можно сразу перейти к созданию "
+            "или осознанно выбрать «Без ДЗ»."
+        )
+
     if case["kind"] == "PAYMENT_NEXT":
         lines = [
             "💜 АДЕЛИЯ • РАЗБОР ДНЯ",
@@ -247,6 +367,74 @@ def _case_text(case, index, total):
 
 def _case_keyboard(case, index):
     rows = []
+
+    if case["kind"] == "HOMEWORK_MISSING":
+        lesson_id = int(
+            case["lesson_id"]
+        )
+
+        rows.append([
+            InlineKeyboardButton(
+                "📝 Задать ДЗ",
+                callback_data=(
+                    f"hw_task_start|"
+                    f"{lesson_id}"
+                ),
+            )
+        ])
+
+        rows.append([
+            InlineKeyboardButton(
+                "⏭ Без ДЗ",
+                callback_data=(
+                    f"admin_homework_skip|"
+                    f"{lesson_id}"
+                ),
+            )
+        ])
+
+        rows.append([
+            InlineKeyboardButton(
+                "👤 Открыть ученика",
+                callback_data=(
+                    f"student_view|"
+                    f"{case['user_id']}"
+                ),
+            )
+        ])
+
+        rows.append([
+            InlineKeyboardButton(
+                "📅 Отложить до…",
+                callback_data=(
+                    f"mh_review_defer_menu|"
+                    f"{index}"
+                ),
+            ),
+            InlineKeyboardButton(
+                "➡️ Следующий",
+                callback_data=(
+                    f"mh_review_next|"
+                    f"{index}"
+                ),
+            ),
+        ])
+
+        rows.append([
+            InlineKeyboardButton(
+                "✕ Закончить",
+                callback_data="mh_review_finish",
+            ),
+            InlineKeyboardButton(
+                "🏠 Главная",
+                callback_data="global_home",
+            ),
+        ])
+
+        return InlineKeyboardMarkup(
+            rows
+        )
+
     if case["kind"] == "PAYMENT_NEXT":
         rows.append([
             InlineKeyboardButton("💳 Предложить оплатить следующее", callback_data=f"mh_review_send_next|{index}")
@@ -348,6 +536,79 @@ async def _after_send(q, context, case, index, status, detail):
         await _show(q, context, index)
 
 
+
+async def _close_day(q, context):
+    from handlers import briefs_v2
+
+    data = briefs_v2.evening_brief_data()
+
+    text = briefs_v2.evening_brief_text(
+        data
+    )
+
+    review_count = len(
+        review_cases()
+    )
+
+    rows = []
+
+    for gap in data.get(
+        "hw_gaps",
+        [],
+    )[:5]:
+        rows.append([
+            InlineKeyboardButton(
+                (
+                    "📝 Задать ДЗ — "
+                    f"{gap['name']}"
+                )[:60],
+                callback_data=(
+                    f"hw_task_start|"
+                    f"{gap['lesson_id']}"
+                ),
+            )
+        ])
+
+    if data["attention"]:
+        rows.append([
+            InlineKeyboardButton(
+                (
+                    "🧹 Разобрать хвосты"
+                    f" • {data['attention']}"
+                ),
+                callback_data="mh_review_start",
+            )
+        ])
+
+    if review_count:
+        rows.append([
+            InlineKeyboardButton(
+                (
+                    "💳 Оплаты и записи"
+                    f" • {review_count}"
+                ),
+                callback_data="mh_review_start",
+            )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "🔄 Обновить",
+            callback_data="mh_day_close",
+        ),
+        InlineKeyboardButton(
+            "🏠 Главная",
+            callback_data="global_home",
+        ),
+    ])
+
+    await q.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(
+            rows
+        ),
+    )
+
 async def callbacks(update, context):
     q = update.callback_query
     if not q or not q.data.startswith("mh_review"):
@@ -357,6 +618,16 @@ async def callbacks(update, context):
         return
 
     data = q.data
+
+    if data == "mh_day_close":
+        await q.answer()
+
+        await _close_day(
+            q,
+            context,
+        )
+
+        return
 
     if data == "mh_review_start":
         await q.answer()
@@ -496,14 +767,29 @@ def install(application):
             hour = _now().hour
             if hour < 12:
                 label = "🌅 Подготовить день"
+                callback = "mh_review_start"
+
             elif hour >= 18:
                 label = "🌙 Закрыть день"
+                callback = "mh_day_close"
+
             else:
                 label = "▶️ Разобрать всё"
-            if count:
+                callback = "mh_review_start"
+
+            if (
+                count
+                and callback == "mh_review_start"
+            ):
                 label += f" • {count}"
+
             if rows:
-                rows[0] = [InlineKeyboardButton(label, callback_data="mh_review_start")]
+                rows[0] = [
+                    InlineKeyboardButton(
+                        label,
+                        callback_data=callback,
+                    )
+                ]
             return InlineKeyboardMarkup(rows)
 
         admin.admin_menu = menu_v2

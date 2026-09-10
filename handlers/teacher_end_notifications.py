@@ -225,8 +225,7 @@ def _context(lesson):
         lesson["duration_minutes"]
         or round(
             (
-                plan_end
-                - plan_start
+                plan_end - plan_start
             ).total_seconds()
             / 60
         )
@@ -241,8 +240,7 @@ def _context(lesson):
 
     delta_minutes = round(
         (
-            actual_start
-            - plan_start
+            actual_start - plan_start
         ).total_seconds()
         / 60
     )
@@ -257,19 +255,19 @@ def _context(lesson):
         0,
     )
 
-    # Требование:
+    # AGREED POLICY:
     #
-    # начали раньше ->
-    # предупреждаем относительно фактического конца;
+    # Early arrival:
+    # warn 5 min before ACTUAL full duration ends.
     #
-    # начали позже/вовремя ->
-    # предупреждаем относительно планового конца.
+    # On-time / late arrival:
+    # warn 5 min before PLANNED end.
+    #
+    # Next student changes conflict actions/text,
+    # never the time of the first warning.
     if actual_start < plan_start:
-
         notification_end = actual_end
-
     else:
-
         notification_end = plan_end
 
     return {

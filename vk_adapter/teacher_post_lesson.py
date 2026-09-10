@@ -145,23 +145,142 @@ def install(app):
             ]])
         if mode == "teacher_review_sections":
             lid = int(data["lesson_id"])
+            sections = list(data.get("sections") or [])
+            page = max(0, int(data.get("page") or 0))
+
+            # VK ограничивает размер клавиатуры.
+            # Оставляем максимум 6 разделов на странице.
+            per_page = 6
+            pages = max(
+                1,
+                (len(sections) + per_page - 1) // per_page,
+            )
+            page = min(page, pages - 1)
+
+            start_i = page * per_page
+            end_i = min(start_i + per_page, len(sections))
+
             out = []
-            for i, pair in enumerate(data.get("sections") or []):
-                subject, section = pair
-                out.append([b(f"📚 {subject} • {section}"[:38], f"t_review_section|{lid}|{i}", "primary")])
+
+            for i in range(start_i, end_i):
+                subject, section = sections[i]
+                out.append([
+                    b(
+                        f"📚 {subject} • {section}"[:38],
+                        f"t_review_section|{lid}|{i}",
+                        "primary",
+                    )
+                ])
+
+            if pages > 1:
+                nav = []
+
+                if page > 0:
+                    nav.append(
+                        b(
+                            "⬅️",
+                            f"t_review_sections_page|{lid}|{page - 1}",
+                        )
+                    )
+
+                if page + 1 < pages:
+                    nav.append(
+                        b(
+                            "➡️",
+                            f"t_review_sections_page|{lid}|{page + 1}",
+                        )
+                    )
+
+                if nav:
+                    out.append(nav)
+
             if data.get("has_marks"):
-                out.append([b("✅ Темы выбраны", f"t_review_confirm|{lid}", "positive")])
-            elif not out:
-                out.append([b("⏭ Без отметок", f"t_review_empty|{lid}")])
-            out.append([b("🏠 Главная", "t_home")])
+                out.append([
+                    b(
+                        "✅ Темы выбраны",
+                        f"t_review_confirm|{lid}",
+                        "positive",
+                    )
+                ])
+            elif not sections:
+                out.append([
+                    b(
+                        "⏭ Без отметок",
+                        f"t_review_empty|{lid}",
+                    )
+                ])
+
+            out.append([
+                b("🏠 Главная", "t_home")
+            ])
+
             return rows(out)
+
         if mode == "teacher_review_topics":
             lid = int(data["lesson_id"])
-            out = [[b(str(r["topic"])[:38], f"t_review_topic|{lid}|{i}")] for i, r in enumerate((data.get("topics") or [])[:30])]
-            out.append([b("➕ К другим разделам", f"t_review_more|{lid}")])
+            topics = list(data.get("topics") or [])
+            page = max(0, int(data.get("page") or 0))
+
+            per_page = 6
+            pages = max(
+                1,
+                (len(topics) + per_page - 1) // per_page,
+            )
+            page = min(page, pages - 1)
+
+            start_i = page * per_page
+            end_i = min(start_i + per_page, len(topics))
+
+            out = []
+
+            for i in range(start_i, end_i):
+                out.append([
+                    b(
+                        str(topics[i]["topic"])[:38],
+                        f"t_review_topic|{lid}|{i}",
+                    )
+                ])
+
+            if pages > 1:
+                nav = []
+
+                if page > 0:
+                    nav.append(
+                        b(
+                            "⬅️",
+                            f"t_review_topics_page|{lid}|{page - 1}",
+                        )
+                    )
+
+                if page + 1 < pages:
+                    nav.append(
+                        b(
+                            "➡️",
+                            f"t_review_topics_page|{lid}|{page + 1}",
+                        )
+                    )
+
+                if nav:
+                    out.append(nav)
+
+            out.append([
+                b(
+                    "➕ К другим разделам",
+                    f"t_review_more|{lid}",
+                )
+            ])
+
             if data.get("has_marks"):
-                out.append([b("✅ Темы выбраны", f"t_review_confirm|{lid}", "positive")])
+                out.append([
+                    b(
+                        "✅ Темы выбраны",
+                        f"t_review_confirm|{lid}",
+                        "positive",
+                    )
+                ])
+
             return rows(out)
+
         if mode == "teacher_review_level":
             lid = int(data["lesson_id"])
             return rows([
@@ -216,6 +335,24 @@ def install(app):
                 try:
                     from .attachment_bridge import vk_forward_to_student
                     vk_forward_to_student(int(uid), attachments, f"📝 ДЗ #{hid}\n\n{text}")
+                    try:
+                        from . import homework_v6
+
+                        import vk_adapter.app as vk_app
+
+                        homework_v6.deliver(
+                            vk_app,
+                            int(hid),
+                            int(uid),
+                            also_telegram=True,
+                        )
+
+                    except Exception as exc:
+                        print(
+                            "HW6 VK REVIEW DELIVERY:",
+                            repr(exc),
+                            flush=True,
+                        )
                 except Exception as exc:
                     print("VK REVIEW HOMEWORK ATTACH ERROR:", repr(exc))
             app.send(

@@ -54,6 +54,7 @@ def _state_key(lesson):
             lesson["finished_at"],
             int(bool(lesson["is_trial"])),
             calendar_policy.lesson_state(lesson),
+            calendar_policy.lesson_color_id(lesson),
             calendar_policy.lesson_summary_prefix(lesson),
         )
     )
@@ -330,9 +331,51 @@ async def _sync(bot_module, application=None):
     return {"created": created, "updated": updated, "deleted": deleted}
 
 
+
+async def _live_calendar_sync_job(context):
+    """
+    tutor.db is the source of truth.
+    TG, VK and background jobs all become visible
+    in Google Calendar through this one sync owner.
+    """
+    try:
+        import sys
+
+        runtime = sys.modules.get(
+            "__main__"
+        )
+
+        if runtime is None:
+            import bot as runtime
+
+        await _sync(
+            runtime,
+            getattr(
+                context,
+                "application",
+                None,
+            ),
+        )
+
+    except Exception as exc:
+        print(
+            "GOOGLE CALENDAR LIVE SYNC ERROR:",
+            repr(exc),
+            flush=True,
+        )
+
 def install(application=None):
-    """Patch the legacy Calendar entry points without duplicating job scheduling."""
-    import bot as bot_module
+    """Patch the live Calendar runtime without duplicating job scheduling."""
+    import sys
+
+    bot_module = sys.modules.get("__main__")
+
+    if (
+        bot_module is None
+        or not hasattr(bot_module, "get_calendar_service")
+        or not hasattr(bot_module, "save_google_event_id")
+    ):
+        import bot as bot_module
 
     if getattr(bot_module, "_calendar_policy_v2_installed", False):
         return
@@ -377,3 +420,28 @@ def install(application=None):
     bot_module.sync_google_calendar = sync_google_calendar
     bot_module._calendar_policy_v2_installed = True
     _init_state_tables()
+
+    if (
+        application is not None
+        and getattr(
+            application,
+            "job_queue",
+            None,
+        )
+    ):
+        names = {
+            job.name
+            for job
+            in application.job_queue.jobs()
+        }
+
+        if (
+            "calendar_policy_live_sync"
+            not in names
+        ):
+            application.job_queue.run_repeating(
+                _live_calendar_sync_job,
+                interval=20,
+                first=5,
+                name="calendar_policy_live_sync",
+            )

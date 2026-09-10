@@ -8,11 +8,13 @@ from core.lesson_time import schedule_datetime, lesson_timezone
 # Google Calendar event color ids:
 # 3 grape/purple, 5 banana/yellow, 6 tangerine/orange,
 # 8 graphite, 9 blueberry/blue, 10 basil/green, 11 tomato/red.
-COLOR_IN_PROGRESS = "3"
+COLOR_PAID = "3"
+COLOR_IN_PROGRESS = "4"
 COLOR_RECEIPT_WAITING = "5"
+COLOR_UPCOMING_UNPAID = "5"
 COLOR_TRIAL = "6"
 COLOR_DAY_OFF = "8"
-COLOR_PAID = "9"
+COLOR_PLANNED = "9"
 COLOR_COMPLETED = "10"
 COLOR_ATTENTION = "11"
 
@@ -152,29 +154,147 @@ def payment_attention_reason(lesson, now=None):
     return None
 
 
-def lesson_state(lesson, now=None):
-    """Canonical Calendar visual state with deliberate priority."""
-    status = str(_get(lesson, "lesson_status", "") or "").upper()
-    payment_status = str(_get(lesson, "payment_status", "") or "").upper()
-    attention = payment_attention_reason(lesson, now=now)
+def unpaid_starts_within_48h(
+    lesson,
+    now=None,
+):
+    """
+    Yellow only when payment is NOT confirmed
+    and lesson starts within the next 48 hours.
+    """
 
-    if attention in {"RECEIPT_UNCONFIRMED_24H", "PAYMENT_DUE_24H"}:
-        return "ATTENTION"
+    if is_trial(lesson):
+        return False
+
+    payment_status = str(
+        _get(
+            lesson,
+            "payment_status",
+            "",
+        )
+        or ""
+    ).upper()
+
+    if payment_status in {
+        "PAID",
+        "RESERVED_BALANCE",
+        "FREE",
+    }:
+        return False
+
+    try:
+        start = schedule_datetime(
+            _get(
+                lesson,
+                "start_time",
+            )
+        )
+
+        current = (
+            now
+            or datetime.now(
+                lesson_timezone()
+            )
+        )
+
+        if current.tzinfo is None:
+            current = current.replace(
+                tzinfo=lesson_timezone()
+            )
+        else:
+            current = current.astimezone(
+                lesson_timezone()
+            )
+
+        seconds = (
+            start - current
+        ).total_seconds()
+
+        return (
+            0
+            <= seconds
+            <= 48 * 60 * 60
+        )
+
+    except Exception:
+        return False
+
+
+def lesson_state(lesson, now=None):
+    status = str(
+        _get(
+            lesson,
+            "lesson_status",
+            "",
+        )
+        or ""
+    ).upper()
+
+    payment_status = str(
+        _get(
+            lesson,
+            "payment_status",
+            "",
+        )
+        or ""
+    ).upper()
+
+    reason = payment_attention_reason(
+        lesson,
+        now=now,
+    )
+
+    # Lesson lifecycle wins over payment.
+    if (
+        status in {
+            "COMPLETED",
+            "FINISHED",
+        }
+        or _get(
+            lesson,
+            "finished_at",
+        )
+    ):
+        return "COMPLETED"
+
     if status == "IN_PROGRESS":
         return "IN_PROGRESS"
-    if status == "COMPLETED" or _get(lesson, "finished_at"):
-        return "COMPLETED"
+
     if is_trial(lesson):
         return "TRIAL"
-    if attention == "RECEIPT_WAITING":
+
+    # Red only for real attention cases.
+    if reason == "RECEIPT_UNCONFIRMED_24H":
+        return "ATTENTION"
+
+    if reason == "RECEIPT_WAITING":
         return "RECEIPT_WAITING"
-    if payment_status in {"PAID", "RESERVED_BALANCE", "FREE"}:
+
+    # Confirmed payment ALWAYS stays purple.
+    if payment_status in {
+        "PAID",
+        "RESERVED_BALANCE",
+        "FREE",
+    }:
         return "PAID"
+
+    # Unpaid within 48h = yellow.
+    if unpaid_starts_within_48h(
+        lesson,
+        now=now,
+    ):
+        return "UPCOMING_UNPAID"
+
+    # Unpaid further away = blue.
     return "PLANNED"
 
 
 def lesson_color_id(lesson, now=None):
-    state = lesson_state(lesson, now=now)
+    state = lesson_state(
+        lesson,
+        now=now,
+    )
+
     return {
         "ATTENTION": COLOR_ATTENTION,
         "IN_PROGRESS": COLOR_IN_PROGRESS,
@@ -182,26 +302,43 @@ def lesson_color_id(lesson, now=None):
         "TRIAL": COLOR_TRIAL,
         "RECEIPT_WAITING": COLOR_RECEIPT_WAITING,
         "PAID": COLOR_PAID,
+        "UPCOMING_UNPAID": COLOR_UPCOMING_UNPAID,
+        "PLANNED": COLOR_PLANNED,
     }.get(state)
 
 
 def lesson_summary_prefix(lesson, now=None):
-    reason = payment_attention_reason(lesson, now=now)
-    state = lesson_state(lesson, now=now)
+    reason = payment_attention_reason(
+        lesson,
+        now=now,
+    )
+
+    state = lesson_state(
+        lesson,
+        now=now,
+    )
+
     if reason == "RECEIPT_UNCONFIRMED_24H":
         return "🔴 ЧЕК >24Ч • "
-    if reason == "PAYMENT_DUE_24H":
-        return "🔴 НЕТ ОПЛАТЫ • "
-    if state == "IN_PROGRESS":
-        return "🟣 ИДЁТ • "
+
     if state == "COMPLETED":
         return "✅ "
+
+    if state == "IN_PROGRESS":
+        return "🩷 ИДЁТ • "
+
     if state == "TRIAL":
         return "🧪 ПРОБНОЕ • "
+
     if state == "RECEIPT_WAITING":
         return "🧾 ЧЕК • "
+
     if state == "PAID":
         return "💳 "
+
+    if state == "UPCOMING_UNPAID":
+        return "🟡 СКОРО • "
+
     return ""
 
 

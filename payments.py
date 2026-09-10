@@ -2789,6 +2789,7 @@ async def admin_payment_buttons(
         # waiting for payment.  Reserve newly credited minutes for the
         # nearest suitable lessons first.
         covered_lesson_ids = []
+        autocover_warning = None
 
         if not (
             "lesson_id" in payment.keys()
@@ -2820,9 +2821,15 @@ async def admin_payment_buttons(
                     database.charge_reserved_lesson(
                         lesson_id
                     )
-                except ValueError:
-                    # Not enough compatible minutes for the next lesson.
-                    # A later lesson must not consume them out of order.
+                except ValueError as error:
+                    # Payment itself is confirmed, but the nearest lesson could
+                    # not be covered by compatible minutes. Do not hide this:
+                    # keep the payment PAID and surface the mismatch to admin.
+                    autocover_warning = (
+                        f"⚠️ Платёж подтверждён, но занятие #{lesson_id} "
+                        f"не удалось автоматически покрыть: {error}"
+                    )
+                    print("AUTO COVER AWAITING:", lesson_id, repr(error))
                     break
                 except Exception as error:
                     print(
@@ -2879,6 +2886,9 @@ async def admin_payment_buttons(
                 f"🎁 Промокод: "
                 f"{payment['promo_code']}\n"
             )
+
+        if autocover_warning:
+            admin_text += "\n\n" + autocover_warning + "\n"
 
         admin_text += (
             "\n🎟 БАЛАНС\n"

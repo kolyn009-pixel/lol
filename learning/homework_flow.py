@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import tempfile
+from io import BytesIO
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InputFile
 from telegram.ext import CallbackQueryHandler, MessageHandler, ContextTypes, filters
 
 import database
+
+import asyncio
+import subprocess
+import tempfile
+from pathlib import Path as _Path
+from telegram import InputMediaPhoto
+
+import homework_attachments as HWA
 from core import admin_roles
 from formula_library import FORMULA_LIBRARY
 from ai_assistant import client as ai_client
@@ -136,6 +147,64 @@ def initialize():
         c.execute('CREATE INDEX IF NOT EXISTS idx_hw_attach_draft ON homework_attachments(draft_id)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_hw_attach_hw ON homework_attachments(homework_id)')
         c.commit()
+    finally:
+        c.close()
+
+
+
+def _validate_attachment_schema():
+    """
+    Homework attachments have two valid lifecycle states:
+
+      draft:
+        draft_id != NULL
+        homework_id == NULL
+
+      assigned:
+        draft_id == NULL
+        homework_id != NULL
+
+    homework_id MUST remain nullable because files are
+    collected before the homework row itself is created.
+    """
+
+    c = DB.connect()
+
+    try:
+        columns = {
+            r["name"]: r
+            for r in c.execute(
+                "PRAGMA table_info(homework_attachments)"
+            ).fetchall()
+        }
+
+        homework_col = columns.get(
+            "homework_id"
+        )
+
+        draft_col = columns.get(
+            "draft_id"
+        )
+
+        if not homework_col:
+            raise RuntimeError(
+                "homework_attachments.homework_id missing"
+            )
+
+        if not draft_col:
+            raise RuntimeError(
+                "homework_attachments.draft_id missing"
+            )
+
+        if int(
+            homework_col["notnull"]
+            or 0
+        ):
+            raise RuntimeError(
+                "homework_attachments.homework_id "
+                "must be nullable for draft attachments"
+            )
+
     finally:
         c.close()
 
@@ -328,10 +397,138 @@ async def callback(update:Update, context:ContextTypes.DEFAULT_TYPE):
     await q.answer()
     if data.startswith('homework_view|'):
         hid=int(data.split('|')[1]); return await _student_homework_panel(q,hid)
+    if data.startswith('hw_task_start|'):
+        if not _is_admin(update):
+            return
+
+        lesson_id = int(
+            data.split('|')[1]
+        )
+
+        lesson = DB.get_lesson(
+            lesson_id
+        )
+
+        if not lesson:
+            return await q.answer(
+                'Занятие не найдено',
+                show_alert=True,
+            )
+
+        try:
+            from core import post_lesson
+            post_lesson.set_homework_status(
+                lesson_id,
+                'DRAFT',
+            )
+        except Exception:
+            pass
+
+        did = _new_draft(
+            update.effective_user.id,
+            lesson['user_id'],
+            lesson_id,
+        )
+
+        return await _show_step1(
+            q,
+            did,
+        )
+
+    if data.startswith('hw2_pdf_info|'):
+        parts = data.split('|')
+        await q.answer(
+            f"Страница {parts[3]}"
+        )
+        return
+
+    if data.startswith('hw2_pdf_page|'):
+        _, hid, aid, page = data.split('|', 3)
+
+        hw = DB.get_homework(
+            int(hid)
+        )
+
+        user = DB.get_user_by_telegram_id(
+            update.effective_user.id
+        )
+
+        if (
+            not hw
+            or not user
+            or int(hw['user_id'])
+            != int(user['id'])
+        ):
+            return
+
+        return await _edit_pdf_page(
+            q,
+            int(hid),
+            int(aid),
+            int(page),
+        )
+
+    if data.startswith('hw2_pdf_original|'):
+        _, hid, aid = data.split('|', 2)
+
+        return await _send_original_pdf(
+            q,
+            context,
+            int(hid),
+            int(aid),
+        )
+
+    if data.startswith('hw2_student_home|'):
+        hid = int(
+            data.split('|')[1]
+        )
+
+        return await _student_homework_panel(
+            q,
+            hid,
+        )
+
+    if data.startswith('hw2_student_done|'):
+        hid = int(
+            data.split('|')[1]
+        )
+
+        return await _student_mark_done(
+            q,
+            hid,
+        )
+
+    if data.startswith('hw2_student_browse_grade|'):
+        _, hid, grade = data.split('|', 2)
+
+        return await _student_formula_browse_grade(
+            q,
+            int(hid),
+            int(grade),
+        )
+
+    if data.startswith('hw2_student_browse|'):
+        hid = int(
+            data.split('|')[1]
+        )
+
+        return await _student_formula_browse(
+            q,
+            hid,
+        )
     if data.startswith('admin_homework|') or data.startswith('admin_homework_create|'):
         if not _is_admin(update): return
         lesson_id=int(data.split('|')[1]); lesson=DB.get_lesson(lesson_id)
         if not lesson: return await q.answer('Занятие не найдено',show_alert=True)
+        try:
+            from core import post_lesson
+            post_lesson.set_homework_status(
+                lesson_id,
+                'DRAFT',
+            )
+        except Exception:
+            pass
+
         did=_new_draft(update.effective_user.id,lesson['user_id'],lesson_id)
         return await _show_step1(q,did)
     if not data.startswith('hw2_'): return
@@ -462,7 +659,52 @@ async def message(update:Update,context:ContextTypes.DEFAULT_TYPE):
         if m.document: ftype='document';fid=m.document.file_id;uid=m.document.file_unique_id;name=m.document.file_name
         elif m.photo: ftype='photo';fid=m.photo[-1].file_id;uid=m.photo[-1].file_unique_id;name='Фото задания'
         if not fid:return await m.reply_text('Пришлите документ или фото.')
-        c=DB.connect();c.execute('INSERT INTO homework_attachments(draft_id,file_type,file_id,telegram_file_id,file_unique_id,file_name,caption) VALUES(?,?,?,?,?,?,?)',(did,ftype,fid,fid,uid,name,m.caption));c.commit();c.close();context.user_data.pop('hw2_wait',None)
+        c=DB.connect()
+        try:
+            cols={r['name'] for r in c.execute('PRAGMA table_info(homework_attachments)').fetchall()}
+            now=datetime.now().isoformat(timespec='seconds')
+
+            if {'kind','filename','source_channel','updated_at'} <= cols:
+                c.execute(
+                    '''
+                    INSERT INTO homework_attachments(
+                        draft_id,
+                        file_type,file_id,telegram_file_id,
+                        file_unique_id,file_name,caption,
+                        kind,filename,mime_type,
+                        source_channel,created_at,updated_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ''',
+                    (
+                        did,
+                        ftype,fid,fid,
+                        uid,name,m.caption,
+                        ftype,name,
+                        (
+                            m.document.mime_type
+                            if m.document
+                            else 'image/jpeg'
+                        ),
+                        'TELEGRAM',
+                        now,now,
+                    ),
+                )
+            else:
+                c.execute(
+                    '''
+                    INSERT INTO homework_attachments(
+                        draft_id,file_type,file_id,
+                        telegram_file_id,file_unique_id,
+                        file_name,caption, created_at) VALUES(?,?,?,?,?,?,?, CURRENT_TIMESTAMP)
+                    ''',
+                    (did,ftype,fid,fid,uid,name,m.caption),
+                )
+
+            c.commit()
+        finally:
+            c.close()
+
+        context.user_data.pop('hw2_wait',None)
         return await m.reply_text('💾 Файл добавлен в черновик ДЗ.',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('➕ Ещё файл',callback_data=f'hw2_file|{did}')],[InlineKeyboardButton('▶️ Продолжить',callback_data=f'hw2_step1|{did}')]]))
 
 
@@ -513,10 +755,1397 @@ async def _finalize(q,did,context):
         c.execute("UPDATE homework_drafts SET status='SENT',updated_at=CURRENT_TIMESTAMP WHERE id=?",(did,));c.commit()
     finally:c.close()
     try:
-        student=DB.get_user(d['user_id']); chat=student['telegram_id']
-        await context.bot.send_message(chat,f'📝 НОВОЕ ДОМАШНЕЕ ЗАДАНИЕ\n\n📚 {_topic_title(d["topic_grade"],subj,d["topic_key"])}\n📅 Срок: {deadline or "без срока"}',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('▶️ Открыть ДЗ',callback_data=f'homework_view|{hid}')]]))
+        student=DB.get_user(
+            d["user_id"]
+        )
+
+        if (
+            student
+            and student["telegram_id"]
+        ):
+            await _send_hw_card(
+                context.bot,
+                int(student["telegram_id"]),
+                hid,
+            )
     except Exception: pass
     await q.edit_message_text('✅ ДЗ отправлено ученику.\n\nЧерновик сохранён в истории, занятие отмечено как ДЗ задано.',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('👤 Карточка ученика',callback_data=f'admin_student|{d["user_id"]}')],[InlineKeyboardButton('🏠 Главная',callback_data='admin_main')]]))
+
+
+
+def _pdf_preview(content):
+    """Generate first-page JPEG. Never stored in SQLite."""
+    pdf_name = None
+    base = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=".pdf",
+            delete=False,
+        ) as tmp:
+            tmp.write(content)
+            pdf_name = tmp.name
+
+        base = pdf_name + "_preview"
+
+        subprocess.run(
+            [
+                "pdftoppm",
+                "-f", "1",
+                "-singlefile",
+                "-jpeg",
+                "-scale-to", "1200",
+                pdf_name,
+                base,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=20,
+            check=True,
+        )
+
+        img = Path(
+            base + ".jpg"
+        )
+
+        if img.exists():
+            return img.read_bytes()
+
+    except Exception:
+        return None
+
+    finally:
+        for name in (
+            pdf_name,
+            (
+                base + ".jpg"
+                if base
+                else None
+            ),
+        ):
+            if name:
+                try:
+                    Path(name).unlink(
+                        missing_ok=True
+                    )
+                except Exception:
+                    pass
+
+    return None
+
+
+def _hw_done(hw):
+    try:
+        return str(
+            hw["status"] or ""
+        ).upper() in {
+            "DONE",
+            "COMPLETED",
+            "SUBMITTED",
+        }
+    except Exception:
+        return False
+
+
+def _mark_hw_done(hid, user_id):
+    c = DB.connect()
+
+    try:
+        for table in (
+            "homeworks",
+            "homework",
+        ):
+            exists = c.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type='table'
+                  AND name=?
+                """,
+                (table,),
+            ).fetchone()
+
+            if not exists:
+                continue
+
+            cols = {
+                r["name"]
+                for r in c.execute(
+                    f"PRAGMA table_info({table})"
+                ).fetchall()
+            }
+
+            if not {
+                "id",
+                "user_id",
+                "status",
+            }.issubset(cols):
+                continue
+
+            row = c.execute(
+                f"""
+                SELECT id
+                FROM {table}
+                WHERE id=?
+                  AND user_id=?
+                """,
+                (
+                    int(hid),
+                    int(user_id),
+                ),
+            ).fetchone()
+
+            if not row:
+                continue
+
+            values = [
+                "status='COMPLETED'"
+            ]
+            params = []
+
+            if "completed_at" in cols:
+                values.append(
+                    "completed_at=?"
+                )
+                params.append(
+                    datetime.now().isoformat(
+                        timespec="seconds"
+                    )
+                )
+
+            params.append(
+                int(hid)
+            )
+
+            c.execute(
+                f"""
+                UPDATE {table}
+                SET {",".join(values)}
+                WHERE id=?
+                """,
+                params,
+            )
+
+            c.commit()
+            return True
+
+        return False
+
+    finally:
+        c.close()
+
+
+def _hw_card_text(
+    hw,
+    mode="HOME",
+    extra=None,
+):
+    lines = [
+        "📝 ДОМАШНЕЕ ЗАДАНИЕ",
+        "",
+        str(
+            hw["description"]
+            or "Задание во вложении"
+        )[:500],
+    ]
+
+    try:
+        deadline = hw["deadline"]
+    except Exception:
+        deadline = None
+
+    if deadline:
+        lines += [
+            "",
+            f"⏰ Срок: {deadline}",
+        ]
+
+    if mode != "HOME":
+        lines += [
+            "",
+            "━━━━━━━━━━━━",
+        ]
+
+    if extra:
+        lines.append(
+            str(extra)
+        )
+
+    if _hw_done(hw):
+        lines += [
+            "",
+            "✅ ДЗ выполнено",
+        ]
+
+    # Telegram media caption limit.
+    return "\n".join(lines)[:950]
+
+
+def _hw_card_markup(
+    hid,
+    links=None,
+    mode="HOME",
+    extra_rows=None,
+    done=False,
+):
+    links = links or []
+
+    rows = []
+
+    if mode == "HOME":
+        rows.append([
+            InlineKeyboardButton(
+                "📚 Формулы"
+                + (
+                    f" ({len(links)})"
+                    if links
+                    else ""
+                ),
+                callback_data=(
+                    f"hw2_student_formula|{hid}"
+                ),
+            ),
+            InlineKeyboardButton(
+                "🔎 Ещё",
+                callback_data=(
+                    f"hw2_student_browse|{hid}"
+                ),
+            ),
+        ])
+
+    if extra_rows:
+        rows.extend(
+            extra_rows
+        )
+
+    if mode != "HOME":
+        rows.append([
+            InlineKeyboardButton(
+                "📄 ДЗ",
+                callback_data=(
+                    f"hw2_student_home|{hid}"
+                ),
+            ),
+            InlineKeyboardButton(
+                "📚 Формулы",
+                callback_data=(
+                    f"hw2_student_formula|{hid}"
+                ),
+            ),
+        ])
+
+    # ALWAYS visible.
+    rows.append([
+        InlineKeyboardButton(
+            (
+                "✅ ДЗ выполнено"
+                if done
+                else "✅ Выполнено"
+            ),
+            callback_data=(
+                f"hw2_student_home|{hid}"
+                if done
+                else f"hw2_student_done|{hid}"
+            ),
+        )
+    ])
+
+    return InlineKeyboardMarkup(
+        rows
+    )
+
+
+async def _edit_hw_card(
+    q,
+    text,
+    markup,
+):
+    if (
+        q.message.document
+        or q.message.photo
+        or q.message.video
+        or q.message.audio
+        or q.message.animation
+    ):
+        await q.edit_message_caption(
+            caption=text[:1000],
+            reply_markup=markup,
+        )
+    else:
+        await q.edit_message_text(
+            text[:3900],
+            reply_markup=markup,
+        )
+
+
+
+# ============================================================
+# HOMEWORK V5 PDF VIEWER
+# ============================================================
+
+_PDF_RENDER_LOCKS = {}
+_PDF_VIEW_STATE = {}
+
+PDF_RENDER_WIDTH = 1500
+PDF_MAX_BYTES = 30 * 1024 * 1024
+PDF_MAX_PAGES = 500
+
+
+def _a_value(row, key, default=None):
+    try:
+        return row[key]
+    except Exception:
+        return default
+
+
+def _attachment_filename(row):
+    return str(
+        _a_value(row, "file_name")
+        or _a_value(row, "filename")
+        or "homework"
+    )
+
+
+def _attachment_tg_file_id(row):
+    return (
+        _a_value(
+            row,
+            "telegram_file_id",
+        )
+        or _a_value(
+            row,
+            "file_id",
+        )
+    )
+
+
+def _is_pdf_attachment(row):
+    filename = (
+        _attachment_filename(row)
+        .lower()
+    )
+
+    mime = str(
+        _a_value(
+            row,
+            "mime_type",
+            "",
+        )
+        or ""
+    ).lower()
+
+    return (
+        filename.endswith(".pdf")
+        or mime == "application/pdf"
+    )
+
+
+def _pdf_attachment(
+    homework_id,
+    attachment_id,
+):
+    c = DB.connect()
+
+    try:
+        return c.execute(
+            """
+            SELECT *
+            FROM homework_attachments
+            WHERE id=?
+              AND homework_id=?
+            """,
+            (
+                int(attachment_id),
+                int(homework_id),
+            ),
+        ).fetchone()
+
+    finally:
+        c.close()
+
+
+def _pdf_content_sync(attachment):
+    from vk_adapter import (
+        attachment_bridge as bridge
+    )
+
+    fid = _attachment_tg_file_id(
+        attachment
+    )
+
+    if fid:
+        content = (
+            bridge.telegram_file_bytes(
+                fid
+            )
+        )
+
+    else:
+        url = _a_value(
+            attachment,
+            "vk_url",
+        )
+
+        if not url:
+            raise RuntimeError(
+                "У PDF нет доступного "
+                "Telegram/VK источника"
+            )
+
+        content = bridge._bytes_request(
+            str(url),
+            timeout=90,
+        )
+
+    if len(content) > PDF_MAX_BYTES:
+        raise RuntimeError(
+            "PDF слишком большой "
+            "для постраничного просмотра"
+        )
+
+    return content
+
+
+def _pdf_info_and_render_sync(
+    attachment,
+    page_number,
+):
+    content = _pdf_content_sync(
+        attachment
+    )
+
+    with tempfile.TemporaryDirectory(
+        prefix="tutorbot_pdf_"
+    ) as td:
+        root = _Path(td)
+
+        source = root / "source.pdf"
+        output = root / "page"
+
+        source.write_bytes(
+            content
+        )
+
+        info = subprocess.run(
+            [
+                "pdfinfo",
+                str(source),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=12,
+            check=True,
+        )
+
+        pages = None
+
+        for line in info.stdout.splitlines():
+            if line.lower().startswith(
+                "pages:"
+            ):
+                pages = int(
+                    line.split(
+                        ":",
+                        1,
+                    )[1].strip()
+                )
+                break
+
+        if not pages:
+            raise RuntimeError(
+                "Не удалось определить "
+                "число страниц PDF"
+            )
+
+        if pages > PDF_MAX_PAGES:
+            raise RuntimeError(
+                f"PDF содержит {pages} страниц. "
+                f"Лимит просмотра: "
+                f"{PDF_MAX_PAGES}."
+            )
+
+        page = max(
+            1,
+            min(
+                int(page_number),
+                pages,
+            ),
+        )
+
+        subprocess.run(
+            [
+                "pdftoppm",
+                "-f",
+                str(page),
+                "-l",
+                str(page),
+                "-singlefile",
+                "-jpeg",
+                "-jpegopt",
+                "quality=82",
+                "-scale-to-x",
+                str(PDF_RENDER_WIDTH),
+                "-scale-to-y",
+                "-1",
+                str(source),
+                str(output),
+            ],
+            capture_output=True,
+            timeout=25,
+            check=True,
+        )
+
+        image = (
+            root / "page.jpg"
+        )
+
+        if not image.exists():
+            raise RuntimeError(
+                "PDF preview was not created"
+            )
+
+        return (
+            image.read_bytes(),
+            pages,
+            page,
+        )
+
+
+def _pdf_lock(attachment_id):
+    aid = int(attachment_id)
+
+    lock = _PDF_RENDER_LOCKS.get(
+        aid
+    )
+
+    if lock is None:
+        lock = asyncio.Lock()
+        _PDF_RENDER_LOCKS[
+            aid
+        ] = lock
+
+    return lock
+
+
+async def _pdf_page_payload(
+    homework_id,
+    attachment,
+    page_number,
+):
+    aid = int(
+        attachment["id"]
+    )
+
+    requested = max(
+        1,
+        int(page_number),
+    )
+
+    cached = HWA.pdf_page_get(
+        aid,
+        requested,
+    )
+
+    if (
+        cached
+        and cached[
+            "telegram_file_id"
+        ]
+    ):
+        return {
+            "page": requested,
+            "pages": int(
+                cached["page_count"]
+            ),
+            "file_id": cached[
+                "telegram_file_id"
+            ],
+            "bytes": None,
+        }
+
+    async with _pdf_lock(aid):
+
+        # Another click may have rendered
+        # the page while we were waiting.
+        cached = HWA.pdf_page_get(
+            aid,
+            requested,
+        )
+
+        if (
+            cached
+            and cached[
+                "telegram_file_id"
+            ]
+        ):
+            return {
+                "page": requested,
+                "pages": int(
+                    cached["page_count"]
+                ),
+                "file_id": cached[
+                    "telegram_file_id"
+                ],
+                "bytes": None,
+            }
+
+        image_bytes, pages, page = (
+            await asyncio.to_thread(
+                _pdf_info_and_render_sync,
+                attachment,
+                requested,
+            )
+        )
+
+        return {
+            "page": page,
+            "pages": pages,
+            "file_id": None,
+            "bytes": image_bytes,
+        }
+
+
+def _pdf_view_markup(
+    hid,
+    aid,
+    page,
+    pages,
+    links=None,
+    done=False,
+):
+    rows = []
+
+    nav = []
+
+    if page > 1:
+        nav.append(
+            InlineKeyboardButton(
+                "◀️",
+                callback_data=(
+                    f"hw2_pdf_page|"
+                    f"{hid}|{aid}|{page - 1}"
+                ),
+            )
+        )
+    else:
+        nav.append(
+            InlineKeyboardButton(
+                "·",
+                callback_data=(
+                    f"hw2_pdf_info|"
+                    f"{hid}|{aid}|{page}"
+                ),
+            )
+        )
+
+    nav.append(
+        InlineKeyboardButton(
+            f"{page} / {pages}",
+            callback_data=(
+                f"hw2_pdf_info|"
+                f"{hid}|{aid}|{page}"
+            ),
+        )
+    )
+
+    if page < pages:
+        nav.append(
+            InlineKeyboardButton(
+                "▶️",
+                callback_data=(
+                    f"hw2_pdf_page|"
+                    f"{hid}|{aid}|{page + 1}"
+                ),
+            )
+        )
+    else:
+        nav.append(
+            InlineKeyboardButton(
+                "·",
+                callback_data=(
+                    f"hw2_pdf_info|"
+                    f"{hid}|{aid}|{page}"
+                ),
+            )
+        )
+
+    rows.append(nav)
+
+    rows.append([
+        InlineKeyboardButton(
+            "📄 Оригинал PDF",
+            callback_data=(
+                f"hw2_pdf_original|"
+                f"{hid}|{aid}"
+            ),
+        )
+    ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "📚 Формулы"
+            + (
+                f" ({len(links)})"
+                if links
+                else ""
+            ),
+            callback_data=(
+                f"hw2_student_formula|{hid}"
+            ),
+        ),
+        InlineKeyboardButton(
+            "🔎 Ещё",
+            callback_data=(
+                f"hw2_student_browse|{hid}"
+            ),
+        ),
+    ])
+
+    rows.append([
+        InlineKeyboardButton(
+            (
+                "✅ ДЗ выполнено"
+                if done
+                else "✅ Выполнено"
+            ),
+            callback_data=(
+                f"hw2_student_home|{hid}"
+                if done
+                else f"hw2_student_done|{hid}"
+            ),
+        )
+    ])
+
+    return InlineKeyboardMarkup(
+        rows
+    )
+
+
+def _pdf_caption(
+    hw,
+    page,
+    pages,
+):
+    base = _hw_card_text(
+        hw
+    )
+
+    suffix = (
+        f"\n\n📄 Страница "
+        f"{page} из {pages}"
+    )
+
+    return (
+        base[:850]
+        + suffix
+    )[:1000]
+
+
+def _remember_pdf_state(
+    telegram_id,
+    hid,
+    aid,
+    page,
+):
+    _PDF_VIEW_STATE[
+        (
+            int(telegram_id),
+            int(hid),
+        )
+    ] = (
+        int(aid),
+        int(page),
+    )
+
+
+async def _send_pdf_viewer(
+    bot,
+    chat_id,
+    hid,
+    attachment,
+    page=1,
+):
+    hw = DB.get_homework(
+        int(hid)
+    )
+
+    if not hw:
+        return None
+
+    payload = await _pdf_page_payload(
+        hid,
+        attachment,
+        page,
+    )
+
+    links = _hw_links(
+        hid
+    )
+
+    markup = _pdf_view_markup(
+        int(hid),
+        int(attachment["id"]),
+        payload["page"],
+        payload["pages"],
+        links=links,
+        done=_hw_done(hw),
+    )
+
+    caption = _pdf_caption(
+        hw,
+        payload["page"],
+        payload["pages"],
+    )
+
+    if payload["file_id"]:
+        photo = payload["file_id"]
+
+    else:
+        photo = InputFile(
+            BytesIO(
+                payload["bytes"]
+            ),
+            filename=(
+                f"homework_{hid}_"
+                f"page_{payload['page']}.jpg"
+            ),
+        )
+
+    message = await bot.send_photo(
+        int(chat_id),
+        photo=photo,
+        caption=caption,
+        reply_markup=markup,
+    )
+
+    try:
+        preview_id = (
+            message.photo[-1].file_id
+            if message.photo
+            else None
+        )
+
+        HWA.pdf_page_save(
+            hid,
+            attachment["id"],
+            payload["page"],
+            payload["pages"],
+            preview_id,
+        )
+
+    except Exception as exc:
+        print(
+            "HOMEWORK PDF CACHE SAVE:",
+            repr(exc),
+            flush=True,
+        )
+
+    return message
+
+
+async def _edit_pdf_page(
+    q,
+    hid,
+    aid,
+    page,
+):
+    hw = DB.get_homework(
+        int(hid)
+    )
+
+    if not hw:
+        return
+
+    attachment = _pdf_attachment(
+        hid,
+        aid,
+    )
+
+    if (
+        not attachment
+        or not _is_pdf_attachment(
+            attachment
+        )
+    ):
+        await q.answer(
+            "PDF больше недоступен",
+            show_alert=True,
+        )
+        return
+
+    payload = await _pdf_page_payload(
+        hid,
+        attachment,
+        page,
+    )
+
+    links = _hw_links(
+        hid
+    )
+
+    markup = _pdf_view_markup(
+        hid,
+        aid,
+        payload["page"],
+        payload["pages"],
+        links=links,
+        done=_hw_done(hw),
+    )
+
+    caption = _pdf_caption(
+        hw,
+        payload["page"],
+        payload["pages"],
+    )
+
+    if payload["file_id"]:
+        media = InputMediaPhoto(
+            media=payload[
+                "file_id"
+            ],
+            caption=caption,
+        )
+
+    else:
+        media = InputMediaPhoto(
+            media=InputFile(
+                BytesIO(
+                    payload["bytes"]
+                ),
+                filename=(
+                    f"homework_{hid}_"
+                    f"page_{payload['page']}.jpg"
+                ),
+            ),
+            caption=caption,
+        )
+
+    try:
+        message = await q.edit_message_media(
+            media=media,
+            reply_markup=markup,
+        )
+
+    except Exception as exc:
+        # Rapid double click on same page:
+        # do not crash the flow.
+        if (
+            "Message is not modified"
+            in str(exc)
+        ):
+            return
+
+        raise
+
+    try:
+        preview_id = (
+            message.photo[-1].file_id
+            if message
+            and message.photo
+            else None
+        )
+
+        HWA.pdf_page_save(
+            hid,
+            aid,
+            payload["page"],
+            payload["pages"],
+            preview_id,
+        )
+
+    except Exception as exc:
+        print(
+            "HOMEWORK PDF CACHE UPDATE:",
+            repr(exc),
+            flush=True,
+        )
+
+    try:
+        _remember_pdf_state(
+            q.from_user.id,
+            hid,
+            aid,
+            payload["page"],
+        )
+    except Exception:
+        pass
+
+
+async def _send_original_pdf(
+    q,
+    context,
+    hid,
+    aid,
+):
+    hw = DB.get_homework(
+        int(hid)
+    )
+
+    user = DB.get_user_by_telegram_id(
+        q.from_user.id
+    )
+
+    if (
+        not hw
+        or not user
+        or int(hw["user_id"])
+        != int(user["id"])
+    ):
+        return
+
+    attachment = _pdf_attachment(
+        hid,
+        aid,
+    )
+
+    if not attachment:
+        return
+
+    fid = _attachment_tg_file_id(
+        attachment
+    )
+
+    name = _attachment_filename(
+        attachment
+    )
+
+    if fid:
+        await context.bot.send_document(
+            q.message.chat_id,
+            document=fid,
+            caption="📄 Оригинал домашнего задания",
+        )
+        return
+
+    try:
+        content = await asyncio.to_thread(
+            _pdf_content_sync,
+            attachment,
+        )
+
+        await context.bot.send_document(
+            q.message.chat_id,
+            document=InputFile(
+                BytesIO(content),
+                filename=name,
+            ),
+            caption="📄 Оригинал домашнего задания",
+        )
+
+    except Exception as exc:
+        print(
+            "HOMEWORK ORIGINAL PDF:",
+            repr(exc),
+            flush=True,
+        )
+
+        await q.answer(
+            "Не удалось открыть оригинал PDF",
+            show_alert=True,
+        )
+
+
+async def _student_mark_done(
+    q,
+    hid,
+):
+    hw = DB.get_homework(
+        int(hid)
+    )
+
+    user = DB.get_user_by_telegram_id(
+        q.from_user.id
+    )
+
+    if (
+        not hw
+        or not user
+        or int(hw["user_id"])
+        != int(user["id"])
+    ):
+        return
+
+    c = DB.connect()
+
+    try:
+        columns = {
+            row["name"]
+            for row in c.execute(
+                "PRAGMA table_info(homework)"
+            )
+        }
+
+        sets = [
+            "status='DONE'"
+        ]
+
+        values = []
+
+        if "updated_at" in columns:
+            sets.append(
+                "updated_at=?"
+            )
+            values.append(
+                DB.now_iso()
+            )
+
+        if "completed_at" in columns:
+            sets.append(
+                "completed_at=COALESCE("
+                "completed_at,?)"
+            )
+            values.append(
+                DB.now_iso()
+            )
+
+        values.append(
+            int(hid)
+        )
+
+        c.execute(
+            (
+                "UPDATE homework SET "
+                + ",".join(sets)
+                + " WHERE id=?"
+            ),
+            tuple(values),
+        )
+
+        c.commit()
+
+    finally:
+        c.close()
+
+    await q.answer(
+        "✅ Отметила ДЗ выполненным"
+    )
+
+    return await _student_homework_panel(
+        q,
+        hid,
+    )
+
+async def _send_hw_card(
+    bot,
+    chat_id,
+    hid,
+):
+    """
+    Canonical student homework renderer.
+
+    PDF:
+      page 1 preview immediately,
+      other pages on demand.
+
+    Non-PDF:
+      real Telegram file is re-sent.
+
+    SQLite stores references only.
+    """
+
+    hw = DB.get_homework(
+        int(hid)
+    )
+
+    if not hw:
+        return None
+
+    attachments = _attachments(
+        hid=hid
+    )
+
+    links = _hw_links(
+        hid
+    )
+
+    text = _hw_card_text(
+        hw
+    )
+
+    markup = _hw_card_markup(
+        hid,
+        links=links,
+        done=_hw_done(hw),
+    )
+
+    if not attachments:
+        return await bot.send_message(
+            int(chat_id),
+            text,
+            reply_markup=markup,
+        )
+
+    primary = attachments[0]
+
+    # PDF gets a mobile-friendly viewer.
+    if _is_pdf_attachment(
+        primary
+    ):
+        try:
+            message = await _send_pdf_viewer(
+                bot,
+                chat_id,
+                hid,
+                primary,
+                1,
+            )
+
+        except Exception as exc:
+            print(
+                "HOMEWORK PDF VIEWER ERROR:",
+                hid,
+                repr(exc),
+                flush=True,
+            )
+
+            # PDF viewer failure must not make
+            # the actual homework disappear.
+            fid = _attachment_tg_file_id(
+                primary
+            )
+
+            if fid:
+                message = await bot.send_document(
+                    int(chat_id),
+                    document=fid,
+                    caption=text,
+                    reply_markup=markup,
+                )
+
+            else:
+                message = await bot.send_message(
+                    int(chat_id),
+                    text
+                    + (
+                        "\n\n⚠️ PDF пока "
+                        "не удалось открыть."
+                    ),
+                    reply_markup=markup,
+                )
+
+        # Other attachments remain real files.
+        for extra in attachments[1:]:
+            try:
+                efid = _attachment_tg_file_id(
+                    extra
+                )
+
+                if not efid:
+                    continue
+
+                if str(
+                    _a_value(
+                        extra,
+                        "file_type",
+                        "",
+                    )
+                ).lower() == "photo":
+                    await bot.send_photo(
+                        int(chat_id),
+                        photo=efid,
+                    )
+                else:
+                    await bot.send_document(
+                        int(chat_id),
+                        document=efid,
+                    )
+
+            except Exception as exc:
+                print(
+                    "HOMEWORK EXTRA FILE:",
+                    hid,
+                    repr(exc),
+                    flush=True,
+                )
+
+        return message
+
+    # Non-PDF attachment.
+    fid = _attachment_tg_file_id(
+        primary
+    )
+
+    if not fid:
+        return await bot.send_message(
+            int(chat_id),
+            text
+            + (
+                "\n\n⚠️ Старое вложение "
+                "нужно прикрепить заново."
+            ),
+            reply_markup=markup,
+        )
+
+    kind = str(
+        _a_value(
+            primary,
+            "file_type",
+            "",
+        )
+        or _a_value(
+            primary,
+            "kind",
+            "",
+        )
+    ).lower()
+
+    if kind == "photo":
+        message = await bot.send_photo(
+            int(chat_id),
+            photo=fid,
+            caption=text,
+            reply_markup=markup,
+        )
+    else:
+        message = await bot.send_document(
+            int(chat_id),
+            document=fid,
+            caption=text,
+            reply_markup=markup,
+        )
+
+    for extra in attachments[1:]:
+        try:
+            efid = _attachment_tg_file_id(
+                extra
+            )
+
+            if not efid:
+                continue
+
+            ekind = str(
+                _a_value(
+                    extra,
+                    "file_type",
+                    "",
+                )
+                or _a_value(
+                    extra,
+                    "kind",
+                    "",
+                )
+            ).lower()
+
+            if ekind == "photo":
+                await bot.send_photo(
+                    int(chat_id),
+                    photo=efid,
+                )
+            else:
+                await bot.send_document(
+                    int(chat_id),
+                    document=efid,
+                )
+
+        except Exception as exc:
+            print(
+                "HOMEWORK EXTRA FILE:",
+                hid,
+                repr(exc),
+                flush=True,
+            )
+
+    return message
 
 
 def _hw_links(hid):
@@ -525,47 +2154,456 @@ def _hw_links(hid):
     finally:c.close()
 
 
-async def _student_homework_panel(q,hid):
-    hw=DB.get_homework(hid); user=DB.get_user_by_telegram_id(q.from_user.id)
-    if not hw or not user or int(hw['user_id'])!=int(user['id']):return
-    at=_attachments(hid=hid); links=_hw_links(hid)
-    lines=['📝 ДОМАШНЕЕ ЗАДАНИЕ','',hw['description'] or 'Задание во вложении']
-    if hw['deadline']:lines+=['',f'⏰ Срок: {hw["deadline"]}']
-    if at:lines+=['',f'📎 Файлов: {len(at)}']
-    rows=[[InlineKeyboardButton('▶️ Делать ДЗ',callback_data=f'hw2_do|{hid}')]]
-    for a in at:rows.append([InlineKeyboardButton(f'📂 Открыть {a["file_name"] or "файл"}'[:55],callback_data=f'hw2_openfile|{hid}|{a["id"]}')])
-    rows.append([InlineKeyboardButton(f'🧮 Открыть формулы'+(f' ({len(links)})' if links else ''),callback_data=f'hw2_student_formula|{hid}')])
-    rows.append([InlineKeyboardButton('⬅️ К ДЗ',callback_data='homework'),InlineKeyboardButton('🏠 Главная',callback_data='main')])
-    await q.edit_message_text('\n'.join(lines),reply_markup=InlineKeyboardMarkup(rows))
+async def _student_homework_panel(
+    q,
+    hid,
+):
+    hw = DB.get_homework(
+        int(hid)
+    )
+
+    user = DB.get_user_by_telegram_id(
+        q.from_user.id
+    )
+
+    if (
+        not hw
+        or not user
+        or int(hw["user_id"])
+        != int(user["id"])
+    ):
+        try:
+            await q.answer(
+                "Домашнее задание не найдено",
+                show_alert=True,
+            )
+        except Exception:
+            pass
+
+        return
+
+    attachments = _attachments(
+        hid=hid
+    )
+
+    primary = (
+        attachments[0]
+        if attachments
+        else None
+    )
+
+    if (
+        primary
+        and _is_pdf_attachment(
+            primary
+        )
+    ):
+        aid = int(
+            primary["id"]
+        )
+
+        state = _PDF_VIEW_STATE.get(
+            (
+                int(q.from_user.id),
+                int(hid),
+            )
+        )
+
+        page = (
+            int(state[1])
+            if state
+            and int(state[0]) == aid
+            else 1
+        )
+
+        # Returning from formulas/search to a PDF:
+        # use the same preview message.
+        if q.message.photo:
+            return await _edit_pdf_page(
+                q,
+                hid,
+                aid,
+                page,
+            )
+
+        message = await _send_pdf_viewer(
+            q.get_bot(),
+            q.message.chat_id,
+            hid,
+            primary,
+            page,
+        )
+
+        try:
+            _remember_pdf_state(
+                q.from_user.id,
+                hid,
+                aid,
+                page,
+            )
+        except Exception:
+            pass
+
+        try:
+            await q.message.delete()
+        except Exception:
+            pass
+
+        return message
+
+    links = _hw_links(
+        hid
+    )
+
+    text = _hw_card_text(
+        hw
+    )
+
+    markup = _hw_card_markup(
+        hid,
+        links=links,
+        done=_hw_done(hw),
+    )
+
+    if (
+        q.message.document
+        or q.message.photo
+        or q.message.video
+        or q.message.audio
+        or q.message.animation
+    ):
+        return await _edit_hw_card(
+            q,
+            text,
+            markup,
+        )
+
+    await _send_hw_card(
+        q.get_bot(),
+        q.message.chat_id,
+        int(hid),
+    )
+
+    try:
+        await q.message.delete()
+    except Exception:
+        pass
 
 
-async def _student_controls(context,chat_id,hid):
-    links=_hw_links(hid)
-    rows=[[InlineKeyboardButton(f'🧮 Открыть формулы'+(f' ({len(links)})' if links else ''),callback_data=f'hw2_student_formula|{hid}')],[InlineKeyboardButton('📝 Вернуться к ДЗ',callback_data=f'homework_view|{hid}')]]
-    await context.bot.send_message(chat_id,'📝 Задание открыто. Формулы доступны прямо здесь, под файлом.',reply_markup=InlineKeyboardMarkup(rows))
+async def _student_controls(
+    context,
+    chat_id,
+    hid,
+):
+    """
+    Legacy compatibility entry point.
+
+    Controls now live directly under the real homework
+    attachment, so no extra 'task opened' message is sent.
+    """
+    return None
 
 
 async def _student_formula_panel(q,hid):
-    hw=DB.get_homework(hid); user=DB.get_user_by_telegram_id(q.from_user.id)
-    if not hw or not user or int(hw['user_id'])!=int(user['id']):return
-    links=_hw_links(hid); rows=[]; lines=['📝 ДОМАШНЕЕ ЗАДАНИЕ','',hw['description'] or 'Задание во вложении','','━━━━━━━━━━━━','🧮 ФОРМУЛЫ']
-    if links:
-        for x in links:
-            title=_topic_title(x['grade'],x['subject'],x['topic']);lines.append(f'• {x["grade"]} класс • {title}');rows.append([InlineKeyboardButton(f'📖 {title}'[:55],callback_data=f'hw2_student_formula_card|{hid}|{x["grade"]}|{x["subject"]}|{x["topic"]}')])
-    else: lines.append('Преподаватель не прикрепил отдельные формулы. Можно открыть общую библиотеку.')
-    rows.append([InlineKeyboardButton('🔎 Найти любую формулу',callback_data='fh_search'),InlineKeyboardButton('🎓 По классам',callback_data='fh_home')])
-    rows.append([InlineKeyboardButton('🔼 Скрыть формулы',callback_data=f'hw2_student_formula_hide|{hid}')])
-    await q.edit_message_text('\n'.join(lines),reply_markup=InlineKeyboardMarkup(rows))
+    hw = DB.get_homework(
+        hid
+    )
+
+    user = DB.get_user_by_telegram_id(
+        q.from_user.id
+    )
+
+    if (
+        not hw
+        or not user
+        or int(hw["user_id"])
+        != int(user["id"])
+    ):
+        return
+
+    links = _hw_links(
+        hid
+    )
+
+    rows = []
+
+    titles = []
+
+    for x in links[:6]:
+        title = _topic_title(
+            x["grade"],
+            x["subject"],
+            x["topic"],
+        )
+
+        titles.append(
+            "• " + title
+        )
+
+        rows.append([
+            InlineKeyboardButton(
+                f"📖 {title}"[:55],
+                callback_data=(
+                    f"hw2_student_formula_card|"
+                    f"{hid}|{x['grade']}|"
+                    f"{x['subject']}|{x['topic']}"
+                ),
+            )
+        ])
+
+    if titles:
+        extra = (
+            "📚 ФОРМУЛЫ К ДЗ\n\n"
+            + "\n".join(titles)
+        )
+    else:
+        extra = (
+            "📚 Преподаватель не прикрепил "
+            "отдельные формулы.\n"
+            "Можно найти нужную самостоятельно."
+        )
+
+    rows.append([
+        InlineKeyboardButton(
+            "🔎 Найти ещё формулу",
+            callback_data=(
+                f"hw2_student_browse|{hid}"
+            ),
+        )
+    ])
+
+    await _edit_hw_card(
+        q,
+        _hw_card_text(
+            hw,
+            mode="FORMULAS",
+            extra=extra,
+        ),
+        _hw_card_markup(
+            hid,
+            links=links,
+            mode="FORMULAS",
+            extra_rows=rows,
+            done=_hw_done(hw),
+        ),
+    )
 
 
 async def _student_formula_card(q,hid,g,s,t):
-    item=_topic_item(g,s,t) or {}; text=item.get('text') or '—'; title=item.get('title') or t
-    await q.edit_message_text(f'📝 ДЗ • ФОРМУЛА\n\n🧮 {title}\n🎓 {g} класс\n\n{text[:2800]}',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('◀️ К формулам ДЗ',callback_data=f'hw2_student_formula|{hid}')],[InlineKeyboardButton('📝 Вернуться к ДЗ',callback_data=f'homework_view|{hid}')]]))
+    hw = DB.get_homework(
+        hid
+    )
 
+    item = (
+        _topic_item(
+            g,
+            s,
+            t,
+        )
+        or {}
+    )
+
+    title = (
+        item.get("title")
+        or t
+    )
+
+    formula = (
+        item.get("text")
+        or "—"
+    )
+
+    extra = (
+        f"🧮 {title}\n"
+        f"🎓 {g} класс\n\n"
+        f"{formula[:700]}"
+    )
+
+    rows = [[
+        InlineKeyboardButton(
+            "◀️ Формулы к ДЗ",
+            callback_data=(
+                f"hw2_student_formula|{hid}"
+            ),
+        ),
+        InlineKeyboardButton(
+            "🔎 Ещё",
+            callback_data=(
+                f"hw2_student_browse|{hid}"
+            ),
+        ),
+    ]]
+
+    await _edit_hw_card(
+        q,
+        _hw_card_text(
+            hw,
+            mode="FORMULA",
+            extra=extra,
+        ),
+        _hw_card_markup(
+            hid,
+            links=_hw_links(hid),
+            mode="FORMULA",
+            extra_rows=rows,
+            done=_hw_done(hw),
+        ),
+    )
+
+
+
+async def _student_formula_browse(q,hid):
+    hw = DB.get_homework(
+        hid
+    )
+
+    links = _hw_links(
+        hid
+    )
+
+    subject = (
+        links[0]["subject"]
+        if links
+        else (
+            hw["subject"]
+            if "subject" in hw.keys()
+            else "PHYSICS"
+        )
+    )
+
+    grades = [
+        g
+        for g in sorted(
+            FORMULA_LIBRARY
+        )
+        if subject
+        in FORMULA_LIBRARY[g]
+    ]
+
+    rows = []
+
+    for i in range(
+        0,
+        len(grades),
+        3,
+    ):
+        rows.append([
+            InlineKeyboardButton(
+                f"{g} класс",
+                callback_data=(
+                    "hw2_student_browse_grade|"
+                    f"{hid}|{g}|{subject}"
+                ),
+            )
+            for g in grades[i:i+3]
+        ])
+
+    await _edit_hw_card(
+        q,
+        _hw_card_text(
+            hw,
+            mode="SEARCH",
+            extra=(
+                "🔎 ДРУГИЕ ФОРМУЛЫ\n\n"
+                "Выберите класс:"
+            ),
+        ),
+        _hw_card_markup(
+            hid,
+            links=links,
+            mode="SEARCH",
+            extra_rows=rows,
+            done=_hw_done(hw),
+        ),
+    )
+
+
+async def _student_formula_browse_grade(
+    q,
+    hid,
+    grade,
+    subject,
+):
+    hw = DB.get_homework(
+        hid
+    )
+
+    topics = FORMULA_LIBRARY.get(
+        int(grade),
+        {},
+    ).get(
+        subject,
+        {},
+    )
+
+    rows = []
+
+    for key,item in list(
+        topics.items()
+    )[:10]:
+        rows.append([
+            InlineKeyboardButton(
+                (
+                    item.get("title")
+                    or key
+                )[:52],
+                callback_data=(
+                    "hw2_student_formula_card|"
+                    f"{hid}|{grade}|"
+                    f"{subject}|{key}"
+                ),
+            )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "⬅️ К классам",
+            callback_data=(
+                f"hw2_student_browse|{hid}"
+            ),
+        )
+    ])
+
+    await _edit_hw_card(
+        q,
+        _hw_card_text(
+            hw,
+            mode="SEARCH",
+            extra=(
+                f"🔎 ФОРМУЛЫ • {grade} КЛАСС"
+            ),
+        ),
+        _hw_card_markup(
+            hid,
+            links=_hw_links(hid),
+            mode="SEARCH",
+            extra_rows=rows,
+            done=_hw_done(hw),
+        ),
+    )
 
 def handlers():
     initialize()
     return [
-      CallbackQueryHandler(callback,pattern=r'^(?:admin_homework\||admin_homework_create\||hw2_)'),
-      MessageHandler((filters.TEXT|filters.Document.ALL|filters.PHOTO)&~filters.COMMAND,message),
+      CallbackQueryHandler(
+          callback,
+          pattern=(
+              r'^(?:'
+              r'homework_view\|'
+              r'|hw_task_start\|'
+              r'|admin_homework\|'
+              r'|admin_homework_create\|'
+              r'|hw2_'
+              r')'
+          ),
+      ),
+      MessageHandler((
+          filters.TEXT
+          | filters.Document.ALL
+          | filters.PHOTO
+          | filters.VIDEO
+          | filters.AUDIO
+          | filters.VOICE
+          | filters.ANIMATION
+      ) & ~filters.COMMAND,message),
     ]

@@ -41,6 +41,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 import database
+from handlers import board_admin
 import admin
 import payments
 import students_admin
@@ -4568,6 +4569,18 @@ async def lesson_reminder_job(
             ]
         ])
 
+    # Если постоянная доска ещё не задана,
+    # преподаватель может добавить её прямо из напоминания.
+    if not user["board_url"]:
+        board_rows = list(admin_keyboard.inline_keyboard)
+        board_rows.append([
+            InlineKeyboardButton(
+                "🖥 Добавить доску",
+                callback_data=f"admin_add_board|{user['id']}",
+            )
+        ])
+        admin_keyboard = InlineKeyboardMarkup(board_rows)
+
     await send_message_with_retry(
         context.bot,
         chat_id=admin.ADMIN_ID,
@@ -5092,6 +5105,8 @@ async def payment_deadline_job(
             )
         )
 
+    from handlers import auto_cancel_actions
+
     await context.bot.send_message(
 
         chat_id=(
@@ -5105,11 +5120,18 @@ async def payment_deadline_job(
             f"{user['name']}\n"
 
             f"📅 "
-            f"{format_datetime(lesson['start_time'])}\n\n"
+            f"{format_datetime(lesson['start_time'])}\n"
+
+            f"💰 {int(lesson['price'] or 0):,} ₽".replace(",", " ")
+            + "\n\n"
 
             "Причина: оплата не подтверждена "
-            "за 2 часа до занятия."
-        )
+            "за 2 часа до занятия.\n\n"
+
+            "Что сделать с занятием?"
+        ),
+
+        reply_markup=auto_cancel_actions.admin_keyboard(lesson_id),
     )
 
 
@@ -8487,65 +8509,11 @@ async def student_buttons(
     # ========================================================
     # HOMEWORK VIEW
     # ========================================================
-
-    if data.startswith(
-        "homework_view|"
-    ):
-
-        homework_id = int(
-            data.split("|")[1]
-        )
-
-        homework = (
-            database
-            .get_homework(
-                homework_id
-            )
-        )
-
-        if (
-            not homework
-            or
-            homework[
-                "user_id"
-            ] != user["id"]
-        ):
-
-            return
-
-        text = (
-            "📝 ДОМАШНЕЕ ЗАДАНИЕ\n\n"
-
-            f"{homework['description'] or '—'}"
-        )
-
-        if homework[
-            "deadline"
-        ]:
-
-            text += (
-                "\n\n⏰ Срок: "
-                f"{format_datetime(homework['deadline'])}"
-            )
-
-        await query.edit_message_text(
-            text,
-
-            reply_markup=(
-                InlineKeyboardMarkup([
-                    [
-                        InlineKeyboardButton(
-                            "⬅️ К ДЗ",
-                            callback_data=(
-                                "homework"
-                            )
-                        )
-                    ]
-                ])
-            )
-        )
-
-        return
+    # Canonical owner:
+    # learning/homework_flow.py
+    #
+    # Legacy renderer intentionally removed.
+    # homework_view|ID is handled before generic student_buttons.
 
 
 # ============================================================
@@ -8559,6 +8527,26 @@ async def post_init(
     # This prevents the legacy Google Calendar policy from deleting
     # AWAITING_PAYMENT events before V2 restores them.
     musthave_jobs.runtime_patch_v2.install(application)
+    board_admin.install(application)
+
+    # Homework V6 is the single early owner of
+    # student homework-view callbacks.
+    from handlers import homework_v6
+    homework_v6.install(application)
+
+    # Уведомления преподавателю за 5 минут до конца занятия
+    # + управление фактическим завершением занятия.
+    from handlers import teacher_end_notifications
+    teacher_end_notifications.install(application)
+
+    # Install the canonical Calendar policy in the Telegram runtime too.
+    # VK installs it separately, but the main Telegram process must own
+    # the same state/color-aware Google Calendar synchronization.
+    from handlers import calendar_runtime
+    calendar_runtime.install(application)
+
+    from handlers import auto_cancel_actions
+    auto_cancel_actions.install(application)
 
 
     # ========================================================
@@ -8702,12 +8690,8 @@ async def post_init(
         )
 
 
-        application.job_queue.run_repeating(
-            google_calendar_sync_job,
-            interval=60,
-            first=30,
-            name="google_calendar_sync",
-        )
+        # Legacy google_calendar_sync disabled.
+        # handlers.calendar_runtime owns all Calendar writes.
 
         application.job_queue.run_repeating(
             automation_jobs.scheduled_messages_job,

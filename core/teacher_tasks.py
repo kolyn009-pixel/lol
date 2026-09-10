@@ -121,6 +121,109 @@ def sync_auto():
     except Exception:
         pass
 
+    # Missing homework after a completed lesson.
+    #
+    # Exactly one auto task per lesson.
+    # It exists only while:
+    #   required=1
+    #   assigned=0
+    #   skipped=0
+    #   no actual homework row exists.
+    try:
+        rows = c.execute(
+            """
+            SELECT
+                l.id,
+                l.user_id,
+                l.program_id,
+                l.start_time,
+                l.subject,
+                u.name
+            FROM lessons l
+            JOIN users u
+              ON u.id=l.user_id
+            WHERE (
+                l.lesson_status IN (
+                    'COMPLETED',
+                    'FINISHED'
+                )
+                OR l.finished_at IS NOT NULL
+            )
+              AND COALESCE(
+                    l.homework_required,
+                    0
+                  )=1
+              AND COALESCE(
+                    l.homework_assigned,
+                    0
+                  )=0
+              AND COALESCE(
+                    l.homework_skipped,
+                    0
+                  )=0
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM homework h
+                  WHERE h.lesson_id=l.id
+              )
+            ORDER BY
+                datetime(
+                    COALESCE(
+                        l.finished_at,
+                        l.start_time
+                    )
+                ) DESC,
+                l.id DESC
+            """
+        ).fetchall()
+
+        for r in rows:
+            try:
+                when = datetime.fromisoformat(
+                    str(r["start_time"])
+                ).strftime("%d.%m")
+            except Exception:
+                when = str(
+                    r["start_time"]
+                )[:10]
+
+            subject = str(
+                r["subject"]
+                or ""
+            ).upper()
+
+            subject_name = {
+                "PHYSICS": "Физика",
+                "CHEMISTRY": "Химия",
+            }.get(
+                subject,
+                subject or "Занятие",
+            )
+
+            upsert_auto(
+                f"assign_hw:{r['id']}",
+                (
+                    f"Задать ДЗ — "
+                    f"{r['name']} • "
+                    f"{subject_name} • "
+                    f"{when}"
+                ),
+                int(r["user_id"]),
+                1,
+                due_at=now,
+                notes=(
+                    f"lesson_id={r['id']};"
+                    f"program_id="
+                    f"{r['program_id'] or ''}"
+                ),
+            )
+
+    except Exception as exc:
+        print(
+            "TEACHER TASK HOMEWORK SYNC:",
+            repr(exc),
+        )
+
     # Homework: one task per overdue homework remains useful because each item
     # is a distinct action to review, unlike recurring future payments.
     try:

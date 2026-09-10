@@ -226,26 +226,114 @@ def mark_completed(
         c.close()
 
 
-def set_homework_status(lesson_id: int, status: str, homework_id: int | None = None):
-    initialize()
+
+def _sync_lesson_homework_flags(
+    lesson_id: int,
+    status: str,
+):
+    """
+    lessons is the canonical source for:
+      homework_required
+      homework_assigned
+      homework_skipped
+
+    post_lesson_review_sync mirrors workflow state,
+    but must never diverge from lessons.
+    """
+
+    status = str(
+        status or "PENDING"
+    ).upper()
+
+    if status == "SKIPPED":
+        required = 0
+        assigned = 0
+        skipped = 1
+
+    elif status in {
+        "SENT",
+        "ASSIGNED",
+    }:
+        required = 1
+        assigned = 1
+        skipped = 0
+
+    else:
+        # PENDING / DRAFT:
+        # teacher has not explicitly chosen "Без ДЗ".
+        required = 1
+        assigned = 0
+        skipped = 0
+
     c = database.connect()
+
     try:
         c.execute(
             """
-            UPDATE post_lesson_review_sync
-            SET homework_status=?,homework_id=?,updated_at=?
-            WHERE lesson_id=?
+            UPDATE lessons
+            SET homework_required=?,
+                homework_assigned=?,
+                homework_skipped=?,
+                updated_at=?
+            WHERE id=?
             """,
             (
-                str(status).upper(),
-                int(homework_id) if homework_id else None,
+                required,
+                assigned,
+                skipped,
                 now_iso(),
                 int(lesson_id),
             ),
         )
+
         c.commit()
+
     finally:
         c.close()
+
+def set_homework_status(
+    lesson_id: int,
+    status: str,
+    homework_id: int | None = None,
+):
+    initialize()
+
+    normalized = str(
+        status or "PENDING"
+    ).upper()
+
+    c = database.connect()
+
+    try:
+        c.execute(
+            """
+            UPDATE post_lesson_review_sync
+            SET homework_status=?,
+                homework_id=?,
+                updated_at=?
+            WHERE lesson_id=?
+            """,
+            (
+                normalized,
+                (
+                    int(homework_id)
+                    if homework_id
+                    else None
+                ),
+                now_iso(),
+                int(lesson_id),
+            ),
+        )
+
+        c.commit()
+
+    finally:
+        c.close()
+
+    _sync_lesson_homework_flags(
+        int(lesson_id),
+        normalized,
+    )
 
 
 def topics_for_student(user_id: int, lesson_id: int):
@@ -304,6 +392,10 @@ def save_review(lesson_id: int, user_id: int, marks, actor=None, channel="TG"):
         actor=actor,
     )
     mark_completed(lesson_id, user_id, channel, homework_status="PENDING")
+    _sync_lesson_homework_flags(
+        int(lesson_id),
+        "PENDING",
+    )
     try:
         c = database.connect()
         c.execute(

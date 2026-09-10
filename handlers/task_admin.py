@@ -42,8 +42,105 @@ async def callbacks(update:Update,context:ContextTypes.DEFAULT_TYPE):
         who=f"\n👤 {r['user_name']}" if r['user_name'] else ''
         due=f"\n🕐 {str(r['due_at'])[:16].replace('T',' ')}" if r['due_at'] else ''
         kb=[]
-        if r['user_id']: kb.append([InlineKeyboardButton('👤 Карточка ученика',callback_data=f"admin_student|{r['user_id']}"),InlineKeyboardButton('💜 Аделия',callback_data=f"mh_student_ask|{r['user_id']}")])
-        kb += [[InlineKeyboardButton('✅ Выполнено',callback_data=f'task_done|{tid}'),InlineKeyboardButton('🕐 На завтра',callback_data=f'task_defer|{tid}')],[InlineKeyboardButton('⬅️ К задачам',callback_data='task_home'),InlineKeyboardButton('🏠 Главная',callback_data='global_home')]]
+
+        source_key = str(
+            r['source_key']
+            or ''
+        )
+
+        hw_lesson_id = None
+
+        if source_key.startswith(
+            'assign_hw:'
+        ):
+            try:
+                hw_lesson_id = int(
+                    source_key.split(
+                        ':',
+                        1,
+                    )[1]
+                )
+            except Exception:
+                hw_lesson_id = None
+
+        if hw_lesson_id:
+            kb.append([
+                InlineKeyboardButton(
+                    '📝 Задать ДЗ',
+                    callback_data=(
+                        f'hw_task_start|'
+                        f'{hw_lesson_id}'
+                    ),
+                )
+            ])
+
+            kb.append([
+                InlineKeyboardButton(
+                    '⏭ Без ДЗ',
+                    callback_data=(
+                        f'admin_homework_skip|'
+                        f'{hw_lesson_id}'
+                    ),
+                )
+            ])
+
+        if r['user_id']:
+            kb.append([
+                InlineKeyboardButton(
+                    '👤 Карточка ученика',
+                    callback_data=(
+                        f"admin_student|"
+                        f"{r['user_id']}"
+                    ),
+                ),
+                InlineKeyboardButton(
+                    '💜 Аделия',
+                    callback_data=(
+                        f"mh_student_ask|"
+                        f"{r['user_id']}"
+                    ),
+                ),
+            ])
+
+        if hw_lesson_id:
+            # This task is state-derived.
+            # It cannot be manually "completed".
+            # Creating homework or choosing Без ДЗ
+            # is the only way to close it.
+            kb.append([
+                InlineKeyboardButton(
+                    '🕐 На завтра',
+                    callback_data=(
+                        f'task_defer|{tid}'
+                    ),
+                )
+            ])
+        else:
+            kb.append([
+                InlineKeyboardButton(
+                    '✅ Выполнено',
+                    callback_data=(
+                        f'task_done|{tid}'
+                    ),
+                ),
+                InlineKeyboardButton(
+                    '🕐 На завтра',
+                    callback_data=(
+                        f'task_defer|{tid}'
+                    ),
+                ),
+            ])
+
+        kb.append([
+            InlineKeyboardButton(
+                '⬅️ К задачам',
+                callback_data='task_home',
+            ),
+            InlineKeyboardButton(
+                '🏠 Главная',
+                callback_data='global_home',
+            ),
+        ])
         await _edit(q,f"📌 ЗАДАЧА{who}{due}\n\n{r['title']}",InlineKeyboardMarkup(kb)); return
     if d.startswith('task_done|'):
         teacher_tasks.set_status(int(d.split('|')[1]),'DONE'); kb,n=_home_markup(); await _edit(q,f'💜 Готово. Закрыла задачу.\n\nОсталось: {n}.',kb); return

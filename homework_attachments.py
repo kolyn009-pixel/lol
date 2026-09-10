@@ -14,19 +14,98 @@ def initialize():
             """
             CREATE TABLE IF NOT EXISTS homework_attachments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                homework_id INTEGER NOT NULL,
-                kind TEXT NOT NULL,
+                draft_id INTEGER,
+                homework_id INTEGER,
+                file_type TEXT,
+                file_id TEXT,
+                telegram_file_id TEXT,
+                file_unique_id TEXT,
+                file_name TEXT,
+                caption TEXT,
+                kind TEXT,
                 filename TEXT,
                 mime_type TEXT,
-                telegram_file_id TEXT,
                 vk_attachment_key TEXT,
                 vk_url TEXT,
                 source_channel TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                UNIQUE(homework_id, kind, COALESCE(telegram_file_id,''), COALESCE(vk_attachment_key,''), COALESCE(filename,''))
+                created_at TEXT,
+                updated_at TEXT
             )
             """
+        )
+
+        cols = {
+            row["name"]
+            for row in conn.execute(
+                "PRAGMA table_info(homework_attachments)"
+            ).fetchall()
+        }
+
+        additions = {
+            "draft_id": "INTEGER",
+            "homework_id": "INTEGER",
+            "file_type": "TEXT",
+            "file_id": "TEXT",
+            "telegram_file_id": "TEXT",
+            "file_unique_id": "TEXT",
+            "file_name": "TEXT",
+            "caption": "TEXT",
+            "kind": "TEXT",
+            "filename": "TEXT",
+            "mime_type": "TEXT",
+            "vk_attachment_key": "TEXT",
+            "vk_url": "TEXT",
+            "source_channel": "TEXT",
+            "created_at": "TEXT",
+            "updated_at": "TEXT",
+        }
+
+        for name, ddl in additions.items():
+            if name not in cols:
+                conn.execute(
+                    f"ALTER TABLE homework_attachments "
+                    f"ADD COLUMN {name} {ddl}"
+                )
+
+        now = _now()
+
+        conn.execute(
+            """
+            UPDATE homework_attachments
+               SET kind=COALESCE(
+                       NULLIF(kind,''),
+                       CASE
+                           WHEN file_type='photo' THEN 'photo'
+                           ELSE 'document'
+                       END
+                   ),
+                   file_type=COALESCE(
+                       NULLIF(file_type,''),
+                       CASE
+                           WHEN kind='photo' THEN 'photo'
+                           ELSE 'document'
+                       END
+                   ),
+                   filename=COALESCE(
+                       NULLIF(filename,''),
+                       file_name
+                   ),
+                   file_name=COALESCE(
+                       NULLIF(file_name,''),
+                       filename
+                   ),
+                   telegram_file_id=COALESCE(
+                       NULLIF(telegram_file_id,''),
+                       file_id
+                   ),
+                   file_id=COALESCE(
+                       NULLIF(file_id,''),
+                       telegram_file_id
+                   ),
+                   created_at=COALESCE(created_at, ?),
+                   updated_at=COALESCE(updated_at, ?)
+            """,
+            (now, now),
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_homework_attachments_hw ON homework_attachments(homework_id,id)"
@@ -106,16 +185,23 @@ def save_reference(
         cur = conn.execute(
             """
             INSERT INTO homework_attachments(
-                homework_id,kind,filename,mime_type,
-                telegram_file_id,vk_attachment_key,vk_url,
+                homework_id,
+                kind,file_type,
+                filename,file_name,
+                mime_type,
+                telegram_file_id,file_id,
+                vk_attachment_key,vk_url,
                 source_channel,created_at,updated_at
-            ) VALUES(?,?,?,?,?,?,?,?,?,?)
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 int(homework_id),
                 _normalize_kind(kind),
+                _normalize_kind(kind),
+                filename,
                 filename,
                 mime_type,
+                telegram_file_id,
                 telegram_file_id,
                 vk_attachment_key,
                 vk_url,
@@ -183,8 +269,19 @@ def set_telegram_file_id(attachment_id: int, telegram_file_id: str):
     conn = database.connect()
     try:
         conn.execute(
-            "UPDATE homework_attachments SET telegram_file_id=?,updated_at=? WHERE id=?",
-            (str(telegram_file_id), _now(), int(attachment_id)),
+            """
+            UPDATE homework_attachments
+               SET telegram_file_id=?,
+                   file_id=?,
+                   updated_at=?
+             WHERE id=?
+            """,
+            (
+                str(telegram_file_id),
+                str(telegram_file_id),
+                _now(),
+                int(attachment_id),
+            ),
         )
         conn.commit()
     finally:
@@ -373,3 +470,255 @@ def install_vk_bridge():
 
 
 initialize()
+
+
+def add_attachment(
+    homework_id,
+    file_id,
+    file_unique_id=None,
+    kind="document",
+    filename=None,
+    mime_type=None,
+    source_channel="TELEGRAM",
+):
+    """
+    Canonical lightweight attachment writer.
+
+    Stores only Telegram/VK identifiers and metadata.
+    Binary file contents are never stored in SQLite.
+    """
+    import database
+
+    conn = database.connect()
+
+    try:
+        columns = {
+            row["name"]
+            for row in conn.execute(
+                "PRAGMA table_info(homework_attachments)"
+            ).fetchall()
+        }
+
+        now = database.now_iso()
+
+        values = {
+            "homework_id": int(homework_id),
+
+            # New + legacy-compatible Telegram ids.
+            "file_id": file_id,
+            "telegram_file_id": file_id,
+            "file_unique_id": file_unique_id,
+
+            # New + legacy-compatible type/name.
+            "kind": kind,
+            "file_type": kind,
+            "filename": filename,
+            "file_name": filename,
+
+            "mime_type": mime_type,
+
+            # Cross-platform source metadata.
+            "source_channel": source_channel,
+            "source_platform": source_channel,
+
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        keys = [
+            key
+            for key, value in values.items()
+            if key in columns
+            and value is not None
+        ]
+
+        if "homework_id" not in keys:
+            raise RuntimeError(
+                "homework_attachments.homework_id column missing"
+            )
+
+        sql = (
+            "INSERT INTO homework_attachments ("
+            + ",".join(keys)
+            + ") VALUES ("
+            + ",".join("?" for _ in keys)
+            + ")"
+        )
+
+        cursor = conn.execute(
+            sql,
+            tuple(
+                values[key]
+                for key in keys
+            ),
+        )
+
+        conn.commit()
+
+        return int(cursor.lastrowid)
+
+    finally:
+        conn.close()
+
+
+def _ensure_pdf_page_cache():
+    c = database.connect()
+
+    try:
+        c.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS homework_pdf_pages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                homework_id INTEGER NOT NULL,
+                attachment_id INTEGER NOT NULL,
+                page_number INTEGER NOT NULL,
+                page_count INTEGER NOT NULL,
+                telegram_file_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(
+                    attachment_id,
+                    page_number
+                )
+            );
+
+            CREATE INDEX IF NOT EXISTS
+                idx_homework_pdf_pages_hw
+            ON homework_pdf_pages(
+                homework_id,
+                attachment_id,
+                page_number
+            );
+            """
+        )
+
+        # Do not keep metadata for deleted attachments.
+        c.execute(
+            """
+            DELETE FROM homework_pdf_pages
+            WHERE attachment_id NOT IN (
+                SELECT id
+                FROM homework_attachments
+            )
+            """
+        )
+
+        c.commit()
+
+    finally:
+        c.close()
+
+
+def pdf_page_get(
+    attachment_id: int,
+    page_number: int,
+):
+    _ensure_pdf_page_cache()
+
+    c = database.connect()
+
+    try:
+        return c.execute(
+            """
+            SELECT *
+            FROM homework_pdf_pages
+            WHERE attachment_id=?
+              AND page_number=?
+            """,
+            (
+                int(attachment_id),
+                int(page_number),
+            ),
+        ).fetchone()
+
+    finally:
+        c.close()
+
+
+def pdf_page_save(
+    homework_id: int,
+    attachment_id: int,
+    page_number: int,
+    page_count: int,
+    telegram_file_id=None,
+):
+    _ensure_pdf_page_cache()
+
+    now = _now()
+
+    c = database.connect()
+
+    try:
+        c.execute(
+            """
+            INSERT INTO homework_pdf_pages(
+                homework_id,
+                attachment_id,
+                page_number,
+                page_count,
+                telegram_file_id,
+                created_at,
+                updated_at
+            )
+            VALUES(?,?,?,?,?,?,?)
+            ON CONFLICT(
+                attachment_id,
+                page_number
+            )
+            DO UPDATE SET
+                homework_id=excluded.homework_id,
+                page_count=excluded.page_count,
+                telegram_file_id=COALESCE(
+                    excluded.telegram_file_id,
+                    homework_pdf_pages.telegram_file_id
+                ),
+                updated_at=excluded.updated_at
+            """,
+            (
+                int(homework_id),
+                int(attachment_id),
+                int(page_number),
+                int(page_count),
+                (
+                    str(telegram_file_id)
+                    if telegram_file_id
+                    else None
+                ),
+                now,
+                now,
+            ),
+        )
+
+        c.commit()
+
+    finally:
+        c.close()
+
+
+def pdf_page_count(
+    attachment_id: int,
+):
+    _ensure_pdf_page_cache()
+
+    c = database.connect()
+
+    try:
+        row = c.execute(
+            """
+            SELECT page_count
+            FROM homework_pdf_pages
+            WHERE attachment_id=?
+            ORDER BY id
+            LIMIT 1
+            """,
+            (int(attachment_id),),
+        ).fetchone()
+
+        return (
+            int(row["page_count"])
+            if row
+            else None
+        )
+
+    finally:
+        c.close()
