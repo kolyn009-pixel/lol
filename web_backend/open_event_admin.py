@@ -73,6 +73,26 @@ def group_attendance(lesson_id,user_id,event_type,teacher_id,happened_at=None):
 def group_roster(lesson_id): return attendance_tracking.roster('GROUP_LESSON',int(lesson_id))
 
 
+def list_group_lessons(limit=120):
+    attendance_tracking.ensure_schema();c=database.connect();rows=c.execute("""SELECT l.*,g.name group_name,g.subject,g.study_goal,
+      (SELECT COUNT(*) FROM group_lesson_participants p WHERE p.lesson_id=l.id) participants,
+      (SELECT COUNT(*) FROM group_lesson_participants p WHERE p.lesson_id=l.id AND p.attendance_status IN ('PRESENT','LEFT')) attended
+      FROM group_lessons l JOIN study_groups g ON g.id=l.group_id
+      ORDER BY datetime(l.start_time) DESC LIMIT ?""",(max(1,min(int(limit),400)),)).fetchall();c.close();return [dict(r) for r in rows]
+
+
+def group_lesson_detail(lesson_id):
+    attendance_tracking.ensure_schema();lid=int(lesson_id);c=database.connect();lesson=c.execute("""SELECT l.*,g.name group_name,g.subject,g.study_goal,g.board_url group_board_url
+      FROM group_lessons l JOIN study_groups g ON g.id=l.group_id WHERE l.id=?""",(lid,)).fetchone()
+    if not lesson:c.close();return None
+    rows=c.execute("""SELECT p.*,u.name,u.grade FROM group_lesson_participants p JOIN users u ON u.id=p.user_id
+      WHERE p.lesson_id=? ORDER BY u.name COLLATE NOCASE""",(lid,)).fetchall();c.close();participants=[]
+    for r in rows:
+        item=dict(r);item['attendance']=attendance_tracking.summary('GROUP_LESSON',lid,int(r['user_id']));participants.append(item)
+    out=dict(lesson);out['board_url']=out.get('board_url') or out.get('group_board_url')
+    return {'lesson':out,'participants':participants}
+
+
 def save_result(event_id,user_id,score,max_score=None,note=None):
     return group_portal.save_open_event_result(int(event_id),int(user_id),score,max_score,note)
 
@@ -86,7 +106,6 @@ def start(event_id):
 
 def finish(event_id):
     eid=int(event_id)
-    # Close any participant still marked present at the event finish moment.
     for item in attendance_tracking.roster('OPEN_EVENT',eid):
         if item['attendance']['present']:
             attendance_tracking.record('OPEN_EVENT',eid,int(item['user_id']),'LEAVE',source='SYSTEM')
