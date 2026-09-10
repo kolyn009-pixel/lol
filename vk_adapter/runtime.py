@@ -1,8 +1,8 @@
 """VK runtime entrypoint with payment-receipt interception.
 
-This wrapper keeps the established vk_adapter.app message flow intact and only
-intercepts supported attachments when the linked student has a WAITING payment.
-Everything else is delegated to the original handler unchanged.
+Supported attachments are treated as payment receipts whenever the linked
+student has a WAITING payment, even when the student adds a caption such as
+"чек". Active conversational flows are left untouched and delegated to app.py.
 """
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ def handle_message(message):
     try:
         from_id=int((message or {}).get('from_id') or 0)
         attachments=(message or {}).get('attachments') or []
-        command=app._extract_command(message or {})
-        if from_id>0 and attachments and not command and not app.teacher_service.is_teacher(from_id):
+        pending=app._PENDING.get(from_id)
+        if from_id>0 and attachments and not pending and not app.teacher_service.is_teacher(from_id):
             user=app.service.linked_user(from_id)
             if user and _waiting_payment_exists(int(user['id'])):
                 result=payment_receipts.submit(int(user['id']),attachments)
