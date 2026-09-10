@@ -8,6 +8,15 @@ required = [
     'handlers/musthave_admin.py', 'handlers/musthave_jobs.py', 'handlers/adelia_content.py',
     'ai_assistant/__init__.py', 'ai_assistant/client.py', 'ai_assistant/context.py',
     'crm_plus/jobs.py', 'handlers/admin_inbox_handlers.py',
+    # Release-candidate live lesson / group / event / delivery entrypoints.
+    'web_backend/api_v5.py', 'web_backend/lesson_join.py', 'web_backend/group_lesson_access.py',
+    'web_backend/event_campaign.py', 'web_backend/open_event_admin.py', 'web_backend/open_event_policy.py',
+    'web_backend/student_social_profile.py', 'web_backend/group_portal.py',
+    'web_backend/homework_watchdog.py', 'web_backend/homework_notifications.py',
+    'web_backend/homework_delivery_worker.py', 'web_backend/receipt_archive_worker.py',
+    'web_backend/receipt_cloud_archive.py', 'vk_adapter/runtime.py', 'vk_adapter/payment_receipts.py',
+    'vk_adapter/tutorbot-vk.service', 'web_backend/adelia-web.service',
+    'web_backend/adelia-homework-delivery.service', 'web_backend/adelia-receipt-archive.service',
 ]
 missing = [x for x in required if not (ROOT / x).is_file()]
 if missing:
@@ -28,6 +37,14 @@ checks = {
     'bot.py': ['admin_students is intentionally handled by admin.py'],
     'schedule_admin.py': ['⚙️ МОЁ РАСПИСАНИЕ', 'schedule_week|ODD', 'schedule_week|EVEN', '31 августа – 6 сентября 2026', 'Сделать выходным'],
     'database.py': ['ODD_WEEK_ANCHOR = date(2026, 8, 31)', 'get_effective_working_hours', 'teacher_week_day_off'],
+    'web_backend/api_v5.py': ['AdeliaWeb/5.6', 'ADELIA_OTP_SECRET', 'student_social_profile', 'event_campaign'],
+    'web_backend/lesson_join.py': ['board_url', 'student_join'],
+    'web_backend/group_lesson_access.py': ['board_visible', 'telemost_visible'],
+    'handlers/musthave_jobs.py': ['adelia_homework_watchdog', 'homework_watchdog.tick'],
+    'vk_adapter/tutorbot-vk.service': ['-m vk_adapter.runtime', 'EnvironmentFile=-/etc/tutorbot/adelia.env'],
+    'web_backend/adelia-web.service': ['-m web_backend.api_v5', 'EnvironmentFile=-/etc/tutorbot/adelia.env'],
+    'web_backend/adelia-homework-delivery.service': ['-m web_backend.homework_delivery_worker', 'EnvironmentFile=-/etc/tutorbot/adelia.env'],
+    'web_backend/adelia-receipt-archive.service': ['-m web_backend.receipt_archive_worker', 'EnvironmentFile=-/etc/tutorbot/adelia.env', 'ReadWritePaths=/opt/tutorbot'],
 }
 failed = []
 for name, markers in checks.items():
@@ -81,3 +98,4 @@ for _f,_tokens in {
     for _t in _tokens:
         assert _t in _txt, f'Missing {_t!r} in {_f}'
 print('FINAL OPS PROVIDERS PREFLIGHT: OK')
+print('LIVE LESSON / GROUP / EVENT / WORKER PREFLIGHT: OK')
