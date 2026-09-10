@@ -215,55 +215,13 @@ async def ensure_google_event(lesson_id):
 
 
 async def sync_google_calendar(application=None):
-    import __main__ as runtime
+    """
+    Legacy writer disabled.
 
-    now_iso = datetime.now(runtime.TIMEZONE).isoformat()
-    c = database.connect()
-    try:
-        stale = c.execute("""
-            SELECT DISTINCT l.id,l.google_event_id
-            FROM lessons l
-            LEFT JOIN pending_reschedules pr
-              ON pr.lesson_id=l.id AND pr.status='PENDING'
-            LEFT JOIN users u ON u.id=l.user_id
-            WHERE l.google_event_id IS NOT NULL
-              AND l.google_event_id!=''
-              AND (
-                    l.lesson_status!='CONFIRMED'
-                    OR pr.id IS NOT NULL
-                    OR COALESCE(u.active,0)!=1
-              )
-        """).fetchall()
-        missing = c.execute("""
-            SELECT l.id
-            FROM lessons l
-            JOIN users u ON u.id=l.user_id AND u.active=1
-            LEFT JOIN pending_reschedules pr
-              ON pr.lesson_id=l.id AND pr.status='PENDING'
-            WHERE l.lesson_status='CONFIRMED'
-              AND l.start_time>?
-              AND pr.id IS NULL
-              AND (l.google_event_id IS NULL OR l.google_event_id='')
-            ORDER BY l.start_time
-        """, (now_iso,)).fetchall()
-    finally:
-        c.close()
-
-    deleted = 0
-    created = 0
-    for row in stale:
-        try:
-            if await asyncio.to_thread(runtime.delete_google_event, row["google_event_id"]):
-                runtime.save_google_event_id(row["id"], None)
-                deleted += 1
-        except Exception as exc:
-            print("GOOGLE CALENDAR CLEANUP V2 ERROR:", row["id"], repr(exc))
-    for row in missing:
-        if await ensure_google_event(row["id"]):
-            created += 1
-    if created or deleted:
-        print("GOOGLE CALENDAR SYNC V2:", f"created={created}", f"deleted={deleted}")
-    return {"created": created, "deleted": deleted}
+    handlers.calendar_runtime is the only canonical
+    Google Calendar writer.
+    """
+    return None
 
 
 def _install_regular_generation_rule():
@@ -348,7 +306,13 @@ def install(application):
 
     try:
         import __main__ as runtime
-        if hasattr(runtime, "create_google_event") and hasattr(runtime, "save_google_event_id"):
+        # calendar_runtime owns Google Calendar when policy v2 is installed.
+        # Do not overwrite its state/color-aware sync with the legacy runtime.
+        if (
+            hasattr(runtime, "create_google_event")
+            and hasattr(runtime, "save_google_event_id")
+            and not getattr(runtime, "_calendar_policy_v2_installed", False)
+        ):
             runtime.ensure_google_event = ensure_google_event
             runtime.sync_google_calendar = sync_google_calendar
     except Exception as exc:

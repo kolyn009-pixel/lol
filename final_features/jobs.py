@@ -1,7 +1,8 @@
 from __future__ import annotations
-from datetime import datetime,date,timedelta
+from datetime import datetime,date,timedelta,timezone
 import database
-from core import admin_roles,event_center,backup_manager
+from core import admin_roles,event_center,backup_manager,post_lesson
+from core.lesson_time import actual_datetime
 from . import schema
 from .smart import next_actions
 from .reconcile import run as reconcile
@@ -11,6 +12,62 @@ from .reports import build as build_report,save as save_report
 def _admins():
     try:return [int(r['telegram_id']) for r in admin_roles.list_admins() if r['active']]
     except Exception:return []
+
+
+def _homework_for_lesson(c, lesson_id):
+    try:
+        return c.execute("SELECT id FROM homeworks WHERE lesson_id=? ORDER BY id DESC LIMIT 1",(int(lesson_id),)).fetchone()
+    except Exception:
+        return None
+
+
+def _homework_draft_for_lesson(c, lesson_id):
+    try:
+        return c.execute("SELECT id,admin_telegram_id,status FROM homework_drafts WHERE lesson_id=? AND status='DRAFT' ORDER BY updated_at DESC LIMIT 1",(int(lesson_id),)).fetchone()
+    except Exception:
+        return None
+
+
+def _homework_sync_status(c, lesson_id):
+    try:
+        row=c.execute("SELECT homework_status FROM post_lesson_review_sync WHERE lesson_id=?",(int(lesson_id),)).fetchone()
+        return str(row['homework_status'] or '').upper() if row else ''
+    except Exception:
+        return ''
+
+
+async def missing_homework_job(context):
+    """Keep missing-homework state current without chat spam.
+
+    The teacher sees all unsent homework in the dedicated Homework inbox with a
+    counter on the admin home screen. Individual 10/60 minute reminder messages
+    are intentionally disabled; morning/evening briefs can still summarize the
+    count without duplicating one message per lesson.
+    """
+    post_lesson.initialize()
+    c=database.connect()
+    try:
+        rows=c.execute("""
+            SELECT l.id,l.user_id,l.finished_at
+            FROM lessons l
+            WHERE l.finished_at IS NOT NULL
+              AND l.cancelled_at IS NULL
+            ORDER BY l.finished_at DESC
+            LIMIT 80
+        """).fetchall()
+        for r in rows:
+            lid=int(r['id'])
+            if _homework_for_lesson(c,lid):
+                continue
+            status=_homework_sync_status(c,lid)
+            if status in ('SKIPPED','SENT'):
+                continue
+            # Ensure a sync row exists so the Homework inbox can represent the
+            # action consistently even for older completed lessons.
+            post_lesson.ensure_sync(lid,int(r['user_id']),None)
+    finally:
+        c.close()
+
 
 async def post_lesson_prompt_job(context):
     schema.initialize(); c=database.connect()
@@ -53,5 +110,6 @@ def register(application):
     jq=application.job_queue
     if not jq:return
     jq.run_repeating(post_lesson_prompt_job,interval=300,first=45,name='ff_post_lesson')
+    jq.run_repeating(missing_homework_job,interval=300,first=90,name='ff_missing_homework')
     jq.run_daily(daily_business_job,time=datetime.strptime('03:20','%H:%M').time(),name='ff_reconcile')
     jq.run_daily(monthly_report_draft_job,time=datetime.strptime('09:10','%H:%M').time(),name='ff_monthly_reports')

@@ -5845,9 +5845,9 @@ async def lesson_link_entry(
 
         "Отправьте ссылку на созвон.\n\n"
 
-        "После успешной отправки ссылки "
-        "ученику занятие автоматически "
-        "начнётся и запустится фактический таймер."
+        "После отправки ссылки ждём ученика.\n\n"
+        "Фактический таймер начнётся только после "
+        "нажатия «▶️ Ученик пришёл — начать занятие»."
     )
 
     if not user["board_url"]:
@@ -5862,6 +5862,99 @@ async def lesson_link_entry(
     )
 
     return LESSON_LINK
+
+
+async def send_lesson_link_only(
+    context,
+    lesson_id,
+    value,
+):
+    lesson = database.get_lesson(
+        int(lesson_id)
+    )
+
+    if lesson is None:
+        raise ValueError(
+            "Занятие не найдено."
+        )
+
+    user = database.get_user(
+        int(lesson["user_id"])
+    )
+
+    if user is None:
+        raise ValueError(
+            "Ученик не найден."
+        )
+
+    student_text = (
+        "🎓 СКОРО ЗАНЯТИЕ\n\n"
+        "🔗 Ссылка:\n"
+        f"{value}"
+    )
+
+    if user["board_url"]:
+        student_text += (
+            "\n\n🖥 Постоянная доска:\n"
+            f"{user['board_url']}"
+        )
+
+    delivered = False
+
+    if user["telegram_id"]:
+        await context.bot.send_message(
+            chat_id=int(
+                user["telegram_id"]
+            ),
+            text=student_text,
+        )
+        delivered = True
+
+    try:
+        from vk_adapter.service import (
+            vk_peer_for_user,
+        )
+        from vk_adapter import app as vk_app
+
+        peer = vk_peer_for_user(
+            int(user["id"])
+        )
+
+        if peer:
+            vk_app.send(
+                int(peer),
+                student_text,
+                linked=True,
+            )
+            delivered = True
+
+    except Exception as exc:
+        print(
+            "LESSON LINK VK MIRROR:",
+            repr(exc),
+        )
+
+    if not delivered:
+        raise RuntimeError(
+            "Нет доступного канала доставки."
+        )
+
+    sent_at = database.now_iso()
+
+    database.save_lesson_meeting_url(
+        int(lesson_id),
+        value,
+        sent_at=sent_at,
+    )
+
+    # IMPORTANT:
+    # no database.start_lesson() here.
+
+    return {
+        "lesson": lesson,
+        "user": user,
+        "sent_at": sent_at,
+    }
 
 
 async def send_link_and_start_lesson(
@@ -5946,19 +6039,19 @@ async def lesson_link_handler(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-
-    value = update.message.text.strip()
+    value = (
+        update.message.text
+        or ""
+    ).strip()
 
     if not (
         value.startswith("http://")
         or value.startswith("https://")
     ):
-
         await update.message.reply_text(
-            "❌ Отправьте ссылку, начинающуюся "
-            "с http:// или https://"
+            "❌ Отправьте ссылку с "
+            "http:// или https://"
         )
-
         return LESSON_LINK
 
     lesson_id = context.user_data.get(
@@ -5966,113 +6059,21 @@ async def lesson_link_handler(
     )
 
     if not lesson_id:
-
-        return ConversationHandler.END
-
-    lesson = database.get_lesson(
-        lesson_id
-    )
-
-    if lesson is None:
-
-        return ConversationHandler.END
-
-    active = database.get_active_lesson(
-        exclude_lesson_id=lesson_id
-    )
-
-    if active is not None:
-
-        # Ссылку пока НЕ отправляем ученику.
-        context.user_data[
-            "pending_lesson_link_id"
-        ] = lesson_id
-
-        context.user_data[
-            "pending_lesson_link_url"
-        ] = value
-
-        await update.message.reply_text(
-            "⚠️ СЕЙЧАС УЖЕ ИДЁТ ЗАНЯТИЕ\n\n"
-
-            f"👤 {active['name']}\n"
-            f"▶️ Начато: "
-            f"{format_datetime(active['started_at'])}\n\n"
-
-            "Новому ученику ссылка пока "
-            "не отправлена.\n\n"
-
-            "Что сделать?",
-
-            reply_markup=InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton(
-                        "⏹ Завершить текущее",
-                        callback_data=(
-                            f"admin_overlap_finish_only|"
-                            f"{active['id']}|{lesson_id}"
-                        ),
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        "⏳ +5 мин",
-                        callback_data=(
-                            f"admin_overlap_delay|{lesson_id}|5"
-                        ),
-                    ),
-                    InlineKeyboardButton(
-                        "⏳ +10 мин",
-                        callback_data=(
-                            f"admin_overlap_delay|{lesson_id}|10"
-                        ),
-                    ),
-                    InlineKeyboardButton(
-                        "⏳ +15 мин",
-                        callback_data=(
-                            f"admin_overlap_delay|{lesson_id}|15"
-                        ),
-                    ),
-                ],
-                [
-                    InlineKeyboardButton(
-                        "▶️ Всё равно начать новое",
-                        callback_data=(
-                            f"admin_overlap_force_start|{lesson_id}"
-                        ),
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        "⬅️ Пока не начинать",
-                        callback_data=(
-                            f"admin_lesson_view|{lesson_id}"
-                        ),
-                    )
-                ],
-            ]),
-        )
-
         return ConversationHandler.END
 
     try:
-
-        result = await send_link_and_start_lesson(
+        result = await send_lesson_link_only(
             context,
-            lesson_id,
+            int(lesson_id),
             value,
-            force=False,
         )
 
-    except Exception as error:
-
+    except Exception as exc:
         await update.message.reply_text(
-            "❌ Не удалось отправить ссылку "
-            "и начать занятие.\n\n"
-            f"{error}\n\n"
-            "Занятие НЕ запущено."
+            "❌ Не удалось отправить ссылку.\n\n"
+            f"{exc}\n\n"
+            "Таймер НЕ запущен."
         )
-
         return LESSON_LINK
 
     context.user_data.pop(
@@ -6081,32 +6082,51 @@ async def lesson_link_handler(
     )
 
     text = (
-        "✅ Ссылка отправлена ученику.\n\n"
-        "▶️ Занятие запущено.\n"
-        f"⏱ Начало: "
-        f"{format_datetime(result['started_at'])}"
+        "✅ Ссылка отправлена.\n\n"
+        "⏳ Ждём ученика.\n"
+        "Фактический таймер пока НЕ идёт.\n\n"
+        "Когда ученик подключится:"
     )
 
-    if not result["user"]["board_url"]:
+    rows = [
+        [
+            InlineKeyboardButton(
+                "▶️ Ученик пришёл — начать занятие",
+                callback_data=(
+                    f"admin_lesson_start|{lesson_id}"
+                ),
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📚 Открыть занятие",
+                callback_data=(
+                    f"admin_lesson_view|{lesson_id}"
+                ),
+            )
+        ],
+    ]
 
+    if not result["user"]["board_url"]:
         text += (
-            "\n\n⚠️ Доска не была приложена, "
-            "так как она ещё не сохранена."
+            "\n\n⚠️ Доска пока не сохранена."
         )
+
+        rows.append([
+            InlineKeyboardButton(
+                "🖥 Добавить доску",
+                callback_data=(
+                    "admin_add_board|"
+                    f"{result['user']['id']}"
+                ),
+            )
+        ])
 
     await update.message.reply_text(
         text,
-
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    "📚 Открыть занятие",
-                    callback_data=(
-                        f"admin_lesson_view|{lesson_id}"
-                    ),
-                )
-            ]
-        ]),
+        reply_markup=InlineKeyboardMarkup(
+            rows
+        ),
     )
 
     return ConversationHandler.END
@@ -6758,13 +6778,90 @@ async def extra_hw_text_handler(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+    message = update.message
 
-    value = update.message.text.strip()
+    value = (
+        message.caption
+        or message.text
+        or ""
+    ).strip()
+
+    attachment = None
+
+    if message.document:
+        attachment = {
+            "kind": "document",
+            "file_id": message.document.file_id,
+            "file_unique_id": (
+                message.document.file_unique_id
+            ),
+            "filename": (
+                message.document.file_name
+                or "homework_file"
+            ),
+            "mime_type": (
+                message.document.mime_type
+                or "application/octet-stream"
+            ),
+        }
+
+    elif message.photo:
+        photo = message.photo[-1]
+
+        attachment = {
+            "kind": "photo",
+            "file_id": photo.file_id,
+            "file_unique_id": (
+                photo.file_unique_id
+            ),
+            "filename": "homework.jpg",
+            "mime_type": "image/jpeg",
+        }
+
+    elif message.video:
+        x = message.video
+
+        attachment = {
+            "kind": "document",
+            "file_id": x.file_id,
+            "file_unique_id": x.file_unique_id,
+            "filename": (
+                x.file_name
+                or "homework_video.mp4"
+            ),
+            "mime_type": (
+                x.mime_type
+                or "video/mp4"
+            ),
+        }
+
+    elif message.audio:
+        x = message.audio
+
+        attachment = {
+            "kind": "document",
+            "file_id": x.file_id,
+            "file_unique_id": x.file_unique_id,
+            "filename": (
+                x.file_name
+                or "homework_audio.mp3"
+            ),
+            "mime_type": (
+                x.mime_type
+                or "audio/mpeg"
+            ),
+        }
+
+    if not value and attachment:
+        value = (
+            "Задание находится "
+            "в прикреплённом файле."
+        )
 
     if not value:
-
-        await update.message.reply_text(
-            "❌ Задание не может быть пустым."
+        await message.reply_text(
+            "❌ Отправьте текст задания, "
+            "PDF/документ или изображение."
         )
 
         return EXTRA_HW_TEXT
@@ -6773,14 +6870,34 @@ async def extra_hw_text_handler(
         "extra_hw_text"
     ] = value
 
-    await update.message.reply_text(
+    if attachment:
+        context.user_data[
+            "extra_hw_attachment"
+        ] = attachment
+    else:
+        context.user_data.pop(
+            "extra_hw_attachment",
+            None,
+        )
+
+    attach_line = ""
+
+    if attachment:
+        attach_line = (
+            "\n📎 "
+            + attachment["filename"]
+        )
+
+    await message.reply_text(
+        "✅ Задание принято."
+        + attach_line
+        + "\n\n"
         "Введите срок выполнения:\n"
         "например 25.08.2026\n\n"
         "Или отправьте «-», если без срока."
     )
 
     return EXTRA_HW_DEADLINE
-
 
 async def extra_hw_deadline_handler(
     update: Update,
@@ -6843,6 +6960,33 @@ async def extra_hw_deadline_handler(
         homework_type="ADDITIONAL",
     )
 
+    attachment = context.user_data.get(
+        "extra_hw_attachment"
+    )
+
+    if attachment:
+        try:
+            import homework_attachments
+
+            homework_attachments.add_attachment(
+                homework_id=homework_id,
+                file_id=attachment["file_id"],
+                file_unique_id=attachment.get(
+                    "file_unique_id"
+                ),
+                kind=attachment["kind"],
+                filename=attachment["filename"],
+                mime_type=attachment["mime_type"],
+                source_channel="TELEGRAM",
+            )
+
+        except Exception as error:
+            print(
+                "EXTRA HW ATTACHMENT SAVE:",
+                repr(error),
+                flush=True,
+            )
+
     if program["telegram_id"]:
 
         message = (
@@ -6862,10 +7006,26 @@ async def extra_hw_deadline_handler(
 
         try:
 
-            await context.bot.send_message(
-                chat_id=program["telegram_id"],
-                text=message,
-            )
+            if attachment:
+                if attachment["kind"] == "photo":
+                    await context.bot.send_photo(
+                        chat_id=program["telegram_id"],
+                        photo=attachment["file_id"],
+                        caption=message[:1000],
+                    )
+
+                else:
+                    await context.bot.send_document(
+                        chat_id=program["telegram_id"],
+                        document=attachment["file_id"],
+                        caption=message[:1000],
+                    )
+
+            else:
+                await context.bot.send_message(
+                    chat_id=program["telegram_id"],
+                    text=message,
+                )
 
         except Exception as error:
 
@@ -6897,6 +7057,19 @@ async def extra_hw_deadline_handler(
                 )
             ]
         ]),
+    )
+
+    context.user_data.pop(
+        "extra_hw_program_id",
+        None,
+    )
+    context.user_data.pop(
+        "extra_hw_text",
+        None,
+    )
+    context.user_data.pop(
+        "extra_hw_attachment",
+        None,
     )
 
     return ConversationHandler.END
@@ -8190,11 +8363,15 @@ def get_admin_conversation_handler():
             ],
 
             EXTRA_HW_TEXT: [
-
                 MessageHandler(
-                    filters.TEXT
+                    (
+                        filters.TEXT
+                        | filters.Document.ALL
+                        | filters.PHOTO
+                        | filters.VIDEO
+                        | filters.AUDIO
+                    )
                     & ~filters.COMMAND,
-
                     extra_hw_text_handler,
                 )
             ],
@@ -8264,6 +8441,7 @@ def get_admin_callback_handler():
             r"|^admin_homework"
             r"|^admin_students$"
             r"|^admin_students_grade\|"
+            r"|^admin_students_college\|"
             r"|^admin_student\|"
             r"|^admin_student_stats\|"
             r"|^admin_balance\|"

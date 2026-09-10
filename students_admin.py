@@ -13,6 +13,7 @@ from telegram.ext import (
 )
 
 import database
+import education_profile
 from ux_final import service as ux_service
 import admin
 from core import minute_balance
@@ -303,21 +304,17 @@ async def show_students(
 
         return
 
-    # Группируем учеников по классам.
-    by_grade = {}
+    # Школа и колледж отображаются отдельно.
+    by_school = {}
+    by_college = {}
 
     for user in users:
+        etype, level = _student_education(user)
 
-        grade = int(
-            user["grade"]
-        )
-
-        by_grade.setdefault(
-            grade,
-            []
-        ).append(
-            user
-        )
+        if etype == "COLLEGE":
+            by_college.setdefault(level, []).append(user)
+        else:
+            by_school.setdefault(level, []).append(user)
 
     keyboard = []
 
@@ -328,34 +325,45 @@ async def show_students(
         if pinned:
             keyboard.append([InlineKeyboardButton("⭐ ЗАКРЕПЛЁННЫЕ", callback_data="ux_noop")])
             for u in pinned:
-                keyboard.append([InlineKeyboardButton(f"⭐ {u['name']} • {u['grade']} кл.", callback_data=f"student_view|{u['id']}")])
+                keyboard.append([InlineKeyboardButton(f"⭐ {u['name']} • {_student_level_label(u)}", callback_data=f"student_view|{u['id']}")])
         if recent:
             keyboard.append([InlineKeyboardButton("🕘 НЕДАВНИЕ", callback_data="ux_noop")])
             for u in recent:
-                keyboard.append([InlineKeyboardButton(f"🕘 {u['name']} • {u['grade']} кл.", callback_data=f"student_view|{u['id']}")])
+                keyboard.append([InlineKeyboardButton(f"🕘 {u['name']} • {_student_level_label(u)}", callback_data=f"student_view|{u['id']}")])
     except Exception:
         pass
 
-    for grade in sorted(
-        by_grade.keys()
-    ):
-
-        active_count = len(
-            by_grade[grade]
-        )
-
+    if by_school:
         keyboard.append([
             InlineKeyboardButton(
-                (
-                    f"🎓 {grade} класс "
-                    f"• {active_count}"
-                ),
-
-                callback_data=(
-                    f"student_grade|{grade}"
-                )
+                "🏫 ШКОЛА",
+                callback_data="student_grade|SCHOOL|ALL",
             )
         ])
+
+        for grade in sorted(by_school):
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"📚 {grade} класс • {len(by_school[grade])}",
+                    callback_data=f"student_grade|SCHOOL|{grade}",
+                )
+            ])
+
+    if by_college:
+        keyboard.append([
+            InlineKeyboardButton(
+                "🎓 КОЛЛЕДЖ",
+                callback_data="student_grade|COLLEGE|ALL",
+            )
+        ])
+
+        for course in sorted(by_college):
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"🎓 {course} курс • {len(by_college[course])}",
+                    callback_data=f"student_grade|COLLEGE|{course}",
+                )
+            ])
 
     keyboard.append([InlineKeyboardButton("🔎 Найти ученика", callback_data="crm_search")])
     keyboard.append([InlineKeyboardButton("📋 Все ученики", callback_data="student_grade|ALL")])
@@ -363,7 +371,7 @@ async def show_students(
 
     await query.edit_message_text(
         "👥 УЧЕНИКИ\n\n"
-        "Выберите класс:",
+        "Выберите класс или курс:",
 
         reply_markup=(
             InlineKeyboardMarkup(
@@ -371,6 +379,32 @@ async def show_students(
             )
         )
     )
+
+
+
+def _student_education(user):
+    """Normalized SCHOOL/COLLEGE profile for admin UI."""
+    try:
+        profile = education_profile.get(user)
+        etype = str(profile.get("type") or "SCHOOL").upper()
+        level = int(profile.get("level") or user["grade"])
+    except Exception:
+        etype = "SCHOOL"
+        level = int(user["grade"])
+
+    if etype not in {"SCHOOL", "COLLEGE"}:
+        etype = "SCHOOL"
+
+    return etype, level
+
+
+def _student_level_label(user):
+    etype, level = _student_education(user)
+
+    if etype == "COLLEGE":
+        return f"{level} курс"
+
+    return f"{level} класс"
 
 
 async def show_students_by_grade(
@@ -386,32 +420,52 @@ async def show_students_by_grade(
     )
 
     if grade == "ALL":
-
-        selected = list(
-            users
-        )
-
-        title = (
-            "📋 ВСЕ УЧЕНИКИ"
-        )
+        selected = list(users)
+        title = "📋 ВСЕ УЧЕНИКИ"
 
     else:
+        raw = str(grade)
+        parts = raw.split("|")
 
-        grade_int = int(
-            grade
-        )
+        if (
+            len(parts) == 2
+            and parts[0] in {"SCHOOL", "COLLEGE"}
+        ):
+            wanted_type = parts[0]
 
-        selected = [
-            user
-            for user in users
-            if int(
-                user["grade"]
-            ) == grade_int
-        ]
+            if parts[1] == "ALL":
+                wanted_level = None
+            else:
+                wanted_level = int(parts[1])
+        else:
+            # Старые callback student_grade|10 продолжают работать.
+            wanted_type = "SCHOOL"
+            wanted_level = int(raw)
 
-        title = (
-            f"🎓 {grade_int} КЛАСС"
-        )
+        selected = []
+
+        for user in users:
+            etype, level = _student_education(user)
+
+            if (
+                etype == wanted_type
+                and (
+                    wanted_level is None
+                    or level == wanted_level
+                )
+            ):
+                selected.append(user)
+
+        if wanted_type == "COLLEGE":
+            if wanted_level is None:
+                title = "🎓 КОЛЛЕДЖ"
+            else:
+                title = f"🎓 {wanted_level} КУРС"
+        else:
+            if wanted_level is None:
+                title = "🏫 ШКОЛА"
+            else:
+                title = f"🏫 {wanted_level} КЛАСС"
 
     # Активных показываем первыми,
     # затем по имени.
@@ -531,7 +585,7 @@ async def show_student(
         "👤 КАРТОЧКА УЧЕНИКА • V4\n\n"
 
         f"Имя: {user['name']}\n"
-        f"🎓 Класс: {user['grade']}\n"
+        f"🎓 Обучение: {_student_level_label(user)}\n"
         f"📱 Телефон: {user['phone'] or '—'}\n"
         f"Telegram: "
         f"{('@' + user['telegram_username']) if user['telegram_username'] else '—'}\n"
@@ -780,8 +834,11 @@ async def show_student(
 
     keyboard.append([
         InlineKeyboardButton(
-            f"⬅️ К {user['grade']} классу",
-            callback_data=f"student_grade|{user['grade']}"
+            f"⬅️ К {_student_level_label(user)}",
+            callback_data=(
+                f"student_grade|{_student_education(user)[0]}|"
+                f"{_student_education(user)[1]}"
+            )
         )
     ])
 
@@ -2048,9 +2105,7 @@ async def students_buttons(
         "student_grade|"
     ):
 
-        grade = (
-            data.split("|")[1]
-        )
+        grade = data.split("|", 1)[1]
 
         await show_students_by_grade(
             query,

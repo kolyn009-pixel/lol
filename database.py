@@ -2442,43 +2442,107 @@ def set_custom_rate(
     subject,
     rate
 ):
+    """
+    Compatibility entry point.
 
-    rate = int(
-        rate
-    )
-
+    The canonical individual rate is student_programs.custom_hourly_rate.
+    Keep the legacy users.*_rate field synchronized as well.
+    """
+    rate = int(rate)
     if rate <= 0:
+        raise ValueError("Цена должна быть больше нуля.")
 
-        raise ValueError(
-            "Цена должна быть больше нуля."
-        )
-
-    column = get_rate_column(
-        study_goal,
-        subject
-    )
-
+    column = get_rate_column(study_goal, subject)
     conn = connect()
 
-    conn.execute(
-        f"""
-        UPDATE users
+    try:
+        now = now_iso()
 
-        SET
-            {column} = ?,
-            updated_at = ?
-
-        WHERE id = ?
-        """,
-        (
-            rate,
-            now_iso(),
-            user_id
+        conn.execute(
+            f"""
+            UPDATE users
+            SET {column} = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (rate, now, int(user_id)),
         )
-    )
 
-    conn.commit()
-    conn.close()
+        conn.execute(
+            """
+            UPDATE student_programs
+            SET custom_hourly_rate = ?,
+                updated_at = ?
+            WHERE user_id = ?
+              AND study_goal = ?
+              AND subject = ?
+            """,
+            (
+                rate,
+                now,
+                int(user_id),
+                study_goal,
+                subject,
+            ),
+        )
+
+        rows = conn.execute(
+            """
+            SELECT l.id, l.duration_minutes
+            FROM lessons l
+            LEFT JOIN student_programs sp
+              ON sp.id = l.program_id
+            WHERE l.user_id = ?
+              AND l.lesson_status = 'CONFIRMED'
+              AND l.payment_status IN ('AWAITING_PAYMENT','UNPAID')
+              AND COALESCE(l.is_trial,0) = 0
+              AND l.start_time > ?
+              AND (
+                    (
+                        l.program_id IS NOT NULL
+                        AND sp.study_goal = ?
+                        AND sp.subject = ?
+                    )
+                    OR
+                    (
+                        l.program_id IS NULL
+                        AND l.study_goal = ?
+                        AND l.subject = ?
+                    )
+                  )
+            """,
+            (
+                int(user_id),
+                now,
+                study_goal,
+                subject,
+                study_goal,
+                subject,
+            ),
+        ).fetchall()
+
+        for row in rows:
+            price = calculate_lesson_price(
+                rate,
+                int(row["duration_minutes"] or 60),
+            )
+            conn.execute(
+                """
+                UPDATE lessons
+                SET hourly_rate = ?,
+                    price = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (rate, price, now, int(row["id"])),
+            )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
     return rate
 
@@ -2488,37 +2552,122 @@ def clear_custom_rate(
     study_goal,
     subject
 ):
-
-    column = get_rate_column(
-        study_goal,
-        subject
-    )
-
+    column = get_rate_column(study_goal, subject)
     conn = connect()
 
-    conn.execute(
-        f"""
-        UPDATE users
+    try:
+        now = now_iso()
 
-        SET
-            {column} = NULL,
-            updated_at = ?
+        user = conn.execute(
+            "SELECT grade FROM users WHERE id=?",
+            (int(user_id),),
+        ).fetchone()
 
-        WHERE id = ?
-        """,
-        (
-            now_iso(),
-            user_id
+        if user is None:
+            raise ValueError("Ученик не найден.")
+
+        default_rate = int(
+            get_default_rate(
+                study_goal,
+                subject,
+                user["grade"],
+            )
         )
-    )
 
-    conn.commit()
-    conn.close()
+        conn.execute(
+            f"""
+            UPDATE users
+            SET {column} = NULL,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (now, int(user_id)),
+        )
+
+        conn.execute(
+            """
+            UPDATE student_programs
+            SET custom_hourly_rate = NULL,
+                updated_at = ?
+            WHERE user_id = ?
+              AND study_goal = ?
+              AND subject = ?
+            """,
+            (
+                now,
+                int(user_id),
+                study_goal,
+                subject,
+            ),
+        )
+
+        rows = conn.execute(
+            """
+            SELECT l.id, l.duration_minutes
+            FROM lessons l
+            LEFT JOIN student_programs sp
+              ON sp.id = l.program_id
+            WHERE l.user_id = ?
+              AND l.lesson_status = 'CONFIRMED'
+              AND l.payment_status IN ('AWAITING_PAYMENT','UNPAID')
+              AND COALESCE(l.is_trial,0) = 0
+              AND l.start_time > ?
+              AND (
+                    (
+                        l.program_id IS NOT NULL
+                        AND sp.study_goal = ?
+                        AND sp.subject = ?
+                    )
+                    OR
+                    (
+                        l.program_id IS NULL
+                        AND l.study_goal = ?
+                        AND l.subject = ?
+                    )
+                  )
+            """,
+            (
+                int(user_id),
+                now,
+                study_goal,
+                subject,
+                study_goal,
+                subject,
+            ),
+        ).fetchall()
+
+        for row in rows:
+            price = calculate_lesson_price(
+                default_rate,
+                int(row["duration_minutes"] or 60),
+            )
+            conn.execute(
+                """
+                UPDATE lessons
+                SET hourly_rate = ?,
+                    price = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    default_rate,
+                    price,
+                    now,
+                    int(row["id"]),
+                ),
+            )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
     return get_student_rate_info(
         user_id,
         study_goal,
-        subject
+        subject,
     )
 
 
@@ -7903,6 +8052,17 @@ def auto_cancel_unpaid_lesson(
         lesson_id
     )
 
+    # Administrator may explicitly allow this lesson to proceed
+    # while payment is still pending.
+    if not lesson:
+        return False
+
+    try:
+        if int(lesson["allow_unpaid"] or 0):
+            return False
+    except (KeyError, IndexError):
+        pass
+
     if lesson is None:
 
         return False
@@ -7917,6 +8077,27 @@ def auto_cancel_unpaid_lesson(
         ] != "AWAITING_PAYMENT"
     ):
 
+        return False
+
+    # Final payment reconciliation before destructive cancellation.
+    # A confirmed payment can credit balance shortly before the deadline
+    # while this lesson still temporarily says AWAITING_PAYMENT.
+    try:
+        charge_reserved_lesson(lesson_id)
+    except ValueError:
+        # No sufficient compatible balance: continue with normal cancellation.
+        pass
+    else:
+        # Compatible balance existed and the lesson was reserved successfully.
+        return False
+
+    # Re-read after reconciliation in case another worker changed the lesson.
+    lesson = get_lesson(lesson_id)
+    if (
+        lesson is None
+        or lesson["lesson_status"] != "CONFIRMED"
+        or lesson["payment_status"] != "AWAITING_PAYMENT"
+    ):
         return False
 
     conn = connect()
@@ -9134,6 +9315,28 @@ def finish_lesson(
     lesson_id,
     finished_at=None
 ):
+
+    # FINISH FALLBACK START
+    #
+    # Manual "Finish lesson" is authoritative.
+    # If an older flow failed to save started_at,
+    # use the planned start instead of leaving the lesson CONFIRMED.
+    before_finish = get_lesson(lesson_id)
+
+    if (
+        before_finish is not None
+        and str(
+            before_finish["lesson_status"]
+            or ""
+        ).upper() == "CONFIRMED"
+        and not before_finish["started_at"]
+    ):
+        start_lesson(
+            lesson_id,
+            started_at=before_finish["start_time"],
+        )
+    # FINISH FALLBACK END
+
 
     if finished_at is None:
 
@@ -11206,82 +11409,34 @@ def set_program_custom_rate(
     program_id,
     hourly_rate
 ):
+    program = get_student_program(program_id)
+    if program is None:
+        raise ValueError("Направление не найдено.")
 
-    hourly_rate = int(
-        hourly_rate
+    set_custom_rate(
+        int(program["user_id"]),
+        program["study_goal"],
+        program["subject"],
+        int(hourly_rate),
     )
 
-    if hourly_rate <= 0:
-
-        raise ValueError(
-            "Цена должна быть больше нуля."
-        )
-
-    conn = connect()
-
-    result = conn.execute("""
-        UPDATE student_programs
-
-        SET
-            custom_hourly_rate = ?,
-            updated_at = ?
-
-        WHERE id = ?
-    """, (
-        hourly_rate,
-        now_iso(),
-        program_id,
-    ))
-
-    if result.rowcount == 0:
-
-        conn.close()
-
-        raise ValueError(
-            "Направление не найдено."
-        )
-
-    conn.commit()
-    conn.close()
-
-    return get_program_rate_info(
-        program_id
-    )
+    return get_program_rate_info(program_id)
 
 
 def clear_program_custom_rate(
     program_id
 ):
+    program = get_student_program(program_id)
+    if program is None:
+        raise ValueError("Направление не найдено.")
 
-    conn = connect()
-
-    result = conn.execute("""
-        UPDATE student_programs
-
-        SET
-            custom_hourly_rate = NULL,
-            updated_at = ?
-
-        WHERE id = ?
-    """, (
-        now_iso(),
-        program_id,
-    ))
-
-    if result.rowcount == 0:
-
-        conn.close()
-
-        raise ValueError(
-            "Направление не найдено."
-        )
-
-    conn.commit()
-    conn.close()
-
-    return get_program_rate_info(
-        program_id
+    clear_custom_rate(
+        int(program["user_id"]),
+        program["study_goal"],
+        program["subject"],
     )
+
+    return get_program_rate_info(program_id)
 
 
 def get_program_balance_breakdown(

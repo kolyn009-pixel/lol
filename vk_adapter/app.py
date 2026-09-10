@@ -29,7 +29,17 @@ def keyboard(linked=False,mode="home",data=None):
  if mode=="teacher_student":
   uid=int(data["user_id"]);return _keyboard_rows([[_button("📝 Задать ДЗ",f"t_hw_user|{uid}","primary"),_button("💬 Написать",f"t_msg_user|{uid}")],[_button("👥 Ученики","t_students"),_button("🏠 Главная","t_home")]])
  if mode=="teacher_lesson":
-  lid=int(data["lesson_id"]);uid=int(data["user_id"]);return _keyboard_rows([[_button("🎥 Отправить ссылку",f"t_sendlink|{lid}","positive")],[_button("⏹ Завершить занятие",f"t_finish|{lid}","negative")],[_button("📝 Задать ДЗ",f"t_hw_user|{uid}")],[_button("📅 Сегодня","t_today"),_button("🏠 Главная","t_home")]])
+  lid=int(data["lesson_id"]);uid=int(data["user_id"])
+  lesson=database.get_lesson(lid)
+  status=str(lesson["lesson_status"] or "").upper() if lesson else ""
+  out=[[_button("🎥 Отправить ссылку",f"t_sendlink|{lid}","positive")]]
+  if status=="CONFIRMED":
+   out.append([_button("▶️ Начать занятие",f"t_start|{lid}","positive")])
+  elif status=="IN_PROGRESS":
+   out.append([_button("⏹ Завершить занятие",f"t_finish|{lid}","negative")])
+  out.append([_button("📝 Задать ДЗ",f"t_hw_user|{uid}")])
+  out.append([_button("📅 Сегодня","t_today"),_button("🏠 Главная","t_home")])
+  return _keyboard_rows(out)
  if mode=="homework":
   rows=[]
   for i,r in enumerate(data.get("items",[])[:8],1):
@@ -40,7 +50,7 @@ def keyboard(linked=False,mode="home",data=None):
   hid=int(data['homework_id']);return _keyboard_rows([[_link_button("🌐 Открыть и выполнить в Аделии",f"https://adeliatutor.ru/app/?homework={hid}")],[_button("⬅️ К домашним заданиям","homework"),_button("🏠 Главная","home")]])
  if mode=="college_courses":
   courses=data.get("courses",[]);current=data.get("current");rows=[]
-  for course in courses:rows.append([_button(f"🎓 {college_curriculum.course_label(course)}",f"cf_course|{course}","primary" if i==0 else "secondary")])
+  for course in courses:rows.append([_button(f"🎓 {college_curriculum.course_label(course)}",f"cf_course|{course}","primary" if course==current else "secondary")])
   rows.append([_button("🏠 Главная","home")]);return _keyboard_rows(rows)
  if mode=="college_subjects":
   course=int(data["course"]);rows=[[_button(f"📖 {label}",f"cf_subject|{course}|{key}","primary")] for key,label in college_curriculum.subjects(course)];rows.append([_button("⬅️ К курсам","formulas"),_button("🏠 Главная","home")]);return _keyboard_rows(rows)
@@ -107,6 +117,18 @@ def _handle_teacher(p,v,c,raw,attachments=None):
    if attachments:
     from .attachment_bridge import vk_forward_to_student
     vk_forward_to_student(uid,attachments,f"📝 ДЗ #{hid}\n\n{raw}")
+
+   try:
+    from . import homework_v6
+    homework_v6.deliver(
+     __import__(__name__,fromlist=['*']),
+     int(hid),
+     int(uid),
+     also_telegram=True,
+    )
+   except Exception as exc:
+    print("HW6 VK NEW DELIVERY:",repr(exc),flush=True)
+
    send(p,f"✅ ДЗ #{hid} создано.\nTelegram: {'да' if delivered['telegram'] else 'нет'} · VK: {'да' if delivered['vk'] else 'нет'}",True,"teacher");return
   if kind=="t_msg":
    uid=int(pending[1]);from crm_plus import service as crm;from .channel_delivery import send_student
@@ -124,6 +146,37 @@ def _handle_teacher(p,v,c,raw,attachments=None):
   uid=int(c.split("|",1)[1]);u=database.get_user(uid);send(p,f"👤 {u['name']} · {u['grade']} класс",True,"teacher_student",{"user_id":uid});return
  if c.startswith("t_lesson|"):
   lid=int(c.split("|",1)[1]);l=database.get_lesson(lid);u=database.get_user(int(l['user_id']));send(p,f"🎓 ЗАНЯТИЕ\n\n👤 {u['name']}\n🕐 {str(l['start_time'])[11:16]}",True,"teacher_lesson",{"lesson_id":lid,"user_id":int(u['id'])});return
+ if c.startswith("t_start|"):
+  lid=int(c.split("|",1)[1])
+  lesson=database.get_lesson(lid)
+  if not lesson:
+   send(p,"❌ Занятие не найдено.",True,"teacher")
+   return
+  status=str(lesson["lesson_status"] or "").upper()
+  if status=="IN_PROGRESS":
+   send(p,"▶️ Занятие уже идёт.",True,"teacher_lesson",{"lesson_id":lid,"user_id":int(lesson["user_id"])})
+   return
+  if status in ("COMPLETED","FINISHED","CANCELLED"):
+   send(p,"❌ Это занятие уже завершено или отменено.",True,"teacher")
+   return
+  try:
+   database.start_lesson(lid)
+   updated=database.get_lesson(lid)
+   started=updated["started_at"] if updated else None
+   send(
+    p,
+    "▶️ ЗАНЯТИЕ НАЧАЛОСЬ\n\n"
+    + ("Фактическое начало: "+str(started)[11:16] if started else "Фактическое начало сохранено.")
+    + "\n\nОт этого времени считаем фактическую длительность занятия.",
+    True,
+    "teacher_lesson",
+    {"lesson_id":lid,"user_id":int(lesson["user_id"])},
+   )
+  except Exception as exc:
+   print("VK LESSON START ERROR:",repr(exc),flush=True)
+   send(p,f"❌ Не удалось начать занятие: {exc}",True,"teacher")
+  return
+
  if c.startswith("t_finish|"):
   lid=int(c.split("|",1)[1])
   try:
@@ -139,7 +192,7 @@ def handle_message(m):
  v=int(m.get("from_id") or 0);p=int(m.get("peer_id") or v)
  if v<=0:return
  c=_extract_command(m);raw=str(m.get("text") or "").strip();attachments=m.get('attachments') or []
- print("VK BUTTON:", "from=",v, "command=",repr(c), "text=",repr(raw), "payload=",repr(m.get("payload")), flush=True)
+ print("VK BUTTON:","from=",v,"command=",repr(c),"text=",repr(raw),"payload=",repr(m.get("payload")),flush=True)
  if raw.upper().replace(" ","").startswith("ADELIA-ADMIN-"):
   pr=_profile(v);aid,error=schema.consume_admin_link_code(raw,"VK",str(v),pr.get("username"),pr.get("display_name"));send(p,"❌ "+error if error else "✅ VK преподавателя подключён к TutorBot.\n\nТеперь рабочие уведомления и действия доступны здесь.",not bool(error),"teacher" if not error else "home");return
  if teacher_service.is_teacher(v):_handle_teacher(p,v,c,raw,attachments);return
@@ -169,13 +222,62 @@ def handle_message(m):
  uid=int(u['id'])
  if c=="lessons":send(p,service.upcoming_text(uid),True);return
  if c=="homework":
-  items=service.homework_items(uid,8);send(p,service.homework_text(uid),True,"homework",{"items":items,"user_id":uid});return
- if c.startswith("hw_view|"):
-  try:hid=int(c.split("|",1)[1])
-  except Exception:send(p,"Не удалось открыть это ДЗ.",True);return
-  item=service.homework_detail(uid,hid)
-  if not item:send(p,"Это домашнее задание недоступно.",True,"homework",{"items":service.homework_items(uid,8),"user_id":uid});return
-  send(p,item['text'],True,"homework_detail",{"homework_id":hid});return
+  from . import homework_v6
+  homework_v6.menu(__import__(__name__,fromlist=['*']),p,uid)
+  return
+
+ if c.startswith("vkhw|"):
+  from . import homework_v6
+  hid=int(c.split("|",1)[1])
+  homework_v6.open_homework(__import__(__name__,fromlist=['*']),p,uid,hid)
+  return
+
+ if c.startswith("vkhwp|"):
+  from . import homework_v6
+  _,hid,aid,page=c.split("|",3)
+  homework_v6.open_homework(__import__(__name__,fromlist=['*']),p,uid,int(hid),int(page),int(aid))
+  return
+
+ if c.startswith("vkhwo|"):
+  from . import homework_v6
+  _,hid,aid=c.split("|",2)
+  homework_v6.original(__import__(__name__,fromlist=['*']),p,uid,int(hid),int(aid))
+  return
+
+ if c.startswith("vkhwf|"):
+  from . import homework_v6
+  _,hid,aid,page=c.split("|",3)
+  homework_v6.formulas(__import__(__name__,fromlist=['*']),p,uid,int(hid),int(aid),int(page))
+  return
+
+ if c.startswith("vkhwft|"):
+  from . import homework_v6
+  hid=int(c.split("|",1)[1])
+  homework_v6.formulas(__import__(__name__,fromlist=['*']),p,uid,hid)
+  return
+
+ if c.startswith("vkhwfc|"):
+  from . import homework_v6
+  _,hid,aid,page,lid=c.split("|",4)
+  homework_v6.formula_card(__import__(__name__,fromlist=['*']),p,uid,int(hid),int(aid),int(page),int(lid))
+  return
+
+ if c.startswith("vkhwd|"):
+  from . import homework_v6
+  _,hid,aid,page=c.split("|",3)
+  homework_v6.mark_done(int(hid))
+  homework_v6.open_homework(__import__(__name__,fromlist=['*']),p,uid,int(hid),int(page),int(aid))
+  return
+
+ if c.startswith("vkhwdt|"):
+  from . import homework_v6
+  hid=int(c.split("|",1)[1])
+  homework_v6.mark_done(hid)
+  send(p,"✅ ДЗ отмечено выполненным.",True)
+  return
+
+ if c=="vkhwnop":
+  return
  if c=="study":send(p,service.study_text(uid),True);return
  if c=="formulas":
   profile=education_profile.get(uid)
@@ -205,7 +307,10 @@ def long_poll_server():
  d=api("groups.getLongPollServer",group_id=GROUP_ID);return d["server"],d["key"],d["ts"]
 def run_forever():
  if not GROUP_ID or not TOKEN:raise SystemExit("VK_GROUP_ID/VK_TOKEN are not configured")
- schema.initialize();notification_sync.initialize();teacher_notifications.initialize();__import__('homework_attachments').initialize();__import__('homework_attachments').install_vk_bridge();server,key,ts=long_poll_server();print(f"VK LONG POLL START group={GROUP_ID} api={API_VERSION}");last=0.0
+ schema.initialize();notification_sync.initialize();teacher_notifications.initialize();__import__('homework_attachments').initialize();__import__('homework_attachments').install_vk_bridge()
+ from . import teacher_post_lesson
+ teacher_post_lesson.install(__import__(__name__,fromlist=['*']))
+ server,key,ts=long_poll_server();print(f"VK LONG POLL START group={GROUP_ID} api={API_VERSION}");last=0.0
  while True:
   try:
    d=_http_json(f"{server}?"+urlencode({"act":"a_check","key":key,"ts":ts,"wait":25}),timeout=35)
@@ -217,11 +322,12 @@ def run_forever():
      msg=obj.get("message") if isinstance(obj,dict) else None
      if msg:handle_message(msg)
     elif utype=="message_event" and isinstance(obj,dict):
-     event_payload=obj.get("payload");synthetic={"from_id":obj.get("user_id") or obj.get("from_id"),"peer_id":obj.get("peer_id") or obj.get("user_id"),"text":"","payload":event_payload}
-     handle_message(synthetic)
-   now=time.time()
-   if now-last>=20:
-    notification_sync.sync_once();teacher_notifications.sync_once();last=now
+     event_payload=obj.get("payload");synthetic={"from_id":obj.get("user_id") or obj.get("from_id"),"peer_id":obj.get("peer_id") or obj.get("user_id"),"text":"","payload":event_payload,"attachments":[]};print("VK MESSAGE_EVENT:",repr(synthetic),flush=True);handle_message(synthetic)
+   now=time.monotonic()
+   if now-last>=30:
+    try:notification_sync.tick(send);teacher_notifications.tick(lambda peer,text:send(peer,text,True,"teacher"))
+    except Exception as exc:print("VK NOTIFICATION ERROR:",repr(exc))
+    last=now
   except KeyboardInterrupt:raise
   except Exception as exc:print("VK LONG POLL ERROR:",repr(exc));time.sleep(3)
 if __name__=="__main__":run_forever()

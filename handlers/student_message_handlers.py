@@ -69,12 +69,62 @@ async def reply_start(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
 
 def _attachment_meta(message):
-    if message.document:
-        d=message.document
-        return {'kind':'document','file_id':d.file_id,'name':d.file_name or 'document','mime':d.mime_type or 'application/octet-stream'}
-    if message.photo:
-        p=message.photo[-1]
-        return {'kind':'photo','file_id':p.file_id,'name':'photo.jpg','mime':'image/jpeg'}
+    m = message
+
+    if m.document:
+        x = m.document
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": x.file_name or "document",
+            "mime": x.mime_type or "application/octet-stream",
+        }
+
+    if m.photo:
+        x = m.photo[-1]
+        return {
+            "kind": "photo",
+            "file_id": x.file_id,
+            "name": "photo.jpg",
+            "mime": "image/jpeg",
+        }
+
+    if m.video:
+        x = m.video
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": x.file_name or "video.mp4",
+            "mime": x.mime_type or "video/mp4",
+        }
+
+    if m.audio:
+        x = m.audio
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": x.file_name or "audio.mp3",
+            "mime": x.mime_type or "audio/mpeg",
+        }
+
+    if m.voice:
+        x = m.voice
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": "voice.ogg",
+            "mime": x.mime_type or "audio/ogg",
+        }
+
+    if m.animation:
+        x = m.animation
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": x.file_name or "animation.mp4",
+            "mime": x.mime_type or "video/mp4",
+        }
+
     return None
 
 
@@ -99,9 +149,45 @@ async def collect(update:Update,context:ContextTypes.DEFAULT_TYPE):
     )
     if attachment:
         try:
-            from vk_adapter.attachment_bridge import telegram_file_bytes, vk_send_bytes
+            from vk_adapter.attachment_bridge import (
+                telegram_file_bytes,
+                telegram_send_bytes,
+                vk_send_bytes,
+            )
             from vk_adapter import schema as vk_schema
             content=telegram_file_bytes(attachment['file_id'])
+
+            try:
+                from core import admin_roles
+
+                caption = (
+                    f"💬 Файл от {user['name']}"
+                    + (
+                        "\n\n" + text
+                        if text
+                        else ""
+                    )
+                )
+
+                for adm in admin_roles.list_admins():
+                    if (
+                        adm["active"]
+                        and adm["telegram_id"]
+                    ):
+                        telegram_send_bytes(
+                            int(adm["telegram_id"]),
+                            content,
+                            attachment["name"],
+                            caption,
+                            attachment["kind"] == "photo",
+                            attachment["mime"],
+                        )
+
+            except Exception as exc:
+                print(
+                    "TG STUDENT FILE -> TG ADMIN:",
+                    repr(exc),
+                )
             for peer in vk_schema.get_admin_external_ids('VK'):
                 vk_send_bytes(int(peer),content,attachment['name'],text or f"📎 {attachment['name']}",attachment['kind']=='photo',attachment['mime'])
         except Exception as exc: print('STUDENT TG ATTACHMENT->VK ERROR:',repr(exc))
@@ -131,7 +217,15 @@ async def cancel(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
 
 def handler():
-    media_filter=(filters.TEXT|filters.Document.ALL|filters.PHOTO) & ~filters.COMMAND
+    media_filter=(
+        filters.TEXT
+        | filters.Document.ALL
+        | filters.PHOTO
+        | filters.VIDEO
+        | filters.AUDIO
+        | filters.VOICE
+        | filters.ANIMATION
+    ) & ~filters.COMMAND
     return ConversationHandler(entry_points=[CallbackQueryHandler(start,pattern=r'^student_message_start$'),CallbackQueryHandler(reply_start,pattern=r'^student_reply\|'),CallbackQueryHandler(urgent_start,pattern=r'^student_message_urgent$')],states={WAIT_MESSAGE:[MessageHandler(media_filter,collect),CallbackQueryHandler(cancel,pattern=r'^student_message_cancel$')]},fallbacks=[],allow_reentry=True)
 
 

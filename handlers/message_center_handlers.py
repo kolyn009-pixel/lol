@@ -57,9 +57,65 @@ async def callbacks(update:Update,context:ContextTypes.DEFAULT_TYPE):
   day=int(d.split('|')[1]);active={int(x) for x in (service.get_setting('reception_days','0,1,2,3,4,5,6') or '').split(',') if x.strip().isdigit()};active.remove(day) if day in active else active.add(day);service.set_setting('reception_days',','.join(map(str,sorted(active))),q.from_user.id);await _settings(q);return ConversationHandler.END
  return ConversationHandler.END
 def _attachment_meta(m):
- if m.document:return {'kind':'document','file_id':m.document.file_id,'name':m.document.file_name or 'document','mime':m.document.mime_type or 'application/octet-stream'}
- if m.photo:return {'kind':'photo','file_id':m.photo[-1].file_id,'name':'photo.jpg','mime':'image/jpeg'}
- return None
+    m = m
+
+    if m.document:
+        x = m.document
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": x.file_name or "document",
+            "mime": x.mime_type or "application/octet-stream",
+        }
+
+    if m.photo:
+        x = m.photo[-1]
+        return {
+            "kind": "photo",
+            "file_id": x.file_id,
+            "name": "photo.jpg",
+            "mime": "image/jpeg",
+        }
+
+    if m.video:
+        x = m.video
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": x.file_name or "video.mp4",
+            "mime": x.mime_type or "video/mp4",
+        }
+
+    if m.audio:
+        x = m.audio
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": x.file_name or "audio.mp3",
+            "mime": x.mime_type or "audio/mpeg",
+        }
+
+    if m.voice:
+        x = m.voice
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": "voice.ogg",
+            "mime": x.mime_type or "audio/ogg",
+        }
+
+    if m.animation:
+        x = m.animation
+        return {
+            "kind": "document",
+            "file_id": x.file_id,
+            "name": x.file_name or "animation.mp4",
+            "mime": x.mime_type or "video/mp4",
+        }
+
+    return None
+
+
 async def reply_text(update:Update,context:ContextTypes.DEFAULT_TYPE):
  uid=context.user_data.pop('msg_reply_uid',None);text=(update.message.text or update.message.caption or '').strip();a=_attachment_meta(update.message)
  if not uid or (not text and not a):return ConversationHandler.END
@@ -96,5 +152,13 @@ async def reception_time(update:Update,context:ContextTypes.DEFAULT_TYPE):
  except Exception:await update.message.reply_text('❌ Формат: 09:00-21:00');return WAIT_RECEPTION_TIME
  service.set_setting('reception_start',s,update.effective_user.id);service.set_setting('reception_end',e,update.effective_user.id);await update.message.reply_text(f'✅ Часы приёма сообщений: {s}–{e}');return ConversationHandler.END
 def handler():
- media=(filters.TEXT|filters.Document.ALL|filters.PHOTO)&~filters.COMMAND
+ media=(
+  filters.TEXT
+  | filters.Document.ALL
+  | filters.PHOTO
+  | filters.VIDEO
+  | filters.AUDIO
+  | filters.VOICE
+  | filters.ANIMATION
+ ) & ~filters.COMMAND
  return ConversationHandler(entry_points=[CallbackQueryHandler(callbacks,pattern=r'^(msg_|admin_student_messages$)')],states={WAIT_ADMIN_REPLY:[MessageHandler(media,reply_text)],WAIT_RECEPTION_TIME:[MessageHandler(filters.TEXT&~filters.COMMAND,reception_time)],WAIT_AI_INSTRUCTION:[MessageHandler(filters.TEXT&~filters.COMMAND,ai_instruction)],WAIT_AI_PREVIEW:[CallbackQueryHandler(ai_preview_callback,pattern=r'^msg_ai_(send|rewrite|cancel)$')]},fallbacks=[],allow_reentry=True)

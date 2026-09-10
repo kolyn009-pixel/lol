@@ -17,7 +17,7 @@ LEVEL_LABELS = {
 
 
 def _columns(c, table: str) -> set[str]:
-    return {str(r["name"]) for r in c.execute(f'PRAGMA table_info({table})').fetchall()}
+    return {str(r["name"]) for r in c.execute(f"PRAGMA table_info({table})").fetchall()}
 
 
 def initialize():
@@ -191,31 +191,149 @@ def review_completed(lesson_id: int) -> bool:
         c.close()
 
 
-def mark_completed(lesson_id: int, user_id: int, channel: str, homework_status: str = "PENDING", homework_id: int | None = None):
+def mark_completed(
+    lesson_id: int,
+    user_id: int,
+    channel: str,
+    homework_status: str = "PENDING",
+    homework_id: int | None = None,
+):
     ensure_sync(lesson_id, user_id, channel)
     c = database.connect()
     try:
         c.execute(
             """
             UPDATE post_lesson_review_sync
-            SET status='COMPLETED',completed_channel=?,homework_status=?,homework_id=?,selected_json='[]',selected_at=NULL,updated_at=?
+            SET status='COMPLETED',
+                completed_channel=?,
+                homework_status=?,
+                homework_id=?,
+                selected_json='[]',
+                selected_at=NULL,
+                updated_at=?
             WHERE lesson_id=?
             """,
-            (str(channel).upper(), str(homework_status).upper(), int(homework_id) if homework_id else None, now_iso(), int(lesson_id)),
+            (
+                str(channel).upper(),
+                str(homework_status).upper(),
+                int(homework_id) if homework_id else None,
+                now_iso(),
+                int(lesson_id),
+            ),
         )
         c.commit()
     finally:
         c.close()
 
 
-def set_homework_status(lesson_id: int, status: str, homework_id: int | None = None):
-    initialize()
+
+def _sync_lesson_homework_flags(
+    lesson_id: int,
+    status: str,
+):
+    """
+    lessons is the canonical source for:
+      homework_required
+      homework_assigned
+      homework_skipped
+
+    post_lesson_review_sync mirrors workflow state,
+    but must never diverge from lessons.
+    """
+
+    status = str(
+        status or "PENDING"
+    ).upper()
+
+    if status == "SKIPPED":
+        required = 0
+        assigned = 0
+        skipped = 1
+
+    elif status in {
+        "SENT",
+        "ASSIGNED",
+    }:
+        required = 1
+        assigned = 1
+        skipped = 0
+
+    else:
+        # PENDING / DRAFT:
+        # teacher has not explicitly chosen "Без ДЗ".
+        required = 1
+        assigned = 0
+        skipped = 0
+
     c = database.connect()
+
     try:
-        c.execute("UPDATE post_lesson_review_sync SET homework_status=?,homework_id=?,updated_at=? WHERE lesson_id=?", (str(status).upper(), int(homework_id) if homework_id else None, now_iso(), int(lesson_id)))
+        c.execute(
+            """
+            UPDATE lessons
+            SET homework_required=?,
+                homework_assigned=?,
+                homework_skipped=?,
+                updated_at=?
+            WHERE id=?
+            """,
+            (
+                required,
+                assigned,
+                skipped,
+                now_iso(),
+                int(lesson_id),
+            ),
+        )
+
         c.commit()
+
     finally:
         c.close()
+
+def set_homework_status(
+    lesson_id: int,
+    status: str,
+    homework_id: int | None = None,
+):
+    initialize()
+
+    normalized = str(
+        status or "PENDING"
+    ).upper()
+
+    c = database.connect()
+
+    try:
+        c.execute(
+            """
+            UPDATE post_lesson_review_sync
+            SET homework_status=?,
+                homework_id=?,
+                updated_at=?
+            WHERE lesson_id=?
+            """,
+            (
+                normalized,
+                (
+                    int(homework_id)
+                    if homework_id
+                    else None
+                ),
+                now_iso(),
+                int(lesson_id),
+            ),
+        )
+
+        c.commit()
+
+    finally:
+        c.close()
+
+    _sync_lesson_homework_flags(
+        int(lesson_id),
+        normalized,
+    )
 
 
 def topics_for_student(user_id: int, lesson_id: int):
@@ -232,13 +350,20 @@ def sections_for_student(user_id: int, lesson_id: int):
 
 
 def topics_for_section(user_id: int, lesson_id: int, subject: str, section: str):
-    return [r for r in topics_for_student(user_id, lesson_id) if str(r["subject"]) == str(subject) and str(r["section"]) == str(section)]
+    return [
+        r
+        for r in topics_for_student(user_id, lesson_id)
+        if str(r["subject"]) == str(subject) and str(r["section"]) == str(section)
+    ]
 
 
 def topic_row(topic_id: int):
     c = database.connect()
     try:
-        return c.execute("SELECT id,subject,study_goal,grade,section,topic FROM learning_topics WHERE id=?", (int(topic_id),)).fetchone()
+        return c.execute(
+            "SELECT id,subject,study_goal,grade,section,topic FROM learning_topics WHERE id=?",
+            (int(topic_id),),
+        ).fetchone()
     finally:
         c.close()
 
@@ -260,12 +385,25 @@ def mark_lines(marks):
 
 
 def save_review(lesson_id: int, user_id: int, marks, actor=None, channel="TG"):
-    review_id = progress_quick.save_review(int(lesson_id), int(user_id), list(marks or []), actor=actor)
+    review_id = progress_quick.save_review(
+        int(lesson_id),
+        int(user_id),
+        list(marks or []),
+        actor=actor,
+    )
     mark_completed(lesson_id, user_id, channel, homework_status="PENDING")
+    _sync_lesson_homework_flags(
+        int(lesson_id),
+        "PENDING",
+    )
     try:
         c = database.connect()
-        c.execute("UPDATE smart_actions SET status='DONE',resolved_at=? WHERE action_type='POST_LESSON_REVIEW' AND source_type='lesson' AND source_id=? AND status='OPEN'", (now_iso(), int(lesson_id)))
-        c.commit(); c.close()
+        c.execute(
+            "UPDATE smart_actions SET status='DONE',resolved_at=? WHERE action_type='POST_LESSON_REVIEW' AND source_type='lesson' AND source_id=? AND status='OPEN'",
+            (now_iso(), int(lesson_id)),
+        )
+        c.commit()
+        c.close()
     except Exception:
         pass
     return review_id
@@ -297,7 +435,8 @@ def formula_mapping_for_marks(marks):
         for key, item in library.items():
             title = str((item or {}).get("title") or key).strip()
             if str(key).strip().casefold() == wanted or title.casefold() == wanted:
-                found = str(key); break
+                found = str(key)
+                break
         if found:
             mapped.append((grade, subject, found))
     return mapped
@@ -305,12 +444,25 @@ def formula_mapping_for_marks(marks):
 
 def prepare_homework_draft(admin_telegram_id: int, lesson_id: int, user_id: int, marks):
     from learning import homework_flow
-    did = homework_flow._new_draft(int(admin_telegram_id), int(user_id), int(lesson_id))
+
+    did = homework_flow._new_draft(
+        int(admin_telegram_id),
+        int(user_id),
+        int(lesson_id),
+    )
     mapped = formula_mapping_for_marks(marks)
     if mapped:
         grade, subject, topic = mapped[0]
         repeats = [f"{g}|{s}|{t}" for g, s, t in mapped[1:]]
-        homework_flow._touch(did, topic_grade=grade, topic_subject=subject, topic_key=topic, repeat_topics_json=json.dumps(repeats, ensure_ascii=False), formula_topics_json="[]", formula_decision=None)
+        homework_flow._touch(
+            did,
+            topic_grade=grade,
+            topic_subject=subject,
+            topic_key=topic,
+            repeat_topics_json=json.dumps(repeats, ensure_ascii=False),
+            formula_topics_json="[]",
+            formula_decision=None,
+        )
     set_homework_status(lesson_id, "DRAFT")
     return did
 
@@ -323,9 +475,16 @@ def link_homework_topics(homework_id: int, marks):
     try:
         count = 0
         for i, (grade, subject, topic) in enumerate(mapped):
-            c.execute("INSERT INTO homework_topic_links(homework_id,grade,subject,topic,role) VALUES(?,?,?,?,?)", (int(homework_id), int(grade), str(subject), str(topic), "MAIN" if i == 0 else "REVIEW"))
+            c.execute(
+                """
+                INSERT INTO homework_topic_links(homework_id,grade,subject,topic,role)
+                VALUES(?,?,?,?,?)
+                """,
+                (int(homework_id), int(grade), str(subject), str(topic), "MAIN" if i == 0 else "REVIEW"),
+            )
             count += 1
-        c.commit(); return count
+        c.commit()
+        return count
     finally:
         c.close()
 
@@ -333,10 +492,25 @@ def link_homework_topics(homework_id: int, marks):
 def review_summary(lesson_id: int):
     c = database.connect()
     try:
-        review = c.execute("SELECT id,user_id FROM post_lesson_reviews WHERE lesson_id=?", (int(lesson_id),)).fetchone()
+        review = c.execute(
+            "SELECT id,user_id FROM post_lesson_reviews WHERE lesson_id=?",
+            (int(lesson_id),),
+        ).fetchone()
         if not review:
             return {"count": 0, "topics": []}
-        rows = c.execute("SELECT m.topic_id,m.level,m.comment,t.topic FROM post_lesson_topic_marks m LEFT JOIN learning_topics t ON t.id=m.topic_id WHERE m.review_id=? ORDER BY m.id", (int(review["id"]),)).fetchall()
-        return {"count": len(rows), "topics": [r["topic"] or f"Тема #{r['topic_id']}" for r in rows]}
+        rows = c.execute(
+            """
+            SELECT m.topic_id,m.level,m.comment,t.topic
+            FROM post_lesson_topic_marks m
+            LEFT JOIN learning_topics t ON t.id=m.topic_id
+            WHERE m.review_id=?
+            ORDER BY m.id
+            """,
+            (int(review["id"]),),
+        ).fetchall()
+        return {
+            "count": len(rows),
+            "topics": [r["topic"] or f"Тема #{r['topic_id']}" for r in rows],
+        }
     finally:
         c.close()
