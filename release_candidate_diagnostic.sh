@@ -1,39 +1,65 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT="${ROOT:-/opt/tutorbot}"
-PY="${PY:-$ROOT/venv/bin/python}"
-PROD_DB="${PROD_DB:-$ROOT/tutor.db}"
+PROD_ROOT="${PROD_ROOT:-/opt/tutorbot}"
+PY="${PY:-$PROD_ROOT/venv/bin/python}"
+PROD_DB="${PROD_DB:-$PROD_ROOT/tutor.db}"
 ENV_FILE="${ENV_FILE:-/etc/tutorbot/adelia.env}"
+RC_BRANCH="${RC_BRANCH:-feat/lesson-live-state-v1}"
 TMP="$(mktemp -d /tmp/adelia-rc-XXXXXX)"
+RC_ROOT="$TMP/code"
 TEST_DB="$TMP/tutor_test.db"
 FAIL=0
-trap 'rm -rf "$TMP"' EXIT
+WORKTREE_ADDED=0
+
+cleanup(){
+  if [ "$WORKTREE_ADDED" -eq 1 ] && [ -d "$PROD_ROOT/.git" ]; then
+    git -C "$PROD_ROOT" worktree remove --force "$RC_ROOT" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$TMP"
+}
+trap cleanup EXIT
 
 ok(){ printf 'OK   %s\n' "$1"; }
 warn(){ printf 'WARN %s\n' "$1"; }
 fail(){ printf 'FAIL %s\n' "$1"; FAIL=1; }
 
-printf '=== ADELIA RELEASE CANDIDATE DIAGNOSTIC ===\n'
-printf 'root=%s\n' "$ROOT"
+printf '=== ADELIA RELEASE CANDIDATE DIAGNOSTIC v2 ===\n'
+printf 'production_root=%s\n' "$PROD_ROOT"
+printf 'release_branch=%s\n' "$RC_BRANCH"
 printf 'tmp=%s\n\n' "$TMP"
 
-if [ -d "$ROOT/.git" ]; then
-  cd "$ROOT" || exit 2
-  printf '%s\n' '--- GIT ---'
-  git status --short || true
-  printf 'branch='; git branch --show-current || true
-  printf 'head='; git rev-parse --short HEAD || true
+printf '%s\n' '--- PRODUCTION CHECKOUT (READ ONLY) ---'
+if [ -d "$PROD_ROOT/.git" ]; then
+  printf 'branch='; git -C "$PROD_ROOT" branch --show-current || true
+  printf 'head='; git -C "$PROD_ROOT" rev-parse --short HEAD || true
+  dirty="$(git -C "$PROD_ROOT" status --porcelain | wc -l | tr -d ' ')"
+  printf 'dirty_entries=%s\n' "$dirty"
+  [ "$dirty" -gt 0 ] && warn 'production checkout is dirty; it will NOT be modified' || ok 'production checkout clean'
 else
-  fail 'git checkout not found'
+  fail 'production git checkout not found'
+fi
+
+printf '%s\n' '--- ISOLATED RELEASE WORKTREE ---'
+if [ -d "$PROD_ROOT/.git" ]; then
+  git -C "$PROD_ROOT" fetch origin "$RC_BRANCH" >/dev/null 2>&1 || fail 'git fetch release branch'
+  if git -C "$PROD_ROOT" rev-parse --verify "origin/$RC_BRANCH" >/dev/null 2>&1; then
+    git -C "$PROD_ROOT" worktree add --detach "$RC_ROOT" "origin/$RC_BRANCH" >/dev/null 2>&1 && WORKTREE_ADDED=1 || fail 'create isolated worktree'
+  else
+    fail 'remote release branch missing'
+  fi
+fi
+if [ "$WORKTREE_ADDED" -eq 1 ]; then
+  printf 'rc_head='; git -C "$RC_ROOT" rev-parse --short HEAD || true
+  ok 'isolated release worktree created'
 fi
 
 printf '%s\n' '--- PYTHON / COMPILE ---'
-if [ -x "$PY" ]; then
+if [ -x "$PY" ] && [ "$WORKTREE_ADDED" -eq 1 ]; then
   "$PY" --version || fail 'python version'
-  "$PY" "$ROOT/preflight_check.py" && ok 'preflight_check.py' || fail 'preflight_check.py'
+  (cd "$RC_ROOT" && PYTHONPATH="$RC_ROOT" "$PY" preflight_check.py) && ok 'release preflight_check.py' || fail 'release preflight_check.py'
 else
-  fail 'venv python missing'
+  fail 'venv python or release worktree missing'
 fi
 
 printf '%s\n' '--- DATABASE COPY ---'
@@ -44,9 +70,8 @@ else
 fi
 
 printf '%s\n' '--- SANDBOX SCHEMA / IMPORTS ---'
-if [ -f "$TEST_DB" ] && [ -x "$PY" ]; then
-  TUTORBOT_TEST_DB="$TEST_DB" TUTORBOT_TEST_DATA_DIR="$TMP" "$PY" - <<'PY'
-import os
+if [ -f "$TEST_DB" ] && [ -x "$PY" ] && [ "$WORKTREE_ADDED" -eq 1 ]; then
+  (cd "$RC_ROOT" && PYTHONPATH="$RC_ROOT" TUTORBOT_TEST_DB="$TEST_DB" TUTORBOT_TEST_DATA_DIR="$TMP" "$PY" - <<'PY'
 import database
 database.set_test_mode(True)
 mods = [
@@ -85,32 +110,33 @@ finally:
     conn.close()
 if failed:raise SystemExit(7)
 PY
+  )
   [ $? -eq 0 ] && ok 'sandbox schema/import pass' || fail 'sandbox schema/import pass'
 fi
 
-printf '%s\n' '--- ENV PRESENCE (VALUES NEVER PRINTED) ---'
-check_env(){
+printf '%s\n' '--- ENV DISCOVERY (VALUES NEVER PRINTED) ---'
+check_env_file(){
   name="$1"
-  if [ -f "$ENV_FILE" ] && grep -q "^${name}=." "$ENV_FILE"; then ok "$name present"; else warn "$name missing"; fi
+  if [ -f "$ENV_FILE" ] && grep -q "^${name}=." "$ENV_FILE"; then ok "$name in adelia.env"; return; fi
+  if systemctl show tutorbot-web.service tutorbot.service tutorbot-vk.service --property=Environment 2>/dev/null | grep -q "${name}="; then ok "$name present in installed service environment"; return; fi
+  warn "$name not found in adelia.env/service definitions"
 }
-check_env ADELIA_OTP_SECRET
-check_env YANDEX_TELEMOST_OAUTH_TOKEN
-check_env YANDEX_TELEMOST_ENABLED
-check_env YANDEX_DISK_OAUTH_TOKEN
-check_env BOT_TOKEN
-check_env VK_TOKEN
-check_env VK_GROUP_ID
+check_env_file ADELIA_OTP_SECRET
+check_env_file YANDEX_TELEMOST_OAUTH_TOKEN
+check_env_file YANDEX_TELEMOST_ENABLED
+check_env_file YANDEX_DISK_OAUTH_TOKEN
+check_env_file BOT_TOKEN
+check_env_file VK_TOKEN
+check_env_file VK_GROUP_ID
 
-printf '%s\n' '--- SYSTEMD UNIT STATIC VERIFY ---'
-if command -v systemd-analyze >/dev/null 2>&1; then
-  units="$ROOT/web_backend/adelia-web.service $ROOT/web_backend/adelia-homework-delivery.service $ROOT/web_backend/adelia-receipt-archive.service $ROOT/vk_adapter/tutorbot-vk.service"
-  # shellcheck disable=SC2086
-  systemd-analyze verify $units >/tmp/adelia-systemd-verify.$$ 2>&1
+printf '%s\n' '--- RELEASE SYSTEMD UNIT STATIC VERIFY ---'
+if command -v systemd-analyze >/dev/null 2>&1 && [ "$WORKTREE_ADDED" -eq 1 ]; then
+  units="$RC_ROOT/web_backend/adelia-web.service $RC_ROOT/web_backend/adelia-homework-delivery.service $RC_ROOT/web_backend/adelia-receipt-archive.service $RC_ROOT/vk_adapter/tutorbot-vk.service"
+  systemd-analyze verify $units >"$TMP/systemd-verify.txt" 2>&1
   rc=$?
-  if [ $rc -eq 0 ]; then ok 'systemd units'; else fail 'systemd units'; cat /tmp/adelia-systemd-verify.$$; fi
-  rm -f /tmp/adelia-systemd-verify.$$
+  if [ $rc -eq 0 ]; then ok 'release systemd units'; else fail 'release systemd units'; cat "$TMP/systemd-verify.txt"; fi
 else
-  warn 'systemd-analyze unavailable'
+  warn 'systemd-analyze unavailable or worktree missing'
 fi
 
 printf '%s\n' '--- CURRENT SERVICES (READ ONLY) ---'
@@ -119,24 +145,18 @@ for unit in tutorbot.service tutorbot-vk.service tutorbot-web.service adelia-web
   printf '%-40s %s\n' "$unit" "${state:-unknown}"
 done
 
-printf '%s\n' '--- YANDEX CREDENTIAL READ-ONLY PROBES ---'
+printf '%s\n' '--- YANDEX DISK READ-ONLY PROBE ---'
+DISK_TOKEN=""
 if [ -f "$ENV_FILE" ]; then
-  set -a
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
-  set +a
+  DISK_TOKEN="$(sed -n 's/^YANDEX_DISK_OAUTH_TOKEN=//p' "$ENV_FILE" | tail -n 1)"
 fi
-if [ -n "${YANDEX_DISK_OAUTH_TOKEN:-}" ]; then
-  code="$(curl -sS -o "$TMP/disk.json" -w '%{http_code}' -H "Authorization: OAuth $YANDEX_DISK_OAUTH_TOKEN" 'https://cloud-api.yandex.net/v1/disk?fields=user,total_space,used_space' || true)"
+if [ -n "$DISK_TOKEN" ]; then
+  code="$(curl -sS -o "$TMP/disk.json" -w '%{http_code}' -H "Authorization: OAuth $DISK_TOKEN" 'https://cloud-api.yandex.net/v1/disk?fields=user,total_space,used_space' || true)"
   [ "$code" = 200 ] && ok 'Yandex Disk OAuth read access' || fail "Yandex Disk OAuth HTTP $code"
 else
-  warn 'Yandex Disk probe skipped: token absent'
+  warn 'Yandex Disk probe skipped: dedicated disk token absent'
 fi
-if [ -n "${YANDEX_TELEMOST_OAUTH_TOKEN:-}" ]; then
-  ok 'Telemost OAuth token present; creation probe intentionally skipped to avoid creating a conference'
-else
-  warn 'Telemost OAuth token absent'
-fi
+unset DISK_TOKEN
 
 printf '%s\n' '--- RESULT ---'
 if [ "$FAIL" -eq 0 ]; then
