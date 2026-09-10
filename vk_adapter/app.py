@@ -40,7 +40,7 @@ def keyboard(linked=False,mode="home",data=None):
   hid=int(data['homework_id']);return _keyboard_rows([[_link_button("🌐 Открыть и выполнить в Аделии",f"https://adeliatutor.ru/app/?homework={hid}")],[_button("⬅️ К домашним заданиям","homework"),_button("🏠 Главная","home")]])
  if mode=="college_courses":
   courses=data.get("courses",[]);current=data.get("current");rows=[]
-  for course in courses:rows.append([_button(f"🎓 {college_curriculum.course_label(course)}",f"cf_course|{course}","primary" if course==current else "secondary")])
+  for course in courses:rows.append([_button(f"🎓 {college_curriculum.course_label(course)}",f"cf_course|{course}","primary" if i==0 else "secondary")])
   rows.append([_button("🏠 Главная","home")]);return _keyboard_rows(rows)
  if mode=="college_subjects":
   course=int(data["course"]);rows=[[_button(f"📖 {label}",f"cf_subject|{course}|{key}","primary")] for key,label in college_curriculum.subjects(course)];rows.append([_button("⬅️ К курсам","formulas"),_button("🏠 Главная","home")]);return _keyboard_rows(rows)
@@ -57,7 +57,7 @@ def keyboard(linked=False,mode="home",data=None):
  if not linked:rows=[[_button("🔗 Связать с Telegram","link_help","primary")],[_button("ℹ️ Как это работает","help")]]
  elif mode=="cancel":rows=[[_button("❌ Отмена","cancel")],[_button("🏠 Главная","home")]]
  elif mode=="more":rows=[[_button("💳 Профиль и оплата","profile","primary")],[_button("💬 История сообщений","chat_history")],[_button("🔗 Связь с Telegram","linked")],[_button("🏠 Главная","home")]]
- else:rows=[[_button("📅 Мои занятия","lessons","primary"),_button("📝 Домашнее задание","homework")],[_button("📚 Моя учёба","study"),_button("🧮 Формулы","formulas")],[_button("💬 Преподаватель","teacher"),_button("🖥 Доска","board")],[_button("➕ Записаться","booking","positive"),_button("••• Ещё","more")]]
+ else:rows=[[_button("📅 Мои занятия","lessons","primary"),_button("📝 Домашнее задание","homework")],[_button("📚 Моя учёба","study"),_button("🧮 Формулы","formulas")],[_button("💬 Преподаватель","teacher"),_button("🖥 Доска","board")],[_button("➕ Записаться","booking","positive"),_button("••• Ещё","more")],[_link_button("🌐 ОТКРЫТЬ АДЕЛИЯ • ЛИЧНЫЙ КАБИНЕТ","https://adeliatutor.ru/app/")]]
  return _keyboard_rows(rows)
 def send(peer_id,text,linked=False,mode="home",data=None):return api("messages.send",peer_id=int(peer_id),random_id=random.randint(1,2_000_000_000),message=str(text),keyboard=keyboard(linked,mode,data))
 def _extract_command(m):
@@ -87,7 +87,7 @@ def _profile(v):
   if rows:r=rows[0];return {"display_name":f"{r.get('first_name','')} {r.get('last_name','')}".strip(),"username":r.get("screen_name")}
  except Exception:pass
  return {"display_name":None,"username":None}
-def _student_home(p,u):send(p,f"💜 АДЕЛИЯ • ГЛАВНАЯ\n\n{u['name']}, я рядом и собрала главное в одном месте.\n\n📅 Занятия, ДЗ, учёба и связь с преподавателем доступны ниже.",True)
+def _student_home(p,u):send(p,f"💜 АДЕЛИЯ • ГЛАВНАЯ\n\n{u['name']}, я рядом и собрала главное в одном месте.\n\n📅 Занятия, ДЗ, учёба и связь с преподавателем доступны ниже.\n\n🌐 Полный кабинет Аделия — большой кнопкой внизу меню.",True)
 def _teacher_home(p):send(p,teacher_service.home_text(),True,"teacher")
 def _attachment_label(attachments):
  from .attachment_bridge import vk_attachment_descriptor

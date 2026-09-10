@@ -1,0 +1,20 @@
+[Unit]
+Description=TutorBot VK Long Poll
+After=network-online.target tutorbot.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tutorbot
+EnvironmentFile=-/etc/tutorbot/adelia.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/tutorbot/venv/bin/python -m vk_adapter.runtime
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/tutorbot
+
+[Install]
+WantedBy=multi-user.target

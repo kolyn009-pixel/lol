@@ -39,13 +39,17 @@ def _validate_credential_change(student_id,login,password):
  owner=conn.execute('SELECT student_id FROM student_web_credentials WHERE login=? COLLATE NOCASE LIMIT 1',(login,)).fetchone();conn.close()
  if owner and int(owner['student_id'])!=student_id:raise ValueError('login_taken')
  return login,password
+def _ensure_social_profile(student_id):
+ # Imported lazily to keep auth bootstrap independent from optional app UI code.
+ from web_backend import student_social_profile
+ student_social_profile.ensure_schema();student_social_profile.public_profile(int(student_id),viewer_id=int(student_id))
 def set_student_credentials(student_id,login,password,revoke_existing=True):
  ensure_student_web_login_table();student_id=int(student_id);login,password=_validate_credential_change(student_id,login,password);ph=_password_hash(password);conn=connect();existing=conn.execute('SELECT student_id FROM student_web_credentials WHERE student_id=?',(student_id,)).fetchone()
  if existing:conn.execute('UPDATE student_web_credentials SET login=?,password_hash=?,updated_at=? WHERE student_id=?',(login,ph,now_iso(),student_id))
  else:conn.execute('INSERT INTO student_web_credentials(student_id,login,password_hash,created_at) VALUES(?,?,?,?)',(student_id,login,ph,now_iso()))
- conn.commit();conn.close()
+ conn.commit();conn.close();_ensure_social_profile(student_id)
  if revoke_existing:revoke_identity_sessions('student',student_id)
- return {'status':'ok','login':login}
+ return {'status':'ok','login':login,'profile_created':True}
 def authenticate_student(login,password):
  ensure_student_web_login_table()
  try:login=_normalize_login(login)
@@ -53,7 +57,7 @@ def authenticate_student(login,password):
  conn=connect();row=conn.execute('SELECT u.id,u.name,u.telegram_username,u.grade,c.password_hash FROM student_web_credentials c JOIN users u ON u.id=c.student_id WHERE c.login=? COLLATE NOCASE AND u.active=1 LIMIT 1',(login,)).fetchone()
  if not row:conn.close();_dummy_password_work(password);return {'status':'invalid','student':None}
  if not _password_matches(password,row['password_hash']):conn.close();return {'status':'invalid','student':None}
- student={'id':int(row['id']),'name':row['name'],'telegram_username':row['telegram_username'],'grade':row['grade']};conn.close();return {'status':'ok','student':student}
+ student={'id':int(row['id']),'name':row['name'],'telegram_username':row['telegram_username'],'grade':row['grade']};conn.close();_ensure_social_profile(student['id']);return {'status':'ok','student':student}
 def issue_student_login_code(student_id,ttl_minutes=CODE_TTL_MINUTES):
  ensure_student_web_login_table();student_id=int(student_id);ttl_minutes=max(1,min(int(ttl_minutes),30));expires=(datetime.now()+timedelta(minutes=ttl_minutes)).isoformat(timespec='seconds');conn=connect();student=conn.execute('SELECT id FROM users WHERE id=? AND active=1',(student_id,)).fetchone()
  if not student:conn.close();raise ValueError('student_not_found')
@@ -74,7 +78,7 @@ def _consume_plain_code(code):
  if result.get('status')!='ok':return result
  conn=connect();cur=conn.execute('UPDATE student_web_login_codes SET used_at=? WHERE id=? AND used_at IS NULL',(now_iso(),int(result['code_id'])));conn.commit();conn.close()
  if not cur.rowcount:return {'status':'invalid','student':None}
- return {'status':'ok','student':result['student']}
+ _ensure_social_profile(result['student']['id']);return {'status':'ok','student':result['student']}
 def consume_student_login_code(payload):
  ensure_student_web_login_table();raw=str(payload or '')
  if raw.startswith('login:'):

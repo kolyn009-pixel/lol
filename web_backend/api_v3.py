@@ -48,8 +48,7 @@ class Handler(api_v2.Handler):
   try:total=int(self.headers.get('Content-Length','0') or 0)
   except Exception:return None
   if total<0:return None
-  if total>MAX_JSON_BODY:
-   self._body_too_large=True;return None
+  if total>MAX_JSON_BODY:self._body_too_large=True;return None
   self._body_too_large=False
   try:return json.loads(self.rfile.read(total) or b'{}')
   except Exception:return None
@@ -127,7 +126,7 @@ class Handler(api_v2.Handler):
    status=result.get('status')
    if status=='ok':return self._json(200,result)
    if status=='not_found':return self._json(404,{'error':status})
-   if status in {'entry_closed','invalid_status'}:return self._json(409,{'error':status,**{k:v for k,v in result.items() if k!='status'}})
+   if status in {'entry_closed','invalid_status','payment_required'}:return self._json(409,{'error':status,**{k:v for k,v in result.items() if k!='status'}})
    return self._json(400,{'error':status or 'join_failed'})
   return super().do_POST()
 def main():
