@@ -6,10 +6,10 @@ from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campa
 from web_backend.stage12_indexes import ensure_indexes
 
 class Handler(api_v4.Handler):
-    server_version='AdeliaWeb/5.1'
+    server_version='AdeliaWeb/5.2'
     def do_GET(self):
         u=urlparse(self.path);path,q=u.path,parse_qs(u.query)
-        if path in {'/api/teacher/events','/api/teacher/events/choices','/api/teacher/event','/api/teacher/group/attendance'}:
+        if path in {'/api/teacher/events','/api/teacher/events/choices','/api/teacher/event','/api/teacher/group/attendance','/api/teacher/group-lessons','/api/teacher/group-lesson'}:
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             try:
                 if path.endswith('/events'):r={'items':open_event_admin.list_events(int(q.get('limit',['100'])[0]))}
@@ -17,6 +17,8 @@ class Handler(api_v4.Handler):
                 elif path.endswith('/event'):
                     r=open_event_admin.detail(int(q.get('id',['0'])[0]));r=r if r else {'error':'event_not_found'}
                     if not r.get('error'):r['audience_rules']=event_campaign.audience_rules(int(q.get('id',['0'])[0]))
+                elif path.endswith('/group-lessons'):r={'items':open_event_admin.list_group_lessons(int(q.get('limit',['120'])[0]))}
+                elif path.endswith('/group-lesson'):r=open_event_admin.group_lesson_detail(int(q.get('id',['0'])[0])) or {'error':'group_lesson_not_found'}
                 else:r={'items':open_event_admin.group_roster(int(q.get('lesson_id',['0'])[0]))}
                 return self._json(404 if r.get('error') else 200,r)
             except (TypeError,ValueError,PermissionError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
@@ -73,5 +75,5 @@ class Handler(api_v4.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();print(f'Adelia web API v5.1 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();print(f'Adelia web API v5.2 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
