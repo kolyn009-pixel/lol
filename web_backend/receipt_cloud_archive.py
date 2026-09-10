@@ -2,7 +2,8 @@
 
 The accounting database remains the source of truth. Receipt files are copied to
 cloud storage asynchronously; payment processing never waits for Yandex Disk.
-Supports WEB, Telegram and VK receipts.
+Supports WEB, Telegram and VK receipts. New VK receipts are spooled locally at
+intake; legacy HTTPS VK URLs remain readable during migration.
 """
 from __future__ import annotations
 import hashlib,json,os,re
@@ -24,8 +25,8 @@ def configured():return bool(os.getenv('YANDEX_DISK_OAUTH_TOKEN','').strip())
 def _safe_name(v,fallback='receipt'):
  text=re.sub(r'[^0-9A-Za-zА-Яа-я._-]+','_',str(v or '').strip(),flags=re.UNICODE).strip('._-')[:80];return text or fallback
 def _ext(item):
- ft=str(item.get('file_type') or '').upper();src=str(item.get('source_platform') or '').upper();path=str(item.get('file_id') or '')
- if src=='WEB' and Path(path).suffix.lower() in {'.pdf','.jpg','.jpeg','.png','.webp'}:return Path(path).suffix.lower().lstrip('.')
+ ft=str(item.get('file_type') or '').upper();path=str(item.get('file_id') or '');suffix=Path(path).suffix.lower()
+ if suffix in {'.pdf','.jpg','.jpeg','.png','.webp'}:return suffix.lstrip('.')
  return {'DOCUMENT':'pdf','PHOTO':'jpg','PDF':'pdf','JPG':'jpg','JPEG':'jpeg','PNG':'png','WEBP':'webp'}.get(ft,'bin')
 def _receipt(rid):
  c=connect();cols={str(r['name']) for r in c.execute('PRAGMA table_info(receipts)').fetchall()};file_expr='telegram_file_id' if 'telegram_file_id' in cols else 'file_id';row=c.execute(f"SELECT r.id,r.payment_id,r.user_id,r.file_id,{file_expr} AS telegram_file_id,r.source_platform,r.file_type,r.created_at,u.name FROM receipts r JOIN users u ON u.id=r.user_id WHERE r.id=? LIMIT 1",(int(rid),)).fetchone();c.close();return dict(row) if row else None
@@ -52,13 +53,16 @@ def _local_bytes(path_value):
  if size<=0 or size>MAX_RECEIPT_BYTES:raise RuntimeError('receipt_file_too_large')
  return path.read_bytes()
 def _receipt_bytes(item):
- src=str(item.get('source_platform') or '').upper()
- if src=='WEB':return _local_bytes(item.get('file_id'))
+ src=str(item.get('source_platform') or '').upper();file_id=item.get('file_id')
+ if src=='WEB':return _local_bytes(file_id)
  if src in {'TELEGRAM','TG','TELEGRAM_PARENT'}:
-  fid=item.get('telegram_file_id') or item.get('file_id')
+  fid=item.get('telegram_file_id') or file_id
   if not fid:raise RuntimeError('telegram_file_id_missing')
   return _telegram_bytes(fid)
- if src=='VK':return _bounded_http_bytes(item.get('file_id'),timeout=45)
+ if src=='VK':
+  value=str(file_id or '')
+  if value.startswith('https://'):return _bounded_http_bytes(value,timeout=45)
+  return _local_bytes(value)
  raise RuntimeError('receipt_source_not_supported')
 def _disk(method,path,params=None,data=None,content_type=None):
  token=os.getenv('YANDEX_DISK_OAUTH_TOKEN','').strip()
@@ -113,6 +117,7 @@ def archive_pending(limit=20):
   if r['status'] is None or str(r['status']).upper()=='PENDING':due.append(int(r['id']));continue
   try:updated=datetime.fromisoformat(str(r['updated_at']))
   except Exception:updated=now-timedelta(days=1)
+  if updated.tzinfo is not None:updated=updated.replace(tzinfo=None)
   if now-updated>=timedelta(seconds=_retry_seconds(r['attempts'] or 0)):due.append(int(r['id']))
  return [archive_receipt(x) for x in due]
 def queue_stats():
