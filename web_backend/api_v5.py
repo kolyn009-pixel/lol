@@ -1,12 +1,12 @@
-"""Adelia web API v5: paid events, attendance, campaigns and self-registration."""
+"""Adelia web API v5: events, attendance, campaigns and live entry."""
 from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
-from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campaign
+from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campaign,student_live_entry
 from web_backend.stage12_indexes import ensure_indexes
 
 class Handler(api_v4.Handler):
-    server_version='AdeliaWeb/5.2'
+    server_version='AdeliaWeb/5.3'
     def do_GET(self):
         u=urlparse(self.path);path,q=u.path,parse_qs(u.query)
         if path in {'/api/teacher/events','/api/teacher/events/choices','/api/teacher/event','/api/teacher/group/attendance','/api/teacher/group-lessons','/api/teacher/group-lesson'}:
@@ -56,18 +56,23 @@ class Handler(api_v4.Handler):
             except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
             except Exception as exc:print('[web-api] event POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
-        if path in {'/api/student/event/register','/api/student/event/invite/respond'}:
+        student_routes={'/api/student/event/register','/api/student/event/invite/respond','/api/student/group-lesson/enter','/api/student/group-lesson/leave','/api/student/event/enter','/api/student/event/leave'}
+        if path in student_routes:
             if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
             auth=self._student()
             if not auth:return self._json(401,{'error':'unauthorized'})
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
             try:
-                uid=int(auth['id']);eid=int(body.get('event_id'))
-                if path.endswith('/register'):r=event_campaign.register(eid,uid)
-                else:
+                uid=int(auth['id'])
+                if path.endswith('/register'):r=event_campaign.register(int(body.get('event_id')),uid)
+                elif path.endswith('/invite/respond'):
                     if not isinstance(body.get('accepted'),bool):raise ValueError('invalid_accepted')
-                    r=event_campaign.respond_invite(eid,uid,body['accepted'])
+                    r=event_campaign.respond_invite(int(body.get('event_id')),uid,body['accepted'])
+                elif path.endswith('/group-lesson/enter'):r=student_live_entry.group_entry(int(body.get('lesson_id')),uid,'APP')
+                elif path.endswith('/group-lesson/leave'):r=student_live_entry.leave_group(int(body.get('lesson_id')),uid,'APP')
+                elif path.endswith('/event/enter'):r=student_live_entry.event_entry(int(body.get('event_id')),uid,'APP')
+                else:r=student_live_entry.leave_event(int(body.get('event_id')),uid,'APP')
                 return self._json(200,r)
             except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
@@ -75,5 +80,5 @@ class Handler(api_v4.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();print(f'Adelia web API v5.2 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();print(f'Adelia web API v5.3 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
