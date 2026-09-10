@@ -4,14 +4,14 @@ Run on the server with the web-service environment:
 """
 from database import connect
 from web_backend import api_v3,student_auth,teacher_auth,parent_auth,otp_secret
-from web_backend.web_sessions import SESSION_TTL,LAST_SEEN_WRITE_INTERVAL
+from web_backend.web_sessions import SESSION_TTL,LAST_SEEN_WRITE_INTERVAL,ensure_table as ensure_web_sessions
 
 def _columns(conn,table):return {str(r['name']) for r in conn.execute(f'PRAGMA table_info({table})').fetchall()}
 def _indexes(conn,table):return {str(r['name']) for r in conn.execute(f'PRAGMA index_list({table})').fetchall()}
 def run():
  checks=[]
  def check(name,ok):checks.append((name,bool(ok)))
- student_auth.ensure_student_web_login_table();teacher_auth.ensure_table();parent_auth.ensure_tables();conn=connect()
+ student_auth.ensure_student_web_login_table();teacher_auth.ensure_table();parent_auth.ensure_tables();ensure_web_sessions();conn=connect()
  check('student OTP table exists',bool(_columns(conn,'student_web_login_codes')))
  check('teacher OTP table exists',bool(_columns(conn,'teacher_web_login_codes')))
  check('parent OTP hash column','code_hash' in _columns(conn,'parent_web_login_codes'))
