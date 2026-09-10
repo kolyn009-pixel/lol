@@ -1,8 +1,8 @@
-"""Teacher Web API for Stage 10 unified conversations."""
+"""Teacher Web API for Adelia-first unified conversations."""
 from __future__ import annotations
 from database import connect
 from web_backend import unified_messaging as um
-from web_backend.message_delivery import send_teacher_reply
+from web_backend.message_delivery import send_teacher_reply,send_existing_message_channels
 from web_backend.message_read_sync import mark_conversation_read
 
 
@@ -46,7 +46,11 @@ class Stage10Mixin:
         try:
             if path=='/api/teacher/messages/send':
                 tid=teacher.get('id') if hasattr(teacher,'get') else None
-                result=send_teacher_reply(int(body.get('user_id')),body.get('text'),body.get('channels'),tid)
+                # Normal Send is Adelia-only. External channels require the explicit action below.
+                result=send_teacher_reply(int(body.get('user_id')),body.get('text'),[],tid)
+                return self._json(200,result)
+            if path=='/api/teacher/messages/send-external':
+                result=send_existing_message_channels(int(body.get('message_id')),body.get('channels'))
                 return self._json(200,result) if result['status']=='ok' else self._json(502,result)
             if path=='/api/teacher/messages/read':
                 return self._json(200,mark_conversation_read(int(body.get('conversation_id'))))
