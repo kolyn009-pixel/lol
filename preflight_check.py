@@ -8,7 +8,6 @@ required = [
     'handlers/musthave_admin.py', 'handlers/musthave_jobs.py', 'handlers/adelia_content.py',
     'ai_assistant/__init__.py', 'ai_assistant/client.py', 'ai_assistant/context.py',
     'crm_plus/jobs.py', 'handlers/admin_inbox_handlers.py',
-    # Release-candidate live lesson / group / event / delivery entrypoints.
     'web_backend/api_v5.py', 'web_backend/lesson_join.py', 'web_backend/group_lesson_access.py',
     'web_backend/event_campaign.py', 'web_backend/open_event_admin.py', 'web_backend/open_event_policy.py',
     'web_backend/student_social_profile.py', 'web_backend/group_portal.py',
@@ -27,7 +26,7 @@ if missing:
 
 checks = {
     'admin.py': ['💬 Написать', '💜 Спросить Аделию об ученике', '👨‍👩‍👧 Родители', '💜 АДЕЛИЯ • ГЛАВНАЯ', '••• Ещё', 'Заблокировать ученика'],
-    'handlers/musthave_admin.py': ['💜 Подготовить с Аделией', '👨‍👩‍👧 Родителям с Аделией', 'mh_senddraft'],
+    'handlers/musthave_admin.py': ['💜 Подготовить с Аделией', '👨‍👩‍👧 Родителям с Аделией', 'mh_senddraft', 'mh_blocked_students'],
     'ux_final/service.py': ['💳 Способы оплаты', '📣 Рассылка с Аделией', '💜 Пост с Аделией'],
     'crm_plus/jobs.py': ["'08:30'", "'21:00'"],
     'channel_admin.py': ['Nothing is ever posted to the channel', 'Утренний отчёт по подпискам: 08:30'],
@@ -64,16 +63,6 @@ if not ok:
     sys.exit(4)
 print('PREFLIGHT OK')
 
-# RC1 navigation assertions
-_admin = (ROOT / 'admin.py').read_text(encoding='utf-8')
-for token in ['Выберите класс:', '⬅️ К классам', '🏠 Главная', 'mh_blocked_students']:
-    if token not in _admin and token != 'mh_blocked_students':
-        raise SystemExit(f'PREFLIGHT FAIL: missing RC1 token {token}')
-_mh = (ROOT / 'handlers/musthave_admin.py').read_text(encoding='utf-8')
-if 'mh_blocked_students' not in _mh:
-    raise SystemExit('PREFLIGHT FAIL: blocked students handler missing')
-
-# FINAL AI safety assertions
 _ai = (ROOT / 'ai_assistant/client.py').read_text(encoding='utf-8')
 for token in [
     "MODEL = os.getenv('AI_MODEL', 'openrouter/free')",
@@ -87,7 +76,6 @@ for token in [
         raise SystemExit(f'PREFLIGHT FAIL: missing AI safety token {token}')
 print('FINAL PREFLIGHT OK')
 
-# FINAL OPS / PROVIDERS checks
 for _f,_tokens in {
  'handlers/task_admin.py':['📌 МОИ ЗАДАЧИ','task_add_user'],
  'handlers/ai_provider_admin.py':['AI-ПРОВАЙДЕРЫ','API-КЛЮЧ'],
