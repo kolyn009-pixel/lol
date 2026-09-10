@@ -73,8 +73,6 @@ def dashboard(user_id):
             "SELECT COUNT(*) n,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id=? AND status IN ('WAITING','PENDING')",
             (uid,),
         ).fetchone()
-        # Stage 10 is the canonical message store. Fall back to zero before the
-        # migration tables exist instead of scanning the legacy conversation table.
         unified_exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='unified_messages'").fetchone()
         unread = conn.execute(
             "SELECT COUNT(*) n FROM unified_messages WHERE student_id=? AND participant_type='STUDENT' AND direction='OUT' AND read_at IS NULL",
@@ -180,8 +178,6 @@ def profile(user_id):
     user = get_user(int(user_id))
     if not user or not user["active"]:
         return None
-    # Only fields rendered by the student profile are exposed. Parent contact
-    # details, phone and Telegram identifiers remain server-side.
     allowed = [
         "name","grade","study_goal","main_subject","education_type","education_level",
         "extra_minutes_balance","bonus_lessons_earned","board_url",
@@ -192,7 +188,21 @@ def profile(user_id):
 
 
 def conversation_for_student(user_id, limit=100):
-    # Use the canonical Stage 10 store so Telegram/VK/Web history is consistent.
-    # The facade keeps the legacy response shape expected by the current frontend.
+    """Return canonical Adelia chat history and mark teacher messages as read."""
+    from web_backend import unified_messaging as um
     from web_backend.unified_messages import conversation
-    return conversation(int(user_id), max(1, min(int(limit), 200)))
+    uid=int(user_id)
+    conv=um.conversation(uid,'STUDENT',None)
+    # For students, OUT means teacher -> student. The generic teacher-side
+    # mark_read() handles IN, so mark the student-facing direction explicitly.
+    now=datetime.now().isoformat(timespec='seconds')
+    conn=connect()
+    try:
+        conn.execute("UPDATE unified_messages SET read_at=COALESCE(read_at,?),status=CASE WHEN status IN ('DELIVERED','SENT') THEN 'READ' ELSE status END WHERE conversation_id=? AND direction='OUT' AND read_at IS NULL",(now,int(conv['id'])))
+        conn.execute("UPDATE unified_message_deliveries SET status='READ',read_at=COALESCE(read_at,?),updated_at=? WHERE message_id IN (SELECT id FROM unified_messages WHERE conversation_id=? AND direction='OUT' AND read_at IS NOT NULL) AND channel='WEB' AND recipient_type='STUDENT' AND status IN ('SENT','DELIVERED')",(now,now,int(conv['id'])))
+        conn.commit()
+    finally:
+        conn.close()
+    with _CACHE_LOCK:
+        _CACHE.pop(("dashboard",uid),None)
+    return conversation(uid,max(1,min(int(limit),200)))
