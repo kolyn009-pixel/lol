@@ -2,13 +2,13 @@
 
 The accounting database remains the source of truth. Receipt files are copied to
 cloud storage asynchronously; payment processing never waits for Yandex Disk.
-Supports local WEB receipts and Telegram / Telegram-parent receipts.
+Supports WEB, Telegram and VK receipts.
 """
 from __future__ import annotations
 import hashlib,json,os,re
 from datetime import datetime,timedelta
 from pathlib import Path
-from urllib.parse import quote,urlencode
+from urllib.parse import quote,urlencode,urlparse
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError
 from database import connect,now_iso
@@ -29,17 +29,22 @@ def _ext(item):
  return {'DOCUMENT':'pdf','PHOTO':'jpg','PDF':'pdf','JPG':'jpg','JPEG':'jpeg','PNG':'png','WEBP':'webp'}.get(ft,'bin')
 def _receipt(rid):
  c=connect();cols={str(r['name']) for r in c.execute('PRAGMA table_info(receipts)').fetchall()};file_expr='telegram_file_id' if 'telegram_file_id' in cols else 'file_id';row=c.execute(f"SELECT r.id,r.payment_id,r.user_id,r.file_id,{file_expr} AS telegram_file_id,r.source_platform,r.file_type,r.created_at,u.name FROM receipts r JOIN users u ON u.id=r.user_id WHERE r.id=? LIMIT 1",(int(rid),)).fetchone();c.close();return dict(row) if row else None
+def _bounded_http_bytes(url,timeout=30):
+ parsed=urlparse(str(url or ''))
+ if parsed.scheme!='https' or not parsed.netloc:raise RuntimeError('receipt_remote_url_invalid')
+ with urlopen(Request(url,headers={'User-Agent':'TutorBot-ReceiptArchive/1.0'}),timeout=timeout) as resp:
+  if int(resp.headers.get('Content-Length') or 0)>MAX_RECEIPT_BYTES:raise RuntimeError('receipt_file_too_large')
+  data=resp.read(MAX_RECEIPT_BYTES+1)
+ if not data:raise RuntimeError('receipt_file_empty')
+ if len(data)>MAX_RECEIPT_BYTES:raise RuntimeError('receipt_file_too_large')
+ return data
 def _telegram_bytes(file_id):
  token=os.getenv('BOT_TOKEN','').strip()
  if not token:raise RuntimeError('telegram_bot_token_missing')
  with urlopen(f"{TELEGRAM_API}/bot{token}/getFile?{urlencode({'file_id':str(file_id)})}",timeout=20) as resp:p=json.loads(resp.read().decode())
  remote=(p.get('result') or {}).get('file_path') if p.get('ok') else None
  if not remote:raise RuntimeError('telegram_file_lookup_failed')
- with urlopen(f"{TELEGRAM_API}/file/bot{token}/{quote(remote,safe='/')}",timeout=30) as resp:
-  if int(resp.headers.get('Content-Length') or 0)>MAX_RECEIPT_BYTES:raise RuntimeError('receipt_file_too_large')
-  data=resp.read(MAX_RECEIPT_BYTES+1)
- if len(data)>MAX_RECEIPT_BYTES:raise RuntimeError('receipt_file_too_large')
- return data
+ return _bounded_http_bytes(f"{TELEGRAM_API}/file/bot{token}/{quote(remote,safe='/')}")
 def _local_bytes(path_value):
  path=Path(str(path_value or ''))
  if not path.is_file():raise RuntimeError('receipt_file_not_found')
@@ -53,6 +58,7 @@ def _receipt_bytes(item):
   fid=item.get('telegram_file_id') or item.get('file_id')
   if not fid:raise RuntimeError('telegram_file_id_missing')
   return _telegram_bytes(fid)
+ if src=='VK':return _bounded_http_bytes(item.get('file_id'),timeout=45)
  raise RuntimeError('receipt_source_not_supported')
 def _disk(method,path,params=None,data=None,content_type=None):
  token=os.getenv('YANDEX_DISK_OAUTH_TOKEN','').strip()
