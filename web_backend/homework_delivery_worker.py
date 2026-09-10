@@ -9,6 +9,8 @@ from vk_adapter.channel_delivery import send_student
 
 POLL_SECONDS=float(os.getenv('ADELIA_HOMEWORK_NOTIFY_POLL','5') or 5)
 BATCH_SIZE=int(os.getenv('ADELIA_HOMEWORK_NOTIFY_BATCH','50') or 50)
+WATCHDOG_SECONDS=float(os.getenv('ADELIA_HOMEWORK_WATCHDOG_POLL','60') or 60)
+_last_watchdog=0.0
 
 
 def _teacher_ids():
@@ -53,7 +55,19 @@ def deliver(item):
     return False,'unsupported_recipient'
 
 
+def _watchdog_tick():
+    global _last_watchdog
+    now=time.monotonic()
+    if now-_last_watchdog < WATCHDOG_SECONDS:return None
+    _last_watchdog=now
+    from web_backend.homework_watchdog import tick as homework_tick
+    return homework_tick()
+
+
 def tick(limit=BATCH_SIZE):
+    watchdog=None
+    try:watchdog=_watchdog_tick()
+    except Exception as exc:print('[homework-watchdog]',repr(exc),flush=True)
     items=claim_pending(limit);sent=0
     for item in items:
         try:
@@ -62,7 +76,7 @@ def tick(limit=BATCH_SIZE):
             else:mark_failed(item['id'],detail)
         except Exception as exc:
             mark_failed(item['id'],repr(exc))
-    return {'claimed':len(items),'delivered':sent}
+    return {'claimed':len(items),'delivered':sent,'watchdog':watchdog}
 
 
 def main():
