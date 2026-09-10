@@ -4,6 +4,10 @@ The accounting database remains the source of truth. Receipt files are copied to
 cloud storage asynchronously; payment processing never waits for Yandex Disk.
 Supports WEB, Telegram and VK receipts. New VK receipts are spooled locally at
 intake; legacy HTTPS VK URLs remain readable during migration.
+
+If a dedicated YANDEX_DISK_OAUTH_TOKEN is absent, the worker may reuse the
+YANDEX_TELEMOST_OAUTH_TOKEN. This is useful when one Yandex OAuth grant includes
+both Telemost and Disk permissions.
 """
 from __future__ import annotations
 import hashlib,json,os,re
@@ -19,9 +23,10 @@ TELEGRAM_API='https://api.telegram.org'
 ARCHIVE_ROOT=os.getenv('ADELIA_RECEIPT_ARCHIVE_ROOT','/TutorBot/Receipts').rstrip('/')
 MAX_RECEIPT_BYTES=25*1024*1024;MAX_ATTEMPTS=12
 
+def _yandex_token():return os.getenv('YANDEX_DISK_OAUTH_TOKEN','').strip() or os.getenv('YANDEX_TELEMOST_OAUTH_TOKEN','').strip()
 def ensure_table():
  c=connect();c.executescript("""CREATE TABLE IF NOT EXISTS receipt_cloud_archives(receipt_id INTEGER PRIMARY KEY,provider TEXT NOT NULL DEFAULT 'YANDEX_DISK',remote_path TEXT,sha256 TEXT,size_bytes INTEGER,status TEXT NOT NULL DEFAULT 'PENDING',attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT,archived_at TEXT,verified_at TEXT,updated_at TEXT NOT NULL,FOREIGN KEY(receipt_id) REFERENCES receipts(id) ON DELETE CASCADE);CREATE INDEX IF NOT EXISTS idx_receipt_cloud_archive_status ON receipt_cloud_archives(status,updated_at);""");c.commit();c.close()
-def configured():return bool(os.getenv('YANDEX_DISK_OAUTH_TOKEN','').strip())
+def configured():return bool(_yandex_token())
 def _safe_name(v,fallback='receipt'):
  text=re.sub(r'[^0-9A-Za-zА-Яа-я._-]+','_',str(v or '').strip(),flags=re.UNICODE).strip('._-')[:80];return text or fallback
 def _ext(item):
@@ -65,8 +70,8 @@ def _receipt_bytes(item):
   return _local_bytes(value)
  raise RuntimeError('receipt_source_not_supported')
 def _disk(method,path,params=None,data=None,content_type=None):
- token=os.getenv('YANDEX_DISK_OAUTH_TOKEN','').strip()
- if not token:raise RuntimeError('yandex_disk_token_missing')
+ token=_yandex_token()
+ if not token:raise RuntimeError('yandex_oauth_token_missing')
  url=DISK_API+path+('?'+urlencode(params) if params else '');headers={'Authorization':f'OAuth {token}','Accept':'application/json'}
  if content_type:headers['Content-Type']=content_type
  try:
