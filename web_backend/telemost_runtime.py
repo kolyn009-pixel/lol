@@ -1,9 +1,10 @@
-"""Adelia lesson start/access integration with Yandex Telemost.
+"""Adelia lesson access integration with Yandex Telemost.
 
-No meeting link is visible to a student before the teacher starts/opens the
-lesson. Finishing/cancelling inside Adelia immediately hides the saved link;
-Telemost itself is not claimed to be remotely terminated because its public
-API does not expose that operation in our integration contract.
+For individual lessons, opening access and starting actual lesson time are
+separate operations. Telemost is created when the teacher opens the lesson;
+actual time starts only on student join or explicit teacher confirmation.
+Finishing hides Telemost access in Adelia. The student's board remains a
+persistent resource and is never revoked by lesson finish.
 """
 from __future__ import annotations
 
@@ -17,25 +18,21 @@ def _now():
 
 
 def start_individual(lesson_id):
-    """Teacher start: create/reuse Telemost, start canonical lesson, open access."""
+    """Compatibility start: prepare Telemost and open entry, without starting time."""
     lid=int(lesson_id)
     meeting=ensure_individual_conference(lid)
     if meeting.get("status") not in {"ok","disabled"}:
         raise RuntimeError("telemost_create_failed")
-    started=lesson_workspace.start_lesson(lid)
-    if started.get("status") != "ok":
-        return {"status":started.get("status"),"lesson":started,"telemost":meeting}
     c=database.connect()
     c.execute("UPDATE lessons SET meeting_link_sent_at=COALESCE(meeting_link_sent_at,?),updated_at=? WHERE id=?",(_now(),_now(),lid))
-    c.commit();c.close()
-    return {"status":"started","lesson_id":lid,"lesson":started,"telemost":meeting}
+    c.commit();row=c.execute("SELECT started_at,lesson_status FROM lessons WHERE id=?",(lid,)).fetchone();c.close()
+    return {"status":"opened","lesson_id":lid,"started_at":row["started_at"] if row else None,"lesson_status":row["lesson_status"] if row else None,"telemost":meeting}
 
 
 def finish_individual(lesson_id,attendance_status="PRESENT",tutor_comment=None,mode="NOW"):
     lid=int(lesson_id)
     result=lesson_workspace.finish_lesson(lid,attendance_status,tutor_comment,mode)
     if result.get("status")=="ok":
-        # Keep provider id/url for audit/reuse history, but close Adelia access.
         c=database.connect();c.execute("UPDATE lessons SET meeting_link_sent_at=NULL,updated_at=? WHERE id=?",(_now(),lid));c.commit();c.close()
     return result
 
@@ -46,8 +43,8 @@ def individual_student_access(lesson_id,user_id):
                      FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?""",(lid,)).fetchone();c.close()
     if not row or int(row["user_id"])!=uid:
         raise PermissionError("lesson_access_denied")
-    visible=bool(row["started_at"] and row["meeting_link_sent_at"] and not row["finished_at"] and str(row["lesson_status"] or "").upper()=="IN_PROGRESS")
-    return {"lesson_id":lid,"links_visible":visible,"meeting_url":row["meeting_url"] if visible else None,"board_url":row["board_url"] if visible else None,"lesson_status":row["lesson_status"]}
+    meeting_visible=bool(row["meeting_link_sent_at"] and not row["finished_at"] and str(row["lesson_status"] or "").upper() not in {"CANCELLED","REJECTED","NO_SHOW","LATE_CANCELLED","SICKNESS","COMPLETED"})
+    return {"lesson_id":lid,"links_visible":meeting_visible,"meeting_url":row["meeting_url"] if meeting_visible else None,"board_url":row["board_url"],"lesson_status":row["lesson_status"],"started_at":row["started_at"]}
 
 
 def start_group(lesson_id,teacher_id):
@@ -72,7 +69,6 @@ def start_group(lesson_id,teacher_id):
 
 
 def finish_group(lesson_id):
-    """Close Adelia access after the group lesson is completed."""
     lid=int(lesson_id);c=database.connect();row=c.execute("SELECT status FROM group_lessons WHERE id=?",(lid,)).fetchone()
     if not row:
         c.close();raise ValueError("group_lesson_not_found")
@@ -81,7 +77,6 @@ def finish_group(lesson_id):
 
 
 def start_open_event(event_id):
-    """Create/reuse one meeting for an open mock exam/intensive."""
     eid=int(event_id);c=database.connect();row=c.execute("SELECT telemost_conference_id,telemost_join_url,board_url FROM open_learning_events WHERE id=?",(eid,)).fetchone();c.close()
     if not row:
         raise ValueError("event_not_found")
