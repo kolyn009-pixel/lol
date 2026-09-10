@@ -23,6 +23,7 @@ def ensure_schema():
       study_status_text TEXT,
       show_online INTEGER NOT NULL DEFAULT 0,
       allow_group_messages INTEGER NOT NULL DEFAULT 1,
+      onboarding_completed INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL,
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -39,13 +40,21 @@ def ensure_schema():
       created_at TEXT NOT NULL,
       PRIMARY KEY(group_id,user_id,muted_user_id)
     );
-    """);c.commit();c.close()
+    """)
+    cols={r['name'] for r in c.execute("PRAGMA table_info(student_social_profiles)").fetchall()}
+    if 'onboarding_completed' not in cols:
+        c.execute("ALTER TABLE student_social_profiles ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0")
+        c.execute("""UPDATE student_social_profiles SET onboarding_completed=1
+                     WHERE avatar_kind!='PRESET' OR avatar_value!='adelia_01'
+                        OR manual_status!='' OR COALESCE(study_status_text,'')!=''
+                        OR show_online!=0 OR allow_group_messages!=1""")
+    c.commit();c.close()
 
 
 def _profile(uid):
     ensure_schema();c=database.connect();row=c.execute("SELECT * FROM student_social_profiles WHERE user_id=?",(int(uid),)).fetchone();c.close()
     if row:return dict(row)
-    c=database.connect();u=c.execute("SELECT name FROM users WHERE id=?",(int(uid),)).fetchone();
+    c=database.connect();u=c.execute("SELECT name FROM users WHERE id=?",(int(uid),)).fetchone()
     if not u:c.close();raise ValueError('user_not_found')
     now=database.now_iso();c.execute("INSERT INTO student_social_profiles(user_id,display_name,updated_at) VALUES(?,?,?)",(int(uid),u['name'],now));c.commit();c.close();return _profile(uid)
 
@@ -58,7 +67,7 @@ def update(user_id,*,display_name=None,avatar_kind=None,avatar_value=None,manual
     if not name:raise ValueError('display_name_required')
     avatar=str(avatar_value if avatar_value is not None else p['avatar_value']).strip()[:500]
     study=str(study_status_text if study_status_text is not None else (p['study_status_text'] or '')).strip()[:80] or None
-    c=database.connect();c.execute("""UPDATE student_social_profiles SET display_name=?,avatar_kind=?,avatar_value=?,manual_status=?,study_status_text=?,show_online=?,allow_group_messages=?,updated_at=? WHERE user_id=?""",(name,kind,avatar,status,study,int(bool(p['show_online'] if show_online is None else show_online)),int(bool(p['allow_group_messages'] if allow_group_messages is None else allow_group_messages)),database.now_iso(),int(user_id)));c.commit();c.close();return public_profile(user_id,viewer_id=user_id)
+    c=database.connect();c.execute("""UPDATE student_social_profiles SET display_name=?,avatar_kind=?,avatar_value=?,manual_status=?,study_status_text=?,show_online=?,allow_group_messages=?,onboarding_completed=1,updated_at=? WHERE user_id=?""",(name,kind,avatar,status,study,int(bool(p['show_online'] if show_online is None else show_online)),int(bool(p['allow_group_messages'] if allow_group_messages is None else allow_group_messages)),database.now_iso(),int(user_id)));c.commit();c.close();return public_profile(user_id,viewer_id=user_id)
 
 
 def touch_presence(user_id,active_seconds=120):
@@ -77,7 +86,7 @@ def _is_online(uid):
 def public_profile(user_id,viewer_id=None):
     p=_profile(user_id);own=viewer_id is not None and int(viewer_id)==int(user_id)
     out={'user_id':int(user_id),'display_name':p['display_name'],'avatar_kind':p['avatar_kind'],'avatar_value':p['avatar_value'],'manual_status':p['manual_status'],'study_status_text':p['study_status_text'],'online':bool(p['show_online'] and _is_online(user_id))}
-    if own:out.update({'show_online':bool(p['show_online']),'allow_group_messages':bool(p['allow_group_messages'])})
+    if own:out.update({'show_online':bool(p['show_online']),'allow_group_messages':bool(p['allow_group_messages']),'onboarding_completed':bool(p['onboarding_completed'])})
     return out
 
 
