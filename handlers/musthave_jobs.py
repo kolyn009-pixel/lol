@@ -91,13 +91,13 @@ async def weekly_dispatcher(context):
     await weekly_job(context);await weekly_booking_reminders(context);database.set_setting("weekly_summary_last_day",day)
 
 async def homework_watchdog_job(context):
-    """Queue individual/group deadline reminders and deliver the durable outbox."""
+    """Evaluate individual/group deadlines and queue durable notifications."""
     try:
+        import asyncio
         from web_backend import homework_watchdog
-        from web_backend.homework_notification_worker import process_pending
-        queued=await __import__('asyncio').to_thread(homework_watchdog.tick)
-        delivery=await process_pending(context,limit=100)
-        database.set_setting("homework_watchdog_last_stats",f"queued={queued};delivery={delivery}")
+        queued=await asyncio.to_thread(homework_watchdog.tick)
+        database.set_setting("homework_watchdog_last_stats",f"queued={queued}")
+        database.set_setting("homework_watchdog_last_error","")
     except Exception as exc:
         database.set_setting("homework_watchdog_last_error",repr(exc)[:500])
         print("HOMEWORK WATCHDOG JOB:",repr(exc),flush=True)
