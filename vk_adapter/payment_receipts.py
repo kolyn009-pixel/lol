@@ -31,12 +31,16 @@ def _waiting_payment(user_id):
 
 
 def _existing_receipt(payment_id,user_id,fingerprint):
+    # Persisted VK spool filenames contain the first 16 hex chars of SHA-256.
+    # Search the same stable prefix; searching the full digest can never match.
+    fp=str(fingerprint or '')
+    digest_prefix=fp[:16] if len(fp)>=16 else fp
     c=database.connect()
     try:
         row=c.execute("""SELECT id FROM receipts
             WHERE payment_id=? AND user_id=? AND source_platform='VK'
               AND (file_id=? OR file_id LIKE ?)
-            ORDER BY id DESC LIMIT 1""",(int(payment_id),int(user_id),str(fingerprint),f'%{fingerprint}%')).fetchone()
+            ORDER BY id DESC LIMIT 1""",(int(payment_id),int(user_id),fp,f'%{digest_prefix}%')).fetchone()
         return int(row['id']) if row else None
     finally:c.close()
 
