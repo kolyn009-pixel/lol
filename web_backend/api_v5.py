@@ -2,11 +2,17 @@
 from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
-from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campaign,student_live_entry,student_social_profile,group_portal
+from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campaign,student_live_entry,student_social_profile,student_portal,group_portal
 from web_backend.stage12_indexes import ensure_indexes
 
+def _student_profile(uid):
+    """Backward-compatible profile payload: tutoring data + app social fields."""
+    legacy=student_portal.profile(int(uid)) or {}
+    social=student_social_profile.public_profile(int(uid),viewer_id=int(uid))
+    return {**legacy,**social}
+
 class Handler(api_v4.Handler):
-    server_version='AdeliaWeb/5.5'
+    server_version='AdeliaWeb/5.6'
     def do_GET(self):
         u=urlparse(self.path);path,q=u.path,parse_qs(u.query)
         if path in {'/api/teacher/events','/api/teacher/events/choices','/api/teacher/event','/api/teacher/group/attendance','/api/teacher/group-lessons','/api/teacher/group-lesson'}:
@@ -30,7 +36,7 @@ class Handler(api_v4.Handler):
             try:
                 uid=int(auth['id'])
                 if path.endswith('/events'):r={'items':event_campaign.feed(uid)}
-                elif path.endswith('/profile'):r=student_social_profile.public_profile(uid,viewer_id=uid)
+                elif path.endswith('/profile'):r=_student_profile(uid)
                 elif path.endswith('/group/members'):r={'items':student_social_profile.group_members(int(q.get('group_id',['0'])[0]),uid)}
                 elif path.endswith('/groups'):r={'items':group_portal.student_groups(uid)}
                 elif path.endswith('/group/summary'):r=group_portal.student_group_summary(uid,int(q.get('group_id',['0'])[0]))
@@ -86,7 +92,8 @@ class Handler(api_v4.Handler):
                 elif path.endswith('/event/leave'):r=student_live_entry.leave_event(int(body.get('event_id')),uid,'APP')
                 elif path.endswith('/presence'):r=student_social_profile.touch_presence(uid,int(body.get('active_seconds') or 120))
                 elif path.endswith('/group/chat'):r=group_portal.post_group_message(int(body.get('group_id')),uid,'STUDENT',body.get('body'))
-                else:r=student_social_profile.update(uid,display_name=body.get('display_name'),avatar_kind=body.get('avatar_kind'),avatar_value=body.get('avatar_value'),manual_status=body.get('manual_status'),study_status_text=body.get('study_status_text'),show_online=body.get('show_online'),allow_group_messages=body.get('allow_group_messages'))
+                else:
+                    student_social_profile.update(uid,display_name=body.get('display_name'),avatar_kind=body.get('avatar_kind'),avatar_value=body.get('avatar_value'),manual_status=body.get('manual_status'),study_status_text=body.get('study_status_text'),show_online=body.get('show_online'),allow_group_messages=body.get('allow_group_messages'));r=_student_profile(uid)
                 return self._json(200,r)
             except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
             except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
@@ -94,5 +101,5 @@ class Handler(api_v4.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();print(f'Adelia web API v5.5 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();print(f'Adelia web API v5.6 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
