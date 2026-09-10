@@ -19,9 +19,6 @@ def initialize():
     )""")
     c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_teacher_task_source ON teacher_tasks(source_key) WHERE source_key IS NOT NULL")
     c.execute("CREATE INDEX IF NOT EXISTS idx_teacher_task_status_due ON teacher_tasks(status,due_at,priority)")
-    # Schema initialization must not depend on runtime sync variables.
-    # Auto-task reconciliation belongs to sync_auto(), where live_keys/now
-    # are defined from the current CRM snapshot.
     c.commit(); c.close()
 
 def add(title, user_id=None, due_at=None, priority=2, notes='', source_type='MANUAL', source_key=None):
@@ -56,6 +53,11 @@ def defer(task_id, hours=24):
     set_status(task_id, 'DEFERRED', (datetime.now()+timedelta(hours=hours)).isoformat(timespec='seconds'))
 
 def sync_auto():
+    """Maintain non-homework CRM auto tasks.
+
+    Missed homework is intentionally excluded here: homework_watchdog owns both
+    individual and group deadlines, submission reconciliation and reminders.
+    """
     initialize(); c = database.connect(); now = datetime.now().isoformat(timespec='seconds'); live_keys=set()
     def upsert_auto(key,title,user_id,priority):
         live_keys.add(key)
@@ -72,13 +74,8 @@ def sync_auto():
         rows = c.execute("SELECT u.id,u.name FROM users u WHERE u.active=1 AND NOT EXISTS (SELECT 1 FROM lessons l WHERE l.user_id=u.id AND l.lesson_status!='CANCELLED' AND datetime(l.start_time)>=datetime('now'))").fetchall()
         for r in rows: upsert_auto(f"no_next:{r['id']}",f"Нет следующего занятия — {r['name']}",r['id'],2)
     except Exception: pass
-    try:
-        rows = c.execute("SELECT h.id,h.user_id,u.name FROM homework h JOIN users u ON u.id=h.user_id WHERE h.status IN ('ASSIGNED','REVISION') AND h.deadline IS NOT NULL AND datetime(h.deadline)<datetime('now')").fetchall()
-        for r in rows: upsert_auto(f"homework:{r['id']}",f"Проверить ДЗ — {r['name']}",r['user_id'],2)
-    except Exception: pass
     stale=c.execute("SELECT id,source_key FROM teacher_tasks WHERE source_type='AUTO' AND status IN ('OPEN','DEFERRED')").fetchall()
     for row in stale:
         if row['source_key'] and row['source_key'] not in live_keys:
             c.execute("UPDATE teacher_tasks SET status='DONE',updated_at=? WHERE id=?",(now,row['id']))
     c.commit(); c.close()
-
