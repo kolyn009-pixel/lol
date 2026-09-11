@@ -19,19 +19,62 @@ from handlers import homework_channel_handlers, web_portal_login, payment_hub_ha
 
 
 def _with_web_button(markup, role):
-    """Add a prominent full-width web-cabinet entry at the bottom of home menus."""
+    """Put the Adelia web cabinet CTA first in every main menu."""
     if not markup or role not in {"student", "teacher", "parent"}:
         return markup
+
     rows = [list(row) for row in markup.inline_keyboard]
+    callbacks = {"web_teacher_code", "web_parent_code", "web_student_code"}
+
     if role == "teacher":
-        callback, label = "web_teacher_code", "🌐 ОТКРЫТЬ АДЕЛИЯ • КАБИНЕТ"
+        callback, label = "web_teacher_code", "🌐 Открыть Adelia — кабинет преподавателя"
     elif role == "parent":
-        callback, label = "web_parent_code", "🌐 ОТКРЫТЬ АДЕЛИЯ • КАБИНЕТ"
+        callback, label = "web_parent_code", "🌐 Открыть Adelia — кабинет родителя"
     else:
-        callback, label = "web_student_code", "🌐 ОТКРЫТЬ АДЕЛИЯ • ЛИЧНЫЙ КАБИНЕТ"
-    if not any(getattr(button, "callback_data", None) == callback for row in rows for button in row):
-        rows.append([InlineKeyboardButton(label, callback_data=callback)])
-    return InlineKeyboardMarkup(rows)
+        callback, label = "web_student_code", "🌐 Открыть Adelia — личный кабинет"
+
+    clean_rows = []
+    for row in rows:
+        kept = [
+            button for button in row
+            if getattr(button, "callback_data", None) not in callbacks
+        ]
+        if kept:
+            clean_rows.append(kept)
+
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton(label, callback_data=callback)]] + clean_rows
+    )
+
+
+async def start_existing(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    """Handle /start only for an already known role.
+
+    New users intentionally fall through to bot.start registration in a later
+    handler group. Registered users always land on the current unified home.
+    """
+    tid = int(update.effective_user.id)
+
+    if admin_roles.is_admin_id(tid):
+        await home(update, context)
+        return
+
+    parent = database.get_parent_by_telegram_id(tid)
+    if parent and parent["active"]:
+        await home(update, context)
+        return
+
+    user = database.get_user_by_telegram_id(tid)
+    if user and user["active"]:
+        await home(update, context)
+        return
+
+    # Do not stop propagation: the legacy registration ConversationHandler
+    # must receive /start for genuinely new users.
+    return None
 
 
 async def home(
@@ -69,6 +112,7 @@ async def home(
     )
 
     web_role = None
+    parent = None
 
     if test_active:
 
@@ -291,11 +335,7 @@ async def home(
 
     markup = _with_web_button(markup, web_role)
 
-    if not (
-        parent
-        if "parent" in locals()
-        else False
-    ):
+    if not parent:
         context.user_data.clear()
 
     if q:
@@ -321,6 +361,10 @@ async def home(
 def handlers():
 
     return [
+        CommandHandler(
+            "start",
+            start_existing,
+        ),
         CommandHandler(
             "home",
             home,
