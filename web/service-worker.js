@@ -1,5 +1,5 @@
-const CACHE='adelia-shell-v7';
-const SHELL=['/app/','/app/styles.css','/app/pwa.js','/app/app.js','/app/auth_flow_v2.js','/app/app_shell_plus.js','/app/manifest.webmanifest'];
+const CACHE='adelia-shell-v8';
+const SHELL=['/app/','/app/styles.css','/app/stage11_mobile.css','/app/responsive_shell.css','/app/pwa.js','/app/app.js','/app/auth_flow_v2.js','/app/app_shell_plus.js','/app/responsive_shell.js','/app/student_boot.js','/app/manifest.webmanifest'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>Promise.allSettled(SHELL.map(url=>cache.add(url)))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()))});
 self.addEventListener('message',event=>{if(event.data?.type==='SKIP_WAITING')self.skipWaiting()});
