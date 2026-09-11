@@ -1,0 +1,63 @@
+/* Adelia responsive application shell. Keeps feature screens intact. */
+:root{--adelia-sidebar:248px;--adelia-max:1180px}
+
+/* Login/auth should look like a dedicated screen, not an empty application. */
+body.adelia-auth-screen .bottom-nav{display:none!important}
+body.adelia-auth-screen .app-shell{max-width:none;min-height:100dvh;padding-bottom:0}
+body.adelia-auth-screen .topbar{max-width:720px;margin:0 auto;padding-top:40px}
+body.adelia-auth-screen .topbar #roleButton{display:none}
+body.adelia-auth-screen .content{min-height:calc(100dvh - 105px);display:grid;place-items:start center;padding-top:38px}
+body.adelia-auth-screen .auth-card{width:min(460px,100%);margin:0;padding:30px;border-radius:26px;box-shadow:0 22px 60px rgba(52,35,87,.10)}
+body.adelia-auth-screen .auth-card h2{font-size:28px;letter-spacing:-.02em}
+body.adelia-auth-screen .auth-card input{width:100%;min-height:50px}
+
+@media (min-width:900px){
+  body:not(.adelia-auth-screen){background:#f7f5fb}
+  body:not(.adelia-auth-screen) .app-shell{max-width:none;width:100%;min-height:100dvh;padding:0 0 0 var(--adelia-sidebar)}
+  body:not(.adelia-auth-screen) .topbar{height:92px;padding:22px 38px 16px;border-bottom:1px solid rgba(37,31,49,.06);background:rgba(247,245,251,.88);backdrop-filter:blur(18px);position:sticky;top:0;z-index:15}
+  body:not(.adelia-auth-screen) .topbar>div:first-child{max-width:var(--adelia-max);width:100%;margin:0 auto}
+  body:not(.adelia-auth-screen) .topbar .avatar-btn{margin-left:18px;flex:0 0 auto}
+  body:not(.adelia-auth-screen) .content{width:min(var(--adelia-max),calc(100vw - var(--adelia-sidebar) - 72px));margin:0 auto;padding:30px 0 56px}
+  body:not(.adelia-auth-screen) .bottom-nav{position:fixed;left:0;top:0;bottom:0;transform:none;width:var(--adelia-sidebar);display:flex;flex-direction:column;grid-template-columns:none;gap:6px;padding:118px 16px 24px;background:#fff;border:0;border-right:1px solid var(--line);border-radius:0;margin:0;z-index:30;box-shadow:8px 0 32px rgba(42,30,69,.035)}
+  body:not(.adelia-auth-screen) .bottom-nav::before{content:'Аделия';position:absolute;left:26px;top:30px;font-size:23px;font-weight:900;color:var(--p);letter-spacing:-.03em}
+  body:not(.adelia-auth-screen) .bottom-nav::after{content:'TutorBot';position:absolute;left:27px;top:60px;font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+  body:not(.adelia-auth-screen) .nav-item{position:relative;display:flex;align-items:center;justify-content:flex-start;gap:13px;min-height:50px;width:100%;padding:0 14px;border-radius:14px;text-align:left;color:#746c80}
+  body:not(.adelia-auth-screen) .nav-item span{width:25px;font-size:19px;text-align:center}
+  body:not(.adelia-auth-screen) .nav-item small{font-size:14px;font-weight:750}
+  body:not(.adelia-auth-screen) .nav-item.active{background:#f0ebfc;color:var(--p)}
+  body:not(.adelia-auth-screen) .chat-nav-badge{right:12px;top:14px}
+  body:not(.adelia-auth-screen) .quick-actions{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  body:not(.adelia-auth-screen) .action-card{min-height:150px;padding:20px}
+  body:not(.adelia-auth-screen) .welcome{padding:28px 30px;border-radius:28px}
+  body:not(.adelia-auth-screen) .welcome h2{font-size:30px}
+  body:not(.adelia-auth-screen) .section{margin-top:30px}
+  body:not(.adelia-auth-screen) .chat-shell,.student-chat-card{min-height:calc(100dvh - 160px)}
+}
+
+@media (min-width:1200px){
+  :root{--adelia-sidebar:264px}
+  body:not(.adelia-auth-screen) .content{width:min(1240px,calc(100vw - var(--adelia-sidebar) - 88px))}
+}
+
+/* Mobile remains app-like and compact. */
+@media (max-width:899px){
+  .app-shell{max-width:760px;padding-bottom:82px}
+  .topbar{padding-left:18px;padding-right:18px}
+  .content{padding-left:14px;padding-right:14px}
+  .bottom-nav{width:100%;grid-template-columns:repeat(5,minmax(0,1fr));padding:5px 4px calc(5px + env(safe-area-inset-bottom));border-radius:0}
+  .nav-item{min-height:58px;padding:4px 1px}
+  .nav-item span{font-size:20px;line-height:1}
+  .nav-item small{font-size:10px;white-space:nowrap}
+  .quick-actions{grid-template-columns:1fr 1fr}
+  body.adelia-auth-screen .topbar{padding-top:calc(20px + env(safe-area-inset-top));padding-left:18px;padding-right:18px}
+  body.adelia-auth-screen .content{min-height:calc(100dvh - 90px);padding:18px 14px 34px;align-items:start}
+  body.adelia-auth-screen .auth-card{width:100%;padding:22px 18px;border-radius:22px;box-shadow:none}
+  body.adelia-auth-screen .auth-card h2{font-size:24px}
+}
+
+@media (max-width:390px){
+  .nav-item small{font-size:9px}
+  .nav-item span{font-size:18px}
+  .quick-actions{gap:8px}
+  .action-card{min-height:112px;padding:14px}
+}
