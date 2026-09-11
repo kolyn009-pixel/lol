@@ -1,9 +1,7 @@
 """Telegram entry points for Adelia web cabinets.
 
-This module deliberately owns only code issuance. The website consumes the same
-SQLite tables through web_backend auth modules. Codes are 6-digit, one-time and
-valid for 10 minutes, which makes them convenient for desktop login while the
-button opens the site directly on a phone.
+Codes are issued as separate persistent messages so opening the web cabinet does
+not replace the main menu. Each code is one-time and valid for 10 minutes.
 """
 from __future__ import annotations
 
@@ -11,6 +9,10 @@ import secrets
 from datetime import datetime, timedelta
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+try:
+    from telegram import CopyTextButton
+except ImportError:  # compatibility with older python-telegram-bot
+    CopyTextButton = None
 from telegram.ext import CallbackQueryHandler
 
 import database
@@ -101,62 +103,123 @@ def issue_teacher_code(telegram_id: int) -> str:
     conn.commit(); conn.close(); return code
 
 
+def _copy_button(code: str):
+    if CopyTextButton is not None:
+        return InlineKeyboardButton(
+            "📋 Скопировать код",
+            copy_text=CopyTextButton(text=str(code)),
+        )
+    return InlineKeyboardButton(
+        "📋 Показать код",
+        callback_data=f"web_show_code:{code}",
+    )
+
+
+def _code_markup(code: str, role: str):
+    if role == "student":
+        open_label, url, refresh, back = (
+            "🌐 Открыть личный кабинет",
+            f"{SITE_URL}/app/",
+            "web_student_code",
+            "main",
+        )
+    elif role == "parent":
+        open_label, url, refresh, back = (
+            "🌐 Открыть кабинет родителя",
+            f"{SITE_URL}/parent/",
+            "web_parent_code",
+            "parent_main",
+        )
+    else:
+        open_label, url, refresh, back = (
+            "🌐 Открыть кабинет преподавателя",
+            f"{SITE_URL}/teacher/",
+            "web_teacher_code",
+            "admin_main",
+        )
+    return InlineKeyboardMarkup([
+        [_copy_button(code)],
+        [InlineKeyboardButton(open_label, url=url)],
+        [InlineKeyboardButton("🔄 Новый код", callback_data=refresh)],
+        [InlineKeyboardButton("⬅️ Главное меню", callback_data=back)],
+    ])
+
+
+async def _send_code_message(q, title: str, code: str, role: str, extra: str = ""):
+    # Important: use a new message instead of editing the main-menu message.
+    # This keeps the code visible even when the home menu is refreshed later.
+    text = (
+        f"{title}\n\n"
+        f"Код для входа:\n`{code}`\n\n"
+        "Код действует 10 минут и только один раз.\n"
+        "Нажмите «Скопировать код» или откройте кабинет кнопкой ниже."
+    )
+    if extra:
+        text += f"\n\n{extra}"
+    await q.message.reply_text(
+        text,
+        reply_markup=_code_markup(code, role),
+        parse_mode="Markdown",
+    )
+
+
 async def student_code(update, context):
     q = update.callback_query
-    await q.answer()
+    await q.answer("Код создан")
     user = database.get_user_by_telegram_id(update.effective_user.id)
     if not user or not user["active"]:
         await q.answer("Активный профиль ученика не найден.", show_alert=True); return
     code = issue_student_code(int(user["id"]))
-    await q.edit_message_text(
-        "🌐 ЛИЧНЫЙ КАБИНЕТ\n\n"
-        f"Код для входа: {code}\n\n"
-        "Он действует 10 минут и только один раз.\n"
-        "На компьютере открой сайт и введи этот код. На телефоне можно сразу нажать кнопку ниже.",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🌐 Открыть личный кабинет", url=f"{SITE_URL}/app/")],
-            [InlineKeyboardButton("⬅️ Главное меню", callback_data="main")],
-        ]),
+    await _send_code_message(
+        q,
+        "🌐 ЛИЧНЫЙ КАБИНЕТ",
+        code,
+        "student",
+        "На компьютере введите код на сайте. На телефоне можно сразу открыть кабинет.",
     )
 
 
 async def parent_code(update, context):
     q = update.callback_query
-    await q.answer()
+    await q.answer("Код создан")
     parent = database.get_parent_by_telegram_id(update.effective_user.id)
     if not parent or not parent["active"]:
         await q.answer("Активный профиль родителя не найден.", show_alert=True); return
     issued = create_parent_login_code(int(parent["id"]))
     code = issued["code"]
-    await q.edit_message_text(
-        "🌐 РОДИТЕЛЬСКИЙ КАБИНЕТ\n\n"
-        f"Код для входа: {code}\n\n"
-        "Код действует 10 минут и только один раз.\n"
-        "В кабинете доступны расписание, прогресс, оплаты и остаток занятий по привязанным ученикам.",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🌐 Открыть родительский кабинет", url=f"{SITE_URL}/parent/")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="parent_main")],
-        ]),
+    await _send_code_message(
+        q,
+        "🌐 РОДИТЕЛЬСКИЙ КАБИНЕТ",
+        code,
+        "parent",
+        "В кабинете доступны расписание, прогресс, оплаты и остаток занятий.",
     )
 
 
 async def teacher_code(update, context):
     q = update.callback_query
-    await q.answer()
+    await q.answer("Код создан")
     tid = int(update.effective_user.id)
     if not admin_roles.is_admin_id(tid):
         await q.answer("Доступ только преподавателю.", show_alert=True); return
     code = issue_teacher_code(tid)
-    await q.edit_message_text(
-        "🌐 КАБИНЕТ ПРЕПОДАВАТЕЛЯ\n\n"
-        f"Код для входа: {code}\n\n"
-        "Код действует 10 минут и только один раз.\n"
-        "На компьютере введи его на сайте, а на телефоне просто открой кабинет кнопкой ниже.",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🌐 Открыть кабинет", url=f"{SITE_URL}/teacher/")],
-            [InlineKeyboardButton("⬅️ Админка", callback_data="admin_main")],
-        ]),
+    await _send_code_message(
+        q,
+        "🌐 КАБИНЕТ ПРЕПОДАВАТЕЛЯ",
+        code,
+        "teacher",
+        "На компьютере введите код на сайте. На телефоне можно открыть кабинет сразу.",
     )
+
+
+async def show_code(update, context):
+    q = update.callback_query
+    raw = str(q.data or "")
+    code = raw.split(":", 1)[1] if ":" in raw else ""
+    if len(code) == 6 and code.isdigit():
+        await q.answer(f"Код: {code}", show_alert=True)
+    else:
+        await q.answer("Код недоступен", show_alert=True)
 
 
 def handlers():
@@ -164,4 +227,5 @@ def handlers():
         CallbackQueryHandler(student_code, pattern=r"^web_student_code$"),
         CallbackQueryHandler(parent_code, pattern=r"^web_parent_code$"),
         CallbackQueryHandler(teacher_code, pattern=r"^web_teacher_code$"),
+        CallbackQueryHandler(show_code, pattern=r"^web_show_code:\d{6}$"),
     ]
