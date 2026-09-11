@@ -18,7 +18,7 @@ async function verify(){
  try{const d=await api('/auth/student/code/verify',{method:'POST',body:JSON.stringify({code})});verifiedCode=code;credentialsScreen(d.student||{})}catch(e){out.textContent=resultText(e);btn.disabled=false}
 }
 function credentialsScreen(student){
- host().innerHTML=`<section class="form-card auth-card adelia-auth-v2"><span class="status">Код подтверждён ✓</span><h2>Создайте вход</h2><p>${student?.name?`Кабинет: <b>${esc(student.name)}</b>. `:''}Теперь придумайте постоянный логин и пароль. Код из бота для обычного входа больше не понадобится.</p><label>Логин</label><input id="adeliaNewLogin" autocomplete="username" autocapitalize="none" placeholder="например, ivan.petrov"><label>Пароль</label><input id="adeliaNewPassword" type="password" autocomplete="new-password" placeholder="минимум 8 символов"><button class="form-primary" id="adeliaSaveCredentials">Сохранить и продолжить</button><button class="mini-btn" id="adeliaBackToCode">← Другой код</button><div id="adeliaAuthResult" class="form-error"></div></section>`;
+ host().innerHTML=`<section class="form-card auth-card adelia-auth-v2"><span class="status">Код подтверждён ✓</span><h2>Создайте вход</h2><p>${student?.name?`Кабинет: <b>${esc(student.name)}</b>. `:''}Теперь придумайте постоянный логин и пароль. Код из бота для обычного входа больше не понадобится.</p><label>Логин</label><input id="adeliaNewLogin" autocomplete="username" autocapitalize="none" placeholder="например, ivan.petrov"><label>Пароль</label><input id="adeliaNewPassword" type="password" autocomplete="new-password" placeholder="минимум 8 символов"><button class="form-primary" id="adeliaSaveCredentials">Сохранить и перейти на главную</button><button class="mini-btn" id="adeliaBackToCode">← Другой код</button><div id="adeliaAuthResult" class="form-error"></div></section>`;
  document.getElementById('adeliaSaveCredentials').onclick=setup;
  document.getElementById('adeliaBackToCode').onclick=()=>codeScreen();
 }
@@ -27,7 +27,7 @@ async function setup(){
  if(!/^[a-z0-9._-]{4,32}$/.test(login)){out.textContent='Логин: 4–32 символа, латиница, цифры, точка, _ или -.';return}
  if(password.length<8){out.textContent='Пароль должен содержать минимум 8 символов.';return}
  btn.disabled=true;out.textContent='Создаю кабинет…';
- try{await api('/auth/student/code',{method:'POST',body:JSON.stringify({code:`setup:${verifiedCode}:${login}:${password}`})});location.replace('/app/?welcome=1')}catch(e){const x=String(e.message||'');out.textContent=x==='login_taken'?'Этот логин уже занят. Выберите другой.':x==='expired'?'Код успел истечь. Получите новый код в боте.':'Не удалось сохранить вход. Попробуйте ещё раз.';btn.disabled=false}
+ try{await api('/auth/student/code',{method:'POST',body:JSON.stringify({code:`setup:${verifiedCode}:${login}:${password}`})});location.replace('/app/')}catch(e){const x=String(e.message||'');out.textContent=x==='login_taken'?'Этот логин уже занят. Выберите другой.':x==='expired'?'Код успел истечь. Получите новый код в боте.':'Не удалось сохранить вход. Попробуйте ещё раз.';btn.disabled=false}
 }
 function intercept(){
  const card=document.querySelector('.auth-card');if(!card||window.__adeliaAuthV2===false)return;
