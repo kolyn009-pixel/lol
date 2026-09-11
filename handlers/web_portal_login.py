@@ -5,9 +5,6 @@ not replace the main menu. Each code is one-time and valid for 10 minutes.
 """
 from __future__ import annotations
 
-import secrets
-from datetime import datetime, timedelta
-
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 try:
     from telegram import CopyTextButton
@@ -18,59 +15,16 @@ from telegram.ext import CallbackQueryHandler
 import database
 from core import admin_roles
 from web_backend.parent_auth import create_parent_login_code
+from web_backend.student_auth import issue_student_login_code
 from web_backend.teacher_auth import issue_teacher_login_code
 
 SITE_URL = "https://adeliatutor.ru"
 TTL_MINUTES = 10
 
 
-def ensure_tables():
-    conn = database.connect()
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS student_web_login_codes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id INTEGER NOT NULL,
-            code TEXT UNIQUE NOT NULL,
-            expires_at TEXT NOT NULL,
-            used_at TEXT,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-        CREATE INDEX IF NOT EXISTS idx_student_web_login_code
-            ON student_web_login_codes(code);
-        """
-    )
-    conn.commit()
-    conn.close()
-
-
-def _code():
-    return f"{secrets.randbelow(1_000_000):06d}"
-
-
-def _expiry():
-    return (datetime.now() + timedelta(minutes=TTL_MINUTES)).isoformat(timespec="seconds")
-
-
 def issue_student_code(student_id: int) -> str:
-    ensure_tables(); student_id = int(student_id); conn = database.connect()
-    row = conn.execute("SELECT id FROM users WHERE id=? AND active=1", (student_id,)).fetchone()
-    if not row:
-        conn.close(); raise ValueError("student_not_found")
-    conn.execute(
-        "UPDATE student_web_login_codes SET used_at=? WHERE student_id=? AND used_at IS NULL",
-        (database.now_iso(), student_id),
-    )
-    while True:
-        code = _code()
-        if not conn.execute("SELECT 1 FROM student_web_login_codes WHERE code=?", (code,)).fetchone():
-            break
-    conn.execute(
-        "INSERT INTO student_web_login_codes(student_id,code,expires_at,created_at) VALUES(?,?,?,?)",
-        (student_id, code, _expiry(), database.now_iso()),
-    )
-    conn.commit(); conn.close(); return code
+    """Use the canonical student auth issuer so the website can validate it."""
+    return issue_student_login_code(int(student_id), ttl_minutes=TTL_MINUTES)
 
 
 def issue_teacher_code(telegram_id: int) -> str:
