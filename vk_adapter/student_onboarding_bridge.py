@@ -5,7 +5,7 @@ import random
 import re
 
 from core import event_center
-from web_backend import student_onboarding, public_trial_channel
+from web_backend import student_onboarding, public_trial_channel, trial_followup
 
 JOIN_RE = re.compile(r"\bJOIN-[A-Z0-9]{10}\b", re.I)
 TRIAL_RE = re.compile(r"\bTRIAL-[A-Z0-9]{10}\b", re.I)
@@ -32,13 +32,19 @@ def _link(label, url):
 
 
 def _trial_keyboard(row):
+    status = str(row.get('status') or '').upper()
     rows = []
-    if row.get('meeting_url'):
+    if row.get('meeting_url') and status != 'TRIAL_COMPLETED':
         rows.append([_link('▶️ Подключиться к занятию', row['meeting_url'])])
     if row.get('board_url'):
         rows.append([_link('📝 Открыть доску', row['board_url'])])
-    rows.append([_button('🎓 Моё пробное', 'trial_guest|home', 'primary')])
-    rows.append([_button('💬 Преподаватель', 'trial_guest|message')])
+    if status == 'TRIAL_COMPLETED':
+        rows.append([_button('💜 Продолжить заниматься', 'trial_guest|continue', 'positive')])
+        rows.append([_button('🕒 Хочу подумать', 'trial_guest|thinking')])
+        rows.append([_button('Пока не планирую', 'trial_guest|stop', 'negative')])
+    else:
+        rows.append([_button('🎓 Моё пробное', 'trial_guest|home', 'primary')])
+        rows.append([_button('💬 Преподаватель', 'trial_guest|message')])
     return json.dumps({'one_time': False, 'inline': False, 'buttons': rows}, ensure_ascii=False)
 
 
@@ -52,6 +58,17 @@ def _send_trial(app_module, peer_id, text, row):
     )
 
 
+def _send_plain(app_module, peer_id, text, buttons=None):
+    params = {
+        'peer_id': int(peer_id),
+        'random_id': random.randint(1, 2_000_000_000),
+        'message': str(text),
+    }
+    if buttons:
+        params['keyboard'] = json.dumps({'one_time': False, 'inline': False, 'buttons': buttons}, ensure_ascii=False)
+    return app_module.api('messages.send', **params)
+
+
 def _trial_text(row):
     status = str(row.get('status') or 'NEW').upper()
     status_text = {
@@ -59,6 +76,7 @@ def _trial_text(row):
         'CONTACTED': 'преподаватель увидел заявку',
         'ACCEPTED': 'подтверждено',
         'TRIAL_COMPLETED': 'пробное завершено',
+        'CONVERTED': 'вы стали постоянным учеником',
     }.get(status, status.lower())
     start = row.get('trial_start') or row.get('selected_slot_start')
     lines = [
@@ -66,14 +84,17 @@ def _trial_text(row):
         '',
         f"👤 {row.get('name') or 'Ученик'}",
         f"📚 {row.get('subject') or 'Занятие'}",
-        f'Sтатус: {status_text}',
+        f'Статус: {status_text}',
     ]
     if start:
         lines.append(f"🕐 {str(start).replace('T', ' ')[:16]}")
-    lines.append('🎥 Ссылка на занятие готова' if row.get('meeting_url') else '🎥 Ссылка появится после подтверждения преподавателем')
-    if row.get('board_url'):
-        lines.append('📝 Доска готова')
-    lines += ['', 'Пока доступен только режим пробного занятия.']
+    if status == 'TRIAL_COMPLETED':
+        lines += ['', 'Как тебе формат? Выбери, что делать дальше 👇']
+    else:
+        lines.append('🎥 Ссылка на занятие готова' if row.get('meeting_url') else '🎥 Ссылка появится после подтверждения преподавателем')
+        if row.get('board_url'):
+            lines.append('📝 Доска готова')
+        lines += ['', 'Пока доступен только режим пробного занятия.']
     return '\n'.join(lines)
 
 
@@ -92,6 +113,9 @@ def _command(message):
     mapping = {
         '🎓 моё пробное': 'trial_guest|home',
         '💬 преподаватель': 'trial_guest|message',
+        '💜 продолжить заниматься': 'trial_guest|continue',
+        '🕒 хочу подумать': 'trial_guest|thinking',
+        'пока не планирую': 'trial_guest|stop',
         'привет': 'trial_guest|home',
         'начать': 'trial_guest|home',
         'start': 'trial_guest|home',
@@ -127,6 +151,40 @@ def _handle_trial_guest(app_module, message, row):
     if cmd == 'trial_guest|message':
         _PENDING_MESSAGE.add(vk_id)
         _send_trial(app_module, peer_id, '💬 Напишите следующим сообщением то, что хотите передать преподавателю.', row)
+        return True
+
+    if cmd in {'trial_guest|continue', 'trial_guest|thinking', 'trial_guest|stop'}:
+        choice = {
+            'trial_guest|continue': 'CONTINUE',
+            'trial_guest|thinking': 'THINKING',
+            'trial_guest|stop': 'STOP',
+        }[cmd]
+        try:
+            trial_followup.decide(int(row['id']), choice)
+        except ValueError as exc:
+            _send_trial(app_module, peer_id, f'Не удалось сохранить решение: {exc}', row)
+            return True
+        if choice == 'CONTINUE':
+            buttons = [[_link('Продолжить регистрацию →', f"https://adeliatutor.ru/onboarding/?trial={int(row['id'])}")]]
+            _send_plain(
+                app_module,
+                peer_id,
+                '💜 Отлично! Данные пробного сохранены.\n\nОткрой сайт Аделии и заверши создание постоянного аккаунта — имя, класс, предмет и контакт повторно вводить не придётся.',
+                buttons,
+            )
+        elif choice == 'THINKING':
+            _send_plain(
+                app_module,
+                peer_id,
+                '🕒 Хорошо. Я сохраню пробное и напомню через несколько дней. Если решишь раньше — просто снова напиши сюда.',
+                [[_button('🎓 Моё пробное', 'trial_guest|home', 'primary')]],
+            )
+        else:
+            _send_plain(
+                app_module,
+                peer_id,
+                'Спасибо, что попробовали формат 💜\n\nПробное завершено. Постоянный аккаунт создавать не будем.',
+            )
         return True
 
     if cmd == 'trial_guest|home':
@@ -167,7 +225,7 @@ def handle_message(app_module, message):
     try:
         profile = app_module._profile(vk_id)
         if kind == 'TRIAL':
-            payload = public_trial_channel.confirm(
+            public_trial_channel.confirm(
                 token,
                 'VK',
                 str(vk_id),
