@@ -1,19 +1,23 @@
-"""Adelia web API v6: auth verification and public trial slot booking."""
+"""Adelia web API v6: auth verification, public trial slots and onboarding."""
 from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
 from web_backend import api as v1
-from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_slots
+from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_slots,student_onboarding
 from web_backend.stage12_indexes import ensure_indexes
 from web_backend.student_auth import peek_student_login_code
 class Handler(api_v5.Handler):
- server_version='AdeliaWeb/6.1'
+ server_version='AdeliaWeb/6.2'
  def do_GET(self):
   u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
   if path=='/api/public/trial/slots':
    try:return self._json(200,public_trial_slots.feed(q.get('timezone',['Europe/Moscow'])[0],q.get('days',['14'])[0],q.get('duration_minutes',['60'])[0]))
    except ValueError as exc:return self._json(400,{'error':str(exc) or 'invalid_request'})
    except Exception as exc:print('[web-api] public trial slots error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
+  if path=='/api/onboarding/status':
+   try:return self._json(200,student_onboarding.status_payload(q.get('token',[''])[0]))
+   except ValueError as exc:return self._json(404 if str(exc)=='onboarding_not_found' else 409,{'error':str(exc)})
+   except Exception as exc:print('[web-api] onboarding status error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
   return super().do_GET()
  def do_POST(self):
   path=urlparse(self.path).path
@@ -25,8 +29,25 @@ class Handler(api_v5.Handler):
    result=peek_student_login_code(body.get('code'))
    if result.get('status')!='ok':return self._json(401,{'error':result.get('status','invalid')})
    student=result.get('student') or {};return self._json(200,{'ok':True,'student':{'id':student.get('id'),'name':student.get('name'),'telegram_username':student.get('telegram_username'),'grade':student.get('grade')}})
+  if path.startswith('/api/onboarding/'):
+   if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+   if not v1._allowed(self.client_address[0]):return self._json(429,{'error':'too_many_attempts'})
+   body=self._body()
+   if body is None:return self._json(400,{'error':'invalid_json'})
+   try:
+    if path=='/api/onboarding/start':
+     result=student_onboarding.start_returning(body.get('preferred_channel'),body.get('profile_url'),body.get('name'),body.get('grade'),body.get('subject'),body.get('study_goal'),body.get('phone'),body.get('legacy_note'))
+     return self._json(200,result)
+    if path=='/api/onboarding/region':return self._json(200,student_onboarding.save_region(body.get('token'),body.get('region'),body.get('timezone')))
+    if path=='/api/onboarding/schedule':return self._json(200,student_onboarding.save_schedule(body.get('token'),body.get('selections') or []))
+    if path=='/api/onboarding/complete':
+     result=student_onboarding.complete(body.get('token'),body.get('login'),body.get('password'))
+     return self._json(200,{'status':'ok','user_id':result['user_id'],'login':result['login'],'redirect':result['redirect']},cookie=result['session_token'])
+    return self._json(404,{'error':'not_found'})
+   except ValueError as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
+   except Exception as exc:print('[web-api] onboarding POST error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
   return super().do_POST()
 def main():
  if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
- ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();print(f'Adelia web API v6.1 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+ ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();print(f'Adelia web API v6.2 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
