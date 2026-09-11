@@ -2,22 +2,29 @@ from __future__ import annotations
 
 import re
 
-from web_backend import student_onboarding
+from web_backend import student_onboarding, public_trial_channel
 
 JOIN_RE = re.compile(r"\bJOIN-[A-Z0-9]{10}\b", re.I)
+TRIAL_RE = re.compile(r"\bTRIAL-[A-Z0-9]{10}\b", re.I)
 
 
 def extract_token(text):
-    m = JOIN_RE.search(str(text or '').upper())
-    return m.group(0).upper() if m else None
+    raw = str(text or '').upper()
+    m = JOIN_RE.search(raw)
+    if m:
+        return ('JOIN', m.group(0).upper())
+    m = TRIAL_RE.search(raw)
+    if m:
+        return ('TRIAL', m.group(0).upper())
+    return (None, None)
 
 
 def handle_message(app_module, message):
-    """Handle a returning-student JOIN code before the normal VK router.
+    """Handle returning-student JOIN codes and public-trial TRIAL codes.
 
-    Returns True when the message belongs to onboarding and has been consumed.
+    Returns True when the message belongs to onboarding/trial linking and has been consumed.
     """
-    token = extract_token(message.get('text'))
+    kind, token = extract_token(message.get('text'))
     if not token:
         return False
 
@@ -28,6 +35,23 @@ def handle_message(app_module, message):
 
     try:
         profile = app_module._profile(vk_id)
+        if kind == 'TRIAL':
+            public_trial_channel.confirm(
+                token,
+                'VK',
+                str(vk_id),
+                username=profile.get('username'),
+                display_name=profile.get('display_name'),
+            )
+            app_module.send(
+                peer_id,
+                "✅ ВКонтакте подключён к пробному занятию 💜\n\n"
+                "Теперь сюда смогут прийти подтверждение времени, ссылка на занятие и важные изменения.\n\n"
+                "Полное меню ученика появится только если после пробного вы решите продолжить занятия.",
+                linked=False,
+            )
+            return True
+
         payload = student_onboarding.confirm_channel(
             token,
             'VK',
@@ -45,12 +69,20 @@ def handle_message(app_module, message):
         )
     except ValueError as exc:
         code = str(exc)
-        if code in {'onboarding_expired','onboarding_not_found'}:
-            text = 'Код регистрации истёк. Вернитесь на сайт Аделии и начните регистрацию заново 💜'
-        elif code == 'wrong_channel':
-            text = 'Этот код создан для другого способа подключения. Вернитесь на сайт и выберите VK.'
+        if kind == 'TRIAL':
+            if code in {'trial_link_expired','trial_link_not_found'}:
+                text = 'Код пробного истёк. Вернитесь на сайт Аделии и создайте новую привязку 💜'
+            elif code == 'wrong_channel':
+                text = 'Этот код создан для другого способа подключения. Вернитесь на сайт и выберите VK.'
+            else:
+                text = 'Не удалось подключить VK к пробному. Проверьте код и попробуйте ещё раз.'
         else:
-            text = 'Не удалось подтвердить VK. Проверьте код и попробуйте ещё раз.'
+            if code in {'onboarding_expired','onboarding_not_found'}:
+                text = 'Код регистрации истёк. Вернитесь на сайт Аделии и начните регистрацию заново 💜'
+            elif code == 'wrong_channel':
+                text = 'Этот код создан для другого способа подключения. Вернитесь на сайт и выберите VK.'
+            else:
+                text = 'Не удалось подтвердить VK. Проверьте код и попробуйте ещё раз.'
         app_module.send(peer_id, text, linked=False)
     except Exception as exc:
         print('VK ONBOARDING ERROR:', repr(exc), flush=True)
