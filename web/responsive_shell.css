@@ -1,96 +1,16 @@
 /* Adelia responsive application shell. Keeps feature screens intact. */
 :root{--adelia-sidebar:248px;--adelia-max:1180px}
-
-/* Dedicated auth screen. :has() is a CSS fallback if JS is cached/late. */
-body.adelia-auth-screen .bottom-nav,
-.app-shell:has(.auth-card) .bottom-nav{display:none!important}
-body.adelia-auth-screen .adelia-shell-actions,
-body.adelia-auth-screen #roleButton,
-.app-shell:has(.auth-card) .adelia-shell-actions,
-.app-shell:has(.auth-card) #roleButton{display:none!important}
-body.adelia-auth-screen .app-shell,
-body:has(.auth-card) .app-shell{max-width:none;min-height:100dvh;padding-bottom:0}
-body.adelia-auth-screen .topbar,
-body:has(.auth-card) .topbar{max-width:720px;margin:0 auto;padding-top:32px}
-body.adelia-auth-screen .content,
-body:has(.auth-card) .content{min-height:calc(100dvh - 96px);display:grid;place-items:start center;padding-top:30px}
-body.adelia-auth-screen .auth-card,
-body:has(.auth-card) .auth-card{width:min(460px,100%);margin:0;padding:28px;border-radius:26px;box-shadow:0 22px 60px rgba(52,35,87,.10)}
-body.adelia-auth-screen .auth-card h2,
-body:has(.auth-card) .auth-card h2{font-size:27px;letter-spacing:-.02em}
-body.adelia-auth-screen .auth-card input,
-body:has(.auth-card) .auth-card input{width:100%;min-height:50px}
-
-@media (min-width:900px){
-  body:not(.adelia-auth-screen):not(:has(.auth-card)){background:#f7f5fb}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .app-shell{max-width:none;width:100%;min-height:100dvh;padding:0 0 0 var(--adelia-sidebar)}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .topbar{height:92px;padding:22px 38px 16px;border-bottom:1px solid rgba(37,31,49,.06);background:rgba(247,245,251,.88);backdrop-filter:blur(18px);position:sticky;top:0;z-index:15}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .topbar>div:first-child{max-width:var(--adelia-max);width:100%;margin:0 auto}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .topbar .avatar-btn{margin-left:18px;flex:0 0 auto}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .content{width:min(var(--adelia-max),calc(100vw - var(--adelia-sidebar) - 72px));margin:0 auto;padding:30px 0 56px}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .bottom-nav{position:fixed;left:0;top:0;bottom:0;transform:none;width:var(--adelia-sidebar);display:flex;flex-direction:column;grid-template-columns:none;gap:6px;padding:118px 16px 24px;background:#fff;border:0;border-right:1px solid var(--line);border-radius:0;margin:0;z-index:30;box-shadow:8px 0 32px rgba(42,30,69,.035)}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .bottom-nav::before{content:'Аделия';position:absolute;left:26px;top:30px;font-size:23px;font-weight:900;color:var(--p);letter-spacing:-.03em}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .bottom-nav::after{content:'TutorBot';position:absolute;left:27px;top:60px;font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .nav-item{position:relative;display:flex;align-items:center;justify-content:flex-start;gap:13px;min-height:50px;width:100%;padding:0 14px;border-radius:14px;text-align:left;color:#746c80}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .nav-item span{width:25px;font-size:19px;text-align:center}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .nav-item small{font-size:14px;font-weight:750}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .nav-item.active{background:#f0ebfc;color:var(--p)}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .chat-nav-badge{right:12px;top:14px}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .quick-actions{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .action-card{min-height:150px;padding:20px}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .welcome{padding:28px 30px;border-radius:28px}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .welcome h2{font-size:30px}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .section{margin-top:30px}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .chat-shell,.student-chat-card{min-height:calc(100dvh - 160px)}
-}
-
-@media (min-width:1200px){
-  :root{--adelia-sidebar:264px}
-  body:not(.adelia-auth-screen):not(:has(.auth-card)) .content{width:min(1240px,calc(100vw - var(--adelia-sidebar) - 88px))}
-}
-
-/* Mobile: five-item dock only. Formula/events live inside 'More'. */
-@media (max-width:899px){
-  .app-shell{max-width:760px;padding-bottom:76px}
-  .topbar{padding:calc(15px + env(safe-area-inset-top)) 16px 10px;align-items:center}
-  .topbar h1{font-size:28px;margin-top:2px}
-  .eyebrow{font-size:11px}
-  .content{padding:6px 12px 22px}
-  .bottom-nav{width:100%;grid-template-columns:repeat(5,minmax(0,1fr));padding:5px 4px calc(5px + env(safe-area-inset-bottom));border-radius:0}
-  .bottom-nav [data-tab="formulas"],.bottom-nav [data-tab="events"]{display:none!important}
-  .nav-item{min-height:55px;padding:4px 1px}
-  .nav-item span{font-size:19px;line-height:1}
-  .nav-item small{font-size:10px;white-space:nowrap}
-  .quick-actions{grid-template-columns:1fr 1fr}
-
-  body.adelia-auth-screen .topbar,
-  body:has(.auth-card) .topbar{padding:calc(18px + env(safe-area-inset-top)) 18px 8px;max-width:520px}
-  body.adelia-auth-screen #pageTitle,
-  body:has(.auth-card) #pageTitle{font-size:26px;margin:2px 0 0}
-  body.adelia-auth-screen .content,
-  body:has(.auth-card) .content{min-height:auto;padding:12px 14px 28px;display:block}
-  body.adelia-auth-screen .auth-card,
-  body:has(.auth-card) .auth-card{width:100%;padding:20px 18px 18px;border-radius:22px;box-shadow:none}
-  body.adelia-auth-screen .auth-card h2,
-  body:has(.auth-card) .auth-card h2{font-size:23px;margin-top:8px}
-  body.adelia-auth-screen .auth-card>p,
-  body:has(.auth-card) .auth-card>p{font-size:15px;line-height:1.45;margin-bottom:16px}
-  body.adelia-auth-screen .form-primary,
-  body:has(.auth-card) .form-primary{min-height:50px}
-  body.adelia-auth-screen .code-input,
-  body:has(.auth-card) .code-input,
-  body.adelia-auth-screen .answer-input,
-  body:has(.auth-card) .answer-input{height:50px}
-}
-
-@media (max-width:390px){
-  .nav-item small{font-size:9px}
-  .nav-item span{font-size:18px}
-  .quick-actions{gap:8px}
-  .action-card{min-height:112px;padding:14px}
-}
-
-/* Native-feeling install instructions for iPhone/iPad. */
-.adelia-install-backdrop{position:fixed;inset:0;background:rgba(22,17,31,.45);backdrop-filter:blur(5px);z-index:9998;display:grid;align-items:end;justify-items:center;padding:16px}
-.adelia-install-sheet{width:min(480px,100%);background:#fff;border-radius:24px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.22);z-index:9999}
-.adelia-install-sheet h3{margin:0 0 8px;font-size:21px}.adelia-install-sheet p{margin:0;color:var(--muted);line-height:1.5}.adelia-install-steps{display:grid;gap:10px;margin:18px 0}.adelia-install-step{display:flex;gap:12px;align-items:center;padding:12px;background:#f7f4fe;border-radius:15px}.adelia-install-step b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#7048d8;color:#fff}.adelia-install-close{width:100%;min-height:48px;border:0;border-radius:14px;background:#7048d8;color:#fff;font-weight:800}
+body.adelia-auth-screen .bottom-nav,.app-shell:has(.auth-card) .bottom-nav{display:none!important}
+body.adelia-auth-screen .adelia-shell-actions,body.adelia-auth-screen #roleButton,.app-shell:has(.auth-card) .adelia-shell-actions,.app-shell:has(.auth-card) #roleButton{display:none!important}
+body.adelia-auth-screen .app-shell,body:has(.auth-card) .app-shell{max-width:none;min-height:100dvh;padding-bottom:0}
+body.adelia-auth-screen .topbar,body:has(.auth-card) .topbar{max-width:720px;margin:0 auto;padding-top:32px}
+body.adelia-auth-screen .content,body:has(.auth-card) .content{min-height:calc(100dvh - 96px);display:grid;place-items:start center;padding-top:30px}
+body.adelia-auth-screen .auth-card,body:has(.auth-card) .auth-card{width:min(460px,100%);margin:0;padding:28px;border-radius:26px;box-shadow:0 22px 60px rgba(52,35,87,.10)}
+body.adelia-auth-screen .auth-card h2,body:has(.auth-card) .auth-card h2{font-size:27px;letter-spacing:-.02em}
+body.adelia-auth-screen .auth-card input,body:has(.auth-card) .auth-card input{width:100%;min-height:50px}
+@media (min-width:900px){body:not(.adelia-auth-screen):not(:has(.auth-card)){background:#f7f5fb}body:not(.adelia-auth-screen):not(:has(.auth-card)) .app-shell{max-width:none;width:100%;min-height:100dvh;padding:0 0 0 var(--adelia-sidebar)}body:not(.adelia-auth-screen):not(:has(.auth-card)) .topbar{height:92px;padding:22px 38px 16px;border-bottom:1px solid rgba(37,31,49,.06);background:rgba(247,245,251,.88);backdrop-filter:blur(18px);position:sticky;top:0;z-index:15}body:not(.adelia-auth-screen):not(:has(.auth-card)) .topbar>div:first-child{max-width:var(--adelia-max);width:100%;margin:0 auto}body:not(.adelia-auth-screen):not(:has(.auth-card)) .topbar .avatar-btn{margin-left:18px;flex:0 0 auto}body:not(.adelia-auth-screen):not(:has(.auth-card)) .content{width:min(var(--adelia-max),calc(100vw - var(--adelia-sidebar) - 72px));margin:0 auto;padding:30px 0 56px}body:not(.adelia-auth-screen):not(:has(.auth-card)) .bottom-nav{position:fixed;left:0;top:0;bottom:0;transform:none;width:var(--adelia-sidebar);display:flex;flex-direction:column;grid-template-columns:none;gap:6px;padding:118px 16px 24px;background:#fff;border:0;border-right:1px solid var(--line);border-radius:0;margin:0;z-index:30;box-shadow:8px 0 32px rgba(42,30,69,.035)}body:not(.adelia-auth-screen):not(:has(.auth-card)) .bottom-nav::before{content:'Аделия';position:absolute;left:26px;top:30px;font-size:23px;font-weight:900;color:var(--p);letter-spacing:-.03em}body:not(.adelia-auth-screen):not(:has(.auth-card)) .bottom-nav::after{content:'TutorBot';position:absolute;left:27px;top:60px;font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}body:not(.adelia-auth-screen):not(:has(.auth-card)) .nav-item{position:relative;display:flex;align-items:center;justify-content:flex-start;gap:13px;min-height:50px;width:100%;padding:0 14px;border-radius:14px;text-align:left;color:#746c80}body:not(.adelia-auth-screen):not(:has(.auth-card)) .nav-item span{width:25px;font-size:19px;text-align:center}body:not(.adelia-auth-screen):not(:has(.auth-card)) .nav-item small{font-size:14px;font-weight:750}body:not(.adelia-auth-screen):not(:has(.auth-card)) .nav-item.active{background:#f0ebfc;color:var(--p)}body:not(.adelia-auth-screen):not(:has(.auth-card)) .quick-actions{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}body:not(.adelia-auth-screen):not(:has(.auth-card)) .welcome{padding:28px 30px;border-radius:28px}}
+@media (min-width:1200px){:root{--adelia-sidebar:264px}body:not(.adelia-auth-screen):not(:has(.auth-card)) .content{width:min(1240px,calc(100vw - var(--adelia-sidebar) - 88px))}}
+@media (max-width:899px){.app-shell{max-width:760px;padding-bottom:76px}.topbar{padding:calc(15px + env(safe-area-inset-top)) 16px 10px;align-items:center}.topbar h1{font-size:28px;margin-top:2px}.eyebrow{font-size:11px}.content{padding:6px 12px 22px}.bottom-nav{width:100%;grid-template-columns:repeat(5,minmax(0,1fr));padding:5px 4px calc(5px + env(safe-area-inset-bottom));border-radius:0}.bottom-nav [data-tab="formulas"],.bottom-nav [data-tab="events"]{display:none!important}.nav-item{min-height:55px;padding:4px 1px}.nav-item span{font-size:19px;line-height:1}.nav-item small{font-size:10px;white-space:nowrap}.quick-actions{grid-template-columns:1fr 1fr}body.adelia-auth-screen .topbar,body:has(.auth-card) .topbar{padding:calc(18px + env(safe-area-inset-top)) 18px 8px;max-width:520px}body.adelia-auth-screen #pageTitle,body:has(.auth-card) #pageTitle{font-size:26px;margin:2px 0 0}body.adelia-auth-screen .content,body:has(.auth-card) .content{min-height:auto;padding:12px 14px 28px;display:block}body.adelia-auth-screen .auth-card,body:has(.auth-card) .auth-card{width:100%;padding:20px 18px 18px;border-radius:22px;box-shadow:none}body.adelia-auth-screen .auth-card h2,body:has(.auth-card) .auth-card h2{font-size:23px;margin-top:8px}body.adelia-auth-screen .auth-card>p,body:has(.auth-card) .auth-card>p{font-size:15px;line-height:1.45;margin-bottom:16px}}
+@media (max-width:390px){.nav-item small{font-size:9px}.nav-item span{font-size:18px}.quick-actions{gap:8px}.action-card{min-height:112px;padding:14px}}
+.adelia-install-backdrop,.adelia-onboarding-backdrop{position:fixed;inset:0;background:rgba(22,17,31,.45);backdrop-filter:blur(5px);z-index:9998;display:grid;align-items:end;justify-items:center;padding:16px}.adelia-install-sheet{width:min(480px,100%);background:#fff;border-radius:24px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.22)}.adelia-install-sheet h3{margin:0 0 8px;font-size:21px}.adelia-install-sheet p{margin:0;color:var(--muted);line-height:1.5}.adelia-install-steps{display:grid;gap:10px;margin:18px 0}.adelia-install-step{display:flex;gap:12px;align-items:center;padding:12px;background:#f7f4fe;border-radius:15px}.adelia-install-step b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#7048d8;color:#fff}.adelia-install-close{width:100%;min-height:48px;border:0;border-radius:14px;background:#7048d8;color:#fff;font-weight:800}
+.adelia-onboarding-backdrop{align-items:center;overflow:auto}.adelia-onboarding-card{width:min(520px,100%);max-height:calc(100dvh - 32px);overflow:auto;background:#fff;border-radius:28px;padding:26px;box-shadow:0 30px 90px rgba(24,15,42,.28)}.adelia-onboarding-brand{font-size:13px;font-weight:850;color:#7048d8}.adelia-onboarding-card h2{font-size:26px;margin:7px 0}.adelia-onboarding-card>p{color:#81788d;line-height:1.45;margin:0 0 18px}.adelia-onboarding-card>label:not(.adelia-onboarding-online){display:block;font-size:13px;font-weight:800;margin:15px 0 7px}.adelia-onboarding-card>input{box-sizing:border-box;width:100%;height:50px;border:1px solid #ddd7e8;border-radius:14px;padding:0 14px;font:inherit}.adelia-onboarding-avatars{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.adelia-onboarding-avatar{aspect-ratio:1;border:3px solid transparent;border-radius:50%;padding:2px;background:#f5f1fc;overflow:hidden;cursor:pointer}.adelia-onboarding-avatar img{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}.adelia-onboarding-avatar.selected{border-color:#7048d8;box-shadow:0 0 0 3px #eee8ff}.adelia-onboarding-online{display:flex;align-items:center;gap:9px;margin:18px 0;font-size:13px}.adelia-onboarding-save{width:100%;min-height:50px;border:0;border-radius:15px;background:#7048d8;color:#fff;font:inherit;font-weight:850}.adelia-onboarding-save:disabled{opacity:.55}.adelia-onboarding-error{min-height:18px;margin-top:8px;text-align:center;color:#b42318;font-size:12px}@media(max-width:520px){.adelia-onboarding-backdrop{padding:0;align-items:end}.adelia-onboarding-card{width:100%;max-height:92dvh;border-radius:26px 26px 0 0;padding:22px 18px calc(22px + env(safe-area-inset-bottom))}.adelia-onboarding-avatars{gap:8px}.adelia-onboarding-card h2{font-size:23px}}
