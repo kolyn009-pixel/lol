@@ -1,13 +1,13 @@
-"""Adelia web API v6: auth verification, public trial slots and onboarding."""
+"""Adelia web API v6: auth verification, public trial slots, onboarding and request center."""
 from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
 from web_backend import api as v1
-from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_slots,student_onboarding
+from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_slots,student_onboarding,teacher_request_center
 from web_backend.stage12_indexes import ensure_indexes
 from web_backend.student_auth import peek_student_login_code
 class Handler(api_v5.Handler):
- server_version='AdeliaWeb/6.2'
+ server_version='AdeliaWeb/6.3'
  def do_GET(self):
   u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
   if path=='/api/public/trial/slots':
@@ -18,6 +18,11 @@ class Handler(api_v5.Handler):
    try:return self._json(200,student_onboarding.status_payload(q.get('token',[''])[0]))
    except ValueError as exc:return self._json(404 if str(exc)=='onboarding_not_found' else 409,{'error':str(exc)})
    except Exception as exc:print('[web-api] onboarding status error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
+  if path=='/api/teacher/requests':
+   teacher=self._teacher()
+   if not teacher:return self._json(401,{'error':'unauthorized'})
+   try:return self._json(200,teacher_request_center.list_all(q.get('limit',['100'])[0]))
+   except Exception as exc:print('[web-api] teacher requests error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
   return super().do_GET()
  def do_POST(self):
   path=urlparse(self.path).path
@@ -46,8 +51,19 @@ class Handler(api_v5.Handler):
     return self._json(404,{'error':'not_found'})
    except ValueError as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
    except Exception as exc:print('[web-api] onboarding POST error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+  if path in {'/api/teacher/request/lesson/approve','/api/teacher/request/lesson/reject'}:
+   teacher=self._teacher()
+   if not teacher:return self._json(401,{'error':'unauthorized'})
+   if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+   body=self._body()
+   if body is None:return self._json(400,{'error':'invalid_json'})
+   try:
+    if path.endswith('/approve'):return self._json(200,teacher_request_center.approve_lesson(body.get('lesson_id')))
+    return self._json(200,teacher_request_center.reject_lesson(body.get('lesson_id'),body.get('reason')))
+   except ValueError as exc:return self._json(409,{'error':str(exc)})
+   except Exception as exc:print('[web-api] teacher request action error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
   return super().do_POST()
 def main():
  if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
- ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();print(f'Adelia web API v6.2 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+ ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();print(f'Adelia web API v6.3 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
