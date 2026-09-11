@@ -40,7 +40,6 @@ def _validate_credential_change(student_id,login,password):
  if owner and int(owner['student_id'])!=student_id:raise ValueError('login_taken')
  return login,password
 def _ensure_social_profile(student_id):
- # Imported lazily to keep auth bootstrap independent from optional app UI code.
  from web_backend import student_social_profile
  student_social_profile.ensure_schema();student_social_profile.public_profile(int(student_id),viewer_id=int(student_id))
 def set_student_credentials(student_id,login,password,revoke_existing=True):
@@ -73,6 +72,11 @@ def _peek_plain_code(code):
  if not row or row['used_at']:return {'status':'invalid','student':None}
  if datetime.fromisoformat(row['expires_at'])<datetime.now():return {'status':'expired','student':None}
  return {'status':'ok','code_id':int(row['code_id']),'student':{'id':int(row['id']),'name':row['name'],'telegram_username':row['telegram_username'],'grade':row['grade']}}
+def peek_student_login_code(code):
+ """Validate a one-time code without consuming it; used by two-step onboarding."""
+ result=_peek_plain_code(code)
+ if result.get('status')!='ok':return {'status':result.get('status','invalid'),'student':None}
+ return {'status':'ok','student':result['student']}
 def _consume_plain_code(code):
  result=_peek_plain_code(code)
  if result.get('status')!='ok':return result
