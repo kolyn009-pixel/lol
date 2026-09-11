@@ -15,9 +15,21 @@
     const install=document.createElement('button');install.id='installAdelia';install.type='button';install.className='shell-action';install.textContent='＋ Установить';
     const logout=document.createElement('button');logout.id='logoutAdelia';logout.type='button';logout.className='shell-action';logout.textContent='Выйти';
     box.append(install,logout);host.append(box);
-    const refresh=()=>{install.hidden=window.AdeliaPWA?.isStandalone?.()||!window.AdeliaPWA?.canInstall?.()};refresh();
+    // Always expose the action outside standalone mode. Chromium will enable the native
+    // prompt when ready; iOS and unsupported browsers get clear manual instructions.
+    const refresh=()=>{install.hidden=!!window.AdeliaPWA?.isStandalone?.()};refresh();
     window.addEventListener('adelia:pwa-state',refresh);
-    install.onclick=async()=>{const result=await window.AdeliaPWA?.install?.();if(result?.status==='manual'&&result.message)showInstallHint(result.message);refresh()};
+    install.onclick=async()=>{
+      const result=await window.AdeliaPWA?.install?.();
+      if(result?.status==='manual'&&result.message)showInstallHint(result.message);
+      else if(result?.status==='unavailable')showInstallHint('Откройте меню браузера и выберите «Установить приложение» или «Добавить на главный экран».');
+      refresh();
+    };
+    async function authState(){
+      try{const d=await api('/auth/me');logout.hidden=!d.authenticated;document.body.classList.toggle('adelia-auth-screen',!d.authenticated)}catch{logout.hidden=true}
+    }
+    authState();
+    window.addEventListener('adelia:student-authenticated',authState);
     logout.onclick=async()=>{logout.disabled=true;try{await api('/auth/logout',{method:'POST',body:'{}'})}catch{}location.replace('/app/')};
   }
   function deepLink(){
