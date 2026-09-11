@@ -18,6 +18,7 @@ from telegram.ext import CallbackQueryHandler
 import database
 from core import admin_roles
 from web_backend.parent_auth import create_parent_login_code
+from web_backend.teacher_auth import issue_teacher_login_code
 
 SITE_URL = "https://adeliatutor.ru"
 TTL_MINUTES = 10
@@ -38,17 +39,6 @@ def ensure_tables():
         );
         CREATE INDEX IF NOT EXISTS idx_student_web_login_code
             ON student_web_login_codes(code);
-
-        CREATE TABLE IF NOT EXISTS teacher_web_login_codes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_telegram_id INTEGER NOT NULL,
-            code TEXT UNIQUE NOT NULL,
-            expires_at TEXT NOT NULL,
-            used_at TEXT,
-            created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_teacher_web_code
-            ON teacher_web_login_codes(code);
         """
     )
     conn.commit()
@@ -84,23 +74,8 @@ def issue_student_code(student_id: int) -> str:
 
 
 def issue_teacher_code(telegram_id: int) -> str:
-    ensure_tables(); telegram_id = int(telegram_id)
-    if not admin_roles.is_admin_id(telegram_id):
-        raise PermissionError("not_admin")
-    conn = database.connect()
-    conn.execute(
-        "UPDATE teacher_web_login_codes SET used_at=? WHERE admin_telegram_id=? AND used_at IS NULL",
-        (database.now_iso(), telegram_id),
-    )
-    while True:
-        code = _code()
-        if not conn.execute("SELECT 1 FROM teacher_web_login_codes WHERE code=?", (code,)).fetchone():
-            break
-    conn.execute(
-        "INSERT INTO teacher_web_login_codes(admin_telegram_id,code,expires_at,created_at) VALUES(?,?,?,?)",
-        (telegram_id, code, _expiry(), database.now_iso()),
-    )
-    conn.commit(); conn.close(); return code
+    """Use the canonical teacher auth issuer so the website can validate it."""
+    return issue_teacher_login_code(int(telegram_id), ttl_minutes=TTL_MINUTES)
 
 
 def _copy_button(code: str):
@@ -146,8 +121,6 @@ def _code_markup(code: str, role: str):
 
 
 async def _send_code_message(q, title: str, code: str, role: str, extra: str = ""):
-    # Important: use a new message instead of editing the main-menu message.
-    # This keeps the code visible even when the home menu is refreshed later.
     text = (
         f"{title}\n\n"
         f"Код для входа:\n`{code}`\n\n"
