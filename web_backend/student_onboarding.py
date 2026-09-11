@@ -31,8 +31,7 @@ def ensure_schema():
  rcols={r['name'] for r in c.execute('PRAGMA table_info(regular_schedules)').fetchall()}
  for name,kind in {'onboarding_session_id':'INTEGER','student_timezone':'TEXT','student_local_weekday':'TEXT','student_local_start_time':'TEXT'}.items():
   if name not in rcols:c.execute(f'ALTER TABLE regular_schedules ADD COLUMN {name} {kind}')
- c.execute('CREATE INDEX IF NOT EXISTS idx_regular_onboarding_session ON regular_schedules(onboarding_session_id,status)')
- c.commit();c.close()
+ c.execute('CREATE INDEX IF NOT EXISTS idx_regular_onboarding_session ON regular_schedules(onboarding_session_id,status)');c.commit();c.close()
 def _row(token):
  ensure_schema();c=database.connect();r=c.execute('SELECT * FROM student_onboarding_sessions WHERE token=? LIMIT 1',(_clean(token,80).upper(),)).fetchone();c.close();return dict(r) if r else None
 def _active(row):
@@ -78,12 +77,19 @@ def start_returning(preferred_channel,profile_url=None,name=None,grade=None,subj
  if grade<1 or grade>14:raise ValueError('invalid_grade')
  token=_token();now=_now();expires=now+timedelta(minutes=SESSION_TTL_MINUTES);c=database.connect();c.execute("""INSERT INTO student_onboarding_sessions(token,mode,preferred_channel,claimed_profile_url,status,name,grade,subject,study_goal,phone,legacy_note,created_at,updated_at,expires_at) VALUES(?,'RETURNING',?,?,'WAIT_CHANNEL',?,?,?,?,?,?,?,?,?)""",(token,channel,_clean(profile_url,500) or None,name,grade,_subject(subject),_goal(study_goal),_clean(phone,40) or None,_clean(legacy_note,600) or None,_iso(now),_iso(now),_iso(expires)));c.commit();c.close();return {'token':token,'preferred_channel':channel,'telegram_url':f'{TG_BOT_URL}?start=join_{token}','vk_url':VK_MESSAGES_URL,'vk_code':token,'expires_at':_iso(expires)}
 def confirm_channel(token,channel,external_id,username=None,display_name=None):
- row=_active(_row(token));channel=_clean(channel,20).upper()
+ row=_active(_row(token));channel=_clean(channel,20).upper();external_id=_clean(external_id,100)
  if channel!=_clean(row.get('preferred_channel'),20).upper():raise ValueError('wrong_channel')
+ existing_external=_clean(row.get('external_id'),100)
+ if existing_external and existing_external!=external_id:raise ValueError('onboarding_identity_locked')
+ if row.get('status')=='COMPLETED':
+  if existing_external==external_id:return status_payload(token)
+  raise ValueError('onboarding_completed')
+ if existing_external==external_id and row.get('linked_user_id') and row.get('status') in {'CHANNEL_VERIFIED','REGION_SET','SCHEDULE_SET'}:
+  _bind_identity(int(row['linked_user_id']),channel,external_id,username,display_name);return status_payload(token)
  uid=_find_existing_user(channel,external_id);created=0
- if not uid:uid=_create_provisional(row,channel,str(external_id),username,display_name);created=1
- else:_bind_identity(uid,channel,str(external_id),username,display_name)
- c=database.connect();c.execute("UPDATE student_onboarding_sessions SET status='CHANNEL_VERIFIED',external_id=?,external_username=?,external_display_name=?,linked_user_id=?,provisional_user_created=?,updated_at=? WHERE id=?",(_clean(external_id,100),_clean(username,100) or None,_clean(display_name,160) or None,int(uid),created,_iso(),int(row['id'])));c.commit();c.close();return status_payload(token)
+ if not uid:uid=_create_provisional(row,channel,external_id,username,display_name);created=1
+ else:_bind_identity(uid,channel,external_id,username,display_name)
+ c=database.connect();c.execute("UPDATE student_onboarding_sessions SET status='CHANNEL_VERIFIED',external_id=?,external_username=?,external_display_name=?,linked_user_id=?,provisional_user_created=?,updated_at=? WHERE id=?",(external_id,_clean(username,100) or None,_clean(display_name,160) or None,int(uid),created,_iso(),int(row['id'])));c.commit();c.close();return status_payload(token)
 def save_region(token,region,timezone):
  row=_active(_row(token))
  if row['status'] not in {'CHANNEL_VERIFIED','REGION_SET','SCHEDULE_SET'}:raise ValueError('channel_not_verified')
@@ -97,13 +103,9 @@ def _teacher_slot(local_day,local_time,student_timezone):
  try:hh,mm=[int(x) for x in local_time.split(':',1)]
  except Exception:raise ValueError('invalid_time')
  if not (0<=hh<=23 and 0<=mm<=59):raise ValueError('invalid_time')
- teacher_tz_name=database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara'
- stz=ZoneInfo(student_timezone);ttz=ZoneInfo(teacher_tz_name)
- now=datetime.now(stz);delta=(DAY_MAP[local_day]-now.weekday())%7
- ref=(now+timedelta(days=delta)).replace(hour=hh,minute=mm,second=0,microsecond=0)
+ teacher_tz_name=database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara';stz=ZoneInfo(student_timezone);ttz=ZoneInfo(teacher_tz_name);now=datetime.now(stz);delta=(DAY_MAP[local_day]-now.weekday())%7;ref=(now+timedelta(days=delta)).replace(hour=hh,minute=mm,second=0,microsecond=0)
  if ref<=now:ref+=timedelta(days=7)
- converted=ref.astimezone(ttz)
- return converted.weekday(),converted.strftime('%H:%M'),teacher_tz_name
+ converted=ref.astimezone(ttz);return converted.weekday(),converted.strftime('%H:%M'),teacher_tz_name
 def save_schedule(token,selections):
  row=_active(_row(token))
  if row['status'] not in {'REGION_SET','SCHEDULE_SET'}:raise ValueError('region_not_set')
@@ -112,8 +114,7 @@ def save_schedule(token,selections):
   if not isinstance(x,dict):continue
   day=_clean(x.get('weekday'),20).upper();time=_clean(x.get('time'),8);duration=int(x.get('duration_minutes') or 60)
   if day in DAY_MAP and time and 30<=duration<=180:
-   teacher_day,teacher_time,teacher_timezone=_teacher_slot(day,time,row['timezone'])
-   clean.append({'weekday':day,'time':time,'duration_minutes':duration,'teacher_weekday':teacher_day,'teacher_time':teacher_time,'teacher_timezone':teacher_timezone})
+   teacher_day,teacher_time,teacher_timezone=_teacher_slot(day,time,row['timezone']);clean.append({'weekday':day,'time':time,'duration_minutes':duration,'teacher_weekday':teacher_day,'teacher_time':teacher_time,'teacher_timezone':teacher_timezone})
  if not clean:raise ValueError('schedule_required')
  c=database.connect();c.execute("UPDATE student_onboarding_sessions SET schedule_json=?,status='SCHEDULE_SET',updated_at=? WHERE id=?",(json.dumps(clean,ensure_ascii=False),_iso(),int(row['id'])));c.commit();c.close();return status_payload(token)
 def _materialize_schedule_requests(row,uid):
@@ -122,21 +123,17 @@ def _materialize_schedule_requests(row,uid):
  if not values:return []
  now=_iso();created=[];c=database.connect()
  try:
-  c.execute('BEGIN IMMEDIATE')
-  existing={
-   (int(r['weekday']),str(r['start_time']),int(r['duration_minutes'])):int(r['id'])
-   for r in c.execute("SELECT id,weekday,start_time,duration_minutes FROM regular_schedules WHERE onboarding_session_id=? AND status IN ('PENDING','APPROVED')",(int(row['id']),)).fetchall()
-  }
+  c.execute('BEGIN IMMEDIATE');existing={(int(r['weekday']),str(r['start_time']),int(r['duration_minutes'])):int(r['id']) for r in c.execute("SELECT id,weekday,start_time,duration_minutes FROM regular_schedules WHERE onboarding_session_id=? AND status IN ('PENDING','APPROVED')",(int(row['id']),)).fetchall()}
   for item in values:
    day=int(item['teacher_weekday']);start=str(item['teacher_time']);duration=int(item['duration_minutes']);key=(day,start,duration)
    if key in existing:created.append(existing[key]);continue
-   cur=c.execute("""INSERT INTO regular_schedules(user_id,study_goal,subject,weekday,start_time,duration_minutes,active,student_approved,admin_approved,status,request_source,requested_at,created_at,updated_at,onboarding_session_id,student_timezone,student_local_weekday,student_local_start_time) VALUES(?,?,?,?,?,?,0,1,0,'PENDING','STUDENT',?,?,?,?,?,?,?)""",(int(uid),_goal(row.get('study_goal')),_subject(row.get('subject')),day,start,duration,now,now,now,int(row['id']),row.get('timezone'),item.get('weekday'),item.get('time')))
-   created.append(int(cur.lastrowid))
+   cur=c.execute("""INSERT INTO regular_schedules(user_id,study_goal,subject,weekday,start_time,duration_minutes,active,student_approved,admin_approved,status,request_source,requested_at,created_at,updated_at,onboarding_session_id,student_timezone,student_local_weekday,student_local_start_time) VALUES(?,?,?,?,?,?,0,1,0,'PENDING','STUDENT',?,?,?,?,?,?,?)""",(int(uid),_goal(row.get('study_goal')),_subject(row.get('subject')),day,start,duration,now,now,now,int(row['id']),row.get('timezone'),item.get('weekday'),item.get('time')));created.append(int(cur.lastrowid))
   c.commit()
  finally:c.close()
  return created
 def complete(token,login,password):
  row=_active(_row(token))
+ if row['status']=='COMPLETED' and row.get('linked_user_id'):raise ValueError('onboarding_already_completed')
  if row['status']!='SCHEDULE_SET' or not row.get('linked_user_id'):raise ValueError('onboarding_incomplete')
  uid=int(row['linked_user_id']);result=student_auth.set_student_credentials(uid,login,password,revoke_existing=True);request_ids=_materialize_schedule_requests(row,uid);now=_iso();c=database.connect();c.execute('UPDATE users SET active=1,updated_at=? WHERE id=?',(now,uid));c.execute("UPDATE student_onboarding_sessions SET status='COMPLETED',completed_at=?,updated_at=? WHERE id=?",(now,now,int(row['id'])));c.commit();c.close();session=web_sessions.create_session('student',uid);return {'status':'ok','user_id':uid,'login':result['login'],'session_token':session,'redirect':'/app/','schedule_request_ids':request_ids}
 def status_payload(token):
