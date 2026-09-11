@@ -34,7 +34,21 @@ def _ext(item):
  if suffix in {'.pdf','.jpg','.jpeg','.png','.webp'}:return suffix.lstrip('.')
  return {'DOCUMENT':'pdf','PHOTO':'jpg','PDF':'pdf','JPG':'jpg','JPEG':'jpeg','PNG':'png','WEBP':'webp'}.get(ft,'bin')
 def _receipt(rid):
- c=connect();cols={str(r['name']) for r in c.execute('PRAGMA table_info(receipts)').fetchall()};file_expr='telegram_file_id' if 'telegram_file_id' in cols else 'file_id';row=c.execute(f"SELECT r.id,r.payment_id,r.user_id,r.file_id,{file_expr} AS telegram_file_id,r.source_platform,r.file_type,r.created_at,u.name FROM receipts r JOIN users u ON u.id=r.user_id WHERE r.id=? LIMIT 1",(int(rid),)).fetchone();c.close();return dict(row) if row else None
+ c=connect()
+ try:
+  cols={str(r['name']) for r in c.execute('PRAGMA table_info(receipts)').fetchall()}
+  # Receipt schemas evolved across Telegram/VK/web intake. Never reference a
+  # column that is absent: an exception here used to skip c.close() and leak
+  # two SQLite/WAL descriptors on every worker poll.
+  if 'file_id' in cols:file_expr='r.file_id'
+  elif 'telegram_file_id' in cols:file_expr='r.telegram_file_id'
+  elif 'file_path' in cols:file_expr='r.file_path'
+  elif 'attachment_url' in cols:file_expr='r.attachment_url'
+  else:file_expr="''"
+  telegram_expr='r.telegram_file_id' if 'telegram_file_id' in cols else file_expr
+  row=c.execute(f"SELECT r.id,r.payment_id,r.user_id,{file_expr} AS file_id,{telegram_expr} AS telegram_file_id,r.source_platform,r.file_type,r.created_at,u.name FROM receipts r JOIN users u ON u.id=r.user_id WHERE r.id=? LIMIT 1",(int(rid),)).fetchone()
+  return dict(row) if row else None
+ finally:c.close()
 def _bounded_http_bytes(url,timeout=30):
  parsed=urlparse(str(url or ''))
  if parsed.scheme!='https' or not parsed.netloc:raise RuntimeError('receipt_remote_url_invalid')
