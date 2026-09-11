@@ -67,14 +67,12 @@ def _clean(value,limit): return re.sub(r'\s+',' ',str(value or '').strip())[:lim
 def _code_hash(code): return hashlib.sha256(str(code).strip().upper().encode('utf-8')).hexdigest()
 
 def _new_code():
-    # Human-friendly, one-time, case-insensitive code; raw value is never stored.
     alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
     return ''.join(secrets.choice(alphabet) for _ in range(8))
 
 
 def create(name,telegram=None,phone=None,subject=None,study_goal=None,preferred_time=None,note=None,grade=None,source='WEB',contact=None):
     ensure_schema();name=_clean(name,MAX_NAME);telegram=_clean(telegram,MAX_TELEGRAM) or None;phone=_clean(phone,MAX_PHONE) or None
-    # Backward compatibility for the old single contact field.
     legacy=_clean(contact,160) or None
     if not telegram and not phone and legacy:
         telegram=legacy
@@ -85,7 +83,7 @@ def create(name,telegram=None,phone=None,subject=None,study_goal=None,preferred_
     now=_now();expires=now+timedelta(days=RETENTION_DAYS)
     c=database.connect();cur=c.execute("""INSERT INTO public_trial_requests(
       name,contact,telegram,phone,grade,subject,study_goal,preferred_time,note,status,source,created_at,updated_at,expires_at)
-      VALUES(?,?,?,?,?,?,?,?,?,'NEW',?,?,?,?,?)""",
+      VALUES(?,?,?,?,?,?,?,?,?,'NEW',?,?,?,?)""",
       (name,legacy,telegram,phone,grade,subject,study_goal,preferred_time,note,str(source or 'WEB')[:20],_iso(now),_iso(now),_iso(expires)))
     rid=cur.lastrowid;c.commit();c.close()
     try:
@@ -113,7 +111,6 @@ def list_for_teacher(status=None,limit=100):
 
 
 def approve(request_id,reviewer_id,trial_start,trial_end,meeting_url=None,board_url=None):
-    """Approve the temporary student and prepare links that the teacher can forward."""
     ensure_schema();row=get(request_id)
     if not row:raise ValueError('request_not_found')
     if row['status'] not in {'NEW','CONTACTED','ACCEPTED'}:raise ValueError('request_not_actionable')
@@ -139,7 +136,6 @@ def teacher_share_payload(request_id):
 
 
 def finish_trial(request_id,finished_at=None):
-    """Finish trial and always issue a fresh one-time continuation code."""
     ensure_schema();row=get(request_id)
     if not row:raise ValueError('request_not_found')
     if row['status'] not in {'ACCEPTED','TRIAL_COMPLETED'}:raise ValueError('trial_not_accepted')
@@ -160,7 +156,6 @@ def validate_continuation_code(code):
 
 
 def mark_converted(code,user_id):
-    """Consume code only after canonical user registration succeeds."""
     ensure_schema();h=_code_hash(code);now=_iso(_now());c=database.connect();r=c.execute("""SELECT id FROM public_trial_requests WHERE continuation_code_hash=? AND continuation_code_used_at IS NULL AND continuation_code_expires_at>? AND status='TRIAL_COMPLETED' LIMIT 1""",(h,now)).fetchone()
     if not r:c.close();raise ValueError('invalid_or_expired_code')
     c.execute("""UPDATE public_trial_requests SET status='CONVERTED',continuation_code_used_at=?,converted_user_id=?,updated_at=?,expires_at=? WHERE id=?""",(now,int(user_id),now,now,int(r['id'])))
@@ -177,7 +172,6 @@ def set_status(request_id,status,reviewer_id=None):
 
 
 def cleanup_expired(now=None):
-    """Purge temporary PII when the applicant never completes onboarding."""
     ensure_schema();now=now or _now();stamp=_iso(now);c=database.connect()
     rows=c.execute("""SELECT id FROM public_trial_requests WHERE purged_at IS NULL AND converted_user_id IS NULL AND expires_at IS NOT NULL AND expires_at<=?""",(stamp,)).fetchall()
     ids=[int(r['id']) for r in rows]
