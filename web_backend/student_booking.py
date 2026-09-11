@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 import database
+from web_backend import availability_guard
 
 STEP_MINUTES = 30
 DEFAULT_DURATION = 60
@@ -35,7 +36,6 @@ def programs(user_id):
 
 
 def _has_paid_booking(user_id):
-    """Any non-trial lesson request means the student already chose paid onboarding."""
     conn = database.connect()
     row = conn.execute("""
         SELECT 1 FROM lessons
@@ -78,7 +78,7 @@ def free_slots(user_id, program_id, days=14, duration_minutes=DEFAULT_DURATION):
             cur = start
             while cur + timedelta(minutes=duration) <= end:
                 finish = cur + timedelta(minutes=duration)
-                if cur > now and not database.is_slot_reserved(cur.isoformat(), finish.isoformat()):
+                if cur > now and availability_guard.is_available(cur, finish):
                     values.append({'start_time': cur.isoformat(), 'end_time': finish.isoformat(), 'label': cur.strftime('%H:%M')})
                 cur += timedelta(minutes=STEP_MINUTES)
         if values:
@@ -102,6 +102,7 @@ def _request(user_id, program_id, start_time, duration_minutes, is_trial):
     if start <= datetime.now():
         raise ValueError('slot_in_past')
     end = start + timedelta(minutes=duration)
+    availability_guard.assert_available(start, end)
     allowed = False
     for day in free_slots(user_id, program_id, days=31, duration_minutes=duration):
         if any(s['start_time'] == start.isoformat() for s in day['slots']):
