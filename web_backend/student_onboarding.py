@@ -10,11 +10,9 @@ from datetime import datetime,timedelta
 import json,secrets,string
 import database
 from web_backend import student_auth,web_sessions
-
 SESSION_TTL_MINUTES=60
 TG_BOT_URL='https://t.me/AdeliaTutorBot'
 VK_MESSAGES_URL='https://vk.me/club241263797'
-
 def _now():return datetime.now()
 def _iso(dt=None):return (dt or _now()).isoformat(timespec='seconds')
 def _token(prefix='JOIN'):
@@ -24,10 +22,8 @@ def _goal(v):
  x=_clean(v,80).upper();m={'ПОДГОТОВКА К ОГЭ':'OGE','ОГЭ':'OGE','ПОДГОТОВКА К ЕГЭ':'EGE','ЕГЭ':'EGE','ОЛИМПИАДНАЯ ФИЗИКА':'OLYMPIAD','ОЛИМПИАДНАЯ ПОДГОТОВКА':'OLYMPIAD','ШКОЛЬНАЯ ПРОГРАММА':'SCHOOL','ПОВЫСИТЬ УСПЕВАЕМОСТЬ':'SCHOOL','ПОВЫШЕНИЕ УСПЕВАЕМОСТИ':'SCHOOL'};return m.get(x,x if x in {'OGE','EGE','OLYMPIAD','SCHOOL'} else 'SCHOOL')
 def _subject(v):
  x=_clean(v,80).upper();return 'CHEMISTRY' if x in {'ХИМИЯ','CHEMISTRY'} else 'PHYSICS'
-
 def ensure_schema():
- c=database.connect();c.executescript("""CREATE TABLE IF NOT EXISTS student_onboarding_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT,token TEXT NOT NULL UNIQUE,mode TEXT NOT NULL DEFAULT 'RETURNING',preferred_channel TEXT,claimed_profile_url TEXT,status TEXT NOT NULL DEFAULT 'WAIT_CHANNEL',external_id TEXT,external_username TEXT,external_display_name TEXT,linked_user_id INTEGER,region TEXT,timezone TEXT,schedule_json TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,expires_at TEXT NOT NULL,completed_at TEXT,FOREIGN KEY(linked_user_id) REFERENCES users(id) ON DELETE SET NULL);CREATE INDEX IF NOT EXISTS idx_student_onboarding_token ON student_onboarding_sessions(token);CREATE INDEX IF NOT EXISTS idx_student_onboarding_status ON student_onboarding_sessions(status,expires_at);""")
- cols={r['name'] for r in c.execute('PRAGMA table_info(student_onboarding_sessions)').fetchall()}
+ c=database.connect();c.executescript("""CREATE TABLE IF NOT EXISTS student_onboarding_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT,token TEXT NOT NULL UNIQUE,mode TEXT NOT NULL DEFAULT 'RETURNING',preferred_channel TEXT,claimed_profile_url TEXT,status TEXT NOT NULL DEFAULT 'WAIT_CHANNEL',external_id TEXT,external_username TEXT,external_display_name TEXT,linked_user_id INTEGER,region TEXT,timezone TEXT,schedule_json TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,expires_at TEXT NOT NULL,completed_at TEXT,FOREIGN KEY(linked_user_id) REFERENCES users(id) ON DELETE SET NULL);CREATE INDEX IF NOT EXISTS idx_student_onboarding_token ON student_onboarding_sessions(token);CREATE INDEX IF NOT EXISTS idx_student_onboarding_status ON student_onboarding_sessions(status,expires_at);""");cols={r['name'] for r in c.execute('PRAGMA table_info(student_onboarding_sessions)').fetchall()}
  for name,kind in {'name':'TEXT','grade':'INTEGER','subject':'TEXT','study_goal':'TEXT','phone':'TEXT','legacy_note':'TEXT','provisional_user_created':'INTEGER DEFAULT 0'}.items():
   if name not in cols:c.execute(f'ALTER TABLE student_onboarding_sessions ADD COLUMN {name} {kind}')
  c.commit();c.close()
@@ -37,6 +33,8 @@ def _active(row):
  if not row:raise ValueError('onboarding_not_found')
  if datetime.fromisoformat(row['expires_at'])<_now():raise ValueError('onboarding_expired')
  return row
+def pending_for_external(channel,external_id):
+ ensure_schema();c=database.connect();r=c.execute("SELECT * FROM student_onboarding_sessions WHERE preferred_channel=? AND external_id=? AND status!='COMPLETED' AND expires_at>? ORDER BY id DESC LIMIT 1",(_clean(channel,20).upper(),_clean(external_id,100),_iso())).fetchone();c.close();return dict(r) if r else None
 def _find_existing_user(channel,external_id):
  channel=_clean(channel,20).upper();external_id=_clean(external_id,100);c=database.connect()
  try:
@@ -51,10 +49,8 @@ def _find_existing_user(channel,external_id):
 def _bind_identity(uid,channel,external_id,username=None,display_name=None):
  channel=_clean(channel,20).upper();external_id=_clean(external_id,100);now=_iso();c=database.connect()
  try:
-  if channel=='TELEGRAM':
-   c.execute('UPDATE users SET telegram_id=?,telegram_username=COALESCE(?,telegram_username),updated_at=? WHERE id=?',(int(external_id),_clean(username,100) or None,now,int(uid)))
-  try:
-   c.execute("""INSERT INTO channel_identities(user_id,channel,external_id,username,display_name,enabled,created_at,updated_at) VALUES(?,?,?,?,?,1,?,?) ON CONFLICT(user_id,channel) DO UPDATE SET external_id=excluded.external_id,username=excluded.username,display_name=excluded.display_name,enabled=1,blocked_at=NULL,updated_at=excluded.updated_at""",(int(uid),channel,external_id,_clean(username,100) or None,_clean(display_name,160) or None,now,now))
+  if channel=='TELEGRAM':c.execute('UPDATE users SET telegram_id=?,telegram_username=COALESCE(?,telegram_username),updated_at=? WHERE id=?',(int(external_id),_clean(username,100) or None,now,int(uid)))
+  try:c.execute("""INSERT INTO channel_identities(user_id,channel,external_id,username,display_name,enabled,created_at,updated_at) VALUES(?,?,?,?,?,1,?,?) ON CONFLICT(user_id,channel) DO UPDATE SET external_id=excluded.external_id,username=excluded.username,display_name=excluded.display_name,enabled=1,blocked_at=NULL,updated_at=excluded.updated_at""",(int(uid),channel,external_id,_clean(username,100) or None,_clean(display_name,160) or None,now,now))
   except Exception:pass
   c.commit()
  finally:c.close()
@@ -63,14 +59,9 @@ def _create_provisional(row,channel,external_id,username=None,display_name=None)
  if len(name)<2 or grade<1:raise ValueError('student_identity_incomplete')
  now=_iso();c=database.connect()
  try:
-  c.execute('BEGIN IMMEDIATE')
-  tg=int(external_id) if channel=='TELEGRAM' else None
-  cur=c.execute("""INSERT INTO users(telegram_id,telegram_username,name,grade,phone,study_goal,main_subject,trial_used,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,0,0,?,?)""",(tg,_clean(username,100) or None if tg else None,name,grade,_clean(row.get('phone'),40) or None,goal,subject,now,now));uid=int(cur.lastrowid)
-  c.execute("""INSERT OR IGNORE INTO student_programs(user_id,study_goal,subject,is_primary,active,approval_status,trial_used,created_by,created_at) VALUES(?,?,?,1,1,'APPROVED',0,'RETURNING_ONBOARDING',?)""",(uid,goal,subject,now))
-  c.commit()
+  c.execute('BEGIN IMMEDIATE');tg=int(external_id) if channel=='TELEGRAM' else None;cur=c.execute("""INSERT INTO users(telegram_id,telegram_username,name,grade,phone,study_goal,main_subject,trial_used,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,0,0,?,?)""",(tg,(_clean(username,100) or None) if tg else None,name,grade,_clean(row.get('phone'),40) or None,goal,subject,now,now));uid=int(cur.lastrowid);c.execute("""INSERT OR IGNORE INTO student_programs(user_id,study_goal,subject,is_primary,active,approval_status,trial_used,created_by,created_at) VALUES(?,?,?,1,1,'APPROVED',0,'RETURNING_ONBOARDING',?)""",(uid,goal,subject,now));c.commit()
  finally:c.close()
  _bind_identity(uid,channel,external_id,username,display_name);return uid
-
 def start_returning(preferred_channel,profile_url=None,name=None,grade=None,subject=None,study_goal=None,phone=None,legacy_note=None):
  ensure_schema();channel=_clean(preferred_channel,20).upper()
  if channel not in {'TELEGRAM','VK'}:raise ValueError('invalid_channel')
@@ -79,7 +70,7 @@ def start_returning(preferred_channel,profile_url=None,name=None,grade=None,subj
  try:grade=int(grade)
  except Exception:raise ValueError('grade_required')
  if grade<1 or grade>14:raise ValueError('invalid_grade')
- token=_token();now=_now();expires=now+timedelta(minutes=SESSION_TTL_MINUTES);c=database.connect();c.execute("""INSERT INTO student_onboarding_sessions(token,mode,preferred_channel,claimed_profile_url,status,name,grade,subject,study_goal,phone,legacy_note,created_at,updated_at,expires_at) VALUES(?,'RETURNING',?,?, 'WAIT_CHANNEL',?,?,?,?,?,?,?, ?,?)""",(token,channel,_clean(profile_url,500) or None,name,grade,_subject(subject),_goal(study_goal),_clean(phone,40) or None,_clean(legacy_note,600) or None,_iso(now),_iso(now),_iso(expires)));c.commit();c.close();return {'token':token,'preferred_channel':channel,'telegram_url':f'{TG_BOT_URL}?start=join_{token}','vk_url':VK_MESSAGES_URL,'vk_code':token,'expires_at':_iso(expires)}
+ token=_token();now=_now();expires=now+timedelta(minutes=SESSION_TTL_MINUTES);c=database.connect();c.execute("""INSERT INTO student_onboarding_sessions(token,mode,preferred_channel,claimed_profile_url,status,name,grade,subject,study_goal,phone,legacy_note,created_at,updated_at,expires_at) VALUES(?,'RETURNING',?,?,'WAIT_CHANNEL',?,?,?,?,?,?,?,?,?)""",(token,channel,_clean(profile_url,500) or None,name,grade,_subject(subject),_goal(study_goal),_clean(phone,40) or None,_clean(legacy_note,600) or None,_iso(now),_iso(now),_iso(expires)));c.commit();c.close();return {'token':token,'preferred_channel':channel,'telegram_url':f'{TG_BOT_URL}?start=join_{token}','vk_url':VK_MESSAGES_URL,'vk_code':token,'expires_at':_iso(expires)}
 def confirm_channel(token,channel,external_id,username=None,display_name=None):
  row=_active(_row(token));channel=_clean(channel,20).upper()
  if channel!=_clean(row.get('preferred_channel'),20).upper():raise ValueError('wrong_channel')
