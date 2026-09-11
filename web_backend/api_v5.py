@@ -2,7 +2,7 @@
 from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
-from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campaign,student_live_entry,student_social_profile,student_portal,group_portal
+from web_backend import api as v1,api_v4,otp_secret,open_event_admin,event_campaign,student_live_entry,student_social_profile,student_portal,group_portal,public_opportunities
 from web_backend.stage12_indexes import ensure_indexes
 
 def _student_profile(uid):
@@ -12,9 +12,12 @@ def _student_profile(uid):
     return {**legacy,**social}
 
 class Handler(api_v4.Handler):
-    server_version='AdeliaWeb/5.6'
+    server_version='AdeliaWeb/5.7'
     def do_GET(self):
         u=urlparse(self.path);path,q=u.path,parse_qs(u.query)
+        if path=='/api/public/opportunities':
+            try:return self._json(200,public_opportunities.feed())
+            except Exception as exc:print('[web-api] public opportunities error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if path in {'/api/teacher/events','/api/teacher/events/choices','/api/teacher/event','/api/teacher/group/attendance','/api/teacher/group-lessons','/api/teacher/group-lesson'}:
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             try:
@@ -101,5 +104,5 @@ class Handler(api_v4.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
-    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();print(f'Adelia web API v5.6 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();print(f'Adelia web API v5.7 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
