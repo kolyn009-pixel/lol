@@ -79,7 +79,7 @@ def confirm(token,channel,external_id,username=None,display_name=None):
     if collision:c.close();raise ValueError('trial_identity_in_use')
     cur=c.execute("""UPDATE public_trial_channel_links SET external_id=?,username=?,display_name=?,verified_at=COALESCE(verified_at,?),token_hash=NULL,token_expires_at=NULL,revoked_at=NULL,updated_at=? WHERE id=? AND token_hash=? AND revoked_at IS NULL""",(eid,str(username or '').strip()[:100] or None,str(display_name or '').strip()[:160] or None,now,now,int(row['id']),_hash(token)))
     if cur.rowcount!=1:c.rollback();c.close();raise ValueError('trial_link_not_found')
-    c.commit();c.close();return _status_payload(int(row['request_id']))
+    c.commit();c.close();public_trial.activate_linked_request(int(row['request_id']),ch,username,display_name);return _status_payload(int(row['request_id']))
 def _status_payload(request_id):
     ensure_schema();row=public_trial.get(int(request_id))
     if not row:raise ValueError('request_not_found')
