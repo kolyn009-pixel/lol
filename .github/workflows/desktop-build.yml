@@ -42,10 +42,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
       - name: Install pinned dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund --package-lock=false
       - name: Desktop release selftest
         run: npm run selftest
       - name: Build desktop package
