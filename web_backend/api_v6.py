@@ -3,21 +3,18 @@ from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
 from web_backend import api as v1
-from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_slots,public_trial_channel,student_onboarding,teacher_request_center,onboarding_schedule_options
+from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_access,public_trial_slots,public_trial_channel,student_onboarding,teacher_request_center,onboarding_schedule_options
 from web_backend.stage12_indexes import ensure_indexes
 from web_backend.student_auth import peek_student_login_code
 class Handler(api_v5.Handler):
- server_version='AdeliaWeb/6.6'
+ server_version='AdeliaWeb/6.7'
  def do_GET(self):
   u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
   if path=='/api/public/trial/slots':
    try:return self._json(200,public_trial_slots.feed(q.get('timezone',['Europe/Moscow'])[0],q.get('days',['14'])[0],q.get('duration_minutes',['60'])[0]))
    except ValueError as exc:return self._json(400,{'error':str(exc) or 'invalid_request'})
    except Exception as exc:print('[web-api] public trial slots error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
-  if path=='/api/public/trial/channel/status':
-   try:return self._json(200,public_trial_channel.status(q.get('request_id',['0'])[0]))
-   except ValueError as exc:return self._json(404,{'error':str(exc)})
-   except Exception as exc:print('[web-api] public trial channel status error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
+  if path=='/api/public/trial/channel/status':return self._json(405,{'error':'method_not_allowed'})
   if path=='/api/onboarding/status':
    try:return self._json(200,student_onboarding.status_payload(q.get('token',[''])[0]))
    except ValueError as exc:return self._json(404 if str(exc)=='onboarding_not_found' else 409,{'error':str(exc)})
@@ -33,14 +30,18 @@ class Handler(api_v5.Handler):
   return super().do_GET()
  def do_POST(self):
   path=urlparse(self.path).path
-  if path=='/api/public/trial/channel/start':
+  if path in {'/api/public/trial/channel/start','/api/public/trial/channel/status'}:
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
    if not v1._allowed(self.client_address[0]):return self._json(429,{'error':'too_many_attempts'})
    body=self._body()
    if body is None:return self._json(400,{'error':'invalid_json'})
-   try:return self._json(200,public_trial_channel.begin(body.get('request_id'),body.get('channel')))
-   except ValueError as exc:return self._json(409,{'error':str(exc)})
-   except Exception as exc:print('[web-api] public trial channel start error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
+   try:
+    if path.endswith('/start'):result=public_trial_channel.begin(body.get('request_id'),body.get('channel'),body.get('manage_token'))
+    else:result=public_trial_channel.status(body.get('request_id'),body.get('manage_token'))
+    return self._json(200,result)
+   except PermissionError:return self._json(403,{'error':'invalid_manage_token'})
+   except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
+   except Exception as exc:print('[web-api] public trial channel error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
   if path=='/api/auth/student/code/verify':
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
    if not v1._allowed(self.client_address[0]):return self._json(429,{'error':'too_many_attempts'})
@@ -79,5 +80,5 @@ class Handler(api_v5.Handler):
   return super().do_POST()
 def main():
  if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
- ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();public_trial_channel.ensure_schema();print(f'Adelia web API v6.6 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+ ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();print(f'Adelia web API v6.7 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
