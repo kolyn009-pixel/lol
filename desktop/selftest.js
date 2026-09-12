@@ -18,8 +18,9 @@ check(pkg.devDependencies['electron-builder'] === '26.0.12', 'electron-builder p
 check(pkg.dependencies && pkg.dependencies['electron-updater'] === '6.6.2', 'electron-updater pinned');
 check(pkg.build.publish && pkg.build.publish[0].provider === 'generic', 'generic update provider');
 check(pkg.build.publish && pkg.build.publish[0].url === 'https://adeliatutor.ru/desktop-updates/', 'trusted update endpoint');
+check(pkg.build.protocols && pkg.build.protocols[0].schemes.includes('adelia'), 'adelia deep link protocol registered');
 check(Array.isArray(pkg.build.mac.target) && pkg.build.mac.target.includes('zip'), 'mac updater zip target');
-check(main.includes('https://adeliatutor.ru/'), 'production HTTPS origin');
+check(main.includes("https://adeliatutor.ru/app/"), 'desktop opens cabinet directly');
 check(has(/contextIsolation\s*:\s*true/), 'context isolation');
 check(has(/nodeIntegration\s*:\s*false/), 'node integration disabled');
 check(has(/sandbox\s*:\s*true/), 'renderer sandbox');
@@ -39,6 +40,13 @@ check(main.includes('autoUpdater.quitAndInstall'), 'downloaded update install fl
 check(main.includes("ipcMain.handle('adelia:lesson-tool'") && preload.includes("ipcRenderer.invoke('adelia:lesson-tool'"), 'safe lesson IPC bridge');
 check(main.includes("ipcMain.handle('adelia:end-lesson-workspace'") && preload.includes("ipcRenderer.invoke('adelia:end-lesson-workspace'"), 'lesson workspace close bridge');
 check(main.includes('tileLessonWindows') && main.includes('screen.getDisplayMatching'), 'lesson windows tiled on active display');
+check(main.includes('requestSingleInstanceLock') && main.includes("app.on('second-instance'"), 'single-instance desktop app');
+check(main.includes('new Tray(') && main.includes('createTray'), 'system tray');
+check(main.includes('closeToTray') && main.includes("win.on('close'"), 'configurable close-to-tray');
+check(main.includes('setAsDefaultProtocolClient') && main.includes('parseDeepLink'), 'deep links handled');
+check(main.includes("'chat'") && main.includes("'homework'") && main.includes("'lesson'"), 'deep link route allowlist');
+check(main.includes("ipcMain.handle('adelia:desktop-prefs'") && preload.includes('getPreferences'), 'desktop preferences bridge');
+check(main.includes("ipcMain.handle('adelia:open-route'") && preload.includes('openRoute'), 'safe desktop route bridge');
 check(preload.includes('contextBridge'), 'minimal preload bridge');
 
 if (failed) process.exit(1);
