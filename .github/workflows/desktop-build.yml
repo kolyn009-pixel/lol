@@ -3,9 +3,10 @@ name: Desktop build
 on:
   workflow_dispatch:
   push:
-    branches: [feat/adelia-web-portal]
+    branches: [release/adelia-unified-rc]
     paths:
       - 'desktop/**'
+      - 'web/**'
       - '.github/workflows/desktop-build.yml'
 
 permissions:
@@ -41,9 +42,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
       - name: Install pinned dependencies
-        run: npm install --no-audit --no-fund
-      - name: Desktop selftest
+        run: npm ci --no-audit --no-fund
+      - name: Desktop release selftest
         run: npm run selftest
       - name: Build desktop package
         run: ${{ matrix.command }}
