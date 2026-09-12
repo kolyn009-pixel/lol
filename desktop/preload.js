@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('adeliaDesktop', Object.freeze({
   onboardingStart: payload => ipcRenderer.invoke('adelia:onboarding-start', payload || {}),
   onboardingStatus: token => ipcRenderer.invoke('adelia:onboarding-status', String(token || '')),
   onboardingRegion: payload => ipcRenderer.invoke('adelia:onboarding-region', payload || {}),
+  onboardingScheduleOptions: token => ipcRenderer.invoke('adelia:onboarding-schedule-options', String(token || '')),
   onboardingSchedule: payload => ipcRenderer.invoke('adelia:onboarding-schedule', payload || {}),
   onboardingComplete: payload => ipcRenderer.invoke('adelia:onboarding-complete', payload || {})
 }));
