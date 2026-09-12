@@ -29,11 +29,10 @@ def create(name,telegram=None,phone=None,subject=None,study_goal=None,preferred_
   if end<=start:raise ValueError('invalid_trial_time')
  now=_now();expires=now+timedelta(days=RETENTION_DAYS);c=database.connect()
  try:
-  # Serialize the availability check and insert. Two simultaneous public requests can no longer both reserve the same/overlapping slot.
   c.execute('BEGIN IMMEDIATE')
   if selected_slot_start:
    from web_backend import availability_guard
-   hits=availability_guard.conflicts(start,end)
+   hits=availability_guard.conflicts(start,end,conn=c)
    if hits:raise ValueError('trial_slot_taken')
   cur=c.execute("""INSERT INTO public_trial_requests(name,contact,telegram,phone,grade,subject,study_goal,preferred_time,note,status,source,created_at,updated_at,expires_at,timezone,region,selected_slot_start,selected_slot_end) VALUES(?,?,?,?,?,?,?,?,?,'NEW',?,?,?,?,?,?,?,?)""",(name,legacy,telegram,phone,grade,subject,study_goal,preferred_time,note,str(source or 'WEB')[:20],_iso(now),_iso(now),_iso(expires),timezone,region,selected_slot_start,selected_slot_end));rid=cur.lastrowid;c.commit()
  except Exception:
@@ -69,14 +68,18 @@ def finish_trial(request_id,finished_at=None):
  try:event_center.push('TRIAL_CONTINUATION_CODE',f'Код после пробного: {row["name"]}',f'Код действует до {_iso(code_exp)}','ACTION','public_trial',int(request_id),f'trial_code:{int(request_id)}')
  except Exception:pass
  return {'status':'ok','request_id':int(request_id),'continuation_code':code,'expires_at':_iso(code_exp)}
+def issue_continuation_code(request_id):
+ ensure_schema();row=get(request_id)
+ if not row:raise ValueError('request_not_found')
+ if row.get('status')!='TRIAL_COMPLETED' or row.get('followup_decision')!='CONTINUE':raise PermissionError('trial_continue_required')
+ code=_new_code();now=_now();code_exp=now+timedelta(days=CODE_TTL_DAYS);c=database.connect();c.execute("UPDATE public_trial_requests SET continuation_code_hash=?,continuation_code_expires_at=?,continuation_code_used_at=NULL,updated_at=?,expires_at=? WHERE id=? AND status='TRIAL_COMPLETED' AND followup_decision='CONTINUE'",(_code_hash(code),_iso(code_exp),_iso(now),_iso(code_exp),int(request_id)));c.commit();c.close();return {'status':'ok','request_id':int(request_id),'continuation_code':code,'expires_at':_iso(code_exp)}
 def validate_continuation_code(code):
- ensure_schema();h=_code_hash(code);now=_iso(_now());c=database.connect();r=c.execute("SELECT * FROM public_trial_requests WHERE continuation_code_hash=? AND continuation_code_used_at IS NULL AND continuation_code_expires_at>? AND status='TRIAL_COMPLETED' LIMIT 1",(h,now)).fetchone();c.close()
+ ensure_schema();h=_code_hash(code);now=_iso(_now());c=database.connect();r=c.execute("SELECT * FROM public_trial_requests WHERE continuation_code_hash=? AND continuation_code_used_at IS NULL AND continuation_code_expires_at>? AND status='TRIAL_COMPLETED' AND followup_decision='CONTINUE' LIMIT 1",(h,now)).fetchone();c.close()
  if not r:raise ValueError('invalid_or_expired_code')
  d=dict(r);return {'request_id':int(d['id']),'name':d['name'],'telegram':d.get('telegram'),'phone':d.get('phone'),'grade':d.get('grade'),'subject':d.get('subject'),'study_goal':d.get('study_goal'),'board_url':d.get('board_url'),'meeting_url':d.get('meeting_url'),'trial_finished_at':d.get('trial_finished_at')}
 def mark_converted(code,user_id):
- ensure_schema();h=_code_hash(code);now=_iso(_now());c=database.connect();r=c.execute("SELECT id FROM public_trial_requests WHERE continuation_code_hash=? AND continuation_code_used_at IS NULL AND continuation_code_expires_at>? AND status='TRIAL_COMPLETED' LIMIT 1",(h,now)).fetchone()
- if not r:c.close();raise ValueError('invalid_or_expired_code')
- c.execute("UPDATE public_trial_requests SET status='CONVERTED',continuation_code_used_at=?,converted_user_id=?,updated_at=?,expires_at=? WHERE id=?",(now,int(user_id),now,now,int(r['id'])));c.commit();c.close();return {'status':'ok','request_id':int(r['id']),'user_id':int(user_id)}
+ from web_backend import trial_conversion
+ return trial_conversion.claim_continuation_code(user_id,code)
 def set_status(request_id,status,reviewer_id=None):
  ensure_schema();status=str(status or '').upper()
  if status not in {'NEW','CONTACTED','ACCEPTED','DECLINED','CLOSED'}:raise ValueError('invalid_status')
