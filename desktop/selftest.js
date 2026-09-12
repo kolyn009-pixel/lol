@@ -6,11 +6,13 @@ const root = __dirname;
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
+const bootstrap = fs.readFileSync(path.join(root, 'bootstrap.js'), 'utf8');
+const workspace = fs.readFileSync(path.join(root, 'lesson_workspace.js'), 'utf8');
 let failed = false;
 function check(ok, label) { console.log(`${ok ? 'OK' : 'FAIL'} ${label}`); if (!ok) failed = true; }
 function has(pattern) { return pattern.test(main); }
 
-check(pkg.main === 'main.js', 'main entry');
+check(pkg.main === 'bootstrap.js', 'desktop bootstrap entry');
 check(pkg.build && pkg.build.appId === 'ru.adeliatutor.desktop', 'stable app id');
 check(pkg.build && pkg.build.asar === true, 'asar enabled');
 check(pkg.devDependencies.electron === '38.0.0', 'Electron pinned');
@@ -48,6 +50,11 @@ check(main.includes("'chat'") && main.includes("'homework'") && main.includes("'
 check(main.includes("ipcMain.handle('adelia:desktop-prefs'") && preload.includes('getPreferences'), 'desktop preferences bridge');
 check(main.includes("ipcMain.handle('adelia:open-route'") && preload.includes('openRoute'), 'safe desktop route bridge');
 check(preload.includes('contextBridge'), 'minimal preload bridge');
+check(bootstrap.includes("require('./lesson_workspace').install()") && bootstrap.includes("require('./main')"), 'lesson workspace bootstrap installed');
+check(pkg.build.files.includes('lesson_workspace.js') && pkg.build.files.includes('bootstrap.js'), 'lesson workspace packaged');
+check(workspace.includes("fetch('/api/student/dashboard'") && workspace.includes('REMINDER_MINUTES = [15, 5]'), 'dashboard-backed 15/5 minute lesson reminders');
+check(workspace.includes('new Notification(') && workspace.includes("n.on('click'"), 'native lesson notification opens lesson');
+check(workspace.includes("u.searchParams.set('desktop', 'lesson')"), 'notification targets lesson route');
 
 if (failed) process.exit(1);
 console.log('Desktop selftest passed.');
