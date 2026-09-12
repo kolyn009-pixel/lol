@@ -61,11 +61,13 @@ async def trial_callback(update:Update,context:ContextTypes.DEFAULT_TYPE):
   context.user_data['trial_guest_message']=int(r['id']);await q.answer();await q.edit_message_text('💬 Напишите следующим сообщением то, что хотите передать преподавателю.',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('⬅️ Моё пробное',callback_data='trial_guest|home')]]));raise ApplicationHandlerStop
  if action in {'continue','thinking','stop'}:
   decision={'continue':'CONTINUE','thinking':'THINKING','stop':'STOP'}[action]
-  try:state=trial_followup.decide(int(r['id']),decision)
+  try:
+   trial_followup.decide(int(r['id']),decision)
+   continuation=public_trial.issue_continuation_code(int(r['id'])) if decision=='CONTINUE' else None
   except ValueError as e:
    await q.answer(str(e),show_alert=True);raise ApplicationHandlerStop
   if decision=='CONTINUE':
-   await q.answer();await q.edit_message_text('💜 Отлично! Данные пробного сохранены.\n\nТеперь открой сайт Аделии и заверши создание постоянного аккаунта — имя, класс, предмет и контакт повторно вводить не придётся.',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Продолжить регистрацию →',url=f"https://adeliatutor.ru/onboarding/?trial={int(r['id'])}")]]))
+   code=continuation['continuation_code'];await q.answer();await q.edit_message_text('💜 Отлично! Данные пробного сохранены.\n\nТеперь открой сайт Аделии и заверши создание постоянного аккаунта — имя, класс, предмет и контакт повторно вводить не придётся.',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Продолжить регистрацию →',url=f"https://adeliatutor.ru/onboarding/?trial_code={code}")]]))
   elif decision=='THINKING':
    await q.answer();await q.edit_message_text('🕒 Хорошо. Я сохраню пробное и напомню через несколько дней. Если решишь раньше — просто снова открой «Моё пробное».',reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🎓 Моё пробное',callback_data='trial_guest|home')]]))
   else:
