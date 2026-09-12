@@ -34,7 +34,7 @@ def status(request_id):
         'decision':row.get('followup_decision'),
         'decided_at':row.get('followup_decided_at'),
         'remind_at':row.get('followup_remind_at'),
-        'continuation_ready':bool(row.get('continuation_code_hash') and row.get('continuation_code_expires_at') and not row.get('continuation_code_used_at')),
+        'continuation_ready':bool(row.get('followup_decision')=='CONTINUE' and row.get('continuation_code_hash') and row.get('continuation_code_expires_at') and not row.get('continuation_code_used_at')),
     }
 
 def decide(request_id,decision,note=None):
@@ -51,6 +51,14 @@ def decide(request_id,decision,note=None):
         event_center.push('PUBLIC_TRIAL_DECISION',f"После пробного: {row.get('name') or 'Без имени'}",labels[choice],'ACTION','public_trial',int(request_id),f'public_trial_decision:{int(request_id)}:{choice}')
     except Exception:pass
     return status(request_id)
+
+def require_continuation(request_id):
+    """Allow permanent-account continuation only after an explicit CONTINUE decision."""
+    state=status(request_id)
+    if state['request_status']=='CONVERTED':raise ValueError('trial_already_converted')
+    if state['request_status']!='TRIAL_COMPLETED':raise ValueError('trial_not_completed')
+    if state['decision']!='CONTINUE':raise PermissionError('trial_continue_required')
+    return state
 
 def due_thinking(limit=100):
     ensure_schema();c=database.connect();rows=c.execute("SELECT * FROM public_trial_requests WHERE followup_decision='THINKING' AND followup_remind_at IS NOT NULL AND followup_remind_at<=? AND status='TRIAL_COMPLETED' ORDER BY followup_remind_at ASC LIMIT ?",(_iso(),max(1,min(int(limit),200)))).fetchall();c.close();return [dict(r) for r in rows]
