@@ -6,7 +6,7 @@ from web_backend import public_trial
 
 BLOCKING_LESSON_STATUSES={'PENDING','CONFIRMED','APPROVED','DONE','COMPLETED','HELD'}
 BLOCKING_REGULAR_STATUSES={'PENDING','APPROVED'}
-BLOCKING_TRIAL_STATUSES={'NEW','CONTACTED','ACCEPTED'}
+BLOCKING_TRIAL_STATUSES={'LINKING','NEW','CONTACTED','ACCEPTED'}
 
 def _dt(v):return v if isinstance(v,datetime) else datetime.fromisoformat(str(v))
 def overlaps(a_start,a_end,b_start,b_end):return _dt(a_start)<_dt(b_end) and _dt(b_start)<_dt(a_end)
@@ -28,7 +28,7 @@ def conflicts(start_time,end_time,ignore_lesson_id=None,ignore_regular_id=None,i
   except Exception:pass
   try:
    if own_connection:public_trial.ensure_schema()
-   rows=c.execute("SELECT id,selected_slot_start,selected_slot_end,status FROM public_trial_requests WHERE selected_slot_start IS NOT NULL AND status IN ('NEW','CONTACTED','ACCEPTED') AND (expires_at IS NULL OR expires_at>?)",(datetime.now().isoformat(timespec='seconds'),)).fetchall()
+   rows=c.execute("SELECT id,selected_slot_start,selected_slot_end,status FROM public_trial_requests WHERE selected_slot_start IS NOT NULL AND status IN ('LINKING','NEW','CONTACTED','ACCEPTED') AND (expires_at IS NULL OR expires_at>?)",(datetime.now().isoformat(timespec='seconds'),)).fetchall()
    for r in rows:
     if ignore_trial_id and int(r['id'])==int(ignore_trial_id):continue
     s=r['selected_slot_start'];e=r['selected_slot_end'] or (_dt(s)+timedelta(minutes=60)).isoformat()
