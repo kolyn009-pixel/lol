@@ -1,16 +1,10 @@
-"""Permanent-student onboarding for returning TutorBot students.
-
-A returning student may predate TutorBot and therefore have no canonical profile.
-Messenger ownership is verified first. If no matching profile exists, a provisional
-canonical student is created from the onboarding form and stays inactive until the
-web registration is completed.
-"""
+"""Permanent-student onboarding for returning TutorBot students and trial continuations."""
 from __future__ import annotations
 from datetime import datetime,timedelta
 from zoneinfo import ZoneInfo,ZoneInfoNotFoundError
 import json,secrets,string
 import database
-from web_backend import student_auth,web_sessions
+from web_backend import student_auth,web_sessions,trial_conversion,public_trial_channel
 SESSION_TTL_MINUTES=60
 TG_BOT_URL='https://t.me/AdeliaTutorBot'
 VK_MESSAGES_URL='https://vk.me/club241263797'
@@ -26,8 +20,9 @@ def _subject(v):
  x=_clean(v,80).upper();return 'CHEMISTRY' if x in {'ХИМИЯ','CHEMISTRY'} else 'PHYSICS'
 def ensure_schema():
  c=database.connect();c.executescript("""CREATE TABLE IF NOT EXISTS student_onboarding_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT,token TEXT NOT NULL UNIQUE,mode TEXT NOT NULL DEFAULT 'RETURNING',preferred_channel TEXT,claimed_profile_url TEXT,status TEXT NOT NULL DEFAULT 'WAIT_CHANNEL',external_id TEXT,external_username TEXT,external_display_name TEXT,linked_user_id INTEGER,region TEXT,timezone TEXT,schedule_json TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,expires_at TEXT NOT NULL,completed_at TEXT,FOREIGN KEY(linked_user_id) REFERENCES users(id) ON DELETE SET NULL);CREATE INDEX IF NOT EXISTS idx_student_onboarding_token ON student_onboarding_sessions(token);CREATE INDEX IF NOT EXISTS idx_student_onboarding_status ON student_onboarding_sessions(status,expires_at);""");cols={r['name'] for r in c.execute('PRAGMA table_info(student_onboarding_sessions)').fetchall()}
- for name,kind in {'name':'TEXT','grade':'INTEGER','subject':'TEXT','study_goal':'TEXT','phone':'TEXT','legacy_note':'TEXT','provisional_user_created':'INTEGER DEFAULT 0'}.items():
+ for name,kind in {'name':'TEXT','grade':'INTEGER','subject':'TEXT','study_goal':'TEXT','phone':'TEXT','legacy_note':'TEXT','provisional_user_created':'INTEGER DEFAULT 0','trial_request_id':'INTEGER'}.items():
   if name not in cols:c.execute(f'ALTER TABLE student_onboarding_sessions ADD COLUMN {name} {kind}')
+ c.execute('CREATE INDEX IF NOT EXISTS idx_student_onboarding_trial ON student_onboarding_sessions(trial_request_id,status)')
  rcols={r['name'] for r in c.execute('PRAGMA table_info(regular_schedules)').fetchall()}
  for name,kind in {'onboarding_session_id':'INTEGER','student_timezone':'TEXT','student_local_weekday':'TEXT','student_local_start_time':'TEXT'}.items():
   if name not in rcols:c.execute(f'ALTER TABLE regular_schedules ADD COLUMN {name} {kind}')
@@ -76,6 +71,19 @@ def start_returning(preferred_channel,profile_url=None,name=None,grade=None,subj
  except Exception:raise ValueError('grade_required')
  if grade<1 or grade>14:raise ValueError('invalid_grade')
  token=_token();now=_now();expires=now+timedelta(minutes=SESSION_TTL_MINUTES);c=database.connect();c.execute("""INSERT INTO student_onboarding_sessions(token,mode,preferred_channel,claimed_profile_url,status,name,grade,subject,study_goal,phone,legacy_note,created_at,updated_at,expires_at) VALUES(?,'RETURNING',?,?,'WAIT_CHANNEL',?,?,?,?,?,?,?,?,?)""",(token,channel,_clean(profile_url,500) or None,name,grade,_subject(subject),_goal(study_goal),_clean(phone,40) or None,_clean(legacy_note,600) or None,_iso(now),_iso(now),_iso(expires)));c.commit();c.close();return {'token':token,'preferred_channel':channel,'telegram_url':f'{TG_BOT_URL}?start=join_{token}','vk_url':VK_MESSAGES_URL,'vk_code':token,'expires_at':_iso(expires)}
+def start_trial_continuation(code):
+ ensure_schema();data=trial_conversion.preview(code);rid=int(data['request_id']);identity=None;channel=None
+ for ch in ('TELEGRAM','VK'):
+  try:identity=public_trial_channel.identity_for_request(rid,ch);channel=ch;break
+  except ValueError:pass
+ if not identity or not channel:raise ValueError('trial_channel_not_linked')
+ external_id=_clean(identity.get('external_id'),100);uid=_find_existing_user(channel,external_id);created=0
+ provisional={'name':data.get('name'),'grade':data.get('grade'),'subject':data.get('subject'),'study_goal':data.get('study_goal'),'phone':data.get('phone')}
+ if not uid:uid=_create_provisional(provisional,channel,external_id,identity.get('username'),identity.get('display_name'));created=1
+ else:_bind_identity(uid,channel,external_id,identity.get('username'),identity.get('display_name'))
+ now=_now();expires=now+timedelta(minutes=SESSION_TTL_MINUTES);token=_token('TRIAL');c=database.connect();existing=c.execute("SELECT token FROM student_onboarding_sessions WHERE trial_request_id=? AND status!='COMPLETED' AND expires_at>? ORDER BY id DESC LIMIT 1",(rid,_iso(now))).fetchone()
+ if existing:c.close();return status_payload(existing['token'])
+ c.execute("""INSERT INTO student_onboarding_sessions(token,mode,preferred_channel,status,external_id,external_username,external_display_name,linked_user_id,name,grade,subject,study_goal,phone,provisional_user_created,trial_request_id,created_at,updated_at,expires_at) VALUES(?,'TRIAL_CONTINUATION',?,'CHANNEL_VERIFIED',?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(token,channel,external_id,_clean(identity.get('username'),100) or None,_clean(identity.get('display_name'),160) or None,int(uid),_clean(data.get('name'),80),int(data.get('grade') or 0),_subject(data.get('subject')),_goal(data.get('study_goal')),_clean(data.get('phone'),40) or None,created,rid,_iso(now),_iso(now),_iso(expires)));c.commit();c.close();return status_payload(token)
 def confirm_channel(token,channel,external_id,username=None,display_name=None):
  row=_active(_row(token));channel=_clean(channel,20).upper();external_id=_clean(external_id,100)
  if channel!=_clean(row.get('preferred_channel'),20).upper():raise ValueError('wrong_channel')
@@ -131,11 +139,16 @@ def _materialize_schedule_requests(row,uid):
   c.commit()
  finally:c.close()
  return created
-def complete(token,login,password):
+def complete(token,login,password,continuation_code=None):
  row=_active(_row(token))
  if row['status']=='COMPLETED' and row.get('linked_user_id'):raise ValueError('onboarding_already_completed')
  if row['status']!='SCHEDULE_SET' or not row.get('linked_user_id'):raise ValueError('onboarding_incomplete')
- uid=int(row['linked_user_id']);result=student_auth.set_student_credentials(uid,login,password,revoke_existing=True);request_ids=_materialize_schedule_requests(row,uid);now=_iso();c=database.connect();c.execute('UPDATE users SET active=1,updated_at=? WHERE id=?',(now,uid));c.execute("UPDATE student_onboarding_sessions SET status='COMPLETED',completed_at=?,updated_at=? WHERE id=?",(now,now,int(row['id'])));c.commit();c.close();session=web_sessions.create_session('student',uid);return {'status':'ok','user_id':uid,'login':result['login'],'session_token':session,'redirect':'/app/','schedule_request_ids':request_ids}
+ if row.get('mode')=='TRIAL_CONTINUATION':
+  data=trial_conversion.preview(continuation_code)
+  if int(data['request_id'])!=int(row.get('trial_request_id') or 0):raise ValueError('trial_code_mismatch')
+ uid=int(row['linked_user_id']);result=student_auth.set_student_credentials(uid,login,password,revoke_existing=True);request_ids=_materialize_schedule_requests(row,uid)
+ if row.get('mode')=='TRIAL_CONTINUATION':trial_conversion.claim_continuation_code(uid,continuation_code)
+ now=_iso();c=database.connect();c.execute('UPDATE users SET active=1,updated_at=? WHERE id=?',(now,uid));c.execute("UPDATE student_onboarding_sessions SET status='COMPLETED',completed_at=?,updated_at=? WHERE id=?",(now,now,int(row['id'])));c.commit();c.close();session=web_sessions.create_session('student',uid);return {'status':'ok','user_id':uid,'login':result['login'],'session_token':session,'redirect':'/app/','schedule_request_ids':request_ids}
 def status_payload(token):
  row=_active(_row(token));user=None
  if row.get('linked_user_id'):
