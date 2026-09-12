@@ -16,5 +16,9 @@ contextBridge.exposeInMainWorld('adeliaDesktop', Object.freeze({
   showMain: () => ipcRenderer.invoke('adelia:show-main'),
   getLessonLayout: () => ipcRenderer.invoke('adelia:lesson-layout-state'),
   setLessonLayout: mode => ipcRenderer.invoke('adelia:lesson-layout', String(mode || 'together')),
-  toggleLessonVideo: () => ipcRenderer.invoke('adelia:lesson-toggle-video')
+  toggleLessonVideo: () => ipcRenderer.invoke('adelia:lesson-toggle-video'),
+  showRoleChooser: () => ipcRenderer.invoke('adelia:role-chooser'),
+  teacherLogin: code => ipcRenderer.invoke('adelia:teacher-login', String(code || '')),
+  openStudentLogin: mode => ipcRenderer.invoke('adelia:student-login', String(mode || 'password')),
+  openTeacherCabinet: () => ipcRenderer.invoke('adelia:teacher-cabinet')
 }));
