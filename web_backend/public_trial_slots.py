@@ -1,7 +1,7 @@
 """Timezone-aware free slots for public trial booking."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import database
@@ -28,6 +28,20 @@ def _client_tz(name):
         raise ValueError("invalid_timezone")
 
 
+def _working_dt(day, value, tz):
+    raw = str(value or '').strip()
+    try:
+        parts = raw.split(':')
+        if len(parts) not in {2, 3}:
+            raise ValueError
+        hh = int(parts[0])
+        mm = int(parts[1])
+        ss = int(parts[2]) if len(parts) == 3 else 0
+        return datetime.combine(day, time(hh, mm, ss), tzinfo=tz)
+    except Exception:
+        raise ValueError("invalid_working_hours")
+
+
 def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
     teacher_name, teacher_tz = _teacher_tz()
     client_name, client_tz = _client_tz(timezone_name)
@@ -41,8 +55,10 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
         day = now_teacher.date() + timedelta(days=offset)
         values = []
         for row in database.get_effective_working_hours(day):
-            start = datetime.fromisoformat(f"{day.isoformat()}T{row['start_time']}:00").replace(tzinfo=teacher_tz)
-            end = datetime.fromisoformat(f"{day.isoformat()}T{row['end_time']}:00").replace(tzinfo=teacher_tz)
+            start = _working_dt(day, row['start_time'], teacher_tz)
+            end = _working_dt(day, row['end_time'], teacher_tz)
+            if end <= start:
+                continue
             cur = start
             while cur + timedelta(minutes=duration) <= end:
                 finish = cur + timedelta(minutes=duration)
