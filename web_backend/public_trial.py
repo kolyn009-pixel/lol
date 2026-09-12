@@ -27,9 +27,18 @@ def create(name,telegram=None,phone=None,subject=None,study_goal=None,preferred_
   if not selected_slot_end:raise ValueError('trial_slot_required')
   start=datetime.fromisoformat(selected_slot_start);end=datetime.fromisoformat(selected_slot_end)
   if end<=start:raise ValueError('invalid_trial_time')
-  c=database.connect();busy=c.execute("SELECT 1 FROM public_trial_requests WHERE selected_slot_start=? AND status IN ('NEW','CONTACTED','ACCEPTED') AND (expires_at IS NULL OR expires_at>?) LIMIT 1",(selected_slot_start,_iso(_now()))).fetchone();c.close()
-  if busy:raise ValueError('trial_slot_taken')
- now=_now();expires=now+timedelta(days=RETENTION_DAYS);c=database.connect();cur=c.execute("""INSERT INTO public_trial_requests(name,contact,telegram,phone,grade,subject,study_goal,preferred_time,note,status,source,created_at,updated_at,expires_at,timezone,region,selected_slot_start,selected_slot_end) VALUES(?,?,?,?,?,?,?,?,?,'NEW',?,?,?,?,?,?,?,?)""",(name,legacy,telegram,phone,grade,subject,study_goal,preferred_time,note,str(source or 'WEB')[:20],_iso(now),_iso(now),_iso(expires),timezone,region,selected_slot_start,selected_slot_end));rid=cur.lastrowid;c.commit();c.close()
+ now=_now();expires=now+timedelta(days=RETENTION_DAYS);c=database.connect()
+ try:
+  # Serialize the availability check and insert. Two simultaneous public requests can no longer both reserve the same/overlapping slot.
+  c.execute('BEGIN IMMEDIATE')
+  if selected_slot_start:
+   from web_backend import availability_guard
+   hits=availability_guard.conflicts(start,end)
+   if hits:raise ValueError('trial_slot_taken')
+  cur=c.execute("""INSERT INTO public_trial_requests(name,contact,telegram,phone,grade,subject,study_goal,preferred_time,note,status,source,created_at,updated_at,expires_at,timezone,region,selected_slot_start,selected_slot_end) VALUES(?,?,?,?,?,?,?,?,?,'NEW',?,?,?,?,?,?,?,?)""",(name,legacy,telegram,phone,grade,subject,study_goal,preferred_time,note,str(source or 'WEB')[:20],_iso(now),_iso(now),_iso(expires),timezone,region,selected_slot_start,selected_slot_end));rid=cur.lastrowid;c.commit()
+ except Exception:
+  c.rollback();raise
+ finally:c.close()
  try:
   parts=[x for x in [f'Telegram: {telegram}' if telegram else None,f'Телефон: {phone}' if phone else None,f'Класс: {grade}' if grade else None,f'Предмет: {subject}' if subject else None,f'Цель: {study_goal}' if study_goal else None,f'Время: {selected_slot_start}' if selected_slot_start else (f'Желаемое время: {preferred_time}' if preferred_time else None),f'Регион: {region}' if region else None] if x];event_center.push('PUBLIC_TRIAL_REQUEST',f'Пробное занятие: {name}',' · '.join(parts),'ACTION','public_trial',int(rid),f'public_trial:{int(rid)}')
  except Exception:pass
