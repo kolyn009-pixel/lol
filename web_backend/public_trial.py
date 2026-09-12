@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import hashlib,re,secrets
 import database
 from core import event_center
-MAX_NAME=80;MAX_TELEGRAM=80;MAX_PHONE=40;MAX_NOTE=600;MAX_SUBJECT=80;RETENTION_DAYS=7;CODE_TTL_DAYS=7
+MAX_NAME=80;MAX_TELEGRAM=80;MAX_PHONE=40;MAX_NOTE=600;MAX_SUBJECT=80;RETENTION_DAYS=7;CODE_TTL_DAYS=7;LINKING_TTL_MINUTES=20
 def _now():return datetime.now()
 def _iso(value):return value.isoformat(timespec='seconds')
 def ensure_schema():
@@ -17,36 +17,51 @@ def _clean(value,limit):return re.sub(r'\s+',' ',str(value or '').strip())[:limi
 def _code_hash(code):return hashlib.sha256(str(code).strip().upper().encode()).hexdigest()
 def _new_code():
  alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return ''.join(secrets.choice(alphabet) for _ in range(8))
+def _event_parts(row,channel=None,username=None,display_name=None):
+ identity=None
+ if channel:
+  who=str(username or display_name or '').strip();identity=f'Канал: {str(channel).upper()}' + (f' · {who}' if who else '')
+ return [x for x in [f'Telegram: {row.get("telegram")}' if row.get('telegram') else None,f'Телефон: {row.get("phone")}' if row.get('phone') else None,identity,f'Класс: {row.get("grade")}' if row.get('grade') else None,f'Предмет: {row.get("subject")}' if row.get('subject') else None,f'Цель: {row.get("study_goal")}' if row.get('study_goal') else None,f'Время: {row.get("selected_slot_start")}' if row.get('selected_slot_start') else (f'Желаемое время: {row.get("preferred_time")}' if row.get('preferred_time') else None),f'Регион: {row.get("region")}' if row.get('region') else None] if x]
+def _push_created_event(row,channel=None,username=None,display_name=None):
+ try:event_center.push('PUBLIC_TRIAL_REQUEST',f'Пробное занятие: {row["name"]}',' · '.join(_event_parts(row,channel,username,display_name)),'ACTION','public_trial',int(row['id']),f'public_trial:{int(row["id"])}')
+ except Exception:pass
 def create(name,telegram=None,phone=None,subject=None,study_goal=None,preferred_time=None,note=None,grade=None,source='WEB',contact=None,timezone=None,region=None,selected_slot_start=None,selected_slot_end=None):
  ensure_schema();name=_clean(name,MAX_NAME);telegram=_clean(telegram,MAX_TELEGRAM) or None;phone=_clean(phone,MAX_PHONE) or None;legacy=_clean(contact,160) or None
  if not telegram and not phone and legacy:telegram=legacy
  subject=_clean(subject,MAX_SUBJECT) or None;study_goal=_clean(study_goal,MAX_SUBJECT) or None;preferred_time=_clean(preferred_time,80) or None;note=_clean(note,MAX_NOTE) or None;grade=_clean(grade,30) or None;timezone=_clean(timezone,80) or None;region=_clean(region,100) or None;selected_slot_start=_clean(selected_slot_start,40) or None;selected_slot_end=_clean(selected_slot_end,40) or None
  if len(name)<2:raise ValueError('name_required')
- if not telegram and not phone:raise ValueError('telegram_or_phone_required')
+ has_contact=bool(telegram or phone)
+ if not has_contact and not selected_slot_start:raise ValueError('telegram_or_phone_required')
  if selected_slot_start:
   if not selected_slot_end:raise ValueError('trial_slot_required')
   start=datetime.fromisoformat(selected_slot_start);end=datetime.fromisoformat(selected_slot_end)
   if end<=start:raise ValueError('invalid_trial_time')
- now=_now();expires=now+timedelta(days=RETENTION_DAYS);c=database.connect()
+ now=_now();request_status='NEW' if has_contact else 'LINKING';expires=now+(timedelta(days=RETENTION_DAYS) if has_contact else timedelta(minutes=LINKING_TTL_MINUTES));c=database.connect()
  try:
   c.execute('BEGIN IMMEDIATE')
   if selected_slot_start:
    from web_backend import availability_guard
    hits=availability_guard.conflicts(start,end,conn=c)
    if hits:raise ValueError('trial_slot_taken')
-  cur=c.execute("""INSERT INTO public_trial_requests(name,contact,telegram,phone,grade,subject,study_goal,preferred_time,note,status,source,created_at,updated_at,expires_at,timezone,region,selected_slot_start,selected_slot_end) VALUES(?,?,?,?,?,?,?,?,?,'NEW',?,?,?,?,?,?,?,?)""",(name,legacy,telegram,phone,grade,subject,study_goal,preferred_time,note,str(source or 'WEB')[:20],_iso(now),_iso(now),_iso(expires),timezone,region,selected_slot_start,selected_slot_end));rid=cur.lastrowid;c.commit()
+  cur=c.execute("""INSERT INTO public_trial_requests(name,contact,telegram,phone,grade,subject,study_goal,preferred_time,note,status,source,created_at,updated_at,expires_at,timezone,region,selected_slot_start,selected_slot_end) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(name,legacy,telegram,phone,grade,subject,study_goal,preferred_time,note,request_status,str(source or 'WEB')[:20],_iso(now),_iso(now),_iso(expires),timezone,region,selected_slot_start,selected_slot_end));rid=cur.lastrowid;c.commit()
  except Exception:
   c.rollback();raise
  finally:c.close()
- try:
-  parts=[x for x in [f'Telegram: {telegram}' if telegram else None,f'Телефон: {phone}' if phone else None,f'Класс: {grade}' if grade else None,f'Предмет: {subject}' if subject else None,f'Цель: {study_goal}' if study_goal else None,f'Время: {selected_slot_start}' if selected_slot_start else (f'Желаемое время: {preferred_time}' if preferred_time else None),f'Регион: {region}' if region else None] if x];event_center.push('PUBLIC_TRIAL_REQUEST',f'Пробное занятие: {name}',' · '.join(parts),'ACTION','public_trial',int(rid),f'public_trial:{int(rid)}')
- except Exception:pass
- return {'status':'ok','request_id':int(rid),'expires_at':_iso(expires)}
+ row=get(rid)
+ if request_status=='NEW':_push_created_event(row)
+ return {'status':'ok','request_id':int(rid),'request_status':request_status,'expires_at':_iso(expires)}
+def activate_linked_request(request_id,channel=None,username=None,display_name=None):
+ ensure_schema();rid=int(request_id);now=_now();expires=now+timedelta(days=RETENTION_DAYS);c=database.connect();cur=c.execute("UPDATE public_trial_requests SET status='NEW',updated_at=?,expires_at=? WHERE id=? AND status='LINKING'",(_iso(now),_iso(expires),rid));c.commit();c.close();row=get(rid)
+ if not row:raise ValueError('request_not_found')
+ if cur.rowcount==1:_push_created_event(row,channel,username,display_name)
+ elif row.get('status') not in {'NEW','CONTACTED','ACCEPTED','TRIAL_COMPLETED','CONVERTED'}:raise ValueError('request_not_actionable')
+ return {'status':'ok','request_id':rid,'request_status':row.get('status'),'expires_at':row.get('expires_at')}
 def get(request_id):
  ensure_schema();c=database.connect();r=c.execute('SELECT * FROM public_trial_requests WHERE id=?',(int(request_id),)).fetchone();c.close();return dict(r) if r else None
 def list_for_teacher(status=None,limit=100):
  ensure_schema();cleanup_expired();c=database.connect();sql='SELECT * FROM public_trial_requests';p=[]
  if status:sql+=' WHERE status=?';p.append(str(status).upper())
+ else:sql+=" WHERE status<>'LINKING'"
  sql+=' ORDER BY created_at DESC LIMIT ?';p.append(max(1,min(int(limit),200)));rows=c.execute(sql,p).fetchall();c.close();return [dict(r) for r in rows]
 def approve(request_id,reviewer_id,trial_start=None,trial_end=None,meeting_url=None,board_url=None):
  ensure_schema();row=get(request_id)
