@@ -42,6 +42,27 @@ def _working_dt(day, value, tz):
         raise ValueError("invalid_working_hours")
 
 
+def _working_span(day, rows, tz):
+    """Return one daily envelope from earliest start to latest end.
+
+    Public booking intentionally ignores gaps between working-hour fragments.
+    The fragments in TutorBot define the outer daily availability boundary only;
+    real collisions are still rejected by availability_guard.
+    """
+    starts = []
+    ends = []
+    for row in rows:
+        start = _working_dt(day, row['start_time'], tz)
+        end = _working_dt(day, row['end_time'], tz)
+        if end <= start:
+            continue
+        starts.append(start)
+        ends.append(end)
+    if not starts:
+        return None
+    return min(starts), max(ends)
+
+
 def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
     teacher_name, teacher_tz = _teacher_tz()
     client_name, client_tz = _client_tz(timezone_name)
@@ -54,11 +75,9 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
     for offset in range(days):
         day = now_teacher.date() + timedelta(days=offset)
         values = []
-        for row in database.get_effective_working_hours(day):
-            start = _working_dt(day, row['start_time'], teacher_tz)
-            end = _working_dt(day, row['end_time'], teacher_tz)
-            if end <= start:
-                continue
+        span = _working_span(day, database.get_effective_working_hours(day), teacher_tz)
+        if span:
+            start, end = span
             cur = start
             while cur + timedelta(minutes=duration) <= end:
                 finish = cur + timedelta(minutes=duration)
