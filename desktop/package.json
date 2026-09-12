@@ -23,7 +23,7 @@
     "productName": "Аделия",
     "artifactName": "Adelia-${version}-${os}-${arch}.${ext}",
     "asar": true,
-    "files": ["bootstrap.js", "lesson_workspace.js", "desktop_ux.js", "main.js", "preload.js", "package.json"],
+    "files": ["bootstrap.js", "lesson_workspace.js", "desktop_ux.js", "lesson_layout.js", "main.js", "preload.js", "package.json"],
     "directories": {"output": "dist"},
     "protocols": [{
       "name": "Аделия",
