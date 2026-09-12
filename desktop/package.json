@@ -1,15 +1,15 @@
 {
   "name": "adelia-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Adelia TutorBot desktop shell",
   "main": "bootstrap.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node generate_assets.js && electron .",
     "selftest": "node selftest.js",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win nsis",
-    "dist:mac": "electron-builder --mac"
+    "dist": "node generate_assets.js && electron-builder",
+    "dist:win": "node generate_assets.js && electron-builder --win nsis",
+    "dist:mac": "node generate_assets.js && electron-builder --mac"
   },
   "dependencies": {
     "electron-updater": "6.6.2"
@@ -23,8 +23,8 @@
     "productName": "Аделия",
     "artifactName": "Adelia-${version}-${os}-${arch}.${ext}",
     "asar": true,
-    "files": ["bootstrap.js", "lesson_workspace.js", "desktop_ux.js", "lesson_layout.js", "main.js", "preload.js", "package.json"],
-    "directories": {"output": "dist"},
+    "files": ["bootstrap.js", "lesson_workspace.js", "desktop_ux.js", "lesson_layout.js", "role_startup.js", "start.html", "start.css", "start.js", "main.js", "preload.js", "package.json", "build/icon.png"],
+    "directories": {"output": "dist", "buildResources": "build"},
     "protocols": [{
       "name": "Аделия",
       "schemes": ["adelia"]
@@ -33,8 +33,8 @@
       "provider": "generic",
       "url": "https://adeliatutor.ru/desktop-updates/"
     }],
-    "win": {"target": ["nsis"], "requestedExecutionLevel": "asInvoker"},
-    "mac": {"target": ["dmg", "zip"], "category": "public.app-category.education"},
+    "win": {"target": ["nsis"], "requestedExecutionLevel": "asInvoker", "icon": "build/icon.png"},
+    "mac": {"target": ["dmg", "zip"], "category": "public.app-category.education", "icon": "build/icon.png"},
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
