@@ -7,7 +7,7 @@ from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,studen
 from web_backend.stage12_indexes import ensure_indexes
 from web_backend.student_auth import peek_student_login_code
 class Handler(api_v5.Handler):
- server_version='AdeliaWeb/6.7'
+ server_version='AdeliaWeb/6.8'
  def do_GET(self):
   u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
   if path=='/api/public/trial/slots':
@@ -57,11 +57,13 @@ class Handler(api_v5.Handler):
    if body is None:return self._json(400,{'error':'invalid_json'})
    try:
     if path=='/api/onboarding/start':return self._json(200,student_onboarding.start_returning(body.get('preferred_channel'),body.get('profile_url'),body.get('name'),body.get('grade'),body.get('subject'),body.get('study_goal'),body.get('phone'),body.get('legacy_note')))
+    if path=='/api/onboarding/trial/start':return self._json(200,student_onboarding.start_trial_continuation(body.get('continuation_code')))
     if path=='/api/onboarding/region':return self._json(200,student_onboarding.save_region(body.get('token'),body.get('region'),body.get('timezone')))
     if path=='/api/onboarding/schedule':return self._json(200,student_onboarding.save_schedule(body.get('token'),body.get('selections') or []))
     if path=='/api/onboarding/complete':
-     result=student_onboarding.complete(body.get('token'),body.get('login'),body.get('password'));return self._json(200,{'status':'ok','user_id':result['user_id'],'login':result['login'],'redirect':result['redirect'],'schedule_request_ids':result.get('schedule_request_ids',[])},cookie=result['session_token'])
+     result=student_onboarding.complete(body.get('token'),body.get('login'),body.get('password'),body.get('continuation_code'));return self._json(200,{'status':'ok','user_id':result['user_id'],'login':result['login'],'redirect':result['redirect'],'schedule_request_ids':result.get('schedule_request_ids',[])},cookie=result['session_token'])
     return self._json(404,{'error':'not_found'})
+   except PermissionError as exc:return self._json(403,{'error':str(exc) or 'forbidden'})
    except ValueError as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
    except Exception as exc:print('[web-api] onboarding POST error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
   actions={'/api/teacher/request/lesson/approve':('lesson','approve'),'/api/teacher/request/lesson/reject':('lesson','reject'),'/api/teacher/request/schedule/approve':('schedule','approve'),'/api/teacher/request/schedule/reject':('schedule','reject')}
@@ -80,5 +82,5 @@ class Handler(api_v5.Handler):
   return super().do_POST()
 def main():
  if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
- ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();print(f'Adelia web API v6.7 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+ ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();print(f'Adelia web API v6.8 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
