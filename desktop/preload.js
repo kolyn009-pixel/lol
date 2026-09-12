@@ -20,5 +20,10 @@ contextBridge.exposeInMainWorld('adeliaDesktop', Object.freeze({
   showRoleChooser: () => ipcRenderer.invoke('adelia:role-chooser'),
   teacherLogin: code => ipcRenderer.invoke('adelia:teacher-login', String(code || '')),
   openStudentLogin: mode => ipcRenderer.invoke('adelia:student-login', String(mode || 'password')),
-  openTeacherCabinet: () => ipcRenderer.invoke('adelia:teacher-cabinet')
+  openTeacherCabinet: () => ipcRenderer.invoke('adelia:teacher-cabinet'),
+  onboardingStart: payload => ipcRenderer.invoke('adelia:onboarding-start', payload || {}),
+  onboardingStatus: token => ipcRenderer.invoke('adelia:onboarding-status', String(token || '')),
+  onboardingRegion: payload => ipcRenderer.invoke('adelia:onboarding-region', payload || {}),
+  onboardingSchedule: payload => ipcRenderer.invoke('adelia:onboarding-schedule', payload || {}),
+  onboardingComplete: payload => ipcRenderer.invoke('adelia:onboarding-complete', payload || {})
 }));
