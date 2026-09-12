@@ -10,11 +10,11 @@ from web_backend.student_finance import overview as finance_overview, quote as f
 from web_backend.finance_receipts import web_receipt_file
 from web_backend.post_lesson import get_feedback, submit_feedback, pending_for_student
 from web_backend.teacher_cascade import list_requests as cascade_requests, analyze_request as analyze_cascade, approve_plan as approve_cascade
-from web_backend import public_trial, trial_conversion, teacher_board
+from web_backend import public_trial, public_trial_access, trial_conversion, teacher_board
 from final_features import regular_schedule_change, cascade_consents, cascade_shift
 
 class Handler(api_v3.Handler):
- server_version='AdeliaWeb/4.10'
+ server_version='AdeliaWeb/4.11'
  def _send_receipt_file(self,receipt_id):
   if not self._teacher():return self._json(401,{'error':'unauthorized'})
   try:path,mime=web_receipt_file(int(receipt_id));data=path.read_bytes()
@@ -80,7 +80,10 @@ class Handler(api_v3.Handler):
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
    body=self._body()
    if body is None:return self._json(400,{'error':'invalid_json'})
-   try:return self._json(200,public_trial.create(body.get('name'),body.get('telegram'),body.get('phone'),body.get('subject'),body.get('study_goal'),body.get('preferred_time'),body.get('note'),body.get('grade'),source='WEB',timezone=body.get('timezone'),region=body.get('region'),selected_slot_start=body.get('selected_slot_start'),selected_slot_end=body.get('selected_slot_end')))
+   try:
+    result=public_trial.create(body.get('name'),body.get('telegram'),body.get('phone'),body.get('subject'),body.get('study_goal'),body.get('preferred_time'),body.get('note'),body.get('grade'),source='WEB',timezone=body.get('timezone'),region=body.get('region'),selected_slot_start=body.get('selected_slot_start'),selected_slot_end=body.get('selected_slot_end'))
+    result['manage_token']=public_trial_access.issue(result['request_id'])
+    return self._json(200,result)
    except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
   if path in {'/api/teacher/cascade/analyze','/api/teacher/cascade/approve','/api/teacher/cascade/request-consents','/api/teacher/cascade/apply','/api/teacher/regular-change/approve','/api/teacher/regular-change/apply','/api/teacher/regular-change/reject','/api/teacher/trial/approve','/api/teacher/trial/finish','/api/teacher/trial/status','/api/teacher/student/board'}:
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
@@ -141,5 +144,5 @@ class Handler(api_v3.Handler):
   return super().do_POST()
 def main():
  if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
- ensure_indexes();public_trial.ensure_schema();trial_conversion.ensure_schema();print(f'Adelia web API v4.10 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+ ensure_indexes();public_trial.ensure_schema();public_trial_access.ensure_schema();trial_conversion.ensure_schema();print(f'Adelia web API v4.11 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
