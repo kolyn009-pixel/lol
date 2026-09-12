@@ -34,7 +34,7 @@ def status(request_id):
         'decision':row.get('followup_decision'),
         'decided_at':row.get('followup_decided_at'),
         'remind_at':row.get('followup_remind_at'),
-        'continuation_ready':bool(row.get('followup_decision')=='CONTINUE' and row.get('continuation_code_hash') and row.get('continuation_code_expires_at') and not row.get('continuation_code_used_at')),
+        'continuation_ready':bool(row.get('status')=='TRIAL_COMPLETED' and row.get('followup_decision')=='CONTINUE' and row.get('continuation_code_hash') and row.get('continuation_code_expires_at') and not row.get('continuation_code_used_at')),
     }
 
 def decide(request_id,decision,note=None):
@@ -45,7 +45,8 @@ def decide(request_id,decision,note=None):
     if choice not in DECISIONS:raise ValueError('invalid_decision')
     if row['status']=='CONVERTED' and choice!='CONTINUE':raise ValueError('trial_already_converted')
     now=_now();remind=_iso(now+timedelta(days=THINKING_TTL_DAYS)) if choice=='THINKING' else None
-    c=database.connect();c.execute('UPDATE public_trial_requests SET followup_decision=?,followup_decided_at=?,followup_note=?,followup_remind_at=?,updated_at=? WHERE id=?',(choice,_iso(now),str(note or '').strip()[:500] or None,remind,_iso(now),int(request_id)));c.commit();c.close()
+    request_status='CLOSED' if choice=='STOP' else row['status']
+    c=database.connect();c.execute('UPDATE public_trial_requests SET status=?,followup_decision=?,followup_decided_at=?,followup_note=?,followup_remind_at=?,updated_at=? WHERE id=?',(request_status,choice,_iso(now),str(note or '').strip()[:500] or None,remind,_iso(now),int(request_id)));c.commit();c.close()
     try:
         labels={'CONTINUE':'хочет продолжить','THINKING':'хочет подумать','STOP':'не планирует продолжать'}
         event_center.push('PUBLIC_TRIAL_DECISION',f"После пробного: {row.get('name') or 'Без имени'}",labels[choice],'ACTION','public_trial',int(request_id),f'public_trial_decision:{int(request_id)}:{choice}')
