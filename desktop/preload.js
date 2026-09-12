@@ -13,5 +13,8 @@ contextBridge.exposeInMainWorld('adeliaDesktop', Object.freeze({
   setNotifications: value => ipcRenderer.invoke('adelia:set-notifications', !!value),
   setAutostart: value => ipcRenderer.invoke('adelia:set-autostart', !!value),
   setHotkey: value => ipcRenderer.invoke('adelia:set-hotkey', !!value),
-  showMain: () => ipcRenderer.invoke('adelia:show-main')
+  showMain: () => ipcRenderer.invoke('adelia:show-main'),
+  getLessonLayout: () => ipcRenderer.invoke('adelia:lesson-layout-state'),
+  setLessonLayout: mode => ipcRenderer.invoke('adelia:lesson-layout', String(mode || 'together')),
+  toggleLessonVideo: () => ipcRenderer.invoke('adelia:lesson-toggle-video')
 }));
