@@ -6,6 +6,7 @@ const POLL_MS = 60 * 1000;
 const REMINDER_MINUTES = [15, 5];
 let timer = null;
 let lastLesson = null;
+let notificationsEnabled = true;
 const sent = new Set();
 
 function mainWindow() {
@@ -43,9 +44,18 @@ function subjectName(value) {
 function formatTime(date) {
   return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
 }
+function publicLesson(lesson) {
+  return lesson ? {
+    id: lesson.id,
+    subject: subjectName(lesson.subject),
+    start_time: lesson.start.toISOString(),
+    duration_minutes: lesson.duration,
+    started: lesson.started,
+  } : null;
+}
 function notificationKey(lesson, minutes) { return `${lesson.id}:${minutes}`; }
 function notifyLesson(lesson, minutes) {
-  if (!Notification.isSupported()) return;
+  if (!notificationsEnabled || !Notification.isSupported()) return;
   const key = notificationKey(lesson, minutes);
   if (sent.has(key)) return;
   sent.add(key);
@@ -66,8 +76,14 @@ async function readDashboard() {
 }
 async function poll() {
   const data = await readDashboard();
-  const lesson = normalizeLesson(data && data.next_lesson);
+  if (!data) return;
+  const lesson = normalizeLesson(data.next_lesson);
   lastLesson = lesson;
+  app.emit('adelia-dashboard-state', {
+    nextLesson: publicLesson(lesson),
+    unreadMessages: Math.max(0, Number(data.unread_messages || 0)),
+    activeHomework: Math.max(0, Number(data.active_homework || 0)),
+  });
   if (!lesson) return;
   const diff = (lesson.start.getTime() - Date.now()) / 60000;
   for (const minutes of REMINDER_MINUTES) {
@@ -76,13 +92,12 @@ async function poll() {
   if (diff <= 0 && diff > -2) notifyLesson(lesson, 0);
 }
 function install() {
+  app.on('adelia-notifications-enabled', value => { notificationsEnabled = value !== false; });
   app.whenReady().then(() => {
     setTimeout(() => poll().catch(() => {}), 8000);
     timer = setInterval(() => poll().catch(() => {}), POLL_MS);
   });
   app.on('before-quit', () => { if (timer) clearInterval(timer); });
 }
-function getLastLesson() {
-  return lastLesson ? { id: lastLesson.id, subject: subjectName(lastLesson.subject), start_time: lastLesson.start.toISOString(), duration_minutes: lastLesson.duration } : null;
-}
-module.exports = { install, getLastLesson, showLesson };
+function getLastLesson() { return publicLesson(lastLesson); }
+module.exports = { install, getLastLesson, showLesson, poll };
