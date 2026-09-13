@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import database
+from core import schedule_sync
 
 ACTIVE_STATUSES = ("PENDING", "CONFIRMED", "IN_PROGRESS")
 
@@ -47,6 +48,13 @@ def _iso(dt):
     if isinstance(dt, str):
         return dt
     return dt.isoformat()
+
+
+def _sync_moved(ids):
+    try:
+        return schedule_sync.sync_lessons_blocking(ids)
+    except Exception as exc:
+        return {'synced_lesson_ids': [], 'failed': [{'reason': 'schedule_sync_error', 'detail': type(exc).__name__}]}
 
 
 def parse_user_datetime(text: str, tz=None):
@@ -116,12 +124,10 @@ def find_occupant(start_dt: datetime, end_dt: datetime, exclude_lesson_id=None, 
 
 
 def _cascade_target(occupant, desired_end, requester_lesson_id):
-    """Find the nearest safe later slot for the lesson displaced by a partial overlap."""
     if not occupant:return None
     occ_start=datetime.fromisoformat(occupant['start_time']);occ_end=datetime.fromisoformat(occupant['end_time'])
     duration=occ_end-occ_start
     candidate=desired_end.replace(second=0,microsecond=0)
-    # Keep search local and predictable: same day, nearest 30-minute step, max 4 hours later.
     for _ in range(9):
         end=candidate+duration
         if candidate.date()!=desired_end.date() or end.date()!=desired_end.date():break
@@ -213,7 +219,7 @@ def _apply_shift(req,a,b):
 
 
 def swap_times(req_id):
-    """Apply approved exchange. SHIFT handles partial overlap; SWAP preserves legacy exchange."""
+    """Apply approved exchange and reconcile Calendar/Telemost after commit."""
     req=get_request(req_id)
     if not req or not req["occupant_lesson_id"]:
         raise ValueError("Для этого запроса нет второго занятия.")
@@ -222,20 +228,27 @@ def swap_times(req_id):
     if a["lesson_status"] != "CONFIRMED" or b["lesson_status"] != "CONFIRMED":
         raise ValueError("Обмен возможен только для подтверждённых занятий.")
     if str(req['exchange_mode'] or '').upper()=='SHIFT' and req['occupant_proposed_start'] and req['occupant_proposed_end']:
-        return _apply_shift(req,a,b)
-    c=database.connect()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-        c.execute("UPDATE lessons SET start_time=?,end_time=?,updated_at=? WHERE id=?",(b["start_time"],b["end_time"],datetime.now().isoformat(timespec='seconds'),a["id"]))
-        c.execute("UPDATE lessons SET start_time=?,end_time=?,updated_at=? WHERE id=?",(a["start_time"],a["end_time"],datetime.now().isoformat(timespec='seconds'),b["id"]))
-        c.commit()
-    except Exception:
-        c.rollback(); raise
-    finally:c.close()
-    return database.get_lesson(a["id"]), database.get_lesson(b["id"])
+        result=_apply_shift(req,a,b)
+    else:
+        c=database.connect()
+        try:
+            c.execute("BEGIN IMMEDIATE")
+            now=datetime.now().isoformat(timespec='seconds')
+            c.execute("UPDATE lessons SET start_time=?,end_time=?,updated_at=? WHERE id=?",(b["start_time"],b["end_time"],now,a["id"]))
+            c.execute("UPDATE lessons SET start_time=?,end_time=?,updated_at=? WHERE id=?",(a["start_time"],a["end_time"],now,b["id"]))
+            c.commit()
+        except Exception:
+            c.rollback(); raise
+        finally:c.close()
+        result=(database.get_lesson(a["id"]), database.get_lesson(b["id"]))
+    _sync_moved([a['id'],b['id']])
+    return result
 
 
 def move_to_requested(req_id):
+    """Move one lesson and reconcile external links after the local commit."""
     req=get_request(req_id)
     if not req: raise ValueError("Запрос не найден.")
-    return database.free_reschedule_lesson(req["requester_lesson_id"],req["desired_start"],req["desired_end"])
+    lesson=database.free_reschedule_lesson(req["requester_lesson_id"],req["desired_start"],req["desired_end"])
+    _sync_moved([req["requester_lesson_id"]])
+    return lesson
