@@ -6,6 +6,7 @@ are exposed only through authenticated teacher API routes, never as public paths
 from __future__ import annotations
 from pathlib import Path
 from database import connect,approve_payment,reject_payment,approve_paid_booking_draft_payment
+from core import schedule_sync
 
 
 def _limit(v,default=100):
@@ -75,7 +76,15 @@ def review(payment_id,action):
         draft_result=approve_paid_booking_draft_payment(pid)
         if draft_result is not None:
             package_id,draft_lesson_id=draft_result
-            return {'status':'ok','payment_id':pid,'package_id':package_id,'draft_lesson_id':draft_lesson_id,'result':'PAID'}
+            sync_error=None
+            try:
+                schedule_sync.sync_lessons_blocking([int(draft_lesson_id)])
+            except Exception as exc:
+                sync_error=type(exc).__name__
+                print('WEB PAID BOOKING LESSON SYNC ERROR:',pid,sync_error,flush=True)
+            result={'status':'ok','payment_id':pid,'package_id':package_id,'draft_lesson_id':draft_lesson_id,'result':'PAID'}
+            if sync_error:result['sync_warning']=sync_error
+            return result
         package_id=approve_payment(pid);return {'status':'ok','payment_id':pid,'package_id':package_id,'result':'PAID'}
     if action=='REJECT':
         if str(row['status']).upper()=='REJECTED':return {'status':'ok','payment_id':pid,'already_processed':True,'result':'REJECTED'}
