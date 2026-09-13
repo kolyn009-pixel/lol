@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import json
 import database
+from core import schedule_sync
 from final_features import slot_change
 
 MAX_CASCADE = 6
@@ -107,4 +108,8 @@ def apply_approved(plan_id,teacher_id):
         c.execute("UPDATE slot_change_requests SET status='APPLIED',admin_final_by=?,resolved_at=?,updated_at=? WHERE id=?",(int(teacher_id),now,now,int(row['request_id'])));c.commit()
     except Exception:c.rollback();raise
     finally:c.close()
-    return {'status':'ok','plan_id':int(plan_id),'moved_lessons':len(moves),'lesson_ids':ids}
+    try:
+        sync_result=schedule_sync.sync_lessons_blocking(ids)
+    except Exception as exc:
+        sync_result={'synced_lesson_ids':[],'failed':[{'reason':'schedule_sync_error','detail':type(exc).__name__}]}
+    return {'status':'ok','plan_id':int(plan_id),'moved_lessons':len(moves),'lesson_ids':ids,'sync':sync_result}
