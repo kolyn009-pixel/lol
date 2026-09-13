@@ -64,7 +64,7 @@ class Handler(api_v5.Handler):
    if body is None:return self._json(400,{'error':'invalid_json'})
    result=peek_student_login_code(body.get('code'))
    if result.get('status')!='ok':return self._json(401,{'error':result.get('status','invalid')})
-   student=result.get('student') or {};return self._json(200,{'ok':True,'student':{'id':student.get('id'),'name':student.get('name'),'telegram_username':student.get('telegram_username'),'grade':student.get('grade')}})
+   student=result.get('student') or {};return self._json(200,{'ok':True,'student':{'id':student.get('id'),'name':student.get('name'),'grade':student.get('grade')}})
   if path.startswith('/api/onboarding/'):
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
    if not v1._allowed(self.client_address[0]):return self._json(429,{'error':'too_many_attempts'})
