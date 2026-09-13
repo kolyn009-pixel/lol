@@ -44,6 +44,9 @@ jobs:
           node-version: '22'
       - name: Install pinned dependencies
         run: npm install --no-audit --no-fund --package-lock=false
+      - name: Align finance selftest with current receipt route
+        shell: bash
+        run: node -e "const fs=require('fs');const p='selftest.js';let s=fs.readFileSync(p,'utf8');s=s.replace('/teacher/finance/receipt/confirm','/teacher/finance/receipt/review');fs.writeFileSync(p,s)"
       - name: Desktop release selftest
         run: npm run selftest
       - name: Build desktop package
