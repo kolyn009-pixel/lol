@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime,date,timedelta,timezone
 import database
-from core import admin_roles,event_center,backup_manager,post_lesson,schedule_sync,payment_sync_runtime
+from core import admin_roles,event_center,backup_manager,post_lesson,schedule_sync,payment_sync_runtime,payment_reminder_routing
 from core.lesson_time import actual_datetime
 from . import schema
 from .smart import next_actions
@@ -133,6 +133,7 @@ def register(application):
     # touching bot.py and gives every payment callback the same post-commit
     # Calendar/Telemost reconciliation behavior.
     payment_sync_runtime.install()
+    payment_reminder_routing.install()
     jq=application.job_queue
     if not jq:return
     jq.run_repeating(lesson_integrations_reconcile_job,interval=600,first=120,name='ff_lesson_integrations')
