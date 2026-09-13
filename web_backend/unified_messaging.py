@@ -4,13 +4,14 @@ Telegram, VK and Web describe one conversation instead of maintaining separate
 histories. Legacy CRM rows are imported idempotently during the transition.
 """
 from __future__ import annotations
-import json,sqlite3
+import json,sqlite3,threading
 from database import connect, now_iso
 
 CHANNELS={'TELEGRAM','VK','WEB','SYSTEM','LEGACY'}
 PARTICIPANTS={'STUDENT','PARENT','TEACHER'}
 DIRECTIONS={'IN','OUT','SYSTEM'}
 DELIVERY_STATUSES={'QUEUED','SENT','DELIVERED','READ','FAILED','SKIPPED'}
+_LEGACY_LOCK=threading.Lock();_LEGACY_IMPORTED=False
 
 
 def ensure_tables():
@@ -26,6 +27,7 @@ def ensure_tables():
     CREATE INDEX IF NOT EXISTS idx_unified_msg_conv ON unified_messages(conversation_id,id DESC);
     CREATE INDEX IF NOT EXISTS idx_unified_msg_student ON unified_messages(student_id,id DESC);
     CREATE INDEX IF NOT EXISTS idx_unified_delivery_status ON unified_message_deliveries(status,channel,updated_at);
+    CREATE INDEX IF NOT EXISTS idx_unified_delivery_message ON unified_message_deliveries(message_id,id);
     """);conn.commit();conn.close()
 
 
@@ -65,17 +67,22 @@ def record_delivery(message_id,channel,recipient_type,recipient_id=None,status='
 
 
 def import_legacy(limit=5000):
-    ensure_tables();conn=connect()
-    try:
+    global _LEGACY_IMPORTED
+    ensure_tables()
+    if _LEGACY_IMPORTED:return {'status':'ok','imported':0,'cached':True}
+    with _LEGACY_LOCK:
+        if _LEGACY_IMPORTED:return {'status':'ok','imported':0,'cached':True}
+        conn=connect()
         try:
-            rows=conn.execute("""SELECT c.* FROM crm_student_messages c LEFT JOIN unified_messages u ON u.legacy_source='crm_student_messages' AND u.legacy_id=c.id WHERE u.id IS NULL ORDER BY c.id LIMIT ?""",(max(1,min(int(limit),50000)),)).fetchall()
-        except sqlite3.OperationalError:rows=[]
-    finally:conn.close()
-    count=0
-    for r in rows:
-        mid=record_message(r['student_id'],r['direction'],r['body'],participant_type='STUDENT',sender_type='TEACHER' if r['direction']=='OUT' else 'STUDENT',sender_id=r['sender_admin_id'] if r['direction']=='OUT' else r['student_id'],origin_channel='LEGACY',status=r['status'],legacy_source='crm_student_messages',legacy_id=r['id'])
-        if mid:count+=1
-    return {'status':'ok','imported':count}
+            try:rows=conn.execute("""SELECT c.* FROM crm_student_messages c LEFT JOIN unified_messages u ON u.legacy_source='crm_student_messages' AND u.legacy_id=c.id WHERE u.id IS NULL ORDER BY c.id LIMIT ?""",(max(1,min(int(limit),50000)),)).fetchall()
+            except sqlite3.OperationalError:rows=[]
+        finally:conn.close()
+        count=0
+        for r in rows:
+            mid=record_message(r['student_id'],r['direction'],r['body'],participant_type='STUDENT',sender_type='TEACHER' if r['direction']=='OUT' else 'STUDENT',sender_id=r['sender_admin_id'] if r['direction']=='OUT' else r['student_id'],origin_channel='LEGACY',status=r['status'],legacy_source='crm_student_messages',legacy_id=r['id'])
+            if mid:count+=1
+        if len(rows)<max(1,min(int(limit),50000)):_LEGACY_IMPORTED=True
+        return {'status':'ok','imported':count,'cached':False}
 
 
 def conversations(limit=100,only_unread=False):
@@ -83,10 +90,19 @@ def conversations(limit=100,only_unread=False):
     rows=conn.execute(f"""SELECT c.id,c.student_id,u.name,c.participant_type,c.participant_id,c.status,c.updated_at,MAX(m.created_at) last_at,SUM(CASE WHEN m.direction='IN' AND m.read_at IS NULL THEN 1 ELSE 0 END) unread,(SELECT body FROM unified_messages x WHERE x.conversation_id=c.id ORDER BY x.id DESC LIMIT 1) last_body FROM unified_conversations c JOIN users u ON u.id=c.student_id LEFT JOIN unified_messages m ON m.conversation_id=c.id GROUP BY c.id {where} ORDER BY datetime(COALESCE(last_at,c.updated_at)) DESC LIMIT ?""",(max(1,min(int(limit),500)),)).fetchall();conn.close();return [dict(r) for r in rows]
 
 
-def history(conversation_id,limit=100):
-    ensure_tables();conn=connect();messages=conn.execute("SELECT * FROM unified_messages WHERE conversation_id=? ORDER BY id DESC LIMIT ?",(int(conversation_id),max(1,min(int(limit),500)))).fetchall();out=[]
+def history(conversation_id,limit=100,after_id=None,include_deliveries=False):
+    ensure_tables();cid=int(conversation_id);lim=max(1,min(int(limit),500));conn=connect();params=[cid];where='conversation_id=?'
+    if after_id not in (None,''):
+        where+=' AND id>?';params.append(int(after_id))
+        order='ASC'
+    else:order='DESC'
+    params.append(lim);messages=conn.execute(f"SELECT * FROM unified_messages WHERE {where} ORDER BY id {order} LIMIT ?",params).fetchall();out=[]
+    delivery_map={}
+    if include_deliveries and messages:
+        ids=[int(r['id']) for r in messages];marks=','.join('?' for _ in ids)
+        for d in conn.execute(f"SELECT message_id,channel,recipient_type,recipient_id,status,external_message_id,error_code FROM unified_message_deliveries WHERE message_id IN ({marks}) ORDER BY id",ids).fetchall():delivery_map.setdefault(int(d['message_id']),[]).append(dict(d))
     for r in messages:
-        x=dict(r);deliveries=conn.execute("SELECT channel,recipient_type,recipient_id,status,external_message_id,error_code FROM unified_message_deliveries WHERE message_id=? ORDER BY id",(int(r['id']),)).fetchall();x['deliveries']=[dict(d) for d in deliveries]
+        x=dict(r);x['deliveries']=delivery_map.get(int(r['id']),[]) if include_deliveries else []
         try:x['attachment']=json.loads(x.pop('attachment_json') or 'null')
         except (TypeError,ValueError,json.JSONDecodeError):x['attachment']=None
         out.append(x)
