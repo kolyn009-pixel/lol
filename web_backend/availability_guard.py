@@ -4,7 +4,10 @@ from datetime import datetime,timedelta
 import database
 from web_backend import public_trial
 
-BLOCKING_LESSON_STATUSES={'PENDING','CONFIRMED','APPROVED','DONE','COMPLETED','HELD'}
+# Keep lesson collision semantics compatible with database.is_slot_reserved().
+# Historical terminal lessons must not reserve future/public slots, while a
+# lesson that is currently running must always block its interval.
+BLOCKING_LESSON_STATUSES={'PENDING','CONFIRMED','IN_PROGRESS'}
 BLOCKING_REGULAR_STATUSES={'PENDING','APPROVED'}
 BLOCKING_TRIAL_STATUSES={'LINKING','NEW','CONTACTED','ACCEPTED'}
 
@@ -25,17 +28,33 @@ def availability_snapshot(range_start,range_end,include_pending_regular=True,con
  try:
   lessons=[];trials=[];regular=[]
   try:
-   rows=c.execute("SELECT id,start_time,end_time,lesson_status FROM lessons WHERE start_time < ? AND end_time > ? AND lesson_status NOT IN ('REJECTED','CANCELLED')",(end.isoformat(),start.isoformat())).fetchall()
+   marks=','.join('?' for _ in BLOCKING_LESSON_STATUSES)
+   rows=c.execute(
+    f"SELECT id,start_time,end_time,lesson_status FROM lessons "
+    f"WHERE start_time < ? AND end_time > ? AND lesson_status IN ({marks})",
+    (end.isoformat(),start.isoformat(),*sorted(BLOCKING_LESSON_STATUSES))
+   ).fetchall()
    lessons=[dict(r) for r in rows]
   except Exception:pass
   try:
    if own_connection:public_trial.ensure_schema()
-   rows=c.execute("SELECT id,selected_slot_start,selected_slot_end,status FROM public_trial_requests WHERE selected_slot_start IS NOT NULL AND status IN ('LINKING','NEW','CONTACTED','ACCEPTED') AND (expires_at IS NULL OR expires_at>?)",(datetime.now().isoformat(timespec='seconds'),)).fetchall()
+   marks=','.join('?' for _ in BLOCKING_TRIAL_STATUSES)
+   rows=c.execute(
+    f"SELECT id,selected_slot_start,selected_slot_end,status FROM public_trial_requests "
+    f"WHERE selected_slot_start IS NOT NULL AND status IN ({marks}) "
+    f"AND (expires_at IS NULL OR expires_at>?)",
+    (*sorted(BLOCKING_TRIAL_STATUSES),datetime.now().isoformat(timespec='seconds'))
+   ).fetchall()
    trials=[dict(r) for r in rows]
   except Exception:pass
   try:
-   statuses="('PENDING','APPROVED')" if include_pending_regular else "('APPROVED')"
-   rows=c.execute(f"SELECT id,weekday,start_time,duration_minutes,status FROM regular_schedules WHERE status IN {statuses} AND COALESCE(active,1)=1").fetchall()
+   statuses=('PENDING','APPROVED') if include_pending_regular else ('APPROVED',)
+   marks=','.join('?' for _ in statuses)
+   rows=c.execute(
+    f"SELECT id,weekday,start_time,duration_minutes,status,start_date,end_date,pause_until "
+    f"FROM regular_schedules WHERE status IN ({marks}) AND COALESCE(active,1)=1",
+    statuses
+   ).fetchall()
    regular=[dict(r) for r in rows]
   except Exception:pass
   return {'lessons':lessons,'trials':trials,'regular':regular}
@@ -53,10 +72,23 @@ def conflicts_from_snapshot(start_time,end_time,snapshot,ignore_lesson_id=None,i
   if ignore_trial_id and int(r['id'])==int(ignore_trial_id):continue
   s=r['selected_slot_start'];e=r.get('selected_slot_end') or (_dt(s)+timedelta(minutes=60)).isoformat()
   if overlaps(start,end,s,e):out.append({'kind':'public_trial','id':int(r['id']),'status':r.get('status')})
- weekday=start.weekday();sm=start.hour*60+start.minute;em=end.hour*60+end.minute
+ weekday=start.weekday();day=start.date();sm=start.hour*60+start.minute;em=end.hour*60+end.minute
  for r in snapshot.get('regular',[]):
   if ignore_regular_id and int(r['id'])==int(ignore_regular_id):continue
   if int(r['weekday'])!=weekday:continue
+  # A recurring reservation only exists inside its configured date range.
+  # Older databases may have NULL bounds, which intentionally means unbounded.
+  try:
+   if r.get('start_date') and day<datetime.fromisoformat(str(r['start_date'])).date():continue
+   if r.get('end_date') and day>datetime.fromisoformat(str(r['end_date'])).date():continue
+  except Exception:
+   pass
+  # Defensive support for temporarily paused rows if legacy data happens to
+  # retain APPROVED while pause_until is populated.
+  try:
+   if r.get('pause_until') and day<=datetime.fromisoformat(str(r['pause_until'])).date():continue
+  except Exception:
+   pass
   rs=_clock_minutes(r['start_time']);re=rs+int(r.get('duration_minutes') or 60)
   if sm<re and rs<em:out.append({'kind':'regular_schedule','id':int(r['id']),'status':r.get('status')})
  return out
