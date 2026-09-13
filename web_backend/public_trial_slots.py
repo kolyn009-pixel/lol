@@ -42,19 +42,22 @@ def _working_dt(day, value, tz):
         raise ValueError("invalid_working_hours")
 
 
-def _working_span(day, rows, tz):
-    starts = []
-    ends = []
+def _working_spans(day, rows, tz):
+    """Return the real independent working intervals for one date.
+
+    Do not collapse a split schedule such as 10:00-13:00 and 16:00-20:00
+    into one 10:00-20:00 envelope: that would expose bookable trial slots
+    inside the teacher's break.
+    """
+    spans = []
     for row in rows:
         start = _working_dt(day, row['start_time'], tz)
         end = _working_dt(day, row['end_time'], tz)
         if end <= start:
             continue
-        starts.append(start)
-        ends.append(end)
-    if not starts:
-        return None
-    return min(starts), max(ends)
+        spans.append((start, end))
+    spans.sort(key=lambda item: item[0])
+    return spans
 
 
 def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
@@ -74,9 +77,8 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
         for offset in range(days):
             day = now_teacher.date() + timedelta(days=offset)
             values = []
-            span = _working_span(day, database.get_effective_working_hours(day), teacher_tz)
-            if span:
-                start, end = span
+            rows = database.get_effective_working_hours(day)
+            for start, end in _working_spans(day, rows, teacher_tz):
                 cur = start
                 while cur + timedelta(minutes=duration) <= end:
                     finish = cur + timedelta(minutes=duration)
@@ -96,8 +98,12 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
                         })
                     cur += timedelta(minutes=STEP_MINUTES)
             if values:
-                local_day = datetime.fromisoformat(values[0]["local_start"]).date().isoformat()
-                out.append({"date": local_day, "slots": values})
+                by_local_day = {}
+                for slot in values:
+                    local_day = datetime.fromisoformat(slot["local_start"]).date().isoformat()
+                    by_local_day.setdefault(local_day, []).append(slot)
+                for local_day in sorted(by_local_day):
+                    out.append({"date": local_day, "slots": by_local_day[local_day]})
     finally:
         conn.close()
     return {
