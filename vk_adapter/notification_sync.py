@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import database
-from core import effective_pricing
+from core import effective_pricing, payment_reminder_routing
 
 SUBJECT_NAMES = {"PHYSICS": "Физика", "CHEMISTRY": "Химия"}
 
@@ -100,7 +100,6 @@ def _lesson_text(user, lesson, reminder_type):
         start = start.replace(tzinfo=_tz())
     else:
         start = start.astimezone(_tz())
-
     intros = {
         "LESSON_24H": "💜 Небольшое напоминание\n\nЗавтра у тебя занятие.",
         "LESSON_2H": "⏰ До занятия осталось 2 часа.",
@@ -114,7 +113,6 @@ def _lesson_text(user, lesson, reminder_type):
         f"🕐 {start.strftime('%H:%M')}\n"
         f"⏱ {int(lesson['duration_minutes'] or 0)} минут"
     )
-
     if reminder_type == "LESSON_LINK_10M":
         text += (
             "\n\nПреподаватель сейчас подготовит актуальную ссылку на Телемост. "
@@ -145,7 +143,7 @@ def _payment_text(lesson, reminder_type):
 
 
 def tick(send_func):
-    """Duplicate actionable Telegram reminders to linked VK accounts."""
+    """Duplicate reminders to student VK, except parent-owned payment reminders."""
     initialize()
     now = datetime.now(_tz())
     c = database.connect()
@@ -188,6 +186,10 @@ def tick(send_func):
                 _mark_sent(user_id, event_key)
                 sent += 1
         else:
+            # Payment communication belongs to the parent whenever one is linked.
+            # Do not leak/duplicate it to the student's VK account.
+            if payment_reminder_routing.has_parent_recipient(user_id):
+                continue
             for rtype, offset in PAYMENT_OFFSETS.items():
                 event_key = f"payment:{int(lesson['id'])}:{rtype}"
                 if _was_sent(user_id, event_key) or not _due(start, offset, now):
