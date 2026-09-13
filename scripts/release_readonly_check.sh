@@ -29,14 +29,17 @@ PYTHONDONTWRITEBYTECODE=1 "$PYTHON" -m compileall -q core integrations handlers 
 
 echo "=== IMPORT RC ==="
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP" "$PYTHON" - <<'PY'
-mods=['core.payment_sync_runtime','core.schedule_sync','handlers.calendar_runtime','integrations.google_calendar','integrations.lesson_sync','final_features.jobs','web_backend.api_v6','web_backend.finance_receipts','web_backend.student_auth']
+mods=['core.payment_sync_runtime','core.payment_reminder_routing','core.schedule_sync','handlers.calendar_runtime','integrations.google_calendar','integrations.lesson_sync','final_features.jobs','vk_adapter.notification_sync','web_backend.api_v6','web_backend.finance_receipts','web_backend.student_auth']
 for name in mods:
     __import__(name)
     print('OK',name)
 PY
 
+echo "=== ROUTING SELFTEST ==="
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP" "$PYTHON" scripts/payment_reminder_routing_selftest.py
+
 echo "=== REQUIRED RC FILES ==="
-for f in web_backend/receipt_archive_worker.py web_backend/adelia-receipt-archive.service scripts/integration_selftest.py scripts/load_probe.py core/payment_sync_runtime.py desktop/bundled_ui.js desktop/role_assets_manifest.js desktop/sync_role_assets.js; do
+for f in web_backend/receipt_archive_worker.py web_backend/adelia-receipt-archive.service scripts/integration_selftest.py scripts/load_probe.py scripts/payment_reminder_routing_selftest.py core/payment_sync_runtime.py core/payment_reminder_routing.py desktop/bundled_ui.js desktop/role_assets_manifest.js desktop/sync_role_assets.js web/manifest.webmanifest web/teacher-manifest.webmanifest web/service-worker.js web/assets/icons/adelia-icon.svg; do
   test -f "$f" || { echo "MISSING $f"; exit 20; }
   echo "OK $f"
 done
