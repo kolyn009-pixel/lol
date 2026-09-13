@@ -22,8 +22,6 @@ def approve_lesson(lesson_id):
  if not lesson:raise ValueError('lesson_not_found')
  if lesson['lesson_status']!='PENDING':raise ValueError('lesson_not_pending')
  database.approve_lesson_request(int(lesson_id))
- # Local approval is authoritative. External services are best-effort and can
- # be retried without duplicating the lesson, conference or calendar event.
  try:
   from integrations.lesson_sync import sync_lesson
   integrations=sync_lesson(int(lesson_id))
@@ -36,10 +34,20 @@ def reject_lesson(lesson_id,reason=None):
  if lesson['lesson_status']!='PENDING':raise ValueError('lesson_not_pending')
  database.reject_lesson_request(int(lesson_id),str(reason or '').strip()[:500] or None);return {'status':'ok','lesson_id':int(lesson_id),'lesson_status':'REJECTED'}
 def approve_schedule(schedule_id):
- row=database.get_regular_schedule(int(schedule_id))
+ sid=int(schedule_id);row=database.get_regular_schedule(sid)
  if not row:raise ValueError('schedule_not_found')
  if row['status']!='PENDING':raise ValueError('schedule_not_pending')
- database.approve_regular_schedule(int(schedule_id));return {'status':'ok','schedule_id':int(schedule_id),'schedule_status':'APPROVED'}
+ database.approve_regular_schedule(sid)
+ generation=database.generate_regular_lessons(sid)
+ created=[int(x) for x in (generation.get('created') or [])]
+ sync={'synced_lesson_ids':[],'failed':[]}
+ if created:
+  try:
+   from core import schedule_sync
+   sync=schedule_sync.sync_lessons_blocking(created)
+  except Exception as exc:
+   sync={'synced_lesson_ids':[],'failed':[{'reason':'schedule_sync_error','detail':type(exc).__name__}]}
+ return {'status':'ok','schedule_id':sid,'schedule_status':'APPROVED','generation':generation,'sync':sync}
 def reject_schedule(schedule_id,reason=None):
  row=database.get_regular_schedule(int(schedule_id))
  if not row:raise ValueError('schedule_not_found')
