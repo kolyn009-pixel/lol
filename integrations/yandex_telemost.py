@@ -83,8 +83,6 @@ def _request(method, path, body=None):
             data = json.loads(raw.decode("utf-8")) if raw else {}
             return int(response.status), data
     except HTTPError as exc:
-        # Deliberately do not include the provider response body: it can contain
-        # account/organization details and is not required for operational logs.
         raise RuntimeError(f"telemost_http_{int(exc.code)}") from exc
     except URLError as exc:
         raise RuntimeError("telemost_network_error") from exc
@@ -111,6 +109,21 @@ def _lesson_exists(lesson_id):
         raise ValueError("lesson_not_found")
 
 
+def _repair_lesson_meeting_url(lesson_id, join_url):
+    """Keep the canonical lesson row aligned with a reused Telemost record."""
+    conn = database.connect()
+    try:
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(lessons)").fetchall()}
+        if "meeting_url" not in columns:
+            return
+        row = conn.execute("SELECT meeting_url FROM lessons WHERE id=?", (int(lesson_id),)).fetchone()
+        if row and str(row["meeting_url"] or "").strip() != str(join_url):
+            conn.execute("UPDATE lessons SET meeting_url=? WHERE id=?", (str(join_url), int(lesson_id)))
+            conn.commit()
+    finally:
+        conn.close()
+
+
 def _save(lesson_id, conference_id, join_url):
     now = database.now_iso()
     ensure_schema()
@@ -123,11 +136,13 @@ def _save(lesson_id, conference_id, join_url):
         ).fetchone()
         if current and current["telemost_conference_id"] and current["telemost_join_url"]:
             conn.rollback()
-            return {
+            saved = {
                 "conference_id": current["telemost_conference_id"],
                 "join_url": current["telemost_join_url"],
                 "reused": True,
             }
+            _repair_lesson_meeting_url(lesson_id, saved["join_url"])
+            return saved
         conn.execute(
             """INSERT INTO lesson_external_integrations(
                  lesson_id,telemost_conference_id,telemost_join_url,
@@ -175,10 +190,12 @@ def ensure_lesson_conference(lesson_id):
     _lesson_exists(lesson_id)
     existing = _integration(lesson_id) or {}
     if existing.get("telemost_conference_id") and existing.get("telemost_join_url"):
+        join_url = _join_url(existing["telemost_join_url"])
+        _repair_lesson_meeting_url(lesson_id, join_url)
         return {
             "status": "ok",
             "conference_id": existing["telemost_conference_id"],
-            "join_url": existing["telemost_join_url"],
+            "join_url": join_url,
             "reused": True,
         }
     try:
