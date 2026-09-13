@@ -66,11 +66,11 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
     days = max(1, min(int(days or 14), MAX_DAYS))
     now_teacher = datetime.now(teacher_tz)
     out = []
-    # Reuse one SQLite connection for the whole feed. Previously every 30-minute
-    # candidate opened a new connection and repeated the same collision queries,
-    # which made this public endpoint a concurrency bottleneck.
     conn = database.connect()
     try:
+        range_start = now_teacher.replace(tzinfo=None)
+        range_end = (now_teacher + timedelta(days=days + 1)).replace(tzinfo=None)
+        snapshot = availability_guard.availability_snapshot(range_start, range_end, conn=conn)
         for offset in range(days):
             day = now_teacher.date() + timedelta(days=offset)
             values = []
@@ -82,8 +82,8 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
                     finish = cur + timedelta(minutes=duration)
                     teacher_start = cur.replace(tzinfo=None)
                     teacher_end = finish.replace(tzinfo=None)
-                    if cur > now_teacher + timedelta(minutes=30) and availability_guard.is_available(
-                        teacher_start, teacher_end, conn=conn
+                    if cur > now_teacher + timedelta(minutes=30) and availability_guard.is_available_from_snapshot(
+                        teacher_start, teacher_end, snapshot
                     ):
                         local_start = cur.astimezone(client_tz)
                         local_end = finish.astimezone(client_tz)
