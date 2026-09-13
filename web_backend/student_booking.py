@@ -62,14 +62,19 @@ def trial_status(user_id):
 
 
 def free_slots(user_id, program_id, days=14, duration_minutes=DEFAULT_DURATION):
+    """Return free student-booking slots using one collision snapshot per request."""
     _program_owned(user_id, program_id)
     duration = int(duration_minutes or DEFAULT_DURATION)
     if duration < 30 or duration > 180 or duration % 30:
         raise ValueError('invalid_duration')
+    span_days = max(1, min(int(days), 31))
     today = date.today()
     now = datetime.now()
+    range_start = datetime.combine(today, datetime.min.time())
+    range_end = range_start + timedelta(days=span_days + 1)
+    snapshot = availability_guard.availability_snapshot(range_start, range_end)
     out = []
-    for offset in range(max(1, min(int(days), 31))):
+    for offset in range(span_days):
         day = today + timedelta(days=offset)
         values = []
         for row in database.get_effective_working_hours(day):
@@ -78,7 +83,7 @@ def free_slots(user_id, program_id, days=14, duration_minutes=DEFAULT_DURATION):
             cur = start
             while cur + timedelta(minutes=duration) <= end:
                 finish = cur + timedelta(minutes=duration)
-                if cur > now and availability_guard.is_available(cur, finish):
+                if cur > now and availability_guard.is_available_from_snapshot(cur, finish, snapshot):
                     values.append({'start_time': cur.isoformat(), 'end_time': finish.isoformat(), 'label': cur.strftime('%H:%M')})
                 cur += timedelta(minutes=STEP_MINUTES)
         if values:
@@ -102,6 +107,8 @@ def _request(user_id, program_id, start_time, duration_minutes, is_trial):
     if start <= datetime.now():
         raise ValueError('slot_in_past')
     end = start + timedelta(minutes=duration)
+    # Keep an independent fresh check before creating the request. The list shown
+    # to the student is only a read model and may be stale by the time they click.
     availability_guard.assert_available(start, end)
     allowed = False
     for day in free_slots(user_id, program_id, days=31, duration_minutes=duration):
