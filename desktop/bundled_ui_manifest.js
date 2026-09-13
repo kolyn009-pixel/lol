@@ -1,0 +1,2 @@
+'use strict';
+module.exports={student:{css:['desktop_shell.css','group_events_ui.css','desktop_polish.css'],js:['desktop_shell.js','group_events_ui.js','desktop_polish.js']},teacher:{css:['teacher_desktop_v2.css','teacher_stage2_workspace.css','teacher_stage3_learning.css','teacher_stage4_workspace.css','teacher_stage5_polish.css'],js:['teacher_desktop_v2.js','teacher_stage2_workspace.js','teacher_stage2_finance.js','teacher_stage3_learning.js','teacher_stage4_workspace.js','teacher_stage5_polish.js']}};
