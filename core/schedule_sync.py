@@ -1,27 +1,26 @@
 from __future__ import annotations
 
-"""Shared post-change reconciliation for Calendar and lesson reminders.
+"""Shared post-change reconciliation for external lesson services and reminders.
 
-Business transactions change lesson times first. Adapters call this helper only
-after commit, so an external Calendar failure can never roll back the schedule.
+Business transactions change lesson times first. External integrations run only
+after commit, so provider failures can never roll back the TutorBot schedule.
+All Calendar/Telemost work is routed through ``integrations.lesson_sync`` to
+avoid the legacy duplicate Google implementation in ``bot.py``.
 """
 
-import asyncio
 import database
 
 
-def _calendar_should_exist(lesson):
+def _external_should_exist(lesson):
     return (
-        lesson['lesson_status'] == 'CONFIRMED'
-        and lesson['payment_status'] != 'AWAITING_PAYMENT'
+        str(lesson['lesson_status'] or '').upper() == 'CONFIRMED'
+        and str(lesson['payment_status'] or '').upper() != 'AWAITING_PAYMENT'
     )
 
 
 def _clear_reminders(lesson_id):
     c = database.connect()
     try:
-        # Existing reminder bookkeeping is time-dependent; after a move old
-        # timestamps must not survive. The running bot can schedule fresh jobs.
         if database.table_exists(c, 'lesson_reminders'):
             c.execute('DELETE FROM lesson_reminders WHERE lesson_id=?', (int(lesson_id),))
         c.commit()
@@ -29,32 +28,37 @@ def _clear_reminders(lesson_id):
         c.close()
 
 
+def _sync_external(lesson_id, lesson):
+    from integrations import lesson_sync
+    if _external_should_exist(lesson):
+        result = lesson_sync.sync_lesson(int(lesson_id), google=True, telemost=True)
+    else:
+        result = lesson_sync.cancel_lesson(int(lesson_id))
+    failures = []
+    for provider in ('google', 'telemost'):
+        item = result.get(provider)
+        if isinstance(item, dict) and item.get('status') == 'error':
+            failures.append({'lesson_id': int(lesson_id), 'reason': f'{provider}_error', 'detail': item.get('error')})
+    return result, failures
+
+
 async def sync_lessons(application, lesson_ids):
+    """Reconcile external services and rebuild in-process reminder jobs."""
+    import asyncio
     import bot as tutor_bot
     synced, failed = [], []
     for raw_id in dict.fromkeys(int(x) for x in (lesson_ids or []) if x is not None):
         lesson = database.get_lesson(raw_id)
         if not lesson:
             failed.append({'lesson_id': raw_id, 'reason': 'lesson_not_found'}); continue
-        user = database.get_user(int(lesson['user_id']))
-        if not user:
-            failed.append({'lesson_id': raw_id, 'reason': 'student_not_found'}); continue
         try:
-            event_id = lesson['google_event_id']
-            if _calendar_should_exist(lesson):
-                if event_id:
-                    await asyncio.to_thread(tutor_bot.update_google_event, event_id, user, lesson)
-                else:
-                    new_id = await asyncio.to_thread(tutor_bot.create_google_event, user, lesson)
-                    tutor_bot.save_google_event_id(raw_id, new_id)
-            elif event_id:
-                if await asyncio.to_thread(tutor_bot.delete_google_event, event_id):
-                    tutor_bot.save_google_event_id(raw_id, None)
+            _, integration_failures = await asyncio.to_thread(_sync_external, raw_id, lesson)
+            failed.extend(integration_failures)
         except Exception as exc:
-            failed.append({'lesson_id': raw_id, 'reason': 'calendar_error', 'detail': type(exc).__name__})
+            failed.append({'lesson_id': raw_id, 'reason': 'integration_error', 'detail': type(exc).__name__})
         try:
             _clear_reminders(raw_id)
-            if application is not None and _calendar_should_exist(lesson):
+            if application is not None and _external_should_exist(lesson):
                 tutor_bot.schedule_lesson_reminders(application, raw_id)
         except Exception as exc:
             failed.append({'lesson_id': raw_id, 'reason': 'reminder_error', 'detail': type(exc).__name__})
@@ -64,33 +68,17 @@ async def sync_lessons(application, lesson_ids):
 
 
 def sync_lessons_blocking(lesson_ids):
-    """Reconcile Calendar from synchronous web/API code after DB commit.
-
-    Old reminder bookkeeping is cleared immediately. Fresh in-process Telegram
-    jobs are intentionally created only by ``sync_lessons`` where an Application
-    instance exists; the bot's normal reconciliation remains the fallback.
-    """
-    import bot as tutor_bot
+    """Reconcile integrations from synchronous web/API code after DB commit."""
     synced, failed = [], []
     for raw_id in dict.fromkeys(int(x) for x in (lesson_ids or []) if x is not None):
         lesson = database.get_lesson(raw_id)
         if not lesson:
             failed.append({'lesson_id': raw_id, 'reason': 'lesson_not_found'}); continue
-        user = database.get_user(int(lesson['user_id']))
-        if not user:
-            failed.append({'lesson_id': raw_id, 'reason': 'student_not_found'}); continue
         try:
-            event_id = lesson['google_event_id']
-            if _calendar_should_exist(lesson):
-                if event_id:
-                    tutor_bot.update_google_event(event_id, user, lesson)
-                else:
-                    new_id = tutor_bot.create_google_event(user, lesson)
-                    tutor_bot.save_google_event_id(raw_id, new_id)
-            elif event_id and tutor_bot.delete_google_event(event_id):
-                tutor_bot.save_google_event_id(raw_id, None)
+            _, integration_failures = _sync_external(raw_id, lesson)
+            failed.extend(integration_failures)
         except Exception as exc:
-            failed.append({'lesson_id': raw_id, 'reason': 'calendar_error', 'detail': type(exc).__name__})
+            failed.append({'lesson_id': raw_id, 'reason': 'integration_error', 'detail': type(exc).__name__})
         try:
             _clear_reminders(raw_id)
         except Exception as exc:
