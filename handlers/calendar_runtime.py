@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+"""Compatibility layer for legacy Telegram Calendar call sites.
+
+The canonical Google Calendar owner is ``integrations.google_calendar``.  Older
+Telegram handlers still call ``bot.create_google_event`` / ``update_google_event`` /
+``delete_google_event`` / ``ensure_google_event``; this module patches those entry
+points so they cannot create a second event through the legacy implementation.
+
+A lightweight state table is retained only as a reconciliation fingerprint.  It
+never stores provider ownership; the provider event id lives in
+``lesson_external_integrations``.
+"""
+
 import asyncio
 import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import database
-from core import calendar_policy
 
 
 def _connect():
@@ -25,14 +36,6 @@ def _init_state_tables():
                 synced_at TEXT NOT NULL
             )
         """)
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS calendar_special_events (
-                event_key TEXT PRIMARY KEY,
-                google_event_id TEXT,
-                state_key TEXT NOT NULL,
-                synced_at TEXT NOT NULL
-            )
-        """)
         c.commit()
     finally:
         c.close()
@@ -46,7 +49,7 @@ def _state_key(lesson):
     values = []
     for key in (
         "start_time", "end_time", "lesson_status", "payment_status",
-        "price", "subject", "duration_minutes", "is_trial",
+        "price", "subject", "duration_minutes", "is_trial", "meeting_url",
     ):
         try:
             values.append(lesson[key])
@@ -91,33 +94,72 @@ def _drop_state(lesson_id):
         c.close()
 
 
-def _create_event(bot_module, user, lesson):
-    return calendar_policy.create_google_event(bot_module, user, lesson)
+def _should_exist(lesson):
+    return (
+        str(lesson["lesson_status"] or "").upper() == "CONFIRMED"
+        and str(lesson["payment_status"] or "").upper() != "AWAITING_PAYMENT"
+    )
 
 
-def _update_event(bot_module, event_id, user, lesson):
-    return calendar_policy.update_google_event(bot_module, event_id, user, lesson)
+def _mirror_legacy_event_id(lesson_id, event_id):
+    """Keep the old lessons.google_event_id field readable during migration."""
+    c = _connect()
+    try:
+        c.execute(
+            "UPDATE lessons SET google_event_id=?, updated_at=COALESCE(updated_at, ?) WHERE id=?",
+            (event_id, database.now_iso(), int(lesson_id)),
+        )
+        c.commit()
+    finally:
+        c.close()
 
 
-def _delete_event(bot_module, event_id):
-    return calendar_policy.delete_google_event(bot_module, event_id)
+def _canonical_sync(lesson_id):
+    from integrations.google_calendar import sync_lesson
+
+    result = sync_lesson(int(lesson_id))
+    event_id = result.get("event_id") if isinstance(result, dict) else None
+    if event_id:
+        _mirror_legacy_event_id(lesson_id, event_id)
+    lesson = database.get_lesson(int(lesson_id))
+    if lesson:
+        _save_state(int(lesson_id), _state_key(lesson))
+    return event_id
 
 
-async def _sync_days_off(bot_module):
-    # Existing day-off integration is deliberately best-effort. Lesson sync is
-    # the latency-sensitive path; day-off materialization can be added here
-    # without changing ownership of Calendar writes.
-    return None
+def _canonical_cancel(lesson_id):
+    from integrations.google_calendar import cancel_lesson
+
+    result = cancel_lesson(int(lesson_id))
+    _mirror_legacy_event_id(lesson_id, None)
+    _drop_state(lesson_id)
+    return result
 
 
-async def _sync(bot_module, application=None):
-    """Synchronize the relevant lesson window with Google Calendar.
+def _lesson_id_for_event(event_id):
+    if not event_id:
+        return None
+    c = _connect()
+    try:
+        row = None
+        if database.table_exists(c, "lesson_external_integrations"):
+            row = c.execute(
+                "SELECT lesson_id FROM lesson_external_integrations WHERE google_event_id=? LIMIT 1",
+                (str(event_id),),
+            ).fetchone()
+        if row:
+            return int(row["lesson_id"])
+        row = c.execute(
+            "SELECT id FROM lessons WHERE google_event_id=? LIMIT 1",
+            (str(event_id),),
+        ).fetchone()
+        return int(row["id"]) if row else None
+    finally:
+        c.close()
 
-    The previous 20-second cadence repeatedly walked the same SQLite rows and
-    could invoke Google Calendar from the Telegram application's event loop.
-    State keys keep writes incremental; the wider scan now runs at a sane
-    cadence while direct lesson mutations still call ensure_google_event().
-    """
+
+async def _sync(application=None):
+    """Periodic safety-net reconciliation using the canonical provider adapter."""
     now = datetime.now(timezone.utc)
     lower = (now - timedelta(days=14)).isoformat()
     upper = (now + timedelta(days=120)).isoformat()
@@ -133,119 +175,98 @@ async def _sync(bot_module, application=None):
     finally:
         c.close()
 
-    created = updated = deleted = 0
+    created_or_updated = deleted = skipped = 0
     for lesson in lessons:
-        event_id = str(lesson["google_event_id"] or "").strip()
-        should_delete = calendar_policy.should_delete_lesson_event(lesson)
-        if should_delete:
-            if event_id:
-                try:
-                    await asyncio.to_thread(_delete_event, bot_module, event_id)
-                    try:
-                        bot_module.save_google_event_id(lesson["id"], None)
-                    except Exception:
-                        pass
-                    _drop_state(lesson["id"])
-                    deleted += 1
-                except Exception as exc:
-                    print("GOOGLE CALENDAR POLICY DELETE:", lesson["id"], repr(exc))
-            continue
-
-        user = database.get_user(int(lesson["user_id"]))
-        if not user:
-            continue
-
+        lesson_id = int(lesson["id"])
         key = _state_key(lesson)
         try:
-            if not event_id:
-                new_id = await asyncio.to_thread(_create_event, bot_module, user, lesson)
-                bot_module.save_google_event_id(lesson["id"], new_id)
-                _save_state(lesson["id"], key)
-                created += 1
-            elif _stored_state(lesson["id"]) != key:
-                await asyncio.to_thread(_update_event, bot_module, event_id, user, lesson)
-                _save_state(lesson["id"], key)
-                updated += 1
-        except Exception as exc:
-            print("GOOGLE CALENDAR POLICY SYNC:", lesson["id"], repr(exc))
+            if not _should_exist(lesson):
+                event_id = str(lesson["google_event_id"] or "").strip()
+                if event_id or _stored_state(lesson_id) is not None:
+                    await asyncio.to_thread(_canonical_cancel, lesson_id)
+                    deleted += 1
+                else:
+                    skipped += 1
+                continue
 
-    await _sync_days_off(bot_module)
-    if created or updated or deleted:
+            if _stored_state(lesson_id) == key:
+                skipped += 1
+                continue
+
+            await asyncio.to_thread(_canonical_sync, lesson_id)
+            created_or_updated += 1
+        except Exception as exc:
+            print("GOOGLE CALENDAR CANONICAL SYNC:", lesson_id, repr(exc), flush=True)
+
+    if created_or_updated or deleted:
         print(
-            "GOOGLE CALENDAR POLICY:",
-            f"created={created}",
-            f"updated={updated}",
+            "GOOGLE CALENDAR CANONICAL:",
+            f"synced={created_or_updated}",
             f"deleted={deleted}",
+            f"skipped={skipped}",
+            flush=True,
         )
-    return {"created": created, "updated": updated, "deleted": deleted}
+    return {"synced": created_or_updated, "deleted": deleted, "skipped": skipped}
 
 
 async def _live_calendar_sync_job(context):
-    """Periodic safety-net sync; direct mutations remain the fast path."""
     try:
-        import sys
-        runtime = sys.modules.get("__main__")
-        if runtime is None:
-            import bot as runtime
-        await _sync(runtime, getattr(context, "application", None))
+        await _sync(getattr(context, "application", None))
     except Exception as exc:
         print("GOOGLE CALENDAR LIVE SYNC ERROR:", repr(exc), flush=True)
 
 
 def install(application=None):
-    """Patch the live Calendar runtime without duplicating job scheduling."""
+    """Patch legacy bot Calendar functions to the single canonical owner."""
     import sys
 
     bot_module = sys.modules.get("__main__")
-    if (
-        bot_module is None
-        or not hasattr(bot_module, "get_calendar_service")
-        or not hasattr(bot_module, "save_google_event_id")
-    ):
+    if bot_module is None or not hasattr(bot_module, "save_google_event_id"):
         import bot as bot_module
 
-    if getattr(bot_module, "_calendar_policy_v2_installed", False):
+    if getattr(bot_module, "_calendar_policy_v3_installed", False):
         return
 
     def create_google_event(user, lesson):
-        event_id = _create_event(bot_module, user, lesson)
-        _save_state(lesson["id"], _state_key(lesson))
-        return event_id
+        lesson_id = int(lesson["id"])
+        return _canonical_sync(lesson_id)
 
     def update_google_event(event_id, user, lesson):
-        result = _update_event(bot_module, event_id, user, lesson)
-        _save_state(lesson["id"], _state_key(lesson))
-        return result
+        lesson_id = int(lesson["id"])
+        return _canonical_sync(lesson_id)
+
+    def delete_google_event(event_id):
+        lesson_id = _lesson_id_for_event(event_id)
+        if lesson_id is None:
+            # Unknown legacy event: do not invoke the old provider writer.  It
+            # can be cleaned by a one-time migration if encountered in prod.
+            return False
+        _canonical_cancel(lesson_id)
+        return True
 
     async def ensure_google_event(lesson_id):
         lesson = database.get_lesson(int(lesson_id))
-        if not lesson or calendar_policy.should_delete_lesson_event(lesson):
+        if not lesson:
             return None
-        user = database.get_user(int(lesson["user_id"]))
-        if not user:
-            return None
-        event_id = str(lesson["google_event_id"] or "").strip()
         try:
-            if event_id:
-                await asyncio.to_thread(_update_event, bot_module, event_id, user, lesson)
-                _save_state(lesson["id"], _state_key(lesson))
-                return event_id
-            event_id = await asyncio.to_thread(_create_event, bot_module, user, lesson)
-            bot_module.save_google_event_id(lesson["id"], event_id)
-            _save_state(lesson["id"], _state_key(lesson))
-            return event_id
+            if not _should_exist(lesson):
+                await asyncio.to_thread(_canonical_cancel, int(lesson_id))
+                return None
+            return await asyncio.to_thread(_canonical_sync, int(lesson_id))
         except Exception as exc:
-            print("GOOGLE CALENDAR ENSURE POLICY:", lesson_id, repr(exc))
+            print("GOOGLE CALENDAR ENSURE CANONICAL:", lesson_id, repr(exc), flush=True)
             return None
 
     async def sync_google_calendar(application=None):
-        return await _sync(bot_module, application)
+        return await _sync(application)
 
     bot_module.create_google_event = create_google_event
     bot_module.update_google_event = update_google_event
+    bot_module.delete_google_event = delete_google_event
     bot_module.ensure_google_event = ensure_google_event
     bot_module.sync_google_calendar = sync_google_calendar
     bot_module._calendar_policy_v2_installed = True
+    bot_module._calendar_policy_v3_installed = True
     _init_state_tables()
 
     if application is not None and getattr(application, "job_queue", None):
