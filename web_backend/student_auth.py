@@ -53,10 +53,10 @@ def authenticate_student(login,password):
  ensure_student_web_login_table()
  try:login=_normalize_login(login)
  except ValueError:_dummy_password_work(password);return {'status':'invalid','student':None}
- conn=connect();row=conn.execute('SELECT u.id,u.name,u.telegram_username,u.grade,c.password_hash FROM student_web_credentials c JOIN users u ON u.id=c.student_id WHERE c.login=? COLLATE NOCASE AND u.active=1 LIMIT 1',(login,)).fetchone()
+ conn=connect();row=conn.execute('SELECT u.id,u.name,u.grade,c.password_hash FROM student_web_credentials c JOIN users u ON u.id=c.student_id WHERE c.login=? COLLATE NOCASE AND u.active=1 LIMIT 1',(login,)).fetchone()
  if not row:conn.close();_dummy_password_work(password);return {'status':'invalid','student':None}
  if not _password_matches(password,row['password_hash']):conn.close();return {'status':'invalid','student':None}
- student={'id':int(row['id']),'name':row['name'],'telegram_username':row['telegram_username'],'grade':row['grade']};conn.close();_ensure_social_profile(student['id']);return {'status':'ok','student':student}
+ student={'id':int(row['id']),'name':row['name'],'grade':row['grade']};conn.close();_ensure_social_profile(student['id']);return {'status':'ok','student':student}
 def issue_student_login_code(student_id,ttl_minutes=CODE_TTL_MINUTES):
  ensure_student_web_login_table();student_id=int(student_id);ttl_minutes=max(1,min(int(ttl_minutes),30));expires=(datetime.now()+timedelta(minutes=ttl_minutes)).isoformat(timespec='seconds');conn=connect();student=conn.execute('SELECT id FROM users WHERE id=? AND active=1',(student_id,)).fetchone()
  if not student:conn.close();raise ValueError('student_not_found')
@@ -68,10 +68,10 @@ def issue_student_login_code(student_id,ttl_minutes=CODE_TTL_MINUTES):
 def _peek_plain_code(code):
  code=''.join(ch for ch in str(code or '') if ch.isdigit())
  if len(code)!=6:return {'status':'invalid','student':None}
- values=_code_candidates(code);marks=','.join('?' for _ in values);conn=connect();row=conn.execute(f'SELECT c.id AS code_id,c.expires_at,c.used_at,u.id,u.name,u.telegram_username,u.grade FROM student_web_login_codes c JOIN users u ON u.id=c.student_id WHERE c.code IN ({marks}) AND u.active=1 ORDER BY c.id DESC LIMIT 1',values).fetchone();conn.close()
+ values=_code_candidates(code);marks=','.join('?' for _ in values);conn=connect();row=conn.execute(f'SELECT c.id AS code_id,c.expires_at,c.used_at,u.id,u.name,u.grade FROM student_web_login_codes c JOIN users u ON u.id=c.student_id WHERE c.code IN ({marks}) AND u.active=1 ORDER BY c.id DESC LIMIT 1',values).fetchone();conn.close()
  if not row or row['used_at']:return {'status':'invalid','student':None}
  if datetime.fromisoformat(row['expires_at'])<datetime.now():return {'status':'expired','student':None}
- return {'status':'ok','code_id':int(row['code_id']),'student':{'id':int(row['id']),'name':row['name'],'telegram_username':row['telegram_username'],'grade':row['grade']}}
+ return {'status':'ok','code_id':int(row['code_id']),'student':{'id':int(row['id']),'name':row['name'],'grade':row['grade']}}
 def peek_student_login_code(code):
  """Validate a one-time code without consuming it; used by two-step onboarding."""
  result=_peek_plain_code(code)
