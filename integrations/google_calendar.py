@@ -5,7 +5,8 @@ Designed for a long-running server process:
 - refreshes access tokens automatically;
 - atomically rewrites token.json after refresh;
 - never launches an interactive OAuth flow from the production worker;
-- keeps external event ids in a dedicated integration table.
+- keeps external event ids in a dedicated integration table;
+- recreates events safely when a remote event was deleted manually.
 """
 from __future__ import annotations
 
@@ -115,7 +116,7 @@ def _lesson(lesson_id):
     conn = database.connect()
     row = conn.execute(
         """
-        SELECT l.*, u.name AS student_name
+        SELECT l.*, u.name AS student_name, u.board_url AS student_board_url
         FROM lessons l
         JOIN users u ON u.id=l.user_id
         WHERE l.id=?
@@ -165,20 +166,28 @@ def _event_body(lesson):
     goal = str(lesson.get("study_goal") or "").strip()
     student = str(lesson.get("student_name") or "Ученик")
     title = f"{subject}{' · ' + goal if goal else ''} — {student}"
-    description = ["Аделия | TutorBot"]
+    description = ["Аделия | TutorBot", f"Ученик: {student}"]
     if lesson.get("meeting_url"):
-        description.append(f"Ссылка на занятие: {lesson['meeting_url']}")
+        description.append(f"Telemost: {lesson['meeting_url']}")
+    if lesson.get("student_board_url"):
+        description.append(f"Доска: {lesson['student_board_url']}")
+    timezone = str(database.get_setting("bot_timezone", "Europe/Samara") or "Europe/Samara")
     return {
         "summary": title,
         "description": "\n".join(description),
-        "start": {"dateTime": lesson["start_time"]},
-        "end": {"dateTime": lesson["end_time"]},
+        "start": {"dateTime": lesson["start_time"], "timeZone": timezone},
+        "end": {"dateTime": lesson["end_time"], "timeZone": timezone},
         "extendedProperties": {
             "private": {
                 "tutorbot_lesson_id": str(lesson["id"]),
             }
         },
     }
+
+
+def _is_not_found(exc):
+    status = getattr(getattr(exc, "resp", None), "status", None)
+    return status == 404 or "404" in str(exc)
 
 
 def sync_lesson(lesson_id):
@@ -190,17 +199,29 @@ def sync_lesson(lesson_id):
     event_id = existing.get("google_event_id")
     try:
         if event_id:
-            event = service.events().update(
-                calendarId=CALENDAR_ID,
-                eventId=event_id,
-                body=body,
-            ).execute()
+            try:
+                event = service.events().update(
+                    calendarId=CALENDAR_ID,
+                    eventId=event_id,
+                    body=body,
+                ).execute()
+            except Exception as exc:
+                if not _is_not_found(exc):
+                    raise
+                # Someone may delete an event in Google Calendar manually. The
+                # local lesson is authoritative, so recreate exactly one event.
+                event = service.events().insert(
+                    calendarId=CALENDAR_ID,
+                    body=body,
+                ).execute()
         else:
             event = service.events().insert(
                 calendarId=CALENDAR_ID,
                 body=body,
             ).execute()
         event_id = event.get("id")
+        if not event_id:
+            raise RuntimeError("google_calendar_missing_event_id")
         _save(lesson_id, event_id=event_id, error=None)
         return {"status": "ok", "event_id": event_id, "html_link": event.get("htmlLink")}
     except Exception as exc:
@@ -219,7 +240,7 @@ def cancel_lesson(lesson_id):
     except Exception as exc:
         # Deletion is idempotent at our layer; a missing remote event must not
         # make a local lesson impossible to cancel.
-        if "404" not in str(exc):
+        if not _is_not_found(exc):
             _save(lesson_id, event_id=event_id, error=f"google:{type(exc).__name__}")
             raise
     _save(lesson_id, event_id=event_id, error=None)
