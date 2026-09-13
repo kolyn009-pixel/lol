@@ -2,7 +2,8 @@
 
 This script is safe to run on production: it never creates/deletes events. It
 checks local credentials and performs a lightweight read probe against Google
-Calendar so an expired/revoked grant is detected before release.
+Calendar so an expired/revoked grant is detected before release. It also checks
+that payment lifecycle hooks can be installed idempotently in-process.
 """
 from __future__ import annotations
 
@@ -23,6 +24,32 @@ def _google_probe():
     }
 
 
+def _payment_runtime_probe():
+    import database
+    from core import payment_sync_runtime
+    from final_features import jobs as final_jobs
+
+    # Presence in final_features.jobs is the startup wiring check. install()
+    # itself only replaces Python callables in this process; it performs no DB
+    # writes and no provider requests.
+    wired = getattr(final_jobs, "payment_sync_runtime", None) is payment_sync_runtime
+    payment_sync_runtime.install()
+    first = database.approve_payment
+    markers = {
+        "approve_payment": bool(getattr(database.approve_payment, "_adelia_payment_sync", False)),
+        "approve_paid_booking_draft_payment": bool(getattr(database.approve_paid_booking_draft_payment, "_adelia_payment_sync", False)),
+        "charge_reserved_lesson": bool(getattr(database.charge_reserved_lesson, "_adelia_payment_sync", False)),
+    }
+    payment_sync_runtime.install()
+    idempotent = database.approve_payment is first
+    return {
+        "ok": wired and idempotent and all(markers.values()),
+        "wired": wired,
+        "idempotent": idempotent,
+        "markers": markers,
+    }
+
+
 def main():
     from integrations.lesson_sync import status
 
@@ -40,8 +67,19 @@ def main():
             }
     data["google"] = google
 
+    try:
+        data["payment_runtime"] = _payment_runtime_probe()
+    except Exception as exc:
+        data["payment_runtime"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
+    if not (data.get("payment_runtime") or {}).get("ok"):
+        print("ERROR: payment integration runtime is not wired correctly", file=sys.stderr)
+        return 5
     if google.get("connected") and not google.get("refresh_token"):
         print("ERROR: Google is connected without a refresh token", file=sys.stderr)
         return 2
