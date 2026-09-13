@@ -43,12 +43,6 @@ def _working_dt(day, value, tz):
 
 
 def _working_span(day, rows, tz):
-    """Return one daily envelope from earliest start to latest end.
-
-    Public booking intentionally ignores gaps between working-hour fragments.
-    The fragments in TutorBot define the outer daily availability boundary only;
-    real collisions are still rejected by availability_guard.
-    """
     starts = []
     ends = []
     for row in rows:
@@ -72,31 +66,40 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
     days = max(1, min(int(days or 14), MAX_DAYS))
     now_teacher = datetime.now(teacher_tz)
     out = []
-    for offset in range(days):
-        day = now_teacher.date() + timedelta(days=offset)
-        values = []
-        span = _working_span(day, database.get_effective_working_hours(day), teacher_tz)
-        if span:
-            start, end = span
-            cur = start
-            while cur + timedelta(minutes=duration) <= end:
-                finish = cur + timedelta(minutes=duration)
-                teacher_start = cur.replace(tzinfo=None)
-                teacher_end = finish.replace(tzinfo=None)
-                if cur > now_teacher + timedelta(minutes=30) and availability_guard.is_available(teacher_start, teacher_end):
-                    local_start = cur.astimezone(client_tz)
-                    local_end = finish.astimezone(client_tz)
-                    values.append({
-                        "start_time": teacher_start.isoformat(timespec="seconds"),
-                        "end_time": teacher_end.isoformat(timespec="seconds"),
-                        "local_start": local_start.isoformat(timespec="seconds"),
-                        "local_end": local_end.isoformat(timespec="seconds"),
-                        "label": local_start.strftime("%H:%M"),
-                    })
-                cur += timedelta(minutes=STEP_MINUTES)
-        if values:
-            local_day = datetime.fromisoformat(values[0]["local_start"]).date().isoformat()
-            out.append({"date": local_day, "slots": values})
+    # Reuse one SQLite connection for the whole feed. Previously every 30-minute
+    # candidate opened a new connection and repeated the same collision queries,
+    # which made this public endpoint a concurrency bottleneck.
+    conn = database.connect()
+    try:
+        for offset in range(days):
+            day = now_teacher.date() + timedelta(days=offset)
+            values = []
+            span = _working_span(day, database.get_effective_working_hours(day), teacher_tz)
+            if span:
+                start, end = span
+                cur = start
+                while cur + timedelta(minutes=duration) <= end:
+                    finish = cur + timedelta(minutes=duration)
+                    teacher_start = cur.replace(tzinfo=None)
+                    teacher_end = finish.replace(tzinfo=None)
+                    if cur > now_teacher + timedelta(minutes=30) and availability_guard.is_available(
+                        teacher_start, teacher_end, conn=conn
+                    ):
+                        local_start = cur.astimezone(client_tz)
+                        local_end = finish.astimezone(client_tz)
+                        values.append({
+                            "start_time": teacher_start.isoformat(timespec="seconds"),
+                            "end_time": teacher_end.isoformat(timespec="seconds"),
+                            "local_start": local_start.isoformat(timespec="seconds"),
+                            "local_end": local_end.isoformat(timespec="seconds"),
+                            "label": local_start.strftime("%H:%M"),
+                        })
+                    cur += timedelta(minutes=STEP_MINUTES)
+            if values:
+                local_day = datetime.fromisoformat(values[0]["local_start"]).date().isoformat()
+                out.append({"date": local_day, "slots": values})
+    finally:
+        conn.close()
     return {
         "timezone": client_name,
         "teacher_timezone": teacher_name,
