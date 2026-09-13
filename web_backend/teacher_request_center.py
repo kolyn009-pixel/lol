@@ -21,7 +21,15 @@ def approve_lesson(lesson_id):
  lesson=database.get_lesson(int(lesson_id))
  if not lesson:raise ValueError('lesson_not_found')
  if lesson['lesson_status']!='PENDING':raise ValueError('lesson_not_pending')
- database.approve_lesson_request(int(lesson_id));return {'status':'ok','lesson_id':int(lesson_id),'lesson_status':'CONFIRMED'}
+ database.approve_lesson_request(int(lesson_id))
+ # Local approval is authoritative. External services are best-effort and can
+ # be retried without duplicating the lesson, conference or calendar event.
+ try:
+  from integrations.lesson_sync import sync_lesson
+  integrations=sync_lesson(int(lesson_id))
+ except Exception as exc:
+  integrations={'google':{'status':'error','error':str(exc)},'telemost':{'status':'error','error':str(exc)}}
+ return {'status':'ok','lesson_id':int(lesson_id),'lesson_status':'CONFIRMED','integrations':integrations}
 def reject_lesson(lesson_id,reason=None):
  lesson=database.get_lesson(int(lesson_id))
  if not lesson:raise ValueError('lesson_not_found')
