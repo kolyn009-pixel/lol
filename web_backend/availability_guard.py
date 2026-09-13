@@ -13,46 +13,62 @@ def overlaps(a_start,a_end,b_start,b_end):return _dt(a_start)<_dt(b_end) and _dt
 def _clock_minutes(v):
  h,m=[int(x) for x in str(v)[:5].split(':')];return h*60+m
 
-def conflicts(start_time,end_time,ignore_lesson_id=None,ignore_regular_id=None,ignore_trial_id=None,include_pending_regular=True,conn=None):
- start=_dt(start_time);end=_dt(end_time)
+def availability_snapshot(range_start,range_end,include_pending_regular=True,conn=None):
+ """Load all blocking rows for a time window once.
+
+ Public slot feeds can then test hundreds of candidate windows in memory instead
+ of issuing several SQL queries per 30-minute candidate.
+ """
+ start=_dt(range_start);end=_dt(range_end)
  if end<=start:raise ValueError('invalid_interval')
- out=[]
- if database.is_slot_reserved(start.isoformat(),end.isoformat()):out.append({'kind':'lesson','id':None})
  c=conn or database.connect();own_connection=conn is None
  try:
+  lessons=[];trials=[];regular=[]
   try:
    rows=c.execute("SELECT id,start_time,end_time,lesson_status FROM lessons WHERE start_time < ? AND end_time > ? AND lesson_status NOT IN ('REJECTED','CANCELLED')",(end.isoformat(),start.isoformat())).fetchall()
-   for r in rows:
-    if ignore_lesson_id and int(r['id'])==int(ignore_lesson_id):continue
-    out.append({'kind':'lesson','id':int(r['id']),'status':r['lesson_status']})
+   lessons=[dict(r) for r in rows]
   except Exception:pass
   try:
    if own_connection:public_trial.ensure_schema()
    rows=c.execute("SELECT id,selected_slot_start,selected_slot_end,status FROM public_trial_requests WHERE selected_slot_start IS NOT NULL AND status IN ('LINKING','NEW','CONTACTED','ACCEPTED') AND (expires_at IS NULL OR expires_at>?)",(datetime.now().isoformat(timespec='seconds'),)).fetchall()
-   for r in rows:
-    if ignore_trial_id and int(r['id'])==int(ignore_trial_id):continue
-    s=r['selected_slot_start'];e=r['selected_slot_end'] or (_dt(s)+timedelta(minutes=60)).isoformat()
-    if overlaps(start,end,s,e):out.append({'kind':'public_trial','id':int(r['id']),'status':r['status']})
+   trials=[dict(r) for r in rows]
   except Exception:pass
   try:
    statuses="('PENDING','APPROVED')" if include_pending_regular else "('APPROVED')"
-   rows=c.execute(f"SELECT id,weekday,start_time,duration_minutes,status FROM regular_schedules WHERE status IN {statuses} AND COALESCE(active,1)=1 OR status='PENDING'").fetchall()
-   weekday=start.weekday();sm=start.hour*60+start.minute;em=end.hour*60+end.minute
-   for r in rows:
-    if ignore_regular_id and int(r['id'])==int(ignore_regular_id):continue
-    if int(r['weekday'])!=weekday:continue
-    rs=_clock_minutes(r['start_time']);re=rs+int(r['duration_minutes'] or 60)
-    if sm<re and rs<em:out.append({'kind':'regular_schedule','id':int(r['id']),'status':r['status']})
+   rows=c.execute(f"SELECT id,weekday,start_time,duration_minutes,status FROM regular_schedules WHERE status IN {statuses} AND COALESCE(active,1)=1").fetchall()
+   regular=[dict(r) for r in rows]
   except Exception:pass
+  return {'lessons':lessons,'trials':trials,'regular':regular}
  finally:
   if own_connection:c.close()
- seen=set();uniq=[]
- for x in out:
-  k=(x['kind'],x.get('id'))
-  if k not in seen:seen.add(k);uniq.append(x)
- return uniq
+
+def conflicts_from_snapshot(start_time,end_time,snapshot,ignore_lesson_id=None,ignore_regular_id=None,ignore_trial_id=None):
+ start=_dt(start_time);end=_dt(end_time)
+ if end<=start:raise ValueError('invalid_interval')
+ out=[]
+ for r in snapshot.get('lessons',[]):
+  if ignore_lesson_id and int(r['id'])==int(ignore_lesson_id):continue
+  if overlaps(start,end,r['start_time'],r['end_time']):out.append({'kind':'lesson','id':int(r['id']),'status':r.get('lesson_status')})
+ for r in snapshot.get('trials',[]):
+  if ignore_trial_id and int(r['id'])==int(ignore_trial_id):continue
+  s=r['selected_slot_start'];e=r.get('selected_slot_end') or (_dt(s)+timedelta(minutes=60)).isoformat()
+  if overlaps(start,end,s,e):out.append({'kind':'public_trial','id':int(r['id']),'status':r.get('status')})
+ weekday=start.weekday();sm=start.hour*60+start.minute;em=end.hour*60+end.minute
+ for r in snapshot.get('regular',[]):
+  if ignore_regular_id and int(r['id'])==int(ignore_regular_id):continue
+  if int(r['weekday'])!=weekday:continue
+  rs=_clock_minutes(r['start_time']);re=rs+int(r.get('duration_minutes') or 60)
+  if sm<re and rs<em:out.append({'kind':'regular_schedule','id':int(r['id']),'status':r.get('status')})
+ return out
+
+def conflicts(start_time,end_time,ignore_lesson_id=None,ignore_regular_id=None,ignore_trial_id=None,include_pending_regular=True,conn=None):
+ start=_dt(start_time);end=_dt(end_time)
+ if end<=start:raise ValueError('invalid_interval')
+ snap=availability_snapshot(start,end,include_pending_regular=include_pending_regular,conn=conn)
+ return conflicts_from_snapshot(start,end,snap,ignore_lesson_id=ignore_lesson_id,ignore_regular_id=ignore_regular_id,ignore_trial_id=ignore_trial_id)
 
 def is_available(start_time,end_time,**kwargs):return not conflicts(start_time,end_time,**kwargs)
+def is_available_from_snapshot(start_time,end_time,snapshot,**kwargs):return not conflicts_from_snapshot(start_time,end_time,snapshot,**kwargs)
 def assert_available(start_time,end_time,**kwargs):
  hits=conflicts(start_time,end_time,**kwargs)
  if hits:raise ValueError('slot_unavailable')
