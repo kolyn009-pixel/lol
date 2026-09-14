@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 from web_backend import api as v1
 from web_backend import api_v6
 from web_backend import event_campaign
+from web_backend import formula_schema_repair
 from web_backend import google_calendar_oauth
 from web_backend import group_lessons
 from web_backend import group_portal
@@ -39,17 +40,9 @@ class Handler(api_v6.Handler):
             if not self._teacher():
                 return self._json(401, {"error": "unauthorized"})
             try:
-                return self._json(
-                    200,
-                    {"items": group_portal.teacher_groups_overview()},
-                )
+                return self._json(200, {"items": group_portal.teacher_groups_overview()})
             except Exception as exc:
-                print(
-                    "[web-api] teacher groups error:",
-                    type(exc).__name__,
-                    repr(exc),
-                    flush=True,
-                )
+                print("[web-api] teacher groups error:", type(exc).__name__, repr(exc), flush=True)
                 return self._json(500, {"error": "server_error"})
 
         if path == "/api/teacher/google-calendar/status":
@@ -59,50 +52,28 @@ class Handler(api_v6.Handler):
             try:
                 return self._json(200, google_calendar_oauth.status())
             except Exception as exc:
-                print(
-                    "[web-api] google calendar status error:",
-                    type(exc).__name__,
-                    repr(exc),
-                    flush=True,
-                )
+                print("[web-api] google calendar status error:", type(exc).__name__, repr(exc), flush=True)
                 return self._json(500, {"error": "server_error"})
 
         if path == "/api/integrations/google/callback":
             teacher = self._teacher()
             if not teacher:
-                return self._redirect(
-                    google_calendar_oauth.teacher_redirect("auth_required")
-                )
+                return self._redirect(google_calendar_oauth.teacher_redirect("auth_required"))
             try:
                 params = parse_qs(parsed.query, keep_blank_values=True)
                 state = str((params.get("state") or [""])[0])
                 state_data = google_calendar_oauth.verify_state(state)
-                if int(state_data["teacher_id"]) != int(
-                    teacher["admin_telegram_id"]
-                ):
+                if int(state_data["teacher_id"]) != int(teacher["admin_telegram_id"]):
                     raise PermissionError("teacher_mismatch")
                 google_calendar_oauth.complete_callback(parsed.query)
-                return self._redirect(
-                    google_calendar_oauth.teacher_redirect("connected")
-                )
+                return self._redirect(google_calendar_oauth.teacher_redirect("connected"))
             except PermissionError:
-                return self._redirect(
-                    google_calendar_oauth.teacher_redirect("denied")
-                )
+                return self._redirect(google_calendar_oauth.teacher_redirect("denied"))
             except ValueError:
-                return self._redirect(
-                    google_calendar_oauth.teacher_redirect("invalid_state")
-                )
+                return self._redirect(google_calendar_oauth.teacher_redirect("invalid_state"))
             except Exception as exc:
-                print(
-                    "[web-api] google calendar oauth callback error:",
-                    type(exc).__name__,
-                    repr(exc),
-                    flush=True,
-                )
-                return self._redirect(
-                    google_calendar_oauth.teacher_redirect("failed")
-                )
+                print("[web-api] google calendar oauth callback error:", type(exc).__name__, repr(exc), flush=True)
+                return self._redirect(google_calendar_oauth.teacher_redirect("failed"))
 
         return super().do_GET()
 
@@ -129,56 +100,26 @@ class Handler(api_v6.Handler):
                     raise ValueError("invalid_duration")
 
                 group = group_lessons.create_group(
-                    body.get("name"),
-                    body.get("subject") or "PHYSICS",
-                    body.get("study_goal") or "SCHOOL",
-                    body.get("price_per_lesson") or 0,
+                    body.get("name"), body.get("subject") or "PHYSICS",
+                    body.get("study_goal") or "SCHOOL", body.get("price_per_lesson") or 0,
                     max_members=body.get("max_members") or 8,
                     min_attendees=body.get("min_attendees") or 2,
-                    description=body.get("description"),
-                    board_url=body.get("board_url"),
+                    description=body.get("description"), board_url=body.get("board_url"),
                     recruitment_status=body.get("recruitment_status") or "OPEN",
                     chat_mode=body.get("chat_mode") or "OPEN",
                     created_by=int(teacher["admin_telegram_id"]),
                 )
-                slot = group_lessons.add_initial_slot(
-                    int(group["id"]),
-                    weekday,
-                    start_time,
-                    duration,
-                )
-
+                slot = group_lessons.add_initial_slot(int(group["id"]), weekday, start_time, duration)
                 lesson = None
                 first_lesson_at = str(body.get("first_lesson_at") or "").strip()
                 if first_lesson_at:
                     first_dt = datetime.fromisoformat(first_lesson_at)
-                    lesson = group_lessons.generate_lesson(
-                        int(group["id"]),
-                        int(slot["slot_id"]),
-                        first_dt.isoformat(),
-                    )
-
-                return self._json(
-                    200,
-                    {
-                        "status": "ok",
-                        "group": group,
-                        "slot": slot,
-                        "lesson": lesson,
-                    },
-                )
+                    lesson = group_lessons.generate_lesson(int(group["id"]), int(slot["slot_id"]), first_dt.isoformat())
+                return self._json(200, {"status": "ok", "group": group, "slot": slot, "lesson": lesson})
             except (TypeError, ValueError) as exc:
-                return self._json(
-                    409,
-                    {"error": str(exc) or "invalid_request"},
-                )
+                return self._json(409, {"error": str(exc) or "invalid_request"})
             except Exception as exc:
-                print(
-                    "[web-api] teacher group create error:",
-                    type(exc).__name__,
-                    repr(exc),
-                    flush=True,
-                )
+                print("[web-api] teacher group create error:", type(exc).__name__, repr(exc), flush=True)
                 return self._json(500, {"error": "server_error"})
 
         if path == "/api/teacher/google-calendar/connect":
@@ -188,21 +129,11 @@ class Handler(api_v6.Handler):
             if not self._same_origin_write():
                 return self._json(403, {"error": "cross_origin_forbidden"})
             try:
-                result = google_calendar_oauth.authorization_url(
-                    int(teacher["admin_telegram_id"])
-                )
-                return self._json(200, result)
-            except FileNotFoundError as exc:
-                return self._json(409, {"error": str(exc)})
-            except RuntimeError as exc:
+                return self._json(200, google_calendar_oauth.authorization_url(int(teacher["admin_telegram_id"])))
+            except (FileNotFoundError, RuntimeError) as exc:
                 return self._json(409, {"error": str(exc)})
             except Exception as exc:
-                print(
-                    "[web-api] google calendar connect error:",
-                    type(exc).__name__,
-                    repr(exc),
-                    flush=True,
-                )
+                print("[web-api] google calendar connect error:", type(exc).__name__, repr(exc), flush=True)
                 return self._json(500, {"error": "server_error"})
 
         return super().do_POST()
@@ -211,8 +142,8 @@ class Handler(api_v6.Handler):
 def main():
     if not otp_secret.configured():
         raise SystemExit("ADELIA_OTP_SECRET must be set to at least 32 bytes")
-
     ensure_indexes()
+    formula_schema_repair.ensure_schema()
     open_event_admin.choices()
     event_campaign.ensure_schema()
     student_social_profile.ensure_schema()
@@ -221,12 +152,7 @@ def main():
     public_trial_access.ensure_schema()
     public_trial_channel.ensure_schema()
     student_regular_booking.ensure_schema()
-
-    print(
-        "Adelia web API v7.1 listening on "
-        f"http://{v1.HOST}:{v1.PORT}"
-    )
-
+    print("Adelia web API v7.1 listening on " f"http://{v1.HOST}:{v1.PORT}")
     ThreadingHTTPServer((v1.HOST, v1.PORT), Handler).serve_forever()
 
 
