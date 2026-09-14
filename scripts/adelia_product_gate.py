@@ -32,17 +32,17 @@ desktop_pkg=read('desktop/package.json')
 desktop_manifest=read('desktop/bundled_ui_manifest.js')
 
 need(teacher,[
-    '/app/teacher_v5.css','/app/teacher_v5_runtime.js','/app/teacher_groups.js',
+    '/app/teacher_clean.css','/app/teacher_clean_runtime.js','/app/teacher_clean_router.js','/app/teacher_groups.js',
     'data-view="groups"','data-view="messages"','data-view="health"',
     '/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'
 ],'teacher')
 need(student,[
-    '/app/student_v5.css','/app/install_runtime.js','data-tab="home"','data-tab="schedule"',
+    '/app/student_clean.css','/app/install_runtime.js','data-tab="home"','data-tab="schedule"',
     'data-tab="homework"','data-tab="messages"','data-tab="profile"',
     '/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'
 ],'student')
 need(parent,[
-    '/app/parent/parent_v5.css','/app/parent/parent_v5.js','/app/parent/pwa.js',
+    '/app/parent/parent_clean.css','/app/parent/parent_v5.js','/app/parent/pwa.js',
     '/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'
 ],'parent')
 need(parent_pwa,["/app/parent/service-worker.js","scope:'/app/parent/'",'beforeinstallprompt'],'parent pwa')

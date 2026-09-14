@@ -35,7 +35,7 @@ require(teacher_html, [
     'data-view="groups"', 'data-view="homework"', 'data-view="reviews"',
     'data-view="messages"', 'data-view="payments"', 'data-view="library"',
     'data-view="formulas"', 'data-view="finance"', 'data-view="analytics"',
-    'data-view="health"', '/app/teacher_v5.css', '/app/teacher_v5_runtime.js',
+    'data-view="health"', '/app/teacher_clean.css', '/app/teacher_clean_runtime.js', '/app/teacher_clean_router.js',
     '/app/teacher_groups.js', '/app/teacher_formulas.js'
 ], "teacher shell")
 
