@@ -77,7 +77,7 @@ for f in \
   web_backend/student_regular_booking.py \
   web_backend/trial_approval_atomic.py \
   desktop/bundled_ui.js \
-  desktop/role_assets_manifest.js \
+  desktop/bundled_ui_manifest.js \
   desktop/sync_role_assets.js \
   web/manifest.webmanifest \
   web/teacher-manifest.webmanifest \
@@ -91,7 +91,30 @@ done
 
 echo "=== LIVE CREDENTIAL PROBE USING RC CODE ==="
 cd "$APP_DIR"
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP" "$PYTHON" "$TMP/scripts/integration_selftest.py"
+
+# Validate the real production Google grant without allowing RC code to
+# refresh/write the production token. google_calendar.py persists refreshed
+# credentials to GOOGLE_CALENDAR_TOKEN_FILE, so the release gate operates on
+# a private temporary copy.
+PROD_GOOGLE_TOKEN="${GOOGLE_CALENDAR_TOKEN_FILE:-$APP_DIR/token.json}"
+PROD_GOOGLE_CREDENTIALS="${GOOGLE_CALENDAR_CREDENTIALS_FILE:-$APP_DIR/credentials.json}"
+PROD_GOOGLE_CALENDAR_ID="${GOOGLE_CALENDAR_ID:-primary}"
+CHECK_GOOGLE_TOKEN="$TMP/.production-google-token.json"
+
+test -f "$PROD_GOOGLE_TOKEN" || {
+  echo "MISSING production Google token: $PROD_GOOGLE_TOKEN"
+  exit 21
+}
+
+cp "$PROD_GOOGLE_TOKEN" "$CHECK_GOOGLE_TOKEN"
+chmod 600 "$CHECK_GOOGLE_TOKEN"
+
+PYTHONDONTWRITEBYTECODE=1 \
+PYTHONPATH="$TMP" \
+GOOGLE_CALENDAR_TOKEN_FILE="$CHECK_GOOGLE_TOKEN" \
+GOOGLE_CALENDAR_CREDENTIALS_FILE="$PROD_GOOGLE_CREDENTIALS" \
+GOOGLE_CALENDAR_ID="$PROD_GOOGLE_CALENDAR_ID" \
+"$PYTHON" "$TMP/scripts/integration_selftest.py"
 
 echo "=== RESULT ==="
 echo "READ_ONLY_RELEASE_CHECK_PASSED"
