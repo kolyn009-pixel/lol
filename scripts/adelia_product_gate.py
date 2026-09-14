@@ -32,7 +32,7 @@ desktop_pkg=read('desktop/package.json')
 desktop_manifest=read('desktop/bundled_ui_manifest.js')
 
 need(teacher,[
-    '/app/teacher_clean.css','/app/teacher_clean_runtime.js','/app/teacher_clean_router.js','/app/teacher_groups.js',
+    '/app/teacher_clean.css','/app/teacher_clean_sections.css','/app/teacher_clean_runtime.js','/app/teacher_clean_router.js','/app/teacher_groups.js',
     'data-view="groups"','data-view="messages"','data-view="health"',
     '/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'
 ],'teacher')
