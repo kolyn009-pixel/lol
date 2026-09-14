@@ -77,7 +77,7 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
         for offset in range(days):
             day = now_teacher.date() + timedelta(days=offset)
             values = []
-            rows = database.get_effective_working_hours(day)
+            rows = database.get_effective_working_hours(day, conn=conn)
             for start, end in _working_spans(day, rows, teacher_tz):
                 cur = start
                 while cur + timedelta(minutes=duration) <= end:

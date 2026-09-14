@@ -2925,9 +2925,13 @@ def add_working_hours(
 def get_working_hours(
     weekday=None,
     week_type=None,
+    conn=None,
 ):
 
-    conn = connect()
+    own_conn = conn is None
+    if own_conn:
+        conn = connect()
+
     clauses = ["active = 1"]
     params = []
 
@@ -2950,7 +2954,9 @@ def get_working_hours(
         params,
     ).fetchall()
 
-    conn.close()
+    if own_conn:
+        conn.close()
+
     return rows
 
 
@@ -2977,15 +2983,19 @@ def teacher_week_label(kind):
     return "нечётная" if str(kind).upper() == "ODD" else "чётная"
 
 
-def teacher_week_enabled(kind):
+def teacher_week_enabled(kind, conn=None):
     key = "teacher_odd_week_enabled" if str(kind).upper() == "ODD" else "teacher_even_week_enabled"
-    return str(get_setting(key, "1")).lower() not in {"0", "false", "off", "no"}
+    return str(
+        get_setting(key, "1", conn=conn)
+    ).lower() not in {"0", "false", "off", "no"}
 
 
-def teacher_week_day_off(kind, weekday):
+def teacher_week_day_off(kind, weekday, conn=None):
     kind = str(kind).upper()
     key = f"teacher_week_day_off_{kind}_{int(weekday)}"
-    return str(get_setting(key, "0")).lower() in {"1", "true", "on", "yes"}
+    return str(
+        get_setting(key, "0", conn=conn)
+    ).lower() in {"1", "true", "on", "yes"}
 
 
 def set_teacher_week_day_off(kind, weekday, value):
@@ -2994,7 +3004,7 @@ def set_teacher_week_day_off(kind, weekday, value):
     set_setting(key, "1" if value else "0")
 
 
-def get_effective_working_hours(day_value):
+def get_effective_working_hours(day_value, conn=None):
     """Working intervals actually available on a concrete teacher-local date.
 
     Modes:
@@ -3011,22 +3021,52 @@ def get_effective_working_hours(day_value):
     else:
         day_obj = day_value
 
-    mode = str(get_setting("teacher_week_mode", "SAME") or "SAME").upper()
+    mode = str(
+        get_setting(
+            "teacher_week_mode",
+            "SAME",
+            conn=conn,
+        ) or "SAME"
+    ).upper()
+
     weekday = int(day_obj.weekday())
 
     if mode == "SAME":
-        return get_working_hours(weekday, "ALL")
+        return get_working_hours(
+            weekday,
+            "ALL",
+            conn=conn,
+        )
 
     kind = teacher_week_kind(day_obj)
-    if not teacher_week_enabled(kind):
-        return []
-    if teacher_week_day_off(kind, weekday):
+
+    if not teacher_week_enabled(
+        kind,
+        conn=conn,
+    ):
         return []
 
-    specific = get_working_hours(weekday, kind)
+    if teacher_week_day_off(
+        kind,
+        weekday,
+        conn=conn,
+    ):
+        return []
+
+    specific = get_working_hours(
+        weekday,
+        kind,
+        conn=conn,
+    )
+
     if specific:
         return specific
-    return get_working_hours(weekday, "ALL")
+
+    return get_working_hours(
+        weekday,
+        "ALL",
+        conn=conn,
+    )
 
 
 def replace_week_schedule(source_type, target_type):
@@ -13271,10 +13311,13 @@ def get_student_statistics(
 
 def get_setting(
     key,
-    default=None
+    default=None,
+    conn=None,
 ):
 
-    conn = connect()
+    own_conn = conn is None
+    if own_conn:
+        conn = connect()
 
     row = conn.execute("""
         SELECT value
@@ -13284,7 +13327,8 @@ def get_setting(
         str(key),
     )).fetchone()
 
-    conn.close()
+    if own_conn:
+        conn.close()
 
     if row is None:
         return default
