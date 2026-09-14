@@ -2,7 +2,7 @@
   "name": "adelia-desktop",
   "version": "0.2.0",
   "private": true,
-  "description": "Adelia TutorBot desktop shell",
+  "description": "Аделия — приложение для обучения и преподавания",
   "main": "bootstrap.js",
   "scripts": {
     "start": "node generate_assets.js && node sync_role_assets.js && electron .",
@@ -18,7 +18,7 @@
     "productName": "Аделия",
     "artifactName": "Adelia-${version}-${os}-${arch}.${ext}",
     "asar": true,
-    "files": ["bootstrap.js", "lesson_workspace.js", "desktop_ux.js", "lesson_layout.js", "role_startup.js", "bundled_ui.js", "role_assets_manifest.js", "role_assets/**/*", "start.html", "start.css", "start.js", "main.js", "preload.js", "package.json", "build/icon.png"],
+    "files": ["bootstrap.js", "lesson_workspace.js", "desktop_ux.js", "lesson_layout.js", "role_startup.js", "bundled_ui.js", "bundled_ui_manifest.js", "role_assets/**/*", "start.html", "start.css", "start.js", "main.js", "preload.js", "package.json", "build/icon.png"],
     "directories": {"output": "dist", "buildResources": "build"},
     "protocols": [{"name": "Аделия", "schemes": ["adelia"]}],
     "publish": [{"provider": "generic", "url": "https://adeliatutor.ru/desktop-updates/"}],
