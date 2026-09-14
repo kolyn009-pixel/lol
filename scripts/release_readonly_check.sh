@@ -32,8 +32,8 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP" "$PYTHON" - <<'PY'
 mods=[
  'core.payment_sync_runtime','core.payment_reminder_routing','core.schedule_sync',
  'handlers.calendar_runtime','integrations.google_calendar','integrations.lesson_sync',
- 'final_features.jobs','vk_adapter.notification_sync','web_backend.api_v6',
- 'web_backend.finance_receipts','web_backend.student_auth','web_backend.atomic_student_booking',
+ 'final_features.jobs','vk_adapter.notification_sync','web_backend.api_v6','web_backend.api_v7',
+ 'web_backend.google_calendar_oauth','web_backend.finance_receipts','web_backend.student_auth','web_backend.atomic_student_booking',
  'web_backend.student_regular_booking','web_backend.teacher_request_center',
  'web_backend.trial_approval_atomic'
 ]
@@ -63,6 +63,52 @@ for path, expected in [
     print('OK',path,data.get('start_url'))
 PY
 
+echo "=== WEB RELEASE ASSERTIONS ==="
+PYTHONDONTWRITEBYTECODE=1 "$PYTHON" - <<'PY_WEB_ASSERT'
+from pathlib import Path
+
+checks = {
+    "web/privacy.html": [
+        "Политика конфиденциальности",
+        "Аделия | TutorBot",
+    ],
+    "web/app.js": [
+        "data-install-adelia",
+        "/app/privacy.html",
+    ],
+    "web/teacher_health.js": [
+        "/api/teacher/google-calendar/status",
+        "/api/teacher/google-calendar/connect",
+        "authorization_url",
+    ],
+    "web_backend/api_v7.py": [
+        "/api/teacher/google-calendar/status",
+        "/api/teacher/google-calendar/connect",
+        "/api/integrations/google/callback",
+    ],
+    "web_backend/google_calendar_oauth.py": [
+        "https://adeliatutor.ru/api/integrations/google/callback",
+        'prompt="consent"',
+        'access_type="offline"',
+    ],
+}
+
+for path, markers in checks.items():
+    text = Path(path).read_text(
+        encoding="utf-8"
+    )
+
+    for marker in markers:
+        assert marker in text, (
+            path,
+            marker,
+        )
+
+    print("OK", path)
+
+print("WEB_RELEASE_ASSERTIONS_PASSED")
+PY_WEB_ASSERT
+
 echo "=== REQUIRED RC FILES ==="
 for f in \
   web_backend/receipt_archive_worker.py \
@@ -76,6 +122,8 @@ for f in \
   web_backend/atomic_student_booking.py \
   web_backend/student_regular_booking.py \
   web_backend/trial_approval_atomic.py \
+  web_backend/api_v7.py \
+  web_backend/google_calendar_oauth.py \
   desktop/bundled_ui.js \
   desktop/bundled_ui_manifest.js \
   desktop/sync_role_assets.js \
@@ -84,6 +132,9 @@ for f in \
   web/service-worker.js \
   web/student_booking_ui.js \
   web/teacher_request_center.js \
+  web/teacher_health.js \
+  web/teacher_health.css \
+  web/privacy.html \
   web/assets/icons/adelia-icon.svg; do
   test -f "$f" || { echo "MISSING $f"; exit 20; }
   echo "OK $f"
@@ -104,6 +155,11 @@ CHECK_GOOGLE_TOKEN="$TMP/.production-google-token.json"
 test -f "$PROD_GOOGLE_TOKEN" || {
   echo "MISSING production Google token: $PROD_GOOGLE_TOKEN"
   exit 21
+}
+
+test -f "$PROD_GOOGLE_CREDENTIALS" || {
+  echo "MISSING production Google OAuth credentials: $PROD_GOOGLE_CREDENTIALS"
+  exit 22
 }
 
 cp "$PROD_GOOGLE_TOKEN" "$CHECK_GOOGLE_TOKEN"
