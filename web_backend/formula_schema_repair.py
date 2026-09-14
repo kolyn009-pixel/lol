@@ -71,11 +71,27 @@ def ensure_schema():
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           formula_id INTEGER NOT NULL,
           user_id INTEGER NOT NULL,
-          created_at TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT '',
           UNIQUE(formula_id,user_id)
         )
         """
     )
+
+    fav_existing = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(formula_favorites)")
+    }
+    fav_additions = {
+        "formula_id": "INTEGER",
+        "user_id": "INTEGER",
+        "created_at": "TEXT NOT NULL DEFAULT ''",
+    }
+    for name, ddl in fav_additions.items():
+        if name not in fav_existing:
+            conn.execute(
+                f"ALTER TABLE formula_favorites ADD COLUMN {name} {ddl}"
+            )
+
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_formula_filter "
         "ON formula_book(subject,education_level,section,topic,active,sort_order)"

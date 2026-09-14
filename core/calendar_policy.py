@@ -263,8 +263,12 @@ def lesson_state(lesson, now=None):
     if is_trial(lesson):
         return "TRIAL"
 
-    # Red only for real attention cases.
-    if reason == "RECEIPT_UNCONFIRMED_24H":
+    # Red when teacher action is urgent:
+    # receipt unconfirmed for >24h OR lesson starts within 24h unpaid.
+    if reason in {
+        "RECEIPT_UNCONFIRMED_24H",
+        "PAYMENT_DUE_24H",
+    }:
         return "ATTENTION"
 
     if reason == "RECEIPT_WAITING":

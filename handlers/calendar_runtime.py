@@ -95,10 +95,26 @@ def _drop_state(lesson_id):
 
 
 def _should_exist(lesson):
-    return (
-        str(lesson["lesson_status"] or "").upper() == "CONFIRMED"
-        and str(lesson["payment_status"] or "").upper() != "AWAITING_PAYMENT"
-    )
+    from core.calendar_policy import should_keep_lesson_event
+    return bool(should_keep_lesson_event(lesson))
+
+
+def _canonical_event_id(lesson_id):
+    c = _connect()
+    try:
+        if not database.table_exists(c, "lesson_external_integrations"):
+            return None
+        row = c.execute(
+            "SELECT google_event_id "
+            "FROM lesson_external_integrations "
+            "WHERE lesson_id=? LIMIT 1",
+            (int(lesson_id),),
+        ).fetchone()
+        if not row:
+            return None
+        return str(row["google_event_id"] or "").strip() or None
+    finally:
+        c.close()
 
 
 def _mirror_legacy_event_id(lesson_id, event_id):
@@ -189,7 +205,10 @@ async def _sync(application=None):
                     skipped += 1
                 continue
 
-            if _stored_state(lesson_id) == key:
+            if (
+                _stored_state(lesson_id) == key
+                and _canonical_event_id(lesson_id)
+            ):
                 skipped += 1
                 continue
 

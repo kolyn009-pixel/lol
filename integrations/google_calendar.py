@@ -162,10 +162,15 @@ def _save(lesson_id, event_id=None, error=None):
 
 
 def _event_body(lesson):
+    from core.calendar_policy import lesson_color_id, lesson_summary_prefix
+
     subject = str(lesson.get("subject") or "Занятие").capitalize()
     goal = str(lesson.get("study_goal") or "").strip()
     student = str(lesson.get("student_name") or "Ученик")
-    title = f"{subject}{' · ' + goal if goal else ''} — {student}"
+    title = (
+        lesson_summary_prefix(lesson)
+        + f"{subject}{' · ' + goal if goal else ''} — {student}"
+    )
     description = ["Аделия | TutorBot", f"Ученик: {student}"]
     if lesson.get("meeting_url"):
         description.append(f"Telemost: {lesson['meeting_url']}")
@@ -177,6 +182,7 @@ def _event_body(lesson):
         "description": "\n".join(description),
         "start": {"dateTime": lesson["start_time"], "timeZone": timezone},
         "end": {"dateTime": lesson["end_time"], "timeZone": timezone},
+        "colorId": lesson_color_id(lesson),
         "extendedProperties": {
             "private": {
                 "tutorbot_lesson_id": str(lesson["id"]),
