@@ -9,6 +9,21 @@ from database import connect, now_iso, get_lesson
 from core import lesson_lifecycle
 
 
+def _ensure_workspace_schema(conn):
+    """Keep lesson cards readable even on older production databases."""
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS lesson_notes(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lesson_id INTEGER NOT NULL,
+            user_id INTEGER,
+            text TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )"""
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_lesson_notes_lesson ON lesson_notes(lesson_id,created_at)")
+    conn.commit()
+
+
 def _finished_payload(lesson, already_finished=False):
     return {
         "status":"ok",
@@ -66,6 +81,11 @@ def finish_preview(lesson_id):
 
 
 def workspace(lesson_id):
-    conn=connect();row=conn.execute("""SELECT l.*,u.name,u.grade,u.telegram_username,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?""",(int(lesson_id),)).fetchone()
+    conn=connect();_ensure_workspace_schema(conn)
+    row=conn.execute("""SELECT l.*,u.name,u.grade,u.telegram_username,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?""",(int(lesson_id),)).fetchone()
     if not row:conn.close();return None
-    hw=conn.execute("SELECT * FROM homework WHERE user_id=? ORDER BY assigned_at DESC LIMIT 5",(int(row['user_id']),)).fetchall();notes=conn.execute("SELECT * FROM lesson_notes WHERE lesson_id=? ORDER BY created_at",(int(lesson_id),)).fetchall();conn.close();preview=finish_preview(int(lesson_id)) if row["started_at"] and not row["finished_at"] else None;return {"lesson":dict(row),"homework":[dict(x) for x in hw],"notes":[dict(x) for x in notes],"finish_preview":preview}
+    hw=conn.execute("SELECT * FROM homework WHERE user_id=? ORDER BY assigned_at DESC LIMIT 5",(int(row['user_id']),)).fetchall()
+    notes=conn.execute("SELECT id,lesson_id,user_id,text,created_at FROM lesson_notes WHERE lesson_id=? ORDER BY created_at,id",(int(lesson_id),)).fetchall()
+    conn.close()
+    preview=finish_preview(int(lesson_id)) if row["started_at"] and not row["finished_at"] else None
+    return {"lesson":dict(row),"homework":[dict(x) for x in hw],"notes":[dict(x) for x in notes],"finish_preview":preview}
