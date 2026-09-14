@@ -53,7 +53,7 @@ manifest('web/teacher-manifest.webmanifest','/teacher/','/teacher/')
 manifest('web/parent/manifest.webmanifest','/app/parent/','/app/parent/')
 
 need(desktop_start,['parentRole','openParentCabinet','teacherRole','studentRole'],'desktop chooser')
-need(desktop_html,['Преподаватель','Ученик','Родитель','#6847F5'],'desktop html')
+need(desktop_html.lower(),['преподаватель','ученик','родитель','#6847f5'],'desktop html')
 need(desktop_preload,['openParentCabinet','adelia:parent-cabinet'],'desktop preload')
 need(desktop_role,["APP_ORIGIN+'/app/parent/'","adelia:parent-cabinet"],'desktop role runtime')
 need(desktop_pkg,['verify_icon.js','bundled_ui_manifest.js','build/icon.png'],'desktop package')
