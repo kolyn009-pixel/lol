@@ -24,6 +24,23 @@ def _ensure_workspace_schema(conn):
     conn.commit()
 
 
+def add_note(lesson_id, text):
+    lesson_id=int(lesson_id)
+    text=str(text or '').strip()
+    if not text:
+        raise ValueError('empty_note')
+    if len(text)>8000:
+        raise ValueError('note_too_long')
+    conn=connect();_ensure_workspace_schema(conn)
+    row=conn.execute("SELECT user_id FROM lessons WHERE id=?",(lesson_id,)).fetchone()
+    if not row:
+        conn.close();raise ValueError('lesson_not_found')
+    created=now_iso()
+    cur=conn.execute("INSERT INTO lesson_notes(lesson_id,user_id,text,created_at) VALUES(?,?,?,?)",(lesson_id,int(row['user_id']),text,created))
+    conn.commit();note_id=cur.lastrowid;conn.close()
+    return {'status':'ok','note':{'id':note_id,'lesson_id':lesson_id,'user_id':int(row['user_id']),'text':text,'created_at':created}}
+
+
 def _finished_payload(lesson, already_finished=False):
     return {
         "status":"ok",
