@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>Number(n||0).toLocaleString('ru-RU')+' ₽';
 const titles={home:'Главная',schedule:'Занятия',homework:'Домашка',payments:'Оплата',messages:'Сообщения',profile:'Профиль',studentLogin:'Вход'};
 let auth=null;
