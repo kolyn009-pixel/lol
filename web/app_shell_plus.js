@@ -12,19 +12,8 @@
     const host=document.querySelector('header')||document.querySelector('.topbar');
     if(!host||document.querySelector('#adeliaShellActions'))return;
     const box=document.createElement('div');box.id='adeliaShellActions';box.className='adelia-shell-actions';
-    const install=document.createElement('button');install.id='installAdelia';install.type='button';install.className='shell-action';install.textContent='＋ Установить';
     const logout=document.createElement('button');logout.id='logoutAdelia';logout.type='button';logout.className='shell-action';logout.textContent='Выйти';
-    box.append(install,logout);host.append(box);
-    // Always expose the action outside standalone mode. Chromium will enable the native
-    // prompt when ready; iOS and unsupported browsers get clear manual instructions.
-    const refresh=()=>{install.hidden=!!window.AdeliaPWA?.isStandalone?.()};refresh();
-    window.addEventListener('adelia:pwa-state',refresh);
-    install.onclick=async()=>{
-      const result=await window.AdeliaPWA?.install?.();
-      if(result?.status==='manual'&&result.message)showInstallHint(result.message);
-      else if(result?.status==='unavailable')showInstallHint('Откройте меню браузера и выберите «Установить приложение» или «Добавить на главный экран».');
-      refresh();
-    };
+    box.append(logout);host.append(box);
     async function authState(){
       try{const d=await api('/auth/me');logout.hidden=!d.authenticated;document.body.classList.toggle('adelia-auth-screen',!d.authenticated)}catch{logout.hidden=true}
     }
@@ -32,6 +21,20 @@
     window.addEventListener('adelia:student-authenticated',authState);
     logout.onclick=async()=>{logout.disabled=true;try{await api('/auth/logout',{method:'POST',body:'{}'})}catch{}location.replace('/app/')};
   }
+  async function install(){
+    const result=await window.AdeliaPWA?.install?.();
+    if(result?.status==='manual'&&result.message)showInstallHint(result.message);
+    else if(result?.status==='unavailable')showInstallHint('Откройте меню браузера и выберите «Установить приложение» или «Добавить на главный экран».');
+    window.dispatchEvent(new CustomEvent('adelia:pwa-state'));
+  }
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('[data-install-adelia]');
+    if(button){event.preventDefault();install()}
+  });
+  function refreshInstallActions(){
+    document.querySelectorAll('[data-install-adelia]').forEach(button=>{button.hidden=!!window.AdeliaPWA?.isStandalone?.()});
+  }
+  window.addEventListener('adelia:pwa-state',refreshInstallActions);
   function deepLink(){
     const q=new URLSearchParams(location.search);
     const homework=q.get('homework');
@@ -42,6 +45,6 @@
     if(view&&['home','schedule','homework','payments','messages','profile'].includes(view)&&typeof window.render==='function'){window.render(view);return true}
     return false;
   }
-  function boot(){addShellActions();setTimeout(deepLink,0)}
+  function boot(){addShellActions();refreshInstallActions();setTimeout(deepLink,0)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
