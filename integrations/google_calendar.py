@@ -196,42 +196,184 @@ def _is_not_found(exc):
     return status == 404 or "404" in str(exc)
 
 
+def _remote_lesson_events(service, lesson_id):
+    """Return live Google events for exactly one TutorBot lesson."""
+    items = []
+    page = None
+
+    while True:
+        response = service.events().list(
+            calendarId=CALENDAR_ID,
+            privateExtendedProperty=f"tutorbot_lesson_id={int(lesson_id)}",
+            showDeleted=False,
+            singleEvents=True,
+            maxResults=250,
+            pageToken=page,
+        ).execute()
+
+        items.extend(
+            event
+            for event in response.get("items", [])
+            if event.get("status") != "cancelled"
+            and event.get("id")
+        )
+
+        page = response.get("nextPageToken")
+        if not page:
+            break
+
+    return items
+
+
+def _event_start(event):
+    start = event.get("start") or {}
+    return str(start.get("dateTime") or start.get("date") or "")
+
+
+def _choose_remote_event(events, lesson, preferred_ids=()):
+    if not events:
+        return None
+
+    by_id = {
+        str(event["id"]): event
+        for event in events
+        if event.get("id")
+    }
+
+    for event_id in preferred_ids:
+        if event_id and str(event_id) in by_id:
+            return by_id[str(event_id)]
+
+    expected = str(lesson.get("start_time") or "")
+
+    matching = [
+        event
+        for event in events
+        if _event_start(event).startswith(expected)
+    ]
+
+    pool = matching or events
+
+    return sorted(
+        pool,
+        key=lambda event: (
+            str(event.get("created") or ""),
+            str(event.get("id") or ""),
+        ),
+    )[0]
+
+
+def _delete_remote_duplicates(service, events, keep_id):
+    deleted = 0
+
+    for event in events:
+        event_id = str(event.get("id") or "")
+
+        if not event_id or event_id == str(keep_id):
+            continue
+
+        try:
+            service.events().delete(
+                calendarId=CALENDAR_ID,
+                eventId=event_id,
+            ).execute()
+            deleted += 1
+        except Exception as exc:
+            if not _is_not_found(exc):
+                raise
+
+    return deleted
+
+
 def sync_lesson(lesson_id):
-    """Create or update one Google Calendar event for an existing lesson."""
+    """Create or update exactly one Google event for a lesson."""
     lesson = _lesson(lesson_id)
     existing = _integration(lesson_id) or {}
+
     service = _service()
     body = _event_body(lesson)
-    event_id = existing.get("google_event_id")
+
+    canonical_id = existing.get("google_event_id")
+    legacy_id = lesson.get("google_event_id")
+
     try:
-        if event_id:
+        remote = _remote_lesson_events(
+            service,
+            lesson_id,
+        )
+
+        chosen = _choose_remote_event(
+            remote,
+            lesson,
+            (
+                canonical_id,
+                legacy_id,
+            ),
+        )
+
+        if chosen:
+            event_id = chosen["id"]
+
+            event = service.events().update(
+                calendarId=CALENDAR_ID,
+                eventId=event_id,
+                body=body,
+            ).execute()
+
+            _delete_remote_duplicates(
+                service,
+                remote,
+                event_id,
+            )
+
+        elif canonical_id:
             try:
                 event = service.events().update(
                     calendarId=CALENDAR_ID,
-                    eventId=event_id,
+                    eventId=canonical_id,
                     body=body,
                 ).execute()
+
             except Exception as exc:
                 if not _is_not_found(exc):
                     raise
-                # Someone may delete an event in Google Calendar manually. The
-                # local lesson is authoritative, so recreate exactly one event.
+
                 event = service.events().insert(
                     calendarId=CALENDAR_ID,
                     body=body,
                 ).execute()
+
         else:
             event = service.events().insert(
                 calendarId=CALENDAR_ID,
                 body=body,
             ).execute()
+
         event_id = event.get("id")
+
         if not event_id:
-            raise RuntimeError("google_calendar_missing_event_id")
-        _save(lesson_id, event_id=event_id, error=None)
-        return {"status": "ok", "event_id": event_id, "html_link": event.get("htmlLink")}
+            raise RuntimeError(
+                "google_calendar_missing_event_id"
+            )
+
+        _save(
+            lesson_id,
+            event_id=event_id,
+            error=None,
+        )
+
+        return {
+            "status": "ok",
+            "event_id": event_id,
+            "html_link": event.get("htmlLink"),
+        }
+
     except Exception as exc:
-        _save(lesson_id, event_id=event_id, error=f"google:{type(exc).__name__}")
+        _save(
+            lesson_id,
+            event_id=canonical_id,
+            error=f"google:{type(exc).__name__}",
+        )
         raise
 
 
