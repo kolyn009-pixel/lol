@@ -1,2 +1,15 @@
 'use strict';
-module.exports={student:{css:['desktop_shell.css','group_events_ui.css','desktop_polish.css'],js:['desktop_shell.js','group_events_ui.js','desktop_polish.js']},teacher:{css:['teacher_desktop_v2.css','teacher_stage2_workspace.css','teacher_stage3_learning.css','teacher_stage4_workspace.css','teacher_stage5_polish.css'],js:['teacher_desktop_v2.js','teacher_stage2_workspace.js','teacher_stage2_finance.js','teacher_stage3_learning.js','teacher_stage4_workspace.js','teacher_stage5_polish.js']}};
+module.exports={
+  student:{
+    css:['desktop_shell.css','group_events_ui.css','desktop_polish.css'],
+    js:['desktop_shell.js','group_events_ui.js','desktop_polish.js']
+  },
+  teacher:{
+    css:['teacher_v4.css','teacher_v5.css'],
+    js:['teacher_v4.js','teacher_groups.js','teacher_v5_runtime.js']
+  },
+  parent:{
+    css:['parent/app.css'],
+    js:['parent/app.js']
+  }
+};
