@@ -1,25 +1,48 @@
 """Atomic creation of student lesson requests.
 
 The public slot list is only a read model. This helper takes a SQLite write
-reservation before the final collision checks and INSERT, so two concurrent web
-requests cannot both reserve the same teacher interval.
+reservation before the final collision and balance checks and INSERT, so two
+concurrent web requests cannot both reserve the same teacher interval or spend
+the same minute balance.
 """
 from __future__ import annotations
 
 from datetime import datetime
 
 import database
+from core import minute_balance
 
 BLOCKING = ('PENDING', 'CONFIRMED', 'IN_PROGRESS')
+
+
+def _available_minutes(conn, user_id, hourly_rate):
+    rows = conn.execute(
+        """SELECT source_type,
+                  COALESCE(SUM(MAX(COALESCE(minutes_total,0)-COALESCE(minutes_used,0),0)),0) AS remaining
+           FROM lesson_packages
+           WHERE user_id=? AND status='ACTIVE'
+             AND COALESCE(minutes_used,0) < COALESCE(minutes_total,0)
+             AND (source_type='BONUS' OR hourly_rate=?)
+           GROUP BY source_type""",
+        (int(user_id), int(hourly_rate)),
+    ).fetchall()
+    return sum(int(row['remaining'] or 0) for row in rows)
 
 
 def create_request(*, user_id, program_id, study_goal, subject, start_time, end_time,
                    duration_minutes, hourly_rate, price, is_trial):
     user_id = int(user_id)
+    duration_minutes = int(duration_minutes)
+    hourly_rate = int(hourly_rate or 0)
     start = datetime.fromisoformat(str(start_time))
     end = datetime.fromisoformat(str(end_time))
     if end <= start:
         raise ValueError('invalid_interval')
+
+    # Ensure the minute columns/tables exist before taking our write reservation.
+    # Running schema migration after BEGIN IMMEDIATE through another connection
+    # would contend with this transaction.
+    minute_balance.ensure_schema()
 
     conn = database.connect()
     try:
@@ -58,6 +81,13 @@ def create_request(*, user_id, program_id, study_goal, subject, start_time, end_
             user = conn.execute('SELECT trial_used FROM users WHERE id=?', (user_id,)).fetchone()
             if not user or int(user['trial_used'] or 0):
                 raise ValueError('trial_unavailable')
+        else:
+            available = _available_minutes(conn, user_id, hourly_rate)
+            if available < duration_minutes:
+                raise ValueError(
+                    f'Недостаточно минут на балансе. Доступно: {available} мин, '
+                    f'нужно: {duration_minutes} мин.'
+                )
 
         now = database.now_iso()
         cur = conn.execute(
@@ -69,7 +99,7 @@ def create_request(*, user_id, program_id, study_goal, subject, start_time, end_
             (
                 user_id, int(program_id) if program_id is not None else None,
                 study_goal, subject, start.isoformat(), end.isoformat(),
-                int(duration_minutes), int(hourly_rate), int(price), now,
+                duration_minutes, hourly_rate, int(price), now,
                 'FREE' if is_trial else 'RESERVED_BALANCE',
                 int(bool(is_trial)), now,
             ),
