@@ -12,8 +12,8 @@ DEFAULT_DURATION = 60
 MAX_DAYS = 21
 
 
-def _teacher_tz():
-    name = database.get_setting("bot_timezone", "Europe/Samara") or "Europe/Samara"
+def _teacher_tz(conn=None):
+    name = database.get_setting("bot_timezone", "Europe/Samara", conn=conn) or "Europe/Samara"
     try:
         return str(name), ZoneInfo(str(name))
     except ZoneInfoNotFoundError:
@@ -61,16 +61,16 @@ def _working_spans(day, rows, tz):
 
 
 def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
-    teacher_name, teacher_tz = _teacher_tz()
     client_name, client_tz = _client_tz(timezone_name)
     duration = int(duration_minutes or DEFAULT_DURATION)
     if duration != DEFAULT_DURATION:
         raise ValueError("invalid_duration")
     days = max(1, min(int(days or 14), MAX_DAYS))
-    now_teacher = datetime.now(teacher_tz)
     out = []
     conn = database.connect()
     try:
+        teacher_name, teacher_tz = _teacher_tz(conn=conn)
+        now_teacher = datetime.now(teacher_tz)
         range_start = now_teacher.replace(tzinfo=None)
         range_end = (now_teacher + timedelta(days=days + 1)).replace(tzinfo=None)
         snapshot = availability_guard.availability_snapshot(range_start, range_end, conn=conn)
