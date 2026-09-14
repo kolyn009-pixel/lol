@@ -36,6 +36,226 @@ def _homework_sync_status(c, lesson_id):
         return ''
 
 
+_HOMEWORK_ALERT_START_KEY='homework_streak_alerts_started_at'
+_HOMEWORK_ALERT_USER_PREFIX='homework_streak_alerted_homework_'
+_HOMEWORK_DONE={'DONE','COMPLETED','SUBMITTED','APPROVED','REVIEWED','CHECKED'}
+
+
+def _parse_homework_dt(value):
+    raw=str(value or '').strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace('Z','+00:00')).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def _homework_alert_cutoff(c, now):
+    row=c.execute(
+        "SELECT value FROM bot_settings WHERE key=?",
+        (_HOMEWORK_ALERT_START_KEY,),
+    ).fetchone()
+
+    if row and row['value']:
+        return str(row['value'])
+
+    value=now.replace(microsecond=0).isoformat()
+
+    c.execute(
+        """
+        INSERT INTO bot_settings(key,value,updated_at)
+        VALUES(?,?,?)
+        ON CONFLICT(key) DO UPDATE SET
+            value=excluded.value,
+            updated_at=excluded.updated_at
+        """,
+        (_HOMEWORK_ALERT_START_KEY,value,value),
+    )
+
+    c.commit()
+    return value
+
+
+def _homework_streak_alerts(now=None):
+    now=(now or datetime.now()).replace(tzinfo=None)
+
+    c=database.connect()
+
+    try:
+        cutoff=_homework_alert_cutoff(c,now)
+
+        rows=c.execute(
+            """
+            SELECT
+                h.id,
+                h.user_id,
+                h.title,
+                h.status,
+                h.deadline,
+                h.created_at,
+                u.name
+            FROM homework h
+            JOIN users u ON u.id=h.user_id
+            WHERE h.created_at>=?
+            ORDER BY
+                h.user_id,
+                h.created_at DESC,
+                h.id DESC
+            """,
+            (cutoff,),
+        ).fetchall()
+
+        grouped={}
+
+        for row in rows:
+            grouped.setdefault(
+                int(row['user_id']),
+                [],
+            ).append(row)
+
+        result=[]
+
+        for user_id,items in grouped.items():
+            streak=0
+
+            for row in items:
+                status=str(
+                    row['status']
+                    or ''
+                ).upper()
+
+                if status in _HOMEWORK_DONE:
+                    break
+
+                deadline=_parse_homework_dt(
+                    row['deadline']
+                )
+
+                if (
+                    deadline is None
+                    or deadline>=now
+                ):
+                    break
+
+                streak+=1
+
+            if streak<3:
+                continue
+
+            latest=items[0]
+
+            alert_key=(
+                _HOMEWORK_ALERT_USER_PREFIX
+                + str(user_id)
+            )
+
+            sent=c.execute(
+                "SELECT value FROM bot_settings WHERE key=?",
+                (alert_key,),
+            ).fetchone()
+
+            if (
+                sent
+                and str(sent['value'] or '')
+                == str(latest['id'])
+            ):
+                continue
+
+            result.append({
+                'user_id':user_id,
+                'name':str(
+                    latest['name']
+                    or f'Ученик #{user_id}'
+                ),
+                'streak':streak,
+                'latest_homework_id':int(
+                    latest['id']
+                ),
+                'latest_title':str(
+                    latest['title']
+                    or 'Домашнее задание'
+                ),
+            })
+
+        return result
+
+    finally:
+        c.close()
+
+
+def _mark_homework_streak_alerted(
+    user_id,
+    homework_id,
+):
+    c=database.connect()
+
+    try:
+        now=datetime.now().isoformat(
+            timespec='seconds'
+        )
+
+        key=(
+            _HOMEWORK_ALERT_USER_PREFIX
+            + str(int(user_id))
+        )
+
+        c.execute(
+            """
+            INSERT INTO bot_settings(
+                key,
+                value,
+                updated_at
+            )
+            VALUES(?,?,?)
+            ON CONFLICT(key) DO UPDATE SET
+                value=excluded.value,
+                updated_at=excluded.updated_at
+            """,
+            (
+                key,
+                str(int(homework_id)),
+                now,
+            ),
+        )
+
+        c.commit()
+
+    finally:
+        c.close()
+
+
+async def homework_streak_job(context):
+    """Alert only after three consecutive overdue new homeworks."""
+
+    for item in _homework_streak_alerts():
+        delivered=False
+
+        text=(
+            "⚠️ Систематически не выполняется ДЗ\n\n"
+            f"Ученик: {item['name']}\n"
+            f"Просрочено подряд: {item['streak']}\n"
+            f"Последнее ДЗ: {item['latest_title']}\n\n"
+            "Проверьте карточку ученика и домашние задания."
+        )
+
+        for admin_id in _admins()[:3]:
+            try:
+                await context.bot.send_message(
+                    admin_id,
+                    text,
+                )
+                delivered=True
+            except Exception:
+                pass
+
+        if delivered:
+            _mark_homework_streak_alerted(
+                item['user_id'],
+                item['latest_homework_id'],
+            )
+
+
 async def lesson_integrations_reconcile_job(context):
     """Repair missing Telemost/Google links for upcoming confirmed lessons."""
     now=datetime.now()
@@ -139,5 +359,6 @@ def register(application):
     jq.run_repeating(lesson_integrations_reconcile_job,interval=600,first=120,name='ff_lesson_integrations')
     jq.run_repeating(post_lesson_prompt_job,interval=300,first=45,name='ff_post_lesson')
     jq.run_repeating(missing_homework_job,interval=300,first=90,name='ff_missing_homework')
+    jq.run_repeating(homework_streak_job,interval=900,first=180,name='ff_homework_streak')
     jq.run_daily(daily_business_job,time=datetime.strptime('03:20','%H:%M').time(),name='ff_reconcile')
     jq.run_daily(monthly_report_draft_job,time=datetime.strptime('09:10','%H:%M').time(),name='ff_monthly_reports')
