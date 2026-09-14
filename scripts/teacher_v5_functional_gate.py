@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only/static functional gate for the Teacher v5 release candidate.
+"""Read-only/static functional gate for the Teacher clean release candidate.
 
 This intentionally does not touch the production database. Runtime API calls that
 need teacher authentication are checked later by the isolated server smoke.
@@ -9,16 +9,13 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def text(path):
     return (ROOT / path).read_text(encoding="utf-8")
-
 
 def require(data, markers, label):
     for marker in markers:
         if marker not in data:
             raise AssertionError(f"{label}: missing {marker!r}")
-
 
 teacher_html = text("web/teacher.html")
 api_v7 = text("web_backend/api_v7.py")
@@ -28,6 +25,7 @@ schedule_js = text("web/teacher_schedule_settings.js")
 formula_js = text("web/teacher_formulas.js")
 formula_repair = text("web_backend/formula_schema_repair.py")
 v5_runtime = text("web/teacher_v5_runtime.js")
+clean_sections = text("web/teacher_clean_sections.css")
 manifest = json.loads(text("web/teacher-manifest.webmanifest"))
 
 require(teacher_html, [
@@ -35,9 +33,15 @@ require(teacher_html, [
     'data-view="groups"', 'data-view="homework"', 'data-view="reviews"',
     'data-view="messages"', 'data-view="payments"', 'data-view="library"',
     'data-view="formulas"', 'data-view="finance"', 'data-view="analytics"',
-    'data-view="health"', '/app/teacher_clean.css', '/app/teacher_clean_runtime.js', '/app/teacher_clean_router.js',
+    'data-view="health"', '/app/teacher_clean.css', '/app/teacher_clean_sections.css',
+    '/app/teacher_clean_runtime.js', '/app/teacher_clean_router.js',
     '/app/teacher_groups.js', '/app/teacher_formulas.js'
 ], "teacher shell")
+
+require(clean_sections, [
+    '.msg-shell', '.msg-thread', '.msg-compose', '.finance-head', '.finance-kpis',
+    '.finance-grid', '.v4-page-head', '.v4-group-grid', '.v4-group-card'
+], "teacher clean sections")
 
 require(api_v7, [
     'path == "/api/teacher/groups"', 'path == "/api/teacher/group/create"',
@@ -90,4 +94,4 @@ for forbidden in [
     if forbidden in teacher_html:
         raise AssertionError(f"old teacher runtime returned: {forbidden}")
 
-print("TEACHER_V5_FUNCTIONAL_GATE=PASS")
+print("TEACHER_CLEAN_FUNCTIONAL_GATE=PASS")
