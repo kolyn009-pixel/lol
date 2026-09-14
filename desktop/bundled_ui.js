@@ -1,16 +1,21 @@
 'use strict';
 const {app}=require('electron'),fs=require('fs'),path=require('path');
-const manifest=require('./role_assets_manifest');
+const manifest=require('./bundled_ui_manifest');
 const root=path.join(__dirname,'role_assets');
 let installed=false;
 function source(name){return fs.readFileSync(path.join(root,name),'utf8')}
+function roleFor(pathname){
+  if(pathname.startsWith('/teacher'))return 'teacher';
+  if(pathname.startsWith('/app/parent'))return 'parent';
+  if(pathname.startsWith('/app'))return 'student';
+  return null;
+}
 async function inject(win){
  if(!win||win.isDestroyed())return;
  let u;try{u=new URL(win.webContents.getURL())}catch{return}
  const origin=new URL(process.env.ADELIA_DESKTOP_URL||'https://adeliatutor.ru/app/').origin;
  if(u.origin!==origin)return;
- const role=u.pathname.startsWith('/teacher')?'teacher':u.pathname.startsWith('/app')?'student':null;
- if(!role)return;
+ const role=roleFor(u.pathname);if(!role||!manifest[role])return;
  const marker='__adeliaBundledUi_'+role;
  const done=await win.webContents.executeJavaScript(`Boolean(window.${marker})`,true).catch(()=>true);
  if(done)return;
