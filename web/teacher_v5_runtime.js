@@ -9,9 +9,12 @@ function humanize(root=document){
   });
   root.querySelectorAll?.('.badge,.chip,.status,.v4-chip').forEach(el=>{const t=String(el.textContent||'').trim().toUpperCase();if(MAP[t])el.textContent=MAP[t]});
 }
-function decorateEmpty(root=document){root.querySelectorAll?.('.empty').forEach(el=>{if(el.dataset.v5done)return;el.dataset.v5done='1';const text=(el.textContent||'').trim();if(!text)return;el.classList.add('v5-empty');});}
-function polish(root=document){humanize(root);decorateEmpty(root);}
-let queued=false;const schedule=()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;polish(document.querySelector('#app')||document)});};
-new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});
-document.addEventListener('DOMContentLoaded',()=>polish());schedule();
+function decorateEmpty(root=document){root.querySelectorAll?.('.empty').forEach(el=>{if(el.dataset.v5done)return;el.dataset.v5done='1';if((el.textContent||'').trim())el.classList.add('v5-empty')})}
+function polish(){const root=document.querySelector('#app')||document;humanize(root);decorateEmpty(root)}
+function polishBurst(){requestAnimationFrame(polish);setTimeout(polish,80);setTimeout(polish,260)}
+window.AdeliaPolish=polishBurst;
+document.addEventListener('DOMContentLoaded',polishBurst,{once:true});
+document.addEventListener('click',e=>{if(e.target.closest('[data-view],[data-student],[data-lesson],button,a'))polishBurst()},true);
+window.addEventListener('hashchange',polishBurst);
+polishBurst();
 })();
