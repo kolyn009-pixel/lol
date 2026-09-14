@@ -1,6 +1,7 @@
 """Timezone-aware free slots for public trial booking."""
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -10,6 +11,15 @@ from web_backend import availability_guard
 STEP_MINUTES = 30
 DEFAULT_DURATION = 60
 MAX_DAYS = 21
+
+
+def _read_connection():
+    """Open the public-slot database connection without mutating journal mode."""
+    conn = sqlite3.connect(database.current_db_name(), timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA query_only = ON")
+    conn.execute("PRAGMA busy_timeout = 30000")
+    return conn
 
 
 def _teacher_tz(conn=None):
@@ -67,7 +77,7 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
         raise ValueError("invalid_duration")
     days = max(1, min(int(days or 14), MAX_DAYS))
     out = []
-    conn = database.connect()
+    conn = _read_connection()
     try:
         teacher_name, teacher_tz = _teacher_tz(conn=conn)
         now_teacher = datetime.now(teacher_tz)
