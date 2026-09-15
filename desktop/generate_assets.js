@@ -1,8 +1,54 @@
 'use strict';
-const fs=require('fs'),path=require('path'),zlib=require('zlib');
-const W=512,H=512;
-function crc32(buf){let c=0xffffffff;for(const byte of buf){c^=byte;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}return (c^0xffffffff)>>>0}
-function chunk(type,data){const t=Buffer.from(type,'ascii'),len=Buffer.alloc(4),crc=Buffer.alloc(4);len.writeUInt32BE(data.length);crc.writeUInt32BE(crc32(Buffer.concat([t,data])));return Buffer.concat([len,t,data,crc])}
-function roundedRect(x,y,w,h,r,px,py){const cx=Math.max(x+r,Math.min(px,x+w-r)),cy=Math.max(y+r,Math.min(py,y+h-r));return (px-cx)**2+(py-cy)**2<=r*r}
-const raw=Buffer.alloc((W*4+1)*H);for(let y=0;y<H;y++){const row=y*(W*4+1);raw[row]=0;for(let x=0;x<W;x++){const i=row+1+x*4;let r=0,g=0,b=0,a=0;if(roundedRect(24,24,464,464,112,x,y)){const t=(x+y)/(W+H);r=Math.round(151-45*t);g=Math.round(105-38*t);b=Math.round(242-20*t);a=255;const glow=Math.max(0,1-Math.hypot(x-155,y-125)/260);r=Math.min(255,Math.round(r+34*glow));g=Math.min(255,Math.round(g+26*glow));b=Math.min(255,Math.round(b+13*glow));const dx=(x-256)/175,dy=(y-264)/190;const outer=dx*dx+dy*dy<1,inner=((x-256)/92)**2+((y-265)/112)**2<1,bar=y>270&&y<318&&x>168&&x<344;if((outer&&!inner)||bar){r=255;g=255;b=255;a=255}}raw[i]=r;raw[i+1]=g;raw[i+2]=b;raw[i+3]=a}}
-const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(W,0);ihdr.writeUInt32BE(H,4);ihdr[8]=8;ihdr[9]=6;ihdr[10]=0;ihdr[11]=0;ihdr[12]=0;const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(raw,{level:9})),chunk('IEND',Buffer.alloc(0))]);const dir=path.join(__dirname,'build');fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'icon.png'),png);console.log('Generated Adelia icon:',W+'x'+H,path.join(dir,'icon.png'));
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
+
+const ICON_URL = process.env.ADELIA_DESKTOP_ICON_URL || 'https://adeliatutor.ru/assets/icons/adelia-icon-512.png';
+const dir = path.join(__dirname, 'build');
+const target = path.join(dir, 'icon.png');
+const tmp = target + '.tmp';
+const PNG = Buffer.from([137,80,78,71,13,10,26,10]);
+
+function download(url, redirects = 0) {
+  if (redirects > 5) return Promise.reject(new Error('Too many icon redirects'));
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Adelia-Desktop-Build' } }, response => {
+      const status = Number(response.statusCode || 0);
+      if (status >= 300 && status < 400 && response.headers.location) {
+        response.resume();
+        const next = new URL(response.headers.location, url).toString();
+        download(next, redirects + 1).then(resolve, reject);
+        return;
+      }
+      if (status !== 200) {
+        response.resume();
+        reject(new Error(`Canonical icon HTTP ${status}`));
+        return;
+      }
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => resolve(Buffer.concat(chunks)));
+      response.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+function validatePng(buffer) {
+  if (buffer.length < 33 || !buffer.subarray(0, 8).equals(PNG)) throw new Error('Canonical Adelia icon is not a PNG');
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+  if (width !== 512 || height !== 512) throw new Error(`Canonical Adelia icon must be 512x512, got ${width}x${height}`);
+}
+
+(async () => {
+  const buffer = await download(ICON_URL);
+  validatePng(buffer);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(tmp, buffer);
+  fs.renameSync(tmp, target);
+  console.log('Synced canonical Adelia desktop icon:', ICON_URL, `${buffer.length} bytes`);
+})().catch(error => {
+  try { fs.rmSync(tmp, { force: true }); } catch (_) {}
+  console.error('Desktop icon sync failed:', error && error.message ? error.message : error);
+  process.exit(2);
+});
