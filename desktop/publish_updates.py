@@ -2,8 +2,8 @@
 """Prepare a verified desktop update bundle for adeliatutor.ru/desktop-updates.
 
 This script does not deploy anywhere. It copies only electron-updater artifacts
-from a completed build into a clean release directory and refuses incomplete
-sets so the server never receives half an update.
+from a completed build into a clean release directory, refuses incomplete sets,
+and creates stable browser-download aliases without changing updater metadata.
 """
 from __future__ import annotations
 
@@ -39,11 +39,37 @@ def collect(source: Path) -> list[Path]:
     return sorted(files)
 
 
+def newest(source: Path, pattern: str) -> Path:
+    matches = sorted(source.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not matches:
+        raise SystemExit(f"artifact missing: {pattern}")
+    return matches[0]
+
+
+def create_download_aliases(source: Path, target: Path, platform: str, arch: str | None) -> list[Path]:
+    aliases: list[Path] = []
+    if platform in {"win", "all"}:
+        src = newest(source, "*.exe")
+        dst = target / "Adelia-latest-windows-x64.exe"
+        shutil.copy2(src, dst)
+        aliases.append(dst)
+    if platform in {"mac", "all"}:
+        if platform == "mac" and arch not in {"arm64", "x64"}:
+            raise SystemExit("--arch arm64 or --arch x64 is required for mac browser alias")
+        if arch in {"arm64", "x64"}:
+            src = newest(source, "*.dmg")
+            dst = target / f"Adelia-latest-macos-{arch}.dmg"
+            shutil.copy2(src, dst)
+            aliases.append(dst)
+    return aliases
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path, help="electron-builder dist directory")
     parser.add_argument("target", type=Path, help="clean local release bundle directory")
     parser.add_argument("--platform", choices=("win", "mac", "all"), default="all")
+    parser.add_argument("--arch", choices=("x64", "arm64"), help="required for a macOS browser-download alias")
     args = parser.parse_args()
 
     source = args.source.resolve()
@@ -70,6 +96,10 @@ def main() -> None:
         dst = target / src.name
         shutil.copy2(src, dst)
         manifest["files"].append({"name": dst.name, "size": dst.stat().st_size, "sha512": sha512(dst)})
+
+    for alias in create_download_aliases(source, target, args.platform, args.arch):
+        manifest["files"].append({"name": alias.name, "size": alias.stat().st_size, "sha512": sha512(alias), "browser_alias": True})
+
     (target / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "target": str(target), "files": len(manifest["files"])}, ensure_ascii=False))
 
