@@ -67,7 +67,8 @@ def start_open_event(event_id,telemost_join_url=None,board_url=None):
  if not event:c.close();raise ValueError('event_not_found')
  pending=int(c.execute("SELECT COUNT(*) n FROM open_event_participants WHERE event_id=? AND status='REGISTERED' AND teacher_decision='PENDING'",(eid,)).fetchone()['n'])
  if pending:c.close();raise ValueError('participant_decisions_pending')
- c.execute("UPDATE open_learning_events SET status='IN_PROGRESS',telemost_join_url=COALESCE(?,telemost_join_url),board_url=COALESCE(?,board_url),updated_at=? WHERE id=?",(telemost_join_url,board_url,now,eid));c.execute("UPDATE open_event_participants SET access_granted=CASE WHEN teacher_decision='APPROVED' THEN 1 ELSE 0 END,updated_at=? WHERE event_id=?",(now,eid));c.commit();c.close();return {'status':'ok','event_id':eid}
+ price=int(event['price_per_student'] or 0)
+ c.execute("UPDATE open_learning_events SET status='IN_PROGRESS',telemost_join_url=COALESCE(?,telemost_join_url),board_url=COALESCE(?,board_url),updated_at=? WHERE id=?",(telemost_join_url,board_url,now,eid));c.execute("UPDATE open_event_participants SET access_granted=CASE WHEN teacher_decision='APPROVED' AND (?=0 OR payment_status IN ('PAID','WAIVED')) THEN 1 ELSE 0 END,updated_at=? WHERE event_id=?",(price,now,eid));c.commit();c.close();return {'status':'ok','event_id':eid}
 def open_event_access(event_id,user_id):
  ensure_schema();c=database.connect();row=c.execute("SELECT e.title,e.status,e.telemost_join_url,e.board_url,p.teacher_decision,p.access_granted,p.payment_status FROM open_learning_events e JOIN open_event_participants p ON p.event_id=e.id WHERE e.id=? AND p.user_id=?",(int(event_id),int(user_id))).fetchone();c.close()
  if not row:raise PermissionError('event_not_available')
