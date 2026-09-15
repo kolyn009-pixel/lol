@@ -10,7 +10,11 @@ let notificationsEnabled = true;
 const sent = new Set();
 
 function mainWindow() {
-  return BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && w.getTitle().includes('Аделия')) || null;
+  return BrowserWindow.getAllWindows().find(w => {
+    if (w.isDestroyed()) return false;
+    try { return new URL(w.webContents.getURL()).origin === APP_ORIGIN; }
+    catch (_) { return false; }
+  }) || null;
 }
 function lessonTarget(id) {
   const u = new URL('/app/', APP_ORIGIN);
