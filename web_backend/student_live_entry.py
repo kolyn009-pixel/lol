@@ -5,13 +5,20 @@ is checked first; only admitted/paid participants can generate JOIN events.
 Repeated opens while already present are idempotent. Manual teacher attendance
 uses the same timeline and remains available as a fallback.
 
-For group lessons the factual lesson timer starts when the first admitted
-student presses "Join". Merely opening the lesson as a teacher does not start
-that timer.
+For group lessons and open events the factual timer starts when the first
+admitted student presses "Join". Merely opening access as a teacher does not
+start that timer.
 """
 from __future__ import annotations
 
+import database
 from web_backend import attendance_tracking, group_lesson_access, group_portal
+
+
+def _mark_event_actual_start(event_id):
+    eid=int(event_id);now=database.now_iso();c=database.connect();cols={r[1] for r in c.execute("PRAGMA table_info(open_learning_events)").fetchall()}
+    if "started_at" not in cols:c.execute("ALTER TABLE open_learning_events ADD COLUMN started_at TEXT")
+    c.execute("UPDATE open_learning_events SET started_at=COALESCE(started_at,?),updated_at=? WHERE id=?",(now,now,eid));c.commit();row=c.execute("SELECT started_at FROM open_learning_events WHERE id=?",(eid,)).fetchone();c.close();return row["started_at"] if row else now
 
 
 def group_entry(lesson_id, user_id, source="APP"):
@@ -40,6 +47,7 @@ def event_entry(event_id, user_id, source="APP"):
     access=group_portal.open_event_access(eid,uid)
     if not access.get("allowed") or not access.get("meeting_url"):
         raise PermissionError("event_not_open")
+    started_at=_mark_event_actual_start(eid)
     result=attendance_tracking.record(
         "OPEN_EVENT",eid,uid,"JOIN",source=str(source or "APP").upper()
     )
@@ -47,6 +55,7 @@ def event_entry(event_id, user_id, source="APP"):
     return {
         "status":"ok",
         "event_id":eid,
+        "started_at":started_at,
         "meeting_url":access.get("meeting_url"),
         "board_url":access.get("board_url"),
         "attendance":summary,
