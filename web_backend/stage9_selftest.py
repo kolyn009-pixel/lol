@@ -18,7 +18,7 @@ database.set_test_mode(True)
 database.create_tables()
 
 from learning import schema as learning_schema
-learning_schema.initialize(database.DB_PATH)
+learning_schema.initialize(database.current_db_name())
 
 from web_backend.parent_auth import create_parent_login_code,consume_parent_login_code
 from web_backend.parent_portal import dashboard,student,schedule,linked_students
