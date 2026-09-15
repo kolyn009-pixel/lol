@@ -67,6 +67,19 @@ def financial_status_for_lesson(lesson_id,user_id):
  if not lesson:c.close();raise ValueError('group_lesson_not_found')
  paid=c.execute("SELECT id FROM group_payments WHERE group_lesson_id=? AND user_id=? AND status='PAID' LIMIT 1",(lid,uid)).fetchone()
  if paid:c.close();return {'status':'PAID','payment_id':int(paid['id']),'covered':True}
+ reserved=c.execute("""SELECT l.subscription_id,s.lessons_remaining
+                         FROM group_subscription_ledger l
+                         JOIN group_subscriptions s ON s.id=l.subscription_id
+                        WHERE l.lesson_id=? AND l.reason='LESSON_RESERVE'
+                          AND s.user_id=? AND s.group_id=?
+                          AND NOT EXISTS(
+                              SELECT 1 FROM group_subscription_ledger r
+                               WHERE r.subscription_id=l.subscription_id
+                                 AND r.lesson_id=l.lesson_id
+                                 AND r.reason='LESSON_REFUND'
+                          )
+                        ORDER BY l.id DESC LIMIT 1""",(lid,uid,int(lesson['group_id']))).fetchone()
+ if reserved:c.close();return {'status':'COVERED','subscription_id':int(reserved['subscription_id']),'lessons_remaining':int(reserved['lessons_remaining'] or 0),'covered':True,'reserved':True}
  sub=_active_subscription_row(c,int(lesson['group_id']),uid);c.close()
  if sub:return {'status':'COVERED','subscription_id':int(sub['id']),'lessons_remaining':int(sub['lessons_remaining']),'covered':True}
  return {'status':'UNPAID','covered':False,'price_per_lesson':effective_price(int(lesson['group_id']),uid)}
