@@ -4,6 +4,10 @@ A successful app/web entry is the canonical automatic attendance signal. Access
 is checked first; only admitted/paid participants can generate JOIN events.
 Repeated opens while already present are idempotent. Manual teacher attendance
 uses the same timeline and remains available as a fallback.
+
+For group lessons the factual lesson timer starts when the first admitted
+student presses "Join". Merely opening the lesson as a teacher does not start
+that timer.
 """
 from __future__ import annotations
 
@@ -15,6 +19,7 @@ def group_entry(lesson_id, user_id, source="APP"):
     access=group_lesson_access.student_lesson_access(lid,uid)
     if not access.get("links_visible") or not access.get("telemost_join_url"):
         raise PermissionError("group_lesson_not_open")
+    started_at=group_lesson_access.mark_actual_start(lid,uid)
     result=attendance_tracking.record(
         "GROUP_LESSON",lid,uid,"JOIN",source=str(source or "APP").upper()
     )
@@ -22,6 +27,7 @@ def group_entry(lesson_id, user_id, source="APP"):
     return {
         "status":"ok",
         "lesson_id":lid,
+        "started_at":started_at,
         "meeting_url":access.get("telemost_join_url"),
         "board_url":access.get("board_url"),
         "attendance":summary,
