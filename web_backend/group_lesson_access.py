@@ -36,9 +36,13 @@ def ensure_schema():
 
 
 def refresh_financial_flags(lesson_id):
-    ensure_schema(); lid=int(lesson_id); c=database.connect(); rows=c.execute("SELECT user_id FROM group_lesson_participants WHERE lesson_id=? AND attendance_status='EXPECTED'",(lid,)).fetchall(); c.close(); out=[]
+    ensure_schema(); lid=int(lesson_id); c=database.connect(); rows=c.execute("SELECT user_id,rsvp_status FROM group_lesson_participants WHERE lesson_id=? AND attendance_status='EXPECTED'",(lid,)).fetchall(); c.close(); out=[]
     for row in rows:
-        uid=int(row["user_id"]); state=group_finance.financial_status_for_lesson(lid,uid); attention=0 if state["covered"] else 1
+        uid=int(row["user_id"])
+        if str(row["rsvp_status"] or "UNKNOWN").upper()=="NOT_GOING":
+            state={"status":"NOT_CHARGED","covered":True,"reason":"student_not_going"};attention=0
+        else:
+            state=group_finance.financial_status_for_lesson(lid,uid);attention=0 if state["covered"] else 1
         c=database.connect(); c.execute("UPDATE group_lesson_participants SET payment_status=?,financial_attention=?,updated_at=? WHERE lesson_id=? AND user_id=?",(state["status"],attention,_now(),lid,uid)); c.commit(); c.close(); out.append({"user_id":uid,**state,"financial_attention":bool(attention)})
     return out
 
@@ -47,7 +51,8 @@ def teacher_start_preview(lesson_id):
     ensure_schema(); lid=int(lesson_id); refresh_financial_flags(lid); c=database.connect(); lesson=c.execute("SELECT gl.*,g.name AS group_name,g.min_attendees FROM group_lessons gl JOIN study_groups g ON g.id=gl.group_id WHERE gl.id=?",(lid,)).fetchone()
     if not lesson:c.close(); raise ValueError("group_lesson_not_found")
     rows=c.execute("""SELECT p.*,u.name FROM group_lesson_participants p JOIN users u ON u.id=p.user_id WHERE p.lesson_id=? AND p.attendance_status='EXPECTED' ORDER BY CASE p.rsvp_status WHEN 'GOING' THEN 0 WHEN 'MAYBE' THEN 1 WHEN 'UNKNOWN' THEN 2 ELSE 3 END,u.name COLLATE NOCASE""",(lid,)).fetchall(); c.close(); participants=[dict(r) for r in rows]
-    return {"lesson":dict(lesson),"participants":participants,"unresolved":[p for p in participants if p["admission_status"]=="PENDING"],"unpaid_attention":[p for p in participants if int(p["financial_attention"] or 0)==1],"admitted_count":sum(1 for p in participants if p["admission_status"]=="ADMITTED"),"rsvp":{"going":sum(1 for p in participants if p.get("rsvp_status")=="GOING"),"maybe":sum(1 for p in participants if p.get("rsvp_status")=="MAYBE"),"not_going":sum(1 for p in participants if p.get("rsvp_status")=="NOT_GOING"),"unknown":sum(1 for p in participants if p.get("rsvp_status") in {None,"UNKNOWN"})}}
+    chargeable=[p for p in participants if str(p.get("rsvp_status") or "UNKNOWN").upper()!="NOT_GOING"]
+    return {"lesson":dict(lesson),"participants":participants,"unresolved":[p for p in chargeable if p["admission_status"]=="PENDING"],"unpaid_attention":[p for p in chargeable if int(p["financial_attention"] or 0)==1],"admitted_count":sum(1 for p in chargeable if p["admission_status"]=="ADMITTED"),"not_charged_user_ids":[int(p["user_id"]) for p in participants if str(p.get("rsvp_status") or "").upper()=="NOT_GOING"],"rsvp":{"going":sum(1 for p in participants if p.get("rsvp_status")=="GOING"),"maybe":sum(1 for p in participants if p.get("rsvp_status")=="MAYBE"),"not_going":sum(1 for p in participants if p.get("rsvp_status")=="NOT_GOING"),"unknown":sum(1 for p in participants if p.get("rsvp_status") in {None,"UNKNOWN"})}}
 
 
 def set_student_rsvp(lesson_id,user_id,status):
@@ -55,10 +60,11 @@ def set_student_rsvp(lesson_id,user_id,status):
     if status not in VALID_RSVP:raise ValueError("invalid_rsvp_status")
     c=database.connect();lesson=c.execute("SELECT status FROM group_lessons WHERE id=?",(lid,)).fetchone()
     if not lesson:c.close();raise ValueError("group_lesson_not_found")
-    if str(lesson["status"] or "").upper() in FINAL_LESSON_STATES:c.close();raise ValueError("group_lesson_rsvp_closed")
-    now=_now();cur=c.execute("UPDATE group_lesson_participants SET rsvp_status=?,rsvp_at=?,updated_at=? WHERE lesson_id=? AND user_id=?",(status,now,now,lid,uid));c.commit();c.close()
+    current=str(lesson["status"] or "").upper()
+    if current in FINAL_LESSON_STATES or current=="STARTED":c.close();raise ValueError("group_lesson_rsvp_closed")
+    now=_now();cur=c.execute("UPDATE group_lesson_participants SET rsvp_status=?,rsvp_at=?,payment_status=CASE WHEN ?='NOT_GOING' THEN 'NOT_CHARGED' ELSE payment_status END,financial_attention=CASE WHEN ?='NOT_GOING' THEN 0 ELSE financial_attention END,updated_at=? WHERE lesson_id=? AND user_id=?",(status,now,status,status,now,lid,uid));c.commit();c.close()
     if not cur.rowcount:raise PermissionError("group_lesson_access_denied")
-    return {"status":"ok","lesson_id":lid,"user_id":uid,"rsvp_status":status,"rsvp_at":now}
+    return {"status":"ok","lesson_id":lid,"user_id":uid,"rsvp_status":status,"rsvp_at":now,"will_be_charged":status!="NOT_GOING"}
 
 
 def decide_admission(lesson_id,user_id,decision,teacher_id):
@@ -77,16 +83,16 @@ def start_group_lesson(lesson_id,teacher_id):
     if lesson["status"]=="STARTED": return {"status":"already_open","lesson_id":lid,"participants":preview["participants"],"started_at":lesson.get("started_at")}
     if lesson["status"] in FINAL_LESSON_STATES: raise ValueError("group_lesson_not_startable")
     if preview["unresolved"]: raise ValueError("group_lesson_has_unresolved_admissions")
-    admitted=[p for p in preview["participants"] if p["admission_status"]=="ADMITTED"]; minimum=max(2,int(lesson["min_attendees"] or 2))
+    admitted=[p for p in preview["participants"] if p["admission_status"]=="ADMITTED" and str(p.get("rsvp_status") or "UNKNOWN").upper()!="NOT_GOING"]; minimum=max(2,int(lesson["min_attendees"] or 2))
     if len(admitted)<minimum: raise ValueError("group_lesson_quorum_not_met")
-    now=_now(); c=database.connect(); c.execute("UPDATE group_lessons SET status='STARTED',started_by=?,updated_at=? WHERE id=?",(int(teacher_id),now,lid)); c.execute("UPDATE group_lesson_participants SET access_granted=CASE WHEN admission_status='ADMITTED' THEN 1 ELSE 0 END,updated_at=? WHERE lesson_id=?",(now,lid)); c.commit(); c.close()
+    admitted_ids=[int(p["user_id"]) for p in admitted];now=_now(); c=database.connect(); c.execute("UPDATE group_lessons SET status='STARTED',started_by=?,updated_at=? WHERE id=?",(int(teacher_id),now,lid)); c.execute("UPDATE group_lesson_participants SET access_granted=CASE WHEN admission_status='ADMITTED' AND COALESCE(rsvp_status,'UNKNOWN')<>'NOT_GOING' THEN 1 ELSE 0 END,updated_at=? WHERE lesson_id=?",(now,lid)); c.commit(); c.close()
     reservations=[]
     for p in admitted:
         uid=int(p["user_id"]); fin=group_finance.financial_status_for_lesson(lid,uid)
         if fin["status"]=="COVERED":
             try:reservations.append({"user_id":uid,**group_finance.reserve_subscription_for_lesson(lid,uid)})
             except ValueError:pass
-    return {"status":"opened","lesson_id":lid,"started_at":None,"admitted_user_ids":[int(p["user_id"]) for p in admitted],"reservations":reservations}
+    return {"status":"opened","lesson_id":lid,"started_at":None,"admitted_user_ids":admitted_ids,"not_charged_user_ids":preview.get("not_charged_user_ids",[]),"reservations":reservations}
 
 
 def mark_actual_start(lesson_id,user_id):
@@ -105,7 +111,7 @@ def student_lesson_access(lesson_id,user_id):
     row=c.execute("""SELECT gl.status,gl.started_at,gl.board_url,gl.telemost_join_url,p.admission_status,p.access_granted,p.payment_status,p.rsvp_status,p.rsvp_at,m.status AS membership_status FROM group_lessons gl JOIN group_lesson_participants p ON p.lesson_id=gl.id LEFT JOIN group_members m ON m.group_id=gl.group_id AND m.user_id=p.user_id WHERE gl.id=? AND p.user_id=?""",(lid,uid)).fetchone(); c.close()
     if not row: raise PermissionError("group_lesson_access_denied")
     member=str(row["membership_status"] or "").upper() in {"ACTIVE","PAUSED"}
-    telemost_visible=row["status"]=="STARTED" and row["admission_status"]=="ADMITTED" and int(row["access_granted"] or 0)==1
+    telemost_visible=row["status"]=="STARTED" and row["admission_status"]=="ADMITTED" and str(row["rsvp_status"] or "UNKNOWN").upper()!="NOT_GOING" and int(row["access_granted"] or 0)==1
     return {"lesson_id":lid,"lesson_status":row["status"],"started_at":row["started_at"],"admission_status":row["admission_status"],"payment_status":row["payment_status"],"rsvp_status":row["rsvp_status"],"rsvp_at":row["rsvp_at"],"links_visible":telemost_visible,"board_visible":member,"board_url":row["board_url"] if member else None,"telemost_join_url":row["telemost_join_url"] if telemost_visible else None}
 
 
