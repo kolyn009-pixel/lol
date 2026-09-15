@@ -46,8 +46,8 @@ def seed():
     p2=conn.execute("INSERT INTO parent_accounts(name,phone,telegram_id,active,created_at) VALUES(?,?,?,?,?)",('Parent Two','+70000000002',900002,1,now)).lastrowid
     s1=conn.execute("INSERT INTO users(name,grade,study_goal,main_subject,active,created_at) VALUES(?,?,?,?,1,?)",('Child One',9,'OGE','PHYSICS',now)).lastrowid
     s2=conn.execute("INSERT INTO users(name,grade,study_goal,main_subject,active,created_at) VALUES(?,?,?,?,1,?)",('Child Two',11,'EGE','PHYSICS',now)).lastrowid
-    conn.execute("INSERT INTO parent_student_links(parent_id,student_id,notify_schedule) VALUES(?,?,1)",(p1,s1))
-    conn.execute("INSERT INTO parent_student_links(parent_id,student_id,notify_schedule) VALUES(?,?,1)",(p2,s2))
+    conn.execute("INSERT INTO parent_student_links(parent_id,student_id,notify_schedule,created_at) VALUES(?,?,1,?)",(p1,s1,now))
+    conn.execute("INSERT INTO parent_student_links(parent_id,student_id,notify_schedule,created_at) VALUES(?,?,1,?)",(p2,s2,now))
     conn.execute("INSERT INTO student_programs(user_id,study_goal,subject,is_primary,active,approval_status,created_by,created_at) VALUES(?,?,?,1,1,'APPROVED','SELFTEST',?)",(s1,'OGE','PHYSICS',now))
     future=(datetime.now()+timedelta(days=1)).replace(microsecond=0);end=future+timedelta(hours=1)
     conn.execute("INSERT INTO lessons(user_id,start_time,end_time,duration_minutes,subject,study_goal,hourly_rate,price,lesson_status,payment_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(s1,future.isoformat(),end.isoformat(),60,'PHYSICS','OGE',1800,1800,'CONFIRMED','WAITING',now))
@@ -81,7 +81,6 @@ def main():
     eq(int(student_finance._payment_owned(s1,own_payment)['id']),own_payment,'own payment accepted')
     denied(lambda:student_finance._payment_owned(s1,foreign_payment),'foreign payment blocked')
 
-    # Parent payload must not expose teacher-private notes, answer keys or meeting links.
     payload=repr({'dashboard':data,'student':card}).lower()
     for forbidden in ('student_private_notes','private_notes','solution','answer','telemost_join_url','telemost_conference_id','meeting_url'):
         truth(forbidden not in payload,f'private field hidden: {forbidden}')
