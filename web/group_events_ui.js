@@ -4,6 +4,10 @@
   const money=n=>Number(n||0).toLocaleString('ru-RU')+' ₽';
   const fmtDate=v=>v?new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(new Date(v)):'—';
   const fmtTime=v=>v?new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'}).format(new Date(v)):'—';
+  const paymentStatus=v=>({PAID:'Оплачено',UNPAID:'Не оплачено',NOT_CHARGED:'Не списывать',COVERED:'Абонемент',WAIVED:'Без оплаты',PENDING:'Ожидает оплаты',RECEIPT_SENT:'Чек на проверке',REJECTED:'Оплата отклонена',REFUNDED:'Возвращено'})[String(v||'').toUpperCase()]||'Статус оплаты уточняется';
+  const attendanceStatus=v=>({EXPECTED:'Ожидается',PRESENT:'На занятии',LEFT:'Вышел',PAUSED:'Не участвует',MISSED:'Пропущено',ATTENDED:'Посещено'})[String(v||'').toUpperCase()]||'Ожидается';
+  const rsvpStatus=v=>({GOING:'Приду',MAYBE:'Возможно',NOT_GOING:'Не приду',UNKNOWN:'Не ответил'})[String(v||'UNKNOWN').toUpperCase()]||'Не ответил';
+  const finalLesson=s=>['STARTED','COMPLETED','CANCELLED','QUORUM_FAILED'].includes(String(s||'').toUpperCase());
   let groups=[];
   let mounted=false;
 
@@ -51,6 +55,15 @@
   function groupCard(g){
     return `<button class="group-card" data-group-open="${g.id}"><div class="group-avatar">👥</div><div><b>${esc(g.name||'Учебная группа')}</b><span>${esc(g.subject||'')} ${g.membership_status==='PAUSED'?'· пауза':'· участник'}</span></div><span class="group-arrow">→</span></button>`;
   }
+  function rsvpControls(l){
+    if(finalLesson(l.status))return `<small>Ответ: ${esc(rsvpStatus(l.rsvp_status))}</small>`;
+    const selected=String(l.rsvp_status||'UNKNOWN').toUpperCase();
+    return `<div class="event-actions group-rsvp" aria-label="Участие в занятии"><button class="event-secondary${selected==='GOING'?' active':''}" data-group-rsvp="GOING" data-lesson-id="${l.id}">Приду</button><button class="event-secondary${selected==='MAYBE'?' active':''}" data-group-rsvp="MAYBE" data-lesson-id="${l.id}">Возможно</button><button class="event-secondary${selected==='NOT_GOING'?' active':''}" data-group-rsvp="NOT_GOING" data-lesson-id="${l.id}">Не приду</button></div>`;
+  }
+  function groupLessonCard(l){
+    const notGoing=String(l.rsvp_status||'').toUpperCase()==='NOT_GOING';
+    return `<article class="group-lesson"><div class="date-badge"><b>${new Date(l.start_time).getDate()}</b><span>${new Intl.DateTimeFormat('ru-RU',{month:'short'}).format(new Date(l.start_time))}</span></div><div class="group-lesson-main"><b>${fmtTime(l.start_time)}–${fmtTime(l.end_time)}</b><span>${esc(paymentStatus(l.payment_status))} · ${esc(attendanceStatus(l.attendance_status))}</span><small>Участие: ${esc(rsvpStatus(l.rsvp_status))}</small>${rsvpControls(l)}</div>${notGoing?'':`<button class="mini-btn" data-group-enter="${l.id}">Открыть</button>`}</article>`;
+  }
   async function groupsView(){
     loading();title(groups.length>1?'Мои группы':'Моя группа');active('groups');
     try{
@@ -61,16 +74,22 @@
       document.querySelectorAll('[data-group-open]').forEach(x=>x.onclick=()=>groupDetail(x.dataset.groupOpen));
     }catch(e){error(e.message)}
   }
+  async function setGroupRsvp(groupId,lessonId,status,button){
+    const buttons=document.querySelectorAll(`[data-group-rsvp][data-lesson-id="${lessonId}"]`);buttons.forEach(x=>x.disabled=true);
+    try{await api('/student/group-lesson/rsvp',{method:'POST',body:JSON.stringify({lesson_id:+lessonId,status})});await groupDetail(groupId)}
+    catch(e){buttons.forEach(x=>x.disabled=false);button.disabled=false;alert(e.message==='group_lesson_rsvp_closed'?'Ответ на это занятие уже закрыт.':e.message)}
+  }
   async function groupDetail(id){
     loading();active('groups');
     try{
       const d=await api('/student/group/summary?group_id='+encodeURIComponent(id));
       const g=d.group||{};title(g.name||'Моя группа');
       const lessons=d.upcoming_lessons||[];
-      content().innerHTML=`<button class="back group-back" id="groupsBack">← ${groups.length>1?'К группам':'Назад'}</button><section class="group-detail-hero"><div class="group-avatar big">👥</div><div><span>Моя группа</span><h2>${esc(g.name||'Учебная группа')}</h2><p>${esc(g.subject||'')} ${g.study_goal?'· '+esc(g.study_goal):''}</p></div></section><section class="group-tabs"><button class="active" data-group-tab="lessons">Занятия</button><button data-group-tab="chat">Чат группы</button></section><div id="groupPane"><section class="section"><h3>Ближайшие занятия</h3>${lessons.map(l=>`<article class="group-lesson"><div class="date-badge"><b>${new Date(l.start_time).getDate()}</b><span>${new Intl.DateTimeFormat('ru-RU',{month:'short'}).format(new Date(l.start_time))}</span></div><div><b>${fmtTime(l.start_time)}–${fmtTime(l.end_time)}</b><span>${esc(l.payment_status||'')} · ${esc(l.attendance_status||'')}</span></div><button class="mini-btn" data-group-enter="${l.id}">Открыть</button></article>`).join('')||'<div class="empty">Ближайших групповых занятий пока нет.</div>'}</section></div>`;
+      content().innerHTML=`<button class="back group-back" id="groupsBack">← ${groups.length>1?'К группам':'Назад'}</button><section class="group-detail-hero"><div class="group-avatar big">👥</div><div><span>Моя группа</span><h2>${esc(g.name||'Учебная группа')}</h2><p>${esc(g.subject||'')} ${g.study_goal?'· '+esc(g.study_goal):''}</p></div></section><section class="group-tabs"><button class="active" data-group-tab="lessons">Занятия</button><button data-group-tab="chat">Чат группы</button></section><div id="groupPane"><section class="section"><h3>Ближайшие занятия</h3>${lessons.map(groupLessonCard).join('')||'<div class="empty">Ближайших групповых занятий пока нет.</div>'}</section></div>`;
       $('#groupsBack').onclick=()=>groups.length>1?groupsView():eventsView();
       document.querySelectorAll('[data-group-tab]').forEach(x=>x.onclick=()=>{document.querySelectorAll('[data-group-tab]').forEach(b=>b.classList.toggle('active',b===x));x.dataset.groupTab==='chat'?groupChat(id):groupDetail(id)});
       document.querySelectorAll('[data-group-enter]').forEach(x=>x.onclick=()=>enterGroupLesson(x.dataset.groupEnter));
+      document.querySelectorAll('[data-group-rsvp]').forEach(x=>x.onclick=()=>setGroupRsvp(id,x.dataset.lessonId,x.dataset.groupRsvp,x));
     }catch(e){error(e.message)}
   }
   async function groupChat(id){
@@ -78,7 +97,7 @@
     try{
       const d=await api('/student/group/chat?group_id='+encodeURIComponent(id)+'&limit=100');const items=d.items||[];
       pane.innerHTML=`<section class="group-chat"><div class="group-chat-list">${items.map(m=>`<div class="group-msg ${m.mine?'mine':''}"><small>${esc(m.sender_name||m.sender_role||'Участник')} · ${fmtTime(m.created_at)}</small><div>${esc(m.body)}</div></div>`).join('')||'<div class="empty">В группе пока нет сообщений.</div>'}</div><div class="group-compose"><textarea id="groupMessage" maxlength="4000" placeholder="Сообщение группе…"></textarea><button id="groupSend">Отправить</button></div><div id="groupResult"></div></section>`;
-      $('#groupSend').onclick=async()=>{const text=($('#groupMessage').value||'').trim();if(!text)return;try{await api('/student/group/chat',{method:'POST',body:JSON.stringify({group_id:+id,body:text})});await groupChat(id)}catch(e){$('#groupResult').innerHTML=`<div class="form-error">${esc(e.message)}</div>`}};
+      $('#groupSend').onclick=async()=>{const text=($('#groupMessage').value||'').trim();if(!text)return;try{await api('/student/group/chat',{method:'POST',body:JSON.stringify({group_id:+id,body:text})});await groupChat(id)}catch(e){$('#groupResult'].innerHTML=`<div class="form-error">${esc(e.message)}</div>`}};
     }catch(e){pane.innerHTML=`<div class="form-error">${esc(e.message)}</div>`}
   }
   async function enterGroupLesson(id){
@@ -95,17 +114,24 @@
   }
 
   function navButton(tab,icon,label){const b=document.createElement('button');b.className='nav-item';b.dataset.tab=tab;b.innerHTML=`<span>${icon}</span><small>${label}</small>`;return b}
+  function addHomeQuickAction(){
+    const quick=document.querySelector('.quick-actions');
+    if(!quick||quick.querySelector('[data-go-events]'))return;
+    const b=document.createElement('button');b.className='action-card';b.dataset.goEvents='1';b.innerHTML='<span>✨</span><b>Группы и события</b><small>Пробники, семинары и группы</small>';b.onclick=eventsView;quick.appendChild(b);
+  }
+  function bindHomeRefresh(){
+    document.addEventListener('click',event=>{
+      const home=event.target.closest('[data-tab="home"],[data-go="home"]');
+      if(home)setTimeout(addHomeQuickAction,0);
+    });
+  }
   async function mount(){
     if(mounted)return;mounted=true;
     const nav=document.querySelector('.bottom-nav');if(!nav)return;
     const events=navButton('events','✨','Группы и события');events.onclick=eventsView;nav.insertBefore(events,nav.querySelector('[data-tab="profile"]'));
     try{const d=await api('/student/groups');groups=d.items||[]}catch{groups=[]}
     if(groups.length){const label=groups.length>1?'Мои группы':'Моя группа';const gb=navButton('groups','👥',label);gb.onclick=groupsView;nav.insertBefore(gb,events)}
-    const observer=new MutationObserver(()=>{
-      const quick=document.querySelector('.quick-actions');
-      if(quick&&!quick.querySelector('[data-go-events]')){const b=document.createElement('button');b.className='action-card';b.dataset.goEvents='1';b.innerHTML='<span>✨</span><b>Группы и события</b><small>Пробники, семинары и группы</small>';b.onclick=eventsView;quick.appendChild(b)}
-    });
-    observer.observe(content(),{childList:true,subtree:true});
+    addHomeQuickAction();bindHomeRefresh();
   }
   setTimeout(mount,250);
 })();
