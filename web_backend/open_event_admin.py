@@ -7,4 +7,58 @@ def _now():return database.now_iso()
 def choices():
  open_event_policy.ensure_schema();c=database.connect();students=[dict(r) for r in c.execute("SELECT id,name,grade,main_subject FROM users WHERE active=1 ORDER BY name COLLATE NOCASE").fetchall()];groups=[dict(r) for r in c.execute("SELECT id,name,subject,study_goal FROM study_groups WHERE active=1 ORDER BY name COLLATE NOCASE").fetchall()];c.close();return {'students':students,'groups':groups}
 def create(payload,teacher_id):
- r=open_event_policy.create_event(payload.get('title'),payload.get('starts_at'),int(payload.get('duration_minutes') or 60),event_type
+ r=open_event_policy.create_event(payload.get('title'),payload.get('starts_at'),int(payload.get('duration_minutes') or 60),event_type=payload.get('event_type'),price_per_student=int(payload.get('price_per_student') or 0),subject=payload.get('subject'),topic=payload.get('topic'),grade_min=payload.get('grade_min'),grade_max=payload.get('grade_max'),max_participants=payload.get('max_participants'),registration_deadline=payload.get('registration_deadline'),group_ids=[],student_ids=payload.get('student_ids') or [],board_url=payload.get('board_url'),created_by=int(teacher_id));return {**r,'assigned_user_ids':[]}
+def list_events(limit=100):
+ open_event_policy.ensure_schema();c=database.connect();rows=c.execute("SELECT e.*,(SELECT COUNT(*) FROM open_event_participants p WHERE p.event_id=e.id AND p.status='REGISTERED') participants,(SELECT COUNT(*) FROM open_event_participants p WHERE p.event_id=e.id AND p.status='REGISTERED' AND p.payment_status IN ('PAID','WAIVED')) paid_count FROM open_learning_events e ORDER BY datetime(e.starts_at) DESC LIMIT ?",(max(1,min(int(limit),300)),)).fetchall();c.close();return [dict(r) for r in rows]
+def detail(event_id):
+ open_event_policy.ensure_schema();attendance_tracking.ensure_schema();eid=int(event_id);c=database.connect();e=c.execute("SELECT * FROM open_learning_events WHERE id=?",(eid,)).fetchone()
+ if not e:c.close();return None
+ rows=c.execute("SELECT p.*,u.name,u.grade FROM open_event_participants p JOIN users u ON u.id=p.user_id WHERE p.event_id=? ORDER BY u.name COLLATE NOCASE",(eid,)).fetchall();c.close();participants=[]
+ for r in rows:
+  item=dict(r);item['attendance']=attendance_tracking.summary('OPEN_EVENT',eid,int(r['user_id']));participants.append(item)
+ return {'event':dict(e),'groups':[],'participants':participants}
+def set_payment(event_id,user_id,status):
+ status=str(status or '').upper()
+ if status not in {'UNPAID','PAID','WAIVED'}:raise ValueError('invalid_event_payment_status')
+ c=database.connect();cur=c.execute("UPDATE open_event_participants SET payment_status=?,updated_at=? WHERE event_id=? AND user_id=?",(status,_now(),int(event_id),int(user_id)));c.commit();c.close()
+ if not cur.rowcount:raise ValueError('event_participant_not_found')
+ return {'status':'ok','payment_status':status}
+def _ensure_event_started_at():
+ c=database.connect();cols={r[1] for r in c.execute("PRAGMA table_info(open_learning_events)").fetchall()}
+ if 'started_at' not in cols:c.execute("ALTER TABLE open_learning_events ADD COLUMN started_at TEXT")
+ c.commit();c.close()
+def _mark_event_actual_start(event_id):
+ _ensure_event_started_at();eid=int(event_id);now=_now();c=database.connect();c.execute("UPDATE open_learning_events SET started_at=COALESCE(started_at,?),updated_at=? WHERE id=?",(now,now,eid));c.commit();row=c.execute("SELECT started_at FROM open_learning_events WHERE id=?",(eid,)).fetchone();c.close();return row['started_at'] if row else now
+def attendance(event_id,user_id,event_type,teacher_id,happened_at=None):
+ eid=int(event_id);etype=str(event_type or '').upper();result=attendance_tracking.record('OPEN_EVENT',eid,int(user_id),etype,happened_at=happened_at,source='TEACHER',actor_id=int(teacher_id))
+ if etype=='JOIN':result['started_at']=_mark_event_actual_start(eid)
+ return result
+def group_attendance(lesson_id,user_id,event_type,teacher_id,happened_at=None):
+ lid=int(lesson_id);etype=str(event_type or '').upper();result=attendance_tracking.record('GROUP_LESSON',lid,int(user_id),etype,happened_at=happened_at,source='TEACHER',actor_id=int(teacher_id))
+ if etype=='JOIN':result['started_at']=group_lesson_access.mark_actual_start(lid,int(user_id))
+ return result
+def group_roster(lesson_id):return attendance_tracking.roster('GROUP_LESSON',int(lesson_id))
+def list_group_lessons(limit=120):
+ attendance_tracking.ensure_schema();c=database.connect();rows=c.execute("SELECT l.*,g.name group_name,g.subject,g.study_goal,(SELECT COUNT(*) FROM group_lesson_participants p WHERE p.lesson_id=l.id) participants,(SELECT COUNT(*) FROM group_lesson_participants p WHERE p.lesson_id=l.id AND p.attendance_status IN ('PRESENT','LEFT')) attended FROM group_lessons l JOIN study_groups g ON g.id=l.group_id ORDER BY datetime(l.start_time) DESC LIMIT ?",(max(1,min(int(limit),400)),)).fetchall();c.close();return [dict(r) for r in rows]
+def group_lesson_detail(lesson_id):
+ attendance_tracking.ensure_schema();lid=int(lesson_id);c=database.connect();lesson=c.execute("SELECT l.*,g.name group_name,g.subject,g.study_goal,g.board_url group_board_url FROM group_lessons l JOIN study_groups g ON g.id=l.group_id WHERE l.id=?",(lid,)).fetchone()
+ if not lesson:c.close();return None
+ rows=c.execute("SELECT p.*,u.name,u.grade FROM group_lesson_participants p JOIN users u ON u.id=p.user_id WHERE p.lesson_id=? ORDER BY u.name COLLATE NOCASE",(lid,)).fetchall();c.close();participants=[]
+ for r in rows:
+  item=dict(r);item['attendance']=attendance_tracking.summary('GROUP_LESSON',lid,int(r['user_id']));participants.append(item)
+ out=dict(lesson);out['board_url']=out.get('board_url') or out.get('group_board_url');return {'lesson':out,'participants':participants}
+def save_result(event_id,user_id,score,max_score=None,note=None):return group_portal.save_open_event_result(int(event_id),int(user_id),score,max_score,note)
+def _start_preview(event_id):
+ eid=int(event_id);c=database.connect();event=c.execute("SELECT * FROM open_learning_events WHERE id=?",(eid,)).fetchone()
+ if not event:c.close();raise ValueError('event_not_found')
+ participants=[dict(r) for r in c.execute("SELECT p.*,u.name FROM open_event_participants p JOIN users u ON u.id=p.user_id WHERE p.event_id=? AND p.status='REGISTERED' ORDER BY u.name COLLATE NOCASE",(eid,)).fetchall()];c.close();price=int(event['price_per_student'] or 0);pending=[p for p in participants if str(p.get('teacher_decision') or '').upper()=='PENDING'];approved=[p for p in participants if str(p.get('teacher_decision') or '').upper()=='APPROVED'];unpaid=[p for p in approved if price>0 and str(p.get('payment_status') or '').upper() not in PAID_STATUSES];allowed=[p for p in approved if price==0 or str(p.get('payment_status') or '').upper() in PAID_STATUSES];return {'event':dict(event),'pending':pending,'unpaid':unpaid,'allowed':allowed,'price':price}
+def start(event_id):
+ eid=int(event_id);preview=_start_preview(eid);status=str(preview['event'].get('status') or '').upper()
+ if status in {'COMPLETED','CANCELLED','CLOSED'}:raise ValueError('event_not_startable')
+ if preview['pending']:raise ValueError('participant_decisions_pending')
+ now=_now();c=database.connect();c.execute("UPDATE open_event_participants SET access_granted=CASE WHEN teacher_decision='APPROVED' AND (?=0 OR payment_status IN ('PAID','WAIVED')) THEN 1 ELSE 0 END,updated_at=? WHERE event_id=?",(preview['price'],now,eid));c.commit();c.close();result=telemost_runtime.start_open_event(eid);return {**result,'allowed_user_ids':[int(p['user_id']) for p in preview['allowed']],'blocked_unpaid_user_ids':[int(p['user_id']) for p in preview['unpaid']]}
+def finish(event_id):
+ eid=int(event_id)
+ for item in attendance_tracking.roster('OPEN_EVENT',eid):
+  if item['attendance']['present']:attendance_tracking.record('OPEN_EVENT',eid,int(item['user_id']),'LEAVE',source='SYSTEM')
+ return telemost_runtime.finish_open_event(eid)
