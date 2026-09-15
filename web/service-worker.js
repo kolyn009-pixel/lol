@@ -1,4 +1,4 @@
-const CACHE='adelia-shell-v9';
+const CACHE='adelia-shell-v10';
 const SHELL=[
  '/app/','/app/manifest.webmanifest','/app/assets/icons/adelia-icon.svg',
  '/app/styles.css','/app/stage11_mobile.css','/app/responsive_shell.css','/app/selects.css',
@@ -8,6 +8,17 @@ const SHELL=[
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>Promise.allSettled(SHELL.map(url=>cache.add(url)))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()))});
 self.addEventListener('message',event=>{if(event.data?.type==='SKIP_WAITING')self.skipWaiting()});
+self.addEventListener('push',event=>{
+ let payload={};try{payload=event.data?.json()||{}}catch(_){try{payload={body:event.data?.text()||''}}catch(__){}}
+ const title=payload.title||'Аделия';const target=payload.url||'/app/';
+ const options={body:payload.body||'',icon:'/app/assets/icons/adelia-icon-192.png',badge:'/app/assets/icons/adelia-icon-192.png',tag:payload.tag||'adelia',data:{url:target,...(payload.data||{})}};
+ event.waitUntil(self.registration.showNotification(title,options));
+});
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();const raw=event.notification?.data?.url||'/app/';let target;
+ try{const u=new URL(raw,self.location.origin);target=u.origin===self.location.origin?u.href:new URL('/app/',self.location.origin).href}catch(_){target=new URL('/app/',self.location.origin).href}
+ event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{for(const client of list){try{if(new URL(client.url).origin===self.location.origin){if('navigate' in client)client.navigate(target);return client.focus()}}catch(_){}}return clients.openWindow?clients.openWindow(target):undefined}));
+});
 self.addEventListener('fetch',event=>{
  const request=event.request;if(request.method!=='GET')return;
  const url=new URL(request.url);if(url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;
