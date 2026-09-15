@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 _tmp=tempfile.TemporaryDirectory(prefix='tutorbot-stage9-')
 os.environ['TUTORBOT_TEST_DATA_DIR']=_tmp.name
 os.environ['TUTORBOT_TEST_DB']=os.path.join(_tmp.name,'stage9.db')
+os.environ.setdefault('ADELIA_OTP_SECRET','stage9-selftest-secret-0123456789abcdef')
 
 import database
 database.set_test_mode(True)
