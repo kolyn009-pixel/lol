@@ -1,10 +1,9 @@
 """Shared web lesson entry flow for teacher and student.
 
-Opening entry prepares the lesson and makes Telemost available to an eligible
-student, but does not start billable/actual lesson time. The canonical timer
-starts only after the first valid student join or an explicit teacher start.
-Board access is independent from the lesson/payment gate and remains available
-to the owning student at all times.
+Teacher entry is the canonical "Start lesson" action: only then may Adelia
+create and publish a Yandex Telemost link. Merely opening a future lesson card
+never creates a conference. The timer starts after the first valid student join
+or an explicit teacher confirmation.
 """
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ from database import connect, now_iso
 from integrations.telemost_lifecycle import ensure_individual_conference
 from web_backend.lesson_link_delivery import send_individual
 from web_backend.lesson_workspace import start_lesson
+from web_backend import telemost_settings
 
 _BLOCKED={"CANCELLED","REJECTED","NO_SHOW","LATE_CANCELLED","SICKNESS","COMPLETED"}
 _PAID_ACCESS={"PAID","FREE","WAIVED","COVERED"}
@@ -30,14 +30,18 @@ def teacher_open_entry(lesson_id):
     if not row:return {"status":"not_found"}
     status=str(row["lesson_status"] or "").upper()
     if status in _BLOCKED or row["finished_at"]:return {"status":"invalid_status","lesson_status":status}
-    meeting=ensure_individual_conference(int(lesson_id))
-    if meeting.get("status") not in {"ok","disabled"}:return {"status":"meeting_create_failed"}
+    if telemost_settings.auto_on_start():
+        meeting=ensure_individual_conference(int(lesson_id))
+        if meeting.get("status") not in {"ok","disabled"}:return {"status":"meeting_create_failed"}
+    else:
+        meeting={"status":"disabled_by_teacher","conference_id":None,"join_url":None,"reused":False}
     row=_row(lesson_id);already=bool(row["meeting_link_sent_at"]);opened=row["meeting_link_sent_at"] or now_iso()
     if not already:
         conn=connect();conn.execute("UPDATE lessons SET meeting_link_sent_at=?,updated_at=? WHERE id=? AND meeting_link_sent_at IS NULL",(opened,now_iso(),int(lesson_id)));conn.commit();conn.close();_event_once(lesson_id,row["user_id"],"TEACHER","ENTRY_OPENED")
-        try:send_individual(int(lesson_id))
-        except Exception:pass
-    row=_row(lesson_id);return {"status":"ok","entry_open":True,"opened_at":opened,"started_at":row["started_at"],"meeting_url":row["meeting_url"],"board_url":row["board_url"],"student_access":_paid(row),"already_open":already,"telemost":meeting}
+        if meeting.get("status")=="ok":
+            try:send_individual(int(lesson_id))
+            except Exception:pass
+    row=_row(lesson_id);return {"status":"ok","entry_open":True,"opened_at":opened,"started_at":row["started_at"],"meeting_url":row["meeting_url"] if meeting.get("status")=="ok" else None,"board_url":row["board_url"],"student_access":_paid(row),"already_open":already,"telemost":meeting,"telemost_auto_on_start":telemost_settings.auto_on_start()}
 def student_workspace(lesson_id,user_id):
     ensure_schema();row=_row(lesson_id)
     if not row or int(row["user_id"])!=int(user_id):return None
