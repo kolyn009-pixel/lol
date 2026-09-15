@@ -7,7 +7,7 @@ const pkg=JSON.parse(read('package.json'));
 const files={
   bootstrap:read('bootstrap.js'),main:read('main.js'),preload:read('preload.js'),workspace:read('lesson_workspace.js'),
   ux:read('desktop_ux.js'),layout:read('lesson_layout.js'),role:read('role_startup.js'),system:read('system_polish.js'),
-  network:read('network_ux.js'),startJs:read('start.js'),startHtml:read('start.html'),startCss:read('start.css'),offline:read('offline.html')
+  network:read('network_ux.js'),iconSync:read('generate_assets.js'),startJs:read('start.js'),startHtml:read('start.html'),startCss:read('start.css'),offline:read('offline.html')
 };
 const web={
   student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js'),
@@ -17,7 +17,7 @@ const web={
 let failed=false;
 function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed=true}
 function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
-for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings}))parseJs(`${n}.js`,s);
+for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings}))parseJs(`${n}.js`,s);
 
 check(pkg.version==='0.2.0','desktop package version');
 check(pkg.main==='bootstrap.js','desktop bootstrap entry');
@@ -30,11 +30,16 @@ check(pkg.build.publish?.[0]?.url==='https://adeliatutor.ru/desktop-updates/','t
 check(pkg.build.protocols?.[0]?.schemes?.includes('adelia'),'adelia deep-link protocol registered');
 check(pkg.build.win?.target?.includes('nsis'),'Windows NSIS target');
 check(pkg.build.mac?.target?.includes('dmg')&&pkg.build.mac?.target?.includes('zip'),'macOS DMG + ZIP targets');
+check(pkg.scripts?.['sync:icon']==='node generate_assets.js','canonical icon sync script');
+check(pkg.scripts?.selftest?.includes('npm run sync:icon'),'selftest syncs canonical icon');
+check(pkg.scripts?.['dist:win']?.includes('npm run sync:icon'),'Windows build syncs canonical icon');
 check(pkg.scripts?.['dist:mac:arm64']?.includes('--arm64'),'macOS Apple Silicon build');
 check(pkg.scripts?.['dist:mac:x64']?.includes('--x64'),'macOS Intel build');
 check(pkg.build.nsis?.createDesktopShortcut===true,'Windows desktop shortcut');
 check(pkg.build.dmg?.contents?.some(x=>x.path==='/Applications'),'macOS drag-to-Applications installer');
 for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html','lesson_workspace.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
+check(files.iconSync.includes('https://adeliatutor.ru/assets/icons/adelia-icon-512.png'),'desktop uses canonical server icon');
+check(!files.iconSync.includes('roundedRect'),'desktop icon is not generated artwork');
 
 check(files.main.includes('https://adeliatutor.ru/app/'),'desktop opens Adelia origin');
 check(/contextIsolation\s*:\s*true/.test(files.main),'context isolation');
@@ -48,7 +53,7 @@ check(files.main.includes('closeToTray'),'configurable close-to-tray');
 check(files.preload.includes('contextBridge'),'minimal preload bridge');
 check(files.preload.includes('openLessonTool')&&files.preload.includes('endLessonWorkspace'),'lesson workspace IPC exposed');
 check(files.main.includes("ipcMain.handle('adelia:lesson-tool'")&&files.main.includes("ipcMain.handle('adelia:end-lesson-workspace'"),'lesson workspace IPC handled');
-check(files.workspace.includes("new URL(w.webContents.getURL()).origin === APP_ORIGIN"),'desktop polling targets trusted main window');
+check(files.workspace.includes('function isStudentCabinetUrl')&&files.workspace.includes("u.pathname.startsWith('/app/parent/')"),'desktop polling is scoped to student cabinet');
 
 check(files.bootstrap.includes("require('./system_polish').install()"),'native platform polish installed');
 check(files.bootstrap.includes("require('./network_ux').install()"),'network UX installed');
@@ -60,6 +65,7 @@ check(files.bootstrap.includes("require('./role_startup').install()"),'role choo
 check(files.role.includes("loadFile(path.join(__dirname,'start.html'))"),'role chooser loads packaged start screen');
 check(files.role.includes("'/api/auth/teacher/code'"),'teacher code login wired');
 check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
+check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("role==='teacher'")&&files.role.includes("role==='parent'")&&files.role.includes("role==='student'"),'authenticated desktop role is restored');
 check(files.startJs.includes('teacherLogin')&&files.startJs.includes('openStudentLogin')&&files.startJs.includes('openParentCabinet'),'role actions wired');
 check(files.startHtml.includes('./build/icon.png')&&files.startHtml.includes('start.js')&&files.startHtml.includes('start.css'),'branded start assets linked');
 check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start screen styles present');
