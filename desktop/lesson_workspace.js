@@ -9,12 +9,17 @@ let lastLesson = null;
 let notificationsEnabled = true;
 const sent = new Set();
 
+function isStudentCabinetUrl(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.origin !== APP_ORIGIN) return false;
+    if (!u.pathname.startsWith('/app/')) return false;
+    if (u.pathname.startsWith('/app/parent/')) return false;
+    return true;
+  } catch (_) { return false; }
+}
 function mainWindow() {
-  return BrowserWindow.getAllWindows().find(w => {
-    if (w.isDestroyed()) return false;
-    try { return new URL(w.webContents.getURL()).origin === APP_ORIGIN; }
-    catch (_) { return false; }
-  }) || null;
+  return BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && isStudentCabinetUrl(w.webContents.getURL())) || null;
 }
 function lessonTarget(id) {
   const u = new URL('/app/', APP_ORIGIN);
@@ -73,14 +78,17 @@ async function readDashboard() {
   const win = mainWindow();
   if (!win || win.isDestroyed()) return null;
   const url = win.webContents.getURL();
-  if (!url.startsWith(APP_ORIGIN)) return null;
+  if (!isStudentCabinetUrl(url)) return null;
   try {
     return await win.webContents.executeJavaScript(`fetch('/api/student/dashboard',{credentials:'same-origin',cache:'no-store'}).then(async r=>r.ok?await r.json():null).catch(()=>null)`, true);
   } catch (_) { return null; }
 }
 async function poll() {
   const data = await readDashboard();
-  if (!data) return;
+  if (!data) {
+    lastLesson = null;
+    return;
+  }
   const lesson = normalizeLesson(data.next_lesson);
   lastLesson = lesson;
   app.emit('adelia-dashboard-state', {
@@ -104,4 +112,4 @@ function install() {
   app.on('before-quit', () => { if (timer) clearInterval(timer); });
 }
 function getLastLesson() { return publicLesson(lastLesson); }
-module.exports = { install, getLastLesson, showLesson, poll };
+module.exports = { install, getLastLesson, showLesson, poll, isStudentCabinetUrl };
