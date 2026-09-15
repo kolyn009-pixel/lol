@@ -31,7 +31,7 @@ def individual_student_access(lesson_id,user_id):
 def start_group(lesson_id,teacher_id):
     lid=int(lesson_id);preview=group_lesson_access.teacher_start_preview(lid)
     if preview['unresolved']:raise ValueError('group_lesson_has_unresolved_admissions')
-    admitted=[p for p in preview['participants'] if p['admission_status']=='ADMITTED'];minimum=max(2,int(preview['lesson']['min_attendees'] or 2))
+    admitted=[p for p in preview['participants'] if p['admission_status']=='ADMITTED' and str(p.get('rsvp_status') or 'UNKNOWN').upper()!='NOT_GOING' and int(p.get('financial_attention') or 0)==0];minimum=max(2,int(preview['lesson']['min_attendees'] or 2))
     if len(admitted)<minimum:raise ValueError('group_lesson_quorum_not_met')
     c=database.connect();row=c.execute('SELECT telemost_conference_id,telemost_join_url FROM group_lessons WHERE id=?',(lid,)).fetchone();c.close()
     if row and row['telemost_conference_id'] and row['telemost_join_url']:meeting={'status':'ok','conference_id':row['telemost_conference_id'],'join_url':row['telemost_join_url'],'reused':True}
