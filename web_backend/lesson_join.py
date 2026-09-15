@@ -1,9 +1,8 @@
 """Shared web lesson entry flow for teacher and student.
 
-Teacher entry is the canonical "Start lesson" action: only then may Adelia
-create and publish a Yandex Telemost link. Merely opening a future lesson card
-never creates a conference. The factual timer starts after the first valid
-student join or an explicit teacher confirmation.
+Teacher entry opens the lesson. The factual timer starts after the first valid
+student join or when the teacher explicitly confirms that a student who entered
+through VK/Telegram/direct Telemost link has arrived.
 """
 from __future__ import annotations
 
@@ -32,10 +31,10 @@ def _row(lesson_id):
 
 def _paid(row):return str(row["payment_status"] or "").upper() in _PAID_ACCESS or bool(row["is_trial"])
 
-def _event_once(lesson_id,user_id,actor,event_type):
+def _event_once(lesson_id,user_id,actor,event_type,source="WEB"):
     conn=connect();old=conn.execute("SELECT id FROM lesson_join_events WHERE lesson_id=? AND user_id=? AND actor_role=? AND event_type=? LIMIT 1",(int(lesson_id),int(user_id),actor,event_type)).fetchone()
     if old:conn.close();return False
-    conn.execute("INSERT INTO lesson_join_events(lesson_id,user_id,actor_role,event_type,created_at) VALUES(?,?,?,?,?)",(int(lesson_id),int(user_id),actor,event_type,now_iso()));conn.commit();conn.close();return True
+    conn.execute("INSERT INTO lesson_join_events(lesson_id,user_id,actor_role,event_type,source,created_at) VALUES(?,?,?,?,?,?)",(int(lesson_id),int(user_id),actor,event_type,str(source or 'WEB').upper(),now_iso()));conn.commit();conn.close();return True
 
 def set_attendance_intent(lesson_id,user_id,status):
     ensure_schema();lid=int(lesson_id);uid=int(user_id);value=str(status or "").upper()
@@ -58,11 +57,24 @@ def teacher_open_entry(lesson_id):
     else:meeting={"status":"disabled_by_teacher","conference_id":None,"join_url":None,"reused":False}
     row=_row(lesson_id);already=bool(row["meeting_link_sent_at"]);opened=row["meeting_link_sent_at"] or now_iso()
     if not already:
-        conn=connect();conn.execute("UPDATE lessons SET meeting_link_sent_at=?,updated_at=? WHERE id=? AND meeting_link_sent_at IS NULL",(opened,now_iso(),int(lesson_id)));conn.commit();conn.close();_event_once(lesson_id,row["user_id"],"TEACHER","ENTRY_OPENED")
+        conn=connect();conn.execute("UPDATE lessons SET meeting_link_sent_at=?,updated_at=? WHERE id=? AND meeting_link_sent_at IS NULL",(opened,now_iso(),int(lesson_id)));conn.commit();conn.close();_event_once(lesson_id,row["user_id"],"TEACHER","ENTRY_OPENED","TEACHER")
         if meeting.get("status")=="ok":
             try:send_individual(int(lesson_id))
             except Exception:pass
     row=_row(lesson_id);return {"status":"ok","entry_open":True,"opened_at":opened,"started_at":row["started_at"],"meeting_url":row["meeting_url"] if meeting.get("status")=="ok" else None,"board_url":row["board_url"],"student_access":_paid(row),"already_open":already,"telemost":meeting,"telemost_auto_on_start":telemost_settings.auto_on_start()}
+
+def teacher_mark_arrived(lesson_id):
+    """Manual factual start for a student who joined outside the website/app."""
+    row=_row(lesson_id)
+    if not row:return {"status":"not_found"}
+    status=str(row["lesson_status"] or "").upper()
+    if status in _BLOCKED or row["finished_at"]:return {"status":"invalid_status","lesson_status":status}
+    if not row["meeting_link_sent_at"]:return {"status":"entry_closed"}
+    result=start_lesson(int(lesson_id))
+    if result.get("status")!="ok":return result
+    _event_once(lesson_id,row["user_id"],"TEACHER","STUDENT_ARRIVED","TEACHER")
+    now=now_iso();conn=connect();conn.execute("UPDATE lessons SET attendance_intent_status='GOING',attendance_intent_at=COALESCE(attendance_intent_at,?),updated_at=? WHERE id=?",(now,now,int(lesson_id)));conn.commit();conn.close()
+    return {"status":"ok","lesson_id":int(lesson_id),"started_at":result.get("started_at"),"already_started":bool(result.get("already_started"))}
 
 def student_workspace(lesson_id,user_id):
     ensure_schema();row=_row(lesson_id)
@@ -82,7 +94,7 @@ def student_join(lesson_id,user_id):
         result=start_lesson(int(lesson_id))
         if result.get("status")!="ok":return result
         started=result.get("started_at")
-    first_join=_event_once(lesson_id,user_id,"STUDENT","JOIN_CLICKED")
+    first_join=_event_once(lesson_id,user_id,"STUDENT","JOIN_CLICKED","WEB")
     conn=connect();conn.execute("UPDATE lessons SET attendance_intent_status='GOING',attendance_intent_at=COALESCE(attendance_intent_at,?),updated_at=? WHERE id=?",(now_iso(),now_iso(),int(lesson_id)));conn.commit();conn.close()
     row=_row(lesson_id);return {"status":"ok","joined_at":now_iso(),"started_at":started,"meeting_url":row["meeting_url"],"board_url":row["board_url"],"first_join":first_join}
 
