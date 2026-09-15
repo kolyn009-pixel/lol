@@ -97,7 +97,7 @@
     try{
       const d=await api('/student/group/chat?group_id='+encodeURIComponent(id)+'&limit=100');const items=d.items||[];
       pane.innerHTML=`<section class="group-chat"><div class="group-chat-list">${items.map(m=>`<div class="group-msg ${m.mine?'mine':''}"><small>${esc(m.sender_name||m.sender_role||'Участник')} · ${fmtTime(m.created_at)}</small><div>${esc(m.body)}</div></div>`).join('')||'<div class="empty">В группе пока нет сообщений.</div>'}</div><div class="group-compose"><textarea id="groupMessage" maxlength="4000" placeholder="Сообщение группе…"></textarea><button id="groupSend">Отправить</button></div><div id="groupResult"></div></section>`;
-      $('#groupSend').onclick=async()=>{const text=($('#groupMessage').value||'').trim();if(!text)return;try{await api('/student/group/chat',{method:'POST',body:JSON.stringify({group_id:+id,body:text})});await groupChat(id)}catch(e){$('#groupResult'].innerHTML=`<div class="form-error">${esc(e.message)}</div>`}};
+      $('#groupSend').onclick=async()=>{const text=($('#groupMessage').value||'').trim();if(!text)return;try{await api('/student/group/chat',{method:'POST',body:JSON.stringify({group_id:+id,body:text})});await groupChat(id)}catch(e){$('#groupResult').innerHTML=`<div class="form-error">${esc(e.message)}</div>`}};
     }catch(e){pane.innerHTML=`<div class="form-error">${esc(e.message)}</div>`}
   }
   async function enterGroupLesson(id){
