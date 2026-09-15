@@ -9,7 +9,7 @@ EnvironmentFile=-/etc/tutorbot/adelia.env
 EnvironmentFile=-/etc/tutorbot/web.env
 Environment=ADELIA_WEB_HOST=127.0.0.1
 Environment=ADELIA_WEB_PORT=8765
-ExecStart=/opt/tutorbot/venv/bin/python -m web_backend.api_v6
+ExecStart=/opt/tutorbot/venv/bin/python -m web_backend.api_v7
 Restart=on-failure
 RestartSec=3
 
