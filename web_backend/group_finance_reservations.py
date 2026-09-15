@@ -16,14 +16,31 @@ def reserve_for_student(lesson_id,user_id):
     lesson=c.execute("SELECT group_id FROM group_lessons WHERE id=?",(lid,)).fetchone()
     if not lesson:
         c.close();raise ValueError("group_lesson_not_found")
-    existing=c.execute("""SELECT l.subscription_id
+    existing=c.execute("""SELECT l.subscription_id,
+                                  EXISTS(
+                                      SELECT 1 FROM group_subscription_ledger r
+                                       WHERE r.subscription_id=l.subscription_id
+                                         AND r.lesson_id=l.lesson_id
+                                         AND r.reason='LESSON_REFUND'
+                                  ) AS refunded
                             FROM group_subscription_ledger l
                             JOIN group_subscriptions s ON s.id=l.subscription_id
                            WHERE l.lesson_id=? AND l.reason='LESSON_RESERVE'
                              AND s.user_id=? AND s.group_id=?
                            ORDER BY l.id DESC LIMIT 1""",(lid,uid,int(lesson["group_id"]))).fetchone()
-    if existing:
+    if existing and not int(existing["refunded"] or 0):
         c.close();return {"status":"already_reserved","subscription_id":int(existing["subscription_id"])}
+    if existing:
+        sid=int(existing["subscription_id"]);now=database.now_iso()
+        sub=c.execute("SELECT lessons_remaining FROM group_subscriptions WHERE id=?",(sid,)).fetchone()
+        if not sub or int(sub["lessons_remaining"] or 0)<=0:
+            c.close();raise ValueError("group_subscription_unavailable")
+        cur=c.execute("UPDATE group_subscriptions SET lessons_remaining=lessons_remaining-1,status=CASE WHEN lessons_remaining-1<=0 THEN 'EXHAUSTED' ELSE 'ACTIVE' END,updated_at=? WHERE id=? AND lessons_remaining>0",(now,sid))
+        if not cur.rowcount:
+            c.close();raise ValueError("group_subscription_unavailable")
+        c.execute("DELETE FROM group_subscription_ledger WHERE subscription_id=? AND lesson_id=? AND reason='LESSON_REFUND'",(sid,lid))
+        remaining=max(0,int(sub["lessons_remaining"])-1)
+        c.commit();c.close();return {"status":"ok","subscription_id":sid,"lessons_remaining":remaining,"reactivated":True}
     sub=group_finance._active_subscription_row(c,int(lesson["group_id"]),uid)
     if not sub:
         c.close();raise ValueError("group_subscription_unavailable")
