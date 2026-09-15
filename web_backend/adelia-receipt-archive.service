@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/tutorbot
+EnvironmentFile=/etc/tutorbot.env
 EnvironmentFile=-/etc/tutorbot/adelia.env
 Environment=ADELIA_RECEIPT_ARCHIVE_POLL=60
 Environment=ADELIA_RECEIPT_ARCHIVE_BATCH=10
