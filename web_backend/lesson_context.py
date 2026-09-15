@@ -38,7 +38,15 @@ def context(lesson_id):
         d=dict(item);d['status_ui']=homework_status_payload(d.get('status'));hw.append(d)
     crm=crm_student(int(row['user_id']))
     timeline=lesson_join.join_events(int(row['id']),limit=30)
-    first_student_join=next((x for x in reversed(timeline) if x.get('actor_role')=='STUDENT' and x.get('event_type')=='JOIN_CLICKED'),None)
+    arrival=next((x for x in reversed(timeline) if (x.get('actor_role')=='STUDENT' and x.get('event_type')=='JOIN_CLICKED') or (x.get('actor_role')=='TEACHER' and x.get('event_type')=='STUDENT_ARRIVED')),None)
+    started_at=row['started_at']
+    if arrival:
+        source='STUDENT' if arrival.get('actor_role')=='STUDENT' else 'TEACHER'
+        joined_at=arrival.get('created_at')
+    elif started_at:
+        source='LEGACY';joined_at=started_at
+    else:
+        source=None;joined_at=None
     return {
         'lesson_id':int(row['id']),
         'user_id':int(row['user_id']),
@@ -48,9 +56,10 @@ def context(lesson_id):
             'updated_at':row['attendance_intent_at'],
         },
         'actual_join':{
-            'joined':bool(first_student_join),
-            'joined_at':first_student_join.get('created_at') if first_student_join else None,
-            'started_at':row['started_at'],
+            'joined':bool(arrival or started_at),
+            'joined_at':joined_at,
+            'started_at':started_at,
+            'source':source,
         },
         'join_events':timeline,
         'student':crm.get('student') if crm else None,
