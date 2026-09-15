@@ -116,11 +116,21 @@ def schedule(parent_id,student_id=None,days=45,limit=120):
         uids=requested
     else:uids=sorted(_linked_ids(pid))
     if not uids:return []
-    now=datetime.now();end=now+timedelta(days=max(1,min(int(days or 45),180)));marks=','.join('?' for _ in uids);params=[*uids,now.isoformat(timespec='seconds'),end.isoformat(timespec='seconds'),_limit(limit,120,500)];conn=connect();rows=conn.execute(f"""
-      SELECT l.id,l.user_id,u.name,l.start_time,l.end_time,l.duration_minutes,l.subject,l.study_goal,l.lesson_status,l.payment_status,l.price
-      FROM lessons l JOIN users u ON u.id=l.user_id
-      WHERE l.user_id IN ({marks}) AND l.start_time>=? AND l.start_time<? AND l.lesson_status NOT IN ('CANCELLED','REJECTED')
-      ORDER BY l.start_time LIMIT ?""",params).fetchall();conn.close();return [dict(r) for r in rows]
+    now=datetime.now();end=now+timedelta(days=max(1,min(int(days or 45),180)));start=now.isoformat(timespec='seconds');stop=end.isoformat(timespec='seconds');cap=_limit(limit,120,500);marks=','.join('?' for _ in uids);conn=connect();items=[]
+    rows=conn.execute(f"""SELECT l.id,l.user_id,u.name,l.start_time,l.end_time,l.duration_minutes,l.subject,l.study_goal,l.lesson_status,l.payment_status,l.price FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.user_id IN ({marks}) AND l.start_time>=? AND l.start_time<? AND l.lesson_status NOT IN ('CANCELLED','REJECTED') ORDER BY l.start_time LIMIT ?""",(*uids,start,stop,cap)).fetchall()
+    for row in rows:
+        item=dict(row);item['kind']='INDIVIDUAL';items.append(item)
+    try:
+        rows=conn.execute(f"""SELECT gl.id,p.user_id,u.name,gl.start_time,gl.end_time,CAST((julianday(gl.end_time)-julianday(gl.start_time))*1440 AS INTEGER) duration_minutes,g.subject,g.study_goal,gl.status lesson_status,p.payment_status,g.name group_name,p.rsvp_status,p.attendance_status FROM group_lesson_participants p JOIN group_lessons gl ON gl.id=p.lesson_id JOIN study_groups g ON g.id=gl.group_id JOIN users u ON u.id=p.user_id WHERE p.user_id IN ({marks}) AND gl.start_time>=? AND gl.start_time<? AND gl.status NOT IN ('CANCELLED','QUORUM_FAILED') ORDER BY gl.start_time LIMIT ?""",(*uids,start,stop,cap)).fetchall()
+        for row in rows:
+            item=dict(row);item['kind']='GROUP';item['name']=f"{item.pop('group_name')} · {item['name']}";items.append(item)
+    except Exception:pass
+    try:
+        rows=conn.execute(f"""SELECT e.id,p.user_id,u.name,e.starts_at start_time,e.ends_at end_time,CAST((julianday(e.ends_at)-julianday(e.starts_at))*1440 AS INTEGER) duration_minutes,e.subject,NULL study_goal,e.status lesson_status,p.payment_status,e.title event_title,p.attendance_status FROM open_event_participants p JOIN open_learning_events e ON e.id=p.event_id JOIN users u ON u.id=p.user_id WHERE p.user_id IN ({marks}) AND p.status='REGISTERED' AND e.starts_at>=? AND e.starts_at<? AND e.status NOT IN ('CANCELLED','CLOSED') ORDER BY e.starts_at LIMIT ?""",(*uids,start,stop,cap)).fetchall()
+        for row in rows:
+            item=dict(row);item['kind']='OPEN_EVENT';item['name']=f"{item.pop('event_title')} · {item['name']}";items.append(item)
+    except Exception:pass
+    conn.close();items.sort(key=lambda x:str(x.get('start_time') or ''));return items[:cap]
 
 
 def dashboard(parent_id):
@@ -128,6 +138,6 @@ def dashboard(parent_id):
     if not p:return None
     students=linked_students(pid);uids=[int(x['id']) for x in students]
     if not uids:return {'parent':p,'students':[],'summary':{'students':0,'upcoming_lessons':0,'waiting_payments':0,'waiting_amount':0,'balance_minutes':0},'upcoming':[]}
-    marks=','.join('?' for _ in uids);now=datetime.now().isoformat(timespec='seconds');conn=connect();upcoming=conn.execute(f"SELECT COUNT(*) c FROM lessons WHERE user_id IN ({marks}) AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')",(*uids,now)).fetchone();waiting=conn.execute(f"SELECT COUNT(*) c,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id IN ({marks}) AND status IN ('WAITING','PENDING','RECEIPT_SENT')",uids).fetchone();conn.close()
+    marks=','.join('?' for _ in uids);conn=connect();waiting=conn.execute(f"SELECT COUNT(*) c,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id IN ({marks}) AND status IN ('WAITING','PENDING','RECEIPT_SENT')",uids).fetchone();conn.close();upcoming_items=schedule(pid,None,21,120)
     total_minutes=sum(_minute_balance(uid)['total'] for uid in uids)
-    return {'parent':p,'students':students,'summary':{'students':len(students),'upcoming_lessons':int(upcoming['c'] or 0),'waiting_payments':int(waiting['c'] or 0),'waiting_amount':int(waiting['amount'] or 0),'balance_minutes':int(total_minutes)},'upcoming':schedule(pid,None,21,40)}
+    return {'parent':p,'students':students,'summary':{'students':len(students),'upcoming_lessons':len(upcoming_items),'waiting_payments':int(waiting['c'] or 0),'waiting_amount':int(waiting['amount'] or 0),'balance_minutes':int(total_minutes)},'upcoming':upcoming_items[:40]}
