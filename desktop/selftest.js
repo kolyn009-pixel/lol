@@ -9,11 +9,15 @@ const files={
   ux:read('desktop_ux.js'),layout:read('lesson_layout.js'),role:read('role_startup.js'),system:read('system_polish.js'),
   network:read('network_ux.js'),startJs:read('start.js'),startHtml:read('start.html'),startCss:read('start.css'),offline:read('offline.html')
 };
-const web={student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js')};
+const web={
+  student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js'),
+  individual:readRepo('web/teacher_lesson_flow.js'),group:readRepo('web/teacher_group_live12.js'),event:readRepo('web/teacher_event_live13.js'),
+  telemostSettings:readRepo('web/teacher_telemost_settings.js'),parentManifest:readRepo('web/parent/manifest.webmanifest')
+};
 let failed=false;
 function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed=true}
 function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
-for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,start:files.startJs}))parseJs(`${n}.js`,s);
+for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings}))parseJs(`${n}.js`,s);
 
 check(pkg.version==='0.2.0','desktop package version');
 check(pkg.main==='bootstrap.js','desktop bootstrap entry');
@@ -42,6 +46,9 @@ check(files.main.includes('requestSingleInstanceLock'),'single-instance desktop 
 check(files.main.includes('new Tray('),'system tray');
 check(files.main.includes('closeToTray'),'configurable close-to-tray');
 check(files.preload.includes('contextBridge'),'minimal preload bridge');
+check(files.preload.includes('openLessonTool')&&files.preload.includes('endLessonWorkspace'),'lesson workspace IPC exposed');
+check(files.main.includes("ipcMain.handle('adelia:lesson-tool'")&&files.main.includes("ipcMain.handle('adelia:end-lesson-workspace'"),'lesson workspace IPC handled');
+check(files.workspace.includes("new URL(w.webContents.getURL()).origin === APP_ORIGIN"),'desktop polling targets trusted main window');
 
 check(files.bootstrap.includes("require('./system_polish').install()"),'native platform polish installed');
 check(files.bootstrap.includes("require('./network_ux').install()"),'network UX installed');
@@ -66,10 +73,23 @@ check(files.ux.includes("HOTKEY = 'CommandOrControl+Shift+A'"),'global Adelia ho
 check(files.ux.includes('setOverlayIcon'),'Windows unread badge');
 check(files.layout.includes("'together','board-focus','mini-video','hide-video'"),'lesson layout modes');
 
+check(web.individual.includes("openLessonTool('meeting'")&&web.individual.includes("openLessonTool('board'")&&web.individual.includes('endLessonWorkspace()'),'individual desktop lifecycle');
+check(web.group.includes("openLessonTool('meeting'")&&web.group.includes("openLessonTool('board'")&&web.group.includes('endLessonWorkspace()'),'group desktop lifecycle');
+check(web.event.includes("openLessonTool('meeting'")&&web.event.includes("openLessonTool('board'")&&web.event.includes('endLessonWorkspace()'),'event desktop lifecycle');
+check(web.individual.includes('started_at:r.started_at')&&web.individual.includes('Таймер начнётся после прихода ученика'),'individual start does not imply factual start');
+check(web.group.includes("if(status==='STARTED')return['Доступ открыт — ждём первого ученика'")&&web.group.includes('mark_actual_start')===false,'group UI separates access from factual timer');
+check(web.event.includes("e.status==='IN_PROGRESS'?'Доступ открыт — ждём первого ученика'")&&web.event.includes('Фактический таймер ещё не запущен'),'event UI separates access from factual timer');
+for(const [name,source] of Object.entries({individual:web.individual,group:web.group,event:web.event,telemost_settings:web.telemostSettings}))check(!source.includes('MutationObserver'),`no persistent MutationObserver in ${name}`);
+
 check(web.student.includes('/app/student_clean.css'),'student clean shell linked');
 check(web.teacher.includes('/app/teacher_clean.css')&&web.teacher.includes('/app/teacher_clean7.css'),'teacher clean7 shell linked');
 check(web.parent.includes('/app/parent/parent_clean.css'),'parent clean shell linked');
 check(web.landing.includes('Adelia-latest-windows-x64.exe')&&web.landing.includes('Adelia-latest-macos-arm64.dmg')&&web.landing.includes('Adelia-latest-macos-x64.dmg'),'stable desktop download aliases linked');
+const parentManifest=JSON.parse(web.parentManifest);
+check(parentManifest.name.startsWith('Аделия'),'parent PWA branded Adelia');
+check(parentManifest.icons?.some(x=>x.src==='/adelia-favicon-32.png'&&x.sizes==='32x32'),'parent canonical 32 icon');
+check(parentManifest.icons?.some(x=>x.src==='/adelia-apple-touch-icon-180.png'&&x.sizes==='180x180'),'parent canonical 180 icon');
+check(!web.parentManifest.includes('192x192')&&!web.parentManifest.includes('512x512'),'parent manifest does not fake icon sizes');
 
 if(failed)process.exit(1);
 console.log('Desktop release selftest passed.');
