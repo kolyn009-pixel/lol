@@ -3,7 +3,7 @@ from __future__ import annotations
 import database
 from integrations.telemost_lifecycle import ensure_individual_conference, create_conference, finish_individual_conference
 from integrations import yandex_telemost
-from web_backend import lesson_workspace, group_lesson_access, group_portal, attendance_tracking, telemost_settings
+from web_backend import lesson_workspace, group_lesson_access, group_portal, attendance_tracking, telemost_settings, lesson_link_delivery
 
 def _now(): return database.now_iso()
 def _meeting_disabled():return {'status':'disabled_by_teacher','conference_id':None,'join_url':None,'reused':False}
@@ -17,9 +17,14 @@ def _safe_close_conference(conference_id):
         return {'status':'close_failed','conference_id':cid,'error':f'telemost_unexpected_status_{status}'}
     except Exception as exc:return {'status':'close_failed','conference_id':cid,'error':str(exc)[:120]}
 def start_individual(lesson_id):
-    lid=int(lesson_id);meeting=ensure_individual_conference(lid) if telemost_settings.auto_on_start() else _meeting_disabled()
+    lid=int(lesson_id);meeting=ensure_individual_conference(lid) if telemost_settings.auto_on_start() else _meeting_disabled();opened=_now()
     if meeting.get('status') not in {'ok','disabled','disabled_by_teacher'}:raise RuntimeError('telemost_create_failed')
-    c=database.connect();c.execute('UPDATE lessons SET meeting_link_sent_at=COALESCE(meeting_link_sent_at,?),updated_at=? WHERE id=?',(_now(),_now(),lid));c.commit();row=c.execute('SELECT started_at,lesson_status FROM lessons WHERE id=?',(lid,)).fetchone();c.close();return {'status':'opened','lesson_id':lid,'started_at':row['started_at'] if row else None,'lesson_status':row['lesson_status'] if row else None,'telemost':meeting}
+    c=database.connect();c.execute('UPDATE lessons SET meeting_link_sent_at=COALESCE(meeting_link_sent_at,?),updated_at=? WHERE id=?',(opened,opened,lid));c.commit();row=c.execute('SELECT l.started_at,l.lesson_status,l.meeting_link_sent_at,l.meeting_url,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?',(lid,)).fetchone();c.close()
+    delivery=None
+    if meeting.get('status')=='ok':
+        try:delivery=lesson_link_delivery.send_individual(lid)
+        except Exception as exc:delivery={'status':'failed','error':str(exc)[:120]}
+    return {'status':'opened','lesson_id':lid,'opened_at':row['meeting_link_sent_at'] if row else opened,'started_at':row['started_at'] if row else None,'lesson_status':row['lesson_status'] if row else None,'meeting_url':row['meeting_url'] if row and meeting.get('status')=='ok' else None,'board_url':row['board_url'] if row else None,'telemost':meeting,'delivery':delivery}
 def finish_individual(lesson_id,attendance_status='PRESENT',tutor_comment=None,mode='NOW'):
     lid=int(lesson_id);result=lesson_workspace.finish_lesson(lid,attendance_status,tutor_comment,mode);telemost={'status':'not_finished'}
     if result.get('status')=='ok':
@@ -43,14 +48,17 @@ def start_group(lesson_id,teacher_id):
         if meeting.get('status')=='ok':
             c=database.connect();c.execute('UPDATE group_lessons SET telemost_conference_id=?,telemost_join_url=?,updated_at=? WHERE id=?',(meeting['conference_id'],meeting['join_url'],_now(),lid));c.commit();c.close();meeting['reused']=False
     else:meeting=_meeting_disabled()
-    result=group_lesson_access.start_group_lesson(lid,int(teacher_id));return {**result,'telemost':meeting}
+    result=group_lesson_access.start_group_lesson(lid,int(teacher_id));delivery=None
+    if meeting.get('status')=='ok':
+        try:delivery=lesson_link_delivery.send_group(lid)
+        except Exception as exc:delivery={'status':'failed','error':str(exc)[:120]}
+    return {**result,'telemost':meeting,'delivery':delivery}
 def finish_group(lesson_id):
     lid=int(lesson_id);c=database.connect();row=c.execute('SELECT status,telemost_conference_id FROM group_lessons WHERE id=?',(lid,)).fetchone();c.close()
     if not row:raise ValueError('group_lesson_not_found')
     for item in attendance_tracking.roster('GROUP_LESSON',lid):
         if item['attendance']['present']:attendance_tracking.record('GROUP_LESSON',lid,int(item['user_id']),'LEAVE',source='SYSTEM')
-    telemost=_safe_close_conference(row['telemost_conference_id'])
-    now=_now();c=database.connect();c.execute("UPDATE group_lessons SET status='COMPLETED',telemost_conference_id=NULL,telemost_join_url=NULL,updated_at=? WHERE id=?",(now,lid));c.execute('UPDATE group_lesson_participants SET access_granted=0,updated_at=? WHERE lesson_id=?',(now,lid));c.commit();c.close();return {'status':'completed','lesson_id':lid,'telemost':telemost}
+    telemost=_safe_close_conference(row['telemost_conference_id']);now=_now();c=database.connect();c.execute("UPDATE group_lessons SET status='COMPLETED',telemost_conference_id=NULL,telemost_join_url=NULL,updated_at=? WHERE id=?",(now,lid));c.execute('UPDATE group_lesson_participants SET access_granted=0,updated_at=? WHERE lesson_id=?',(now,lid));c.commit();c.close();return {'status':'completed','lesson_id':lid,'telemost':telemost}
 def start_open_event(event_id):
     eid=int(event_id);c=database.connect();row=c.execute('SELECT telemost_conference_id,telemost_join_url,board_url FROM open_learning_events WHERE id=?',(eid,)).fetchone();c.close()
     if not row:raise ValueError('event_not_found')
@@ -60,9 +68,12 @@ def start_open_event(event_id):
         if meeting.get('status')=='ok':
             c=database.connect();c.execute('UPDATE open_learning_events SET telemost_conference_id=?,telemost_join_url=?,updated_at=? WHERE id=?',(meeting['conference_id'],meeting['join_url'],_now(),eid));c.commit();c.close();meeting['reused']=False
     else:meeting=_meeting_disabled()
-    result=group_portal.start_open_event(eid,meeting.get('join_url'),row['board_url']);return {**result,'telemost':meeting}
+    result=group_portal.start_open_event(eid,meeting.get('join_url'),row['board_url']);delivery=None
+    if meeting.get('status')=='ok':
+        try:delivery=lesson_link_delivery.send_open_event(eid)
+        except Exception as exc:delivery={'status':'failed','error':str(exc)[:120]}
+    return {**result,'telemost':meeting,'delivery':delivery}
 def finish_open_event(event_id):
     eid=int(event_id);c=database.connect();row=c.execute('SELECT id,telemost_conference_id FROM open_learning_events WHERE id=?',(eid,)).fetchone();c.close()
     if not row:raise ValueError('event_not_found')
-    telemost=_safe_close_conference(row['telemost_conference_id'])
-    now=_now();c=database.connect();c.execute("UPDATE open_learning_events SET status='COMPLETED',telemost_conference_id=NULL,telemost_join_url=NULL,updated_at=? WHERE id=?",(now,eid));c.execute('UPDATE open_event_participants SET access_granted=0,updated_at=? WHERE event_id=?',(now,eid));c.commit();c.close();return {'status':'completed','event_id':eid,'telemost':telemost}
+    telemost=_safe_close_conference(row['telemost_conference_id']);now=_now();c=database.connect();c.execute("UPDATE open_learning_events SET status='COMPLETED',telemost_conference_id=NULL,telemost_join_url=NULL,updated_at=? WHERE id=?",(now,eid));c.execute('UPDATE open_event_participants SET access_granted=0,updated_at=? WHERE event_id=?',(now,eid));c.commit();c.close();return {'status':'completed','event_id':eid,'telemost':telemost}
