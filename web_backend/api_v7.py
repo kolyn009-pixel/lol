@@ -1,4 +1,4 @@
-"""Adelia web API v7: Google reconnect plus teacher group creation."""
+"""Adelia web API v7: Google reconnect, groups and Telemost settings."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -19,11 +19,12 @@ from web_backend import public_trial_channel
 from web_backend import student_onboarding
 from web_backend import student_regular_booking
 from web_backend import student_social_profile
+from web_backend import telemost_settings
 from web_backend.stage12_indexes import ensure_indexes
 
 
 class Handler(api_v6.Handler):
-    server_version = "AdeliaWeb/7.1"
+    server_version = "AdeliaWeb/7.2"
 
     def _redirect(self, location):
         self.send_response(302)
@@ -43,6 +44,15 @@ class Handler(api_v6.Handler):
                 return self._json(200, {"items": group_portal.teacher_groups_overview()})
             except Exception as exc:
                 print("[web-api] teacher groups error:", type(exc).__name__, repr(exc), flush=True)
+                return self._json(500, {"error": "server_error"})
+
+        if path == "/api/teacher/telemost/settings":
+            if not self._teacher():
+                return self._json(401, {"error": "unauthorized"})
+            try:
+                return self._json(200, telemost_settings.snapshot())
+            except Exception as exc:
+                print("[web-api] telemost settings error:", type(exc).__name__, repr(exc), flush=True)
                 return self._json(500, {"error": "server_error"})
 
         if path == "/api/teacher/google-calendar/status":
@@ -79,6 +89,22 @@ class Handler(api_v6.Handler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+
+        if path == "/api/teacher/telemost/settings":
+            if not self._same_origin_write():
+                return self._json(403, {"error": "cross_origin_forbidden"})
+            if not self._teacher():
+                return self._json(401, {"error": "unauthorized"})
+            body = self._body()
+            if body is None:
+                return self._json(400, {"error": "invalid_json"})
+            try:
+                return self._json(200, telemost_settings.update(body))
+            except ValueError as exc:
+                return self._json(409, {"error": str(exc) or "invalid_request"})
+            except Exception as exc:
+                print("[web-api] telemost settings save error:", type(exc).__name__, repr(exc), flush=True)
+                return self._json(500, {"error": "server_error"})
 
         if path == "/api/teacher/group/create":
             if not self._same_origin_write():
@@ -152,7 +178,7 @@ def main():
     public_trial_access.ensure_schema()
     public_trial_channel.ensure_schema()
     student_regular_booking.ensure_schema()
-    print("Adelia web API v7.1 listening on " f"http://{v1.HOST}:{v1.PORT}")
+    print("Adelia web API v7.2 listening on " f"http://{v1.HOST}:{v1.PORT}")
     ThreadingHTTPServer((v1.HOST, v1.PORT), Handler).serve_forever()
 
 
