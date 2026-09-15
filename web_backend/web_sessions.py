@@ -48,10 +48,12 @@ def read_session(token):
  if row['role'] not in _ALLOWED_ROLES or not _identity_active(conn,row['role'],row['entity_id']):
   conn.execute('UPDATE web_sessions SET revoked_at=? WHERE id=?',(now_iso(),int(row['id'])));conn.commit();conn.close();return None
  if _last_seen_due(row['last_seen_at']):conn.execute('UPDATE web_sessions SET last_seen_at=? WHERE id=?',(now_iso(),int(row['id'])));conn.commit()
- item={'role':str(row['role']),'id':int(row['entity_id']),'expires':int(row['expires_at'])};conn.close();return item
+ role=str(row['role']);entity_id=int(row['entity_id']);item={'role':role,'id':entity_id,'expires':int(row['expires_at'])}
+ if role=='teacher':item['admin_telegram_id']=entity_id
+ conn.close();return item
 def revoke_session(token):
  if not token:return False
- ensure_table();conn=connect();cur=conn.execute('UPDATE web_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL',(now_iso(),_digest(token)));conn.commit();changed=bool(cur.rowcount);conn.close();return changed
+ ensure_table();conn=connect();cur=conn.execute('UPDATE web_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL',(_digest(token),now_iso()));conn.commit();changed=bool(cur.rowcount);conn.close();return changed
 def revoke_identity_sessions(role,entity_id):
  role=str(role or '').strip().lower()
  if role not in _ALLOWED_ROLES:return 0
