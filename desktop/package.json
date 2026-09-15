@@ -20,7 +20,7 @@
     "productName": "Аделия",
     "artifactName": "Adelia-${version}-${os}-${arch}.${ext}",
     "asar": true,
-    "files": ["bootstrap.js", "lesson_workspace.js", "desktop_ux.js", "lesson_layout.js", "role_startup.js", "bundled_ui.js", "bundled_ui_manifest.js", "role_assets/**/*", "start.html", "start.css", "start.js", "main.js", "preload.js", "package.json", "verify_icon.js", "build/icon.png"],
+    "files": ["bootstrap.js", "system_polish.js", "lesson_workspace.js", "desktop_ux.js", "lesson_layout.js", "role_startup.js", "bundled_ui.js", "bundled_ui_manifest.js", "role_assets/**/*", "start.html", "start.css", "start.js", "main.js", "preload.js", "package.json", "verify_icon.js", "build/icon.png"],
     "directories": {"output": "dist", "buildResources": "build"},
     "protocols": [{"name": "Аделия", "schemes": ["adelia"]}],
     "publish": [{"provider": "generic", "url": "https://adeliatutor.ru/desktop-updates/"}],
