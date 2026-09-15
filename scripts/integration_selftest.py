@@ -16,24 +16,31 @@ from pathlib import Path
 def _load_runtime_env():
     """Load missing runtime variables for diagnostics without printing secrets."""
     path = Path(os.getenv("ADELIA_ENV_FILE", "/etc/tutorbot/adelia.env"))
-    if not path.is_file():
-        return
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return
-    for raw in lines:
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        if not key or not key.replace("_", "").isalnum():
-            continue
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        os.environ.setdefault(key, value)
+    if path.is_file():
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if not key or not key.replace("_", "").isalnum():
+                continue
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+            os.environ.setdefault(key, value)
+
+    stable = Path("/opt/tutorbot")
+    token = stable / "token.json"
+    credentials = stable / "credentials.json"
+    if token.is_file():
+        os.environ.setdefault("GOOGLE_CALENDAR_TOKEN_FILE", str(token))
+    if credentials.is_file():
+        os.environ.setdefault("GOOGLE_CALENDAR_CREDENTIALS_FILE", str(credentials))
 
 
 def _google_probe():
