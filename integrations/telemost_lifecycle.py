@@ -2,6 +2,11 @@
 
 The create payload matches the production API probe that returned HTTP 201.
 Provider secrets stay in environment variables and are never persisted/logged.
+
+Important: lesson completion in Adelia revokes the saved join URL locally. We do
+not call an undocumented provider-side DELETE endpoint. If Yandex later exposes
+a documented host action for ending a conference, it can be added here without
+making lesson completion depend on it.
 """
 from __future__ import annotations
 
@@ -19,7 +24,6 @@ def enabled():
 def create_conference():
     if not enabled():
         return {"status": "disabled", "conference_id": None, "join_url": None}
-    # This is the payload verified against the live Yandex 360 Telemost API.
     status, data = yandex_telemost._request(
         "POST",
         "/conferences",
@@ -61,13 +65,16 @@ def ensure_individual_conference(lesson_id):
 
 
 def finish_individual_conference(lesson_id):
-    """Best-effort provider cleanup that must never block lesson completion."""
-    if not enabled():
-        return {"status": "disabled", "conference_id": None}
-    try:
-        return yandex_telemost.close_lesson_conference(int(lesson_id))
-    except Exception as exc:
-        return {"status": "close_failed", "error": str(exc)[:120]}
+    """Revoke Adelia access to a finished lesson without provider DELETE."""
+    lesson_id = int(lesson_id)
+    existing = yandex_telemost._integration(lesson_id) or {}
+    conference_id = existing.get("telemost_conference_id")
+    yandex_telemost._clear_closed(lesson_id)
+    return {
+        "status": "access_revoked",
+        "conference_id": conference_id,
+        "provider_ended": False,
+    }
 
 
 def safe_read(conference_id):
