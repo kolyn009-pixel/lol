@@ -5,9 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/tutorbot
+WorkingDirectory=/opt/adelia-current
 EnvironmentFile=-/etc/tutorbot/adelia.env
-ExecStart=/opt/tutorbot/venv/bin/python -m web_backend.telemost_precreate_worker
+Environment=PYTHONPATH=/opt/adelia-current
+ExecStart=/opt/tutorbot/venv/bin/python -c "import database; database.DB_NAME='/opt/tutorbot/tutor.db'; from web_backend.telemost_precreate_worker import main; main()"
 Restart=always
 RestartSec=5
 User=root
