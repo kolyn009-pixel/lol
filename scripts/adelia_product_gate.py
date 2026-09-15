@@ -17,7 +17,13 @@ def manifest(path,start,scope):
     if m.get('display')!='standalone': raise AssertionError(f"{path}: display must be standalone")
     if str(m.get('theme_color','')).lower()!='#6847f5': raise AssertionError(f"{path}: wrong theme color")
     icons=m.get('icons') or []
-    if not any('adelia-icon' in str(x.get('src','')) for x in icons): raise AssertionError(f"{path}: canonical Adelia icon missing")
+    canonical={'/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'}
+    sources={str(x.get('src','')).split('?',1)[0] for x in icons}
+    if not (sources & canonical): raise AssertionError(f"{path}: canonical Adelia icon missing")
+    for icon in icons:
+        src=str(icon.get('src','')).split('?',1)[0]
+        if src=='/adelia-favicon-32.png' and str(icon.get('sizes',''))!='32x32': raise AssertionError(f"{path}: favicon size metadata must be 32x32")
+        if src=='/adelia-apple-touch-icon-180.png' and str(icon.get('sizes',''))!='180x180': raise AssertionError(f"{path}: apple icon size metadata must be 180x180")
 
 teacher=read('web/teacher.html')
 student=read('web/index.html')
