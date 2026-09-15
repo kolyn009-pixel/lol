@@ -60,6 +60,16 @@ def ensure_individual_conference(lesson_id):
     return {"status": "ok", **saved}
 
 
+def finish_individual_conference(lesson_id):
+    """Best-effort provider cleanup that must never block lesson completion."""
+    if not enabled():
+        return {"status": "disabled", "conference_id": None}
+    try:
+        return yandex_telemost.close_lesson_conference(int(lesson_id))
+    except Exception as exc:
+        return {"status": "close_failed", "error": str(exc)[:120]}
+
+
 def safe_read(conference_id):
     if not conference_id or not enabled():
         return None
