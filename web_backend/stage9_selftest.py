@@ -43,6 +43,9 @@ def denied(fn,label):
 def seed():
     group_lesson_access.ensure_schema();group_portal.ensure_schema()
     now=database.now_iso();conn=database.connect()
+    cols={r['name'] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if 'education_type' not in cols:conn.execute("ALTER TABLE users ADD COLUMN education_type TEXT DEFAULT 'SCHOOL'")
+    if 'education_level' not in cols:conn.execute("ALTER TABLE users ADD COLUMN education_level INTEGER")
     p1=conn.execute("INSERT INTO parent_accounts(name,phone,telegram_id,active,created_at) VALUES(?,?,?,?,?)",('Parent One','+70000000001',900001,1,now)).lastrowid
     p2=conn.execute("INSERT INTO parent_accounts(name,phone,telegram_id,active,created_at) VALUES(?,?,?,?,?)",('Parent Two','+70000000002',900002,1,now)).lastrowid
     s1=conn.execute("INSERT INTO users(name,grade,study_goal,main_subject,active,created_at) VALUES(?,?,?,?,1,?)",('Child One',9,'OGE','PHYSICS',now)).lastrowid
