@@ -4,6 +4,7 @@ from web_backend.finance_pricing import list_prices,set_price,list_overrides,lis
 from web_backend.finance_price_sync import set_override,delete_override,quote,package_quote
 from web_backend.finance_reporting import dashboard,student_finance,calendar_analytics
 from web_backend.finance_receipts import list_receipts,summary as receipt_summary,review as review_receipt
+from web_backend import teacher_invoices
 
 class Stage8Mixin:
     def stage8_get(self,path,q):
@@ -13,6 +14,7 @@ class Stage8Mixin:
             if path=='/api/teacher/finance/dashboard':return self._json(200,dashboard(q.get('start',[None])[0],q.get('end',[None])[0]))
             if path=='/api/teacher/finance/calendar-analytics':return self._json(200,calendar_analytics())
             if path=='/api/teacher/finance/receipts':return self._json(200,{'summary':receipt_summary(),'items':list_receipts(q.get('status',['WAITING'])[0],q.get('limit',[100])[0])})
+            if path=='/api/teacher/finance/invoices':return self._json(200,teacher_invoices.candidates(q.get('limit',[100])[0]))
             if path=='/api/teacher/finance/student':return self._json(200,student_finance(int(q.get('user_id',['0'])[0])))
             if path=='/api/teacher/finance/prices':return self._json(200,{'items':list_prices()})
             if path=='/api/teacher/finance/overrides':
@@ -32,6 +34,7 @@ class Stage8Mixin:
         body=self._body()
         if body is None:return self._json(400,{'error':'invalid_json'})
         try:
+            if path=='/api/teacher/finance/invoice':return self._json(200,teacher_invoices.issue(body.get('lesson_id')))
             if path=='/api/teacher/finance/receipt/review':return self._json(200,review_receipt(body.get('payment_id'),body.get('action')))
             if path=='/api/teacher/finance/price':return self._json(200,set_price(body.get('tariff_key'),body.get('amount'),body.get('title'),body.get('subject'),body.get('education_type'),body.get('study_goal'),body.get('duration_minutes',60),body.get('active',True)))
             if path=='/api/teacher/finance/override':return self._json(200,set_override(body.get('user_id'),body.get('tariff_key'),body.get('amount'),body.get('note'),body.get('active',True)))
