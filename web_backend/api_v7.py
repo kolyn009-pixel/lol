@@ -11,15 +11,21 @@ from web_backend import event_campaign, formula_schema_repair, google_calendar_o
 from web_backend import group_lessons, group_lesson_access, group_portal, open_event_admin
 from web_backend import lesson_join, otp_secret, public_trial_access, public_trial_channel
 from web_backend import student_onboarding, student_regular_booking, student_social_profile
-from web_backend import telemost_runtime, telemost_settings
+from web_backend import telemost_runtime, telemost_settings, web_push
 from web_backend.stage12_indexes import ensure_indexes
 
 class Handler(api_v6.Handler):
-    server_version="AdeliaWeb/7.8"
+    server_version="AdeliaWeb/7.9"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
     def do_GET(self):
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
+        if path=="/api/push/status":
+            auth=self._auth()
+            if not auth:return self._json(401,{"error":"unauthorized"})
+            try:return self._json(200,{**web_push.status(auth),"public_key":web_push.public_key()})
+            except PermissionError:return self._json(401,{"error":"unauthorized"})
+            except Exception as exc:print("[web-api] push status error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
         if path=="/api/teacher/groups":
             if not self._teacher():return self._json(401,{"error":"unauthorized"})
             try:return self._json(200,{"items":group_portal.teacher_groups_overview()})
@@ -52,6 +58,21 @@ class Handler(api_v6.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        if path in {"/api/push/subscribe","/api/push/unsubscribe","/api/push/test"}:
+            if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
+            auth=self._auth()
+            if not auth:return self._json(401,{"error":"unauthorized"})
+            body=self._body()
+            if body is None:return self._json(400,{"error":"invalid_json"})
+            try:
+                if path.endswith('/subscribe'):
+                    return self._json(200,web_push.subscribe(auth,body.get('subscription'),self.headers.get('User-Agent')))
+                if path.endswith('/unsubscribe'):
+                    return self._json(200,web_push.unsubscribe(auth,body.get('endpoint')))
+                return self._json(200,web_push.send_test(auth))
+            except PermissionError:return self._json(401,{"error":"unauthorized"})
+            except ValueError as exc:return self._json(400,{"error":str(exc)})
+            except Exception as exc:print("[web-api] push POST error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
         if path in {"/api/teacher/lesson/open-entry","/api/teacher/lesson/mark-arrived","/api/teacher/lesson/finish"}:
             if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
             if not self._teacher():return self._json(401,{"error":"unauthorized"})
@@ -123,5 +144,5 @@ class Handler(api_v6.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit("ADELIA_OTP_SECRET must be set to at least 32 bytes")
-    ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();print(f"Adelia web API v7.8 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();web_push.ensure_schema();print(f"Adelia web API v7.9 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=="__main__":main()
