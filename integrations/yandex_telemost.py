@@ -90,29 +90,6 @@ def _request(method, path, body=None):
         raise RuntimeError("telemost_timeout") from exc
 
 
-def _delete_conference(conference_id):
-    conference_id = str(conference_id or "").strip()
-    if not conference_id:
-        raise ValueError("conference_id_required")
-    headers = {
-        "Authorization": f"OAuth {_token()}",
-        "Accept": "application/json",
-    }
-    req = Request(API_BASE + f"/conferences/{conference_id}", headers=headers, method="DELETE")
-    try:
-        with urlopen(req, timeout=TIMEOUT_SECONDS) as response:
-            response.read()
-            return int(response.status)
-    except HTTPError as exc:
-        if int(exc.code) == 404:
-            return 404
-        raise RuntimeError(f"telemost_http_{int(exc.code)}") from exc
-    except URLError as exc:
-        raise RuntimeError("telemost_network_error") from exc
-    except TimeoutError as exc:
-        raise RuntimeError("telemost_timeout") from exc
-
-
 def _integration(lesson_id):
     ensure_schema()
     conn = database.connect()
@@ -208,13 +185,14 @@ def _save_error(lesson_id, code):
 
 
 def _clear_closed(lesson_id):
+    """Clear active Adelia access while retaining no provider-side end claim."""
     ensure_schema()
     conn = database.connect()
     try:
         now = database.now_iso()
         conn.execute(
             """UPDATE lesson_external_integrations
-               SET telemost_conference_id=NULL,telemost_join_url=NULL,
+               SET telemost_join_url=NULL,
                    telemost_synced_at=?,last_error=NULL,updated_at=?
                WHERE lesson_id=?""",
             (now, now, int(lesson_id)),
@@ -264,28 +242,16 @@ def ensure_lesson_conference(lesson_id):
 
 
 def close_lesson_conference(lesson_id):
-    """Close the lesson's Telemost conference and clear its active join URL.
-
-    DELETE is idempotent: a provider-side 404 is treated as already closed.
-    """
+    """Revoke the active Telemost link in Adelia; does not end provider meeting."""
     lesson_id = int(lesson_id)
     existing = _integration(lesson_id) or {}
-    conference_id = str(existing.get("telemost_conference_id") or "").strip()
-    if not conference_id:
-        _clear_closed(lesson_id)
-        return {"status": "no_conference", "conference_id": None}
-    try:
-        status = _delete_conference(conference_id)
-        if status not in {200, 202, 204, 404}:
-            raise RuntimeError(f"telemost_unexpected_status_{status}")
-        _clear_closed(lesson_id)
-        return {
-            "status": "already_closed" if status == 404 else "closed",
-            "conference_id": conference_id,
-        }
-    except Exception as exc:
-        _save_error(lesson_id, f"close:{exc}")
-        raise
+    conference_id = str(existing.get("telemost_conference_id") or "").strip() or None
+    _clear_closed(lesson_id)
+    return {
+        "status": "access_revoked",
+        "conference_id": conference_id,
+        "provider_ended": False,
+    }
 
 
 def read_conference(conference_id):
