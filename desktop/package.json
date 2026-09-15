@@ -5,13 +5,14 @@
   "description": "Аделия — приложение для обучения и преподавания",
   "main": "bootstrap.js",
   "scripts": {
-    "start": "node verify_icon.js && node sync_role_assets.js && electron .",
-    "selftest": "node verify_icon.js && node sync_role_assets.js && node selftest.js",
-    "dist": "node verify_icon.js && node sync_role_assets.js && electron-builder",
-    "dist:win": "node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis --x64",
-    "dist:mac": "node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip",
-    "dist:mac:arm64": "node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --arm64",
-    "dist:mac:x64": "node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --x64"
+    "sync:icon": "node generate_assets.js",
+    "start": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron .",
+    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js",
+    "dist": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder",
+    "dist:win": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis --x64",
+    "dist:mac": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip",
+    "dist:mac:arm64": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --arm64",
+    "dist:mac:x64": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --x64"
   },
   "dependencies": {"electron-updater": "6.6.2"},
   "devDependencies": {"electron": "38.0.0", "electron-builder": "26.0.12"},
