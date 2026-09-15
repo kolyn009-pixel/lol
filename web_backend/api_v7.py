@@ -15,7 +15,7 @@ from web_backend import telemost_runtime, telemost_settings
 from web_backend.stage12_indexes import ensure_indexes
 
 class Handler(api_v6.Handler):
-    server_version="AdeliaWeb/7.7"
+    server_version="AdeliaWeb/7.8"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
     def do_GET(self):
@@ -52,7 +52,7 @@ class Handler(api_v6.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
-        if path in {"/api/teacher/lesson/open-entry","/api/teacher/lesson/finish"}:
+        if path in {"/api/teacher/lesson/open-entry","/api/teacher/lesson/mark-arrived","/api/teacher/lesson/finish"}:
             if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
             if not self._teacher():return self._json(401,{"error":"unauthorized"})
             body=self._body()
@@ -62,6 +62,8 @@ class Handler(api_v6.Handler):
                 if path.endswith("/open-entry"):
                     result=telemost_runtime.start_individual(lid);meeting=result.get("telemost")or{}
                     return self._json(200,{**result,"status":"ok","opened_at":datetime.now().isoformat(timespec="seconds"),"meeting_url":meeting.get("join_url")})
+                if path.endswith("/mark-arrived"):
+                    result=lesson_join.teacher_mark_arrived(lid);return self._json(200,result) if result.get("status")=="ok" else self._json(409,{"error":result.get("status","mark_arrived_failed")})
                 result=telemost_runtime.finish_individual(lid,body.get("attendance_status","PRESENT"),body.get("tutor_comment"),body.get("mode","NOW"));return self._json(200,result) if result.get("status")=="ok" else self._json(409,{"error":result.get("status","finish_failed")})
             except (TypeError,ValueError) as exc:return self._json(409,{"error":str(exc)or"invalid_request"})
             except Exception as exc:print("[web-api] lesson lifecycle error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
@@ -121,5 +123,5 @@ class Handler(api_v6.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit("ADELIA_OTP_SECRET must be set to at least 32 bytes")
-    ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();print(f"Adelia web API v7.7 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();print(f"Adelia web API v7.8 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=="__main__":main()
