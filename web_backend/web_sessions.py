@@ -53,7 +53,7 @@ def read_session(token):
  conn.close();return item
 def revoke_session(token):
  if not token:return False
- ensure_table();conn=connect();cur=conn.execute('UPDATE web_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL',(_digest(token),now_iso()));conn.commit();changed=bool(cur.rowcount);conn.close();return changed
+ ensure_table();conn=connect();cur=conn.execute('UPDATE web_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL',(now_iso(),_digest(token)));conn.commit();changed=bool(cur.rowcount);conn.close();return changed
 def revoke_identity_sessions(role,entity_id):
  role=str(role or '').strip().lower()
  if role not in _ALLOWED_ROLES:return 0
