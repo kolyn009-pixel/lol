@@ -8,7 +8,32 @@ that payment lifecycle hooks can be installed idempotently in-process.
 from __future__ import annotations
 
 import json
+import os
 import sys
+from pathlib import Path
+
+
+def _load_runtime_env():
+    """Load missing runtime variables for diagnostics without printing secrets."""
+    path = Path(os.getenv("ADELIA_ENV_FILE", "/etc/tutorbot/adelia.env"))
+    if not path.is_file():
+        return
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or not key.replace("_", "").isalnum():
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
 
 
 def _google_probe():
@@ -29,9 +54,6 @@ def _payment_runtime_probe():
     from core import payment_sync_runtime
     from final_features import jobs as final_jobs
 
-    # Presence in final_features.jobs is the startup wiring check. install()
-    # itself only replaces Python callables in this process; it performs no DB
-    # writes and no provider requests.
     wired = getattr(final_jobs, "payment_sync_runtime", None) is payment_sync_runtime
     payment_sync_runtime.install()
     first = database.approve_payment
@@ -51,6 +73,7 @@ def _payment_runtime_probe():
 
 
 def main():
+    _load_runtime_env()
     from integrations.lesson_sync import status
 
     data = status()
