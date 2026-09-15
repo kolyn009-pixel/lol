@@ -62,15 +62,15 @@ def start_group_lesson(lesson_id,teacher_id):
  if lesson['status']=='STARTED':return {'status':'already_open','lesson_id':lid,'participants':preview['participants'],'started_at':lesson.get('started_at')}
  if lesson['status'] in FINAL_LESSON_STATES:raise ValueError('group_lesson_not_startable')
  if preview['unresolved']:raise ValueError('group_lesson_has_unresolved_admissions')
- admitted=[p for p in preview['participants'] if p['admission_status']=='ADMITTED' and str(p.get('rsvp_status') or 'UNKNOWN').upper()!='NOT_GOING'];minimum=max(2,int(lesson['min_attendees'] or 2))
- if len(admitted)<minimum:raise ValueError('group_lesson_quorum_not_met')
- admitted_ids=[int(p['user_id']) for p in admitted];now=_now();c=database.connect();c.execute("UPDATE group_lessons SET status='STARTED',started_by=?,updated_at=? WHERE id=?",(int(teacher_id),now,lid));c.execute("UPDATE group_lesson_participants SET access_granted=CASE WHEN admission_status='ADMITTED' AND COALESCE(rsvp_status,'UNKNOWN')<>'NOT_GOING' THEN 1 ELSE 0 END,updated_at=? WHERE lesson_id=?",(now,lid));c.commit();c.close();reservations=[]
- for p in admitted:
+ admitted=[p for p in preview['participants'] if p['admission_status']=='ADMITTED' and str(p.get('rsvp_status') or 'UNKNOWN').upper()!='NOT_GOING'];eligible=[p for p in admitted if int(p.get('financial_attention') or 0)==0];blocked_unpaid=[p for p in admitted if int(p.get('financial_attention') or 0)==1];minimum=max(2,int(lesson['min_attendees'] or 2))
+ if len(eligible)<minimum:raise ValueError('group_lesson_quorum_not_met')
+ admitted_ids=[int(p['user_id']) for p in eligible];now=_now();c=database.connect();c.execute("UPDATE group_lessons SET status='STARTED',started_by=?,updated_at=? WHERE id=?",(int(teacher_id),now,lid));c.execute("UPDATE group_lesson_participants SET access_granted=CASE WHEN admission_status='ADMITTED' AND COALESCE(rsvp_status,'UNKNOWN')<>'NOT_GOING' AND COALESCE(financial_attention,0)=0 THEN 1 ELSE 0 END,updated_at=? WHERE lesson_id=?",(now,lid));c.commit();c.close();reservations=[]
+ for p in eligible:
   uid=int(p['user_id']);fin=group_finance.financial_status_for_lesson(lid,uid)
   if fin['status']=='COVERED':
    try:reservations.append({'user_id':uid,**group_finance.reserve_subscription_for_lesson(lid,uid)})
    except ValueError:pass
- return {'status':'opened','lesson_id':lid,'started_at':None,'admitted_user_ids':admitted_ids,'not_charged_user_ids':preview.get('not_charged_user_ids',[]),'reservations':reservations}
+ return {'status':'opened','lesson_id':lid,'started_at':None,'admitted_user_ids':admitted_ids,'blocked_unpaid_user_ids':[int(p['user_id']) for p in blocked_unpaid],'not_charged_user_ids':preview.get('not_charged_user_ids',[]),'reservations':reservations}
 def mark_actual_start(lesson_id,user_id):
  ensure_schema();lid=int(lesson_id);uid=int(user_id);now=_now();c=database.connect();row=c.execute("SELECT gl.status,gl.started_at,p.admission_status,p.access_granted FROM group_lessons gl JOIN group_lesson_participants p ON p.lesson_id=gl.id WHERE gl.id=? AND p.user_id=?",(lid,uid)).fetchone()
  if not row:c.close();raise PermissionError('group_lesson_access_denied')
