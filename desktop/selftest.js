@@ -1,9 +1,75 @@
 'use strict';
-const fs=require('fs'),path=require('path'),vm=require('vm');const root=__dirname,repo=path.resolve(root,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8'),readRepo=p=>fs.readFileSync(path.join(repo,p),'utf8');const pkg=JSON.parse(read('package.json')),main=read('main.js'),preload=read('preload.js'),bootstrap=read('bootstrap.js'),workspace=read('lesson_workspace.js'),ux=read('desktop_ux.js'),layout=read('lesson_layout.js'),roleStartup=read('role_startup.js'),startJs=read('start.js'),startHtml=read('start.html'),startCss=read('start.css'),webIndex=readRepo('web/index.html'),desktopShell=readRepo('web/desktop_shell.js'),desktopCss=readRepo('web/desktop_shell.css'),groupsUi=readRepo('web/group_events_ui.js'),groupsCss=readRepo('web/group_events_ui.css'),polish=readRepo('web/desktop_polish.js'),polishCss=readRepo('web/desktop_polish.css'),teacherHtml=readRepo('web/teacher.html'),teacher2=readRepo('web/teacher_desktop_v2.js'),stage2=readRepo('web/teacher_stage2_workspace.js'),stage2Finance=readRepo('web/teacher_stage2_finance.js'),stage3=readRepo('web/teacher_stage3_learning.js'),stage4=readRepo('web/teacher_stage4_workspace.js'),stage5=readRepo('web/teacher_stage5_polish.js'),assetGen=read('generate_assets.js');let failed=false;function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed=true}function has(p){return p.test(main)}function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
-for(const [n,s] of [['bootstrap.js',bootstrap],['main.js',main],['preload.js',preload],['lesson_workspace.js',workspace],['desktop_ux.js',ux],['lesson_layout.js',layout],['role_startup.js',roleStartup],['start.js',startJs],['web/desktop_shell.js',desktopShell],['web/group_events_ui.js',groupsUi],['web/desktop_polish.js',polish],['web/teacher_desktop_v2.js',teacher2],['web/teacher_stage2_workspace.js',stage2],['web/teacher_stage2_finance.js',stage2Finance],['web/teacher_stage3_learning.js',stage3],['web/teacher_stage4_workspace.js',stage4],['web/teacher_stage5_polish.js',stage5],['generate_assets.js',assetGen]])parseJs(n,s);
-check(pkg.version==='0.2.0','Teacher 2.0 package version');check(pkg.main==='bootstrap.js','desktop bootstrap entry');check(pkg.build?.appId==='ru.adeliatutor.desktop','stable app id');check(pkg.build?.asar===true,'asar enabled');check(pkg.devDependencies.electron==='38.0.0','Electron pinned');check(pkg.devDependencies['electron-builder']==='26.0.12','electron-builder pinned');check(pkg.dependencies?.['electron-updater']==='6.6.2','electron-updater pinned');check(pkg.build.publish?.[0].url==='https://adeliatutor.ru/desktop-updates/','trusted update endpoint');check(pkg.build.protocols?.[0].schemes.includes('adelia'),'adelia deep link protocol registered');check(pkg.build.win?.target.includes('nsis'),'Windows NSIS target');check(pkg.build.nsis?.createDesktopShortcut===true,'Windows desktop shortcut');for(const f of ['bootstrap.js','lesson_workspace.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
-check(main.includes('https://adeliatutor.ru/app/'),'desktop opens cabinet directly');check(has(/contextIsolation\s*:\s*true/),'context isolation');check(has(/nodeIntegration\s*:\s*false/),'node integration disabled');check(has(/sandbox\s*:\s*true/),'renderer sandbox');check(main.includes('https://telemost.yandex.ru'),'Telemost allowlist');check(main.includes('myboard.io')&&main.includes('trustedBoard'),'board HTTPS allowlist');check(has(/\['media','microphone','camera'\]/),'lesson media permissions limited');check(!main.includes('display-capture'),'screen capture denied by default');check(main.includes('persist:adelia-board')&&main.includes('boardSession.setPermissionCheckHandler(()=>false)'),'board permissions denied');check(main.includes("['https:', 'mailto:']"),'external protocols allowlisted');check(main.includes('did-fail-load'),'offline fallback');check(main.includes('lessonWindows.size>0')||main.includes('lessonWindows.size > 0'),'updates skipped during lessons');check(main.includes('requestSingleInstanceLock'),'single-instance desktop app');check(main.includes('new Tray('),'system tray');check(main.includes('closeToTray'),'configurable close-to-tray');check(preload.includes('contextBridge'),'minimal preload bridge');
-check(bootstrap.includes("require('./lesson_workspace').install()"),'lesson workspace installed');check(bootstrap.includes("require('./desktop_ux').install()"),'desktop UX installed');check(bootstrap.includes("require('./lesson_layout').install()"),'lesson layout installed');check(bootstrap.includes("require('./role_startup').install()"),'role chooser installed');check(roleStartup.includes("loadFile(path.join(__dirname,'start.html'))"),'role chooser loads packaged start screen');check(roleStartup.includes("'/api/onboarding/complete'"),'desktop onboarding complete API wired');check(startJs.includes('onboardingScheduleOptions')&&startJs.includes('onboardingComplete'),'desktop registration flow wired');check(startHtml.includes('start.js')&&startHtml.includes('start.css'),'start screen assets linked');check(startCss.length>500,'start screen styles present');check(workspace.includes("fetch('/api/student/dashboard'")&&workspace.includes('REMINDER_MINUTES = [15, 5]'),'15/5 minute reminders');check(ux.includes("HOTKEY = 'CommandOrControl+Shift+A'"),'global Adelia hotkey');check(ux.includes('setOverlayIcon'),'Windows unread badge');check(ux.includes('startReconnectLoop'),'offline reconnect loop');check(layout.includes("'together','board-focus','mini-video','hide-video'"),'lesson layout modes');
-check(webIndex.includes('/app/desktop_shell.css')&&webIndex.includes('/app/desktop_shell.js'),'student desktop shell loaded');check(groupsUi.includes("/student/group/chat")&&groupsUi.includes("/student/group-lesson/enter"),'group lesson integration');check(polish.includes('settingNotifications')&&polish.includes('settingAutostart')&&polish.includes('settingTray'),'Windows settings controls');check(polishCss.includes(':focus-visible')&&polishCss.includes('prefers-reduced-motion'),'keyboard/reduced motion support');
-for(const f of ['teacher_desktop_v2.css','teacher_stage2_workspace.css','teacher_stage3_learning.css','teacher_stage4_workspace.css','teacher_stage5_polish.css','teacher_desktop_v2.js','teacher_stage2_workspace.js','teacher_stage2_finance.js','teacher_stage3_learning.js','teacher_stage4_workspace.js','teacher_stage5_polish.js'])check(teacherHtml.includes('/app/'+f),`teacher loads ${f}`);check(teacher2.includes('desktop-teacher-v2')&&teacher2.includes('Ctrl K'),'Teacher 2.0 desktop isolation and command key');check(stage2.includes('/teacher/dashboard'),'Teacher 2.0 dashboard API');check(stage2Finance.includes('/teacher/finance/dashboard')&&stage2Finance.includes('/teacher/finance/receipt/review'),'Teacher 2.0 finance workflow');check(stage3.includes('/teacher/crm/schedule')&&stage3.includes('/teacher/homework-center'),'Teacher 2.0 learning workflow');check(stage4.includes('/teacher/messages')&&stage4.includes('/teacher/trials')&&stage4.includes('/teacher/library/overview'),'Teacher 2.0 communication/library workflow');check(stage5.includes('Ctrl+K')||stage5.includes('Ctrl K'),'Teacher 2.0 command center');check(stage5.includes('offline'),'Teacher 2.0 offline state');check(assetGen.includes('W=512,H=512'),'desktop icon generated at 512px');
-if(failed)process.exit(1);console.log('Desktop release selftest passed.');
+const fs=require('fs'),path=require('path'),vm=require('vm');
+const root=__dirname,repo=path.resolve(root,'..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const readRepo=p=>fs.readFileSync(path.join(repo,p),'utf8');
+const pkg=JSON.parse(read('package.json'));
+const files={
+  bootstrap:read('bootstrap.js'),main:read('main.js'),preload:read('preload.js'),workspace:read('lesson_workspace.js'),
+  ux:read('desktop_ux.js'),layout:read('lesson_layout.js'),role:read('role_startup.js'),system:read('system_polish.js'),
+  network:read('network_ux.js'),startJs:read('start.js'),startHtml:read('start.html'),startCss:read('start.css'),offline:read('offline.html')
+};
+const web={student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js')};
+let failed=false;
+function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed=true}
+function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
+for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,start:files.startJs}))parseJs(`${n}.js`,s);
+
+check(pkg.version==='0.2.0','desktop package version');
+check(pkg.main==='bootstrap.js','desktop bootstrap entry');
+check(pkg.build?.appId==='ru.adeliatutor.desktop','stable app id');
+check(pkg.build?.asar===true,'asar enabled');
+check(pkg.devDependencies?.electron==='38.0.0','Electron pinned');
+check(pkg.devDependencies?.['electron-builder']==='26.0.12','electron-builder pinned');
+check(pkg.dependencies?.['electron-updater']==='6.6.2','electron-updater pinned');
+check(pkg.build.publish?.[0]?.url==='https://adeliatutor.ru/desktop-updates/','trusted update endpoint');
+check(pkg.build.protocols?.[0]?.schemes?.includes('adelia'),'adelia deep-link protocol registered');
+check(pkg.build.win?.target?.includes('nsis'),'Windows NSIS target');
+check(pkg.build.mac?.target?.includes('dmg')&&pkg.build.mac?.target?.includes('zip'),'macOS DMG + ZIP targets');
+check(pkg.scripts?.['dist:mac:arm64']?.includes('--arm64'),'macOS Apple Silicon build');
+check(pkg.scripts?.['dist:mac:x64']?.includes('--x64'),'macOS Intel build');
+check(pkg.build.nsis?.createDesktopShortcut===true,'Windows desktop shortcut');
+check(pkg.build.dmg?.contents?.some(x=>x.path==='/Applications'),'macOS drag-to-Applications installer');
+for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html','lesson_workspace.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
+
+check(files.main.includes('https://adeliatutor.ru/app/'),'desktop opens Adelia origin');
+check(/contextIsolation\s*:\s*true/.test(files.main),'context isolation');
+check(/nodeIntegration\s*:\s*false/.test(files.main),'node integration disabled');
+check(/sandbox\s*:\s*true/.test(files.main),'renderer sandbox');
+check(files.main.includes('https://telemost.yandex.ru'),'Telemost allowlist');
+check(files.main.includes('myboard.io')&&files.main.includes('trustedBoard'),'board HTTPS allowlist');
+check(files.main.includes('requestSingleInstanceLock'),'single-instance desktop app');
+check(files.main.includes('new Tray('),'system tray');
+check(files.main.includes('closeToTray'),'configurable close-to-tray');
+check(files.preload.includes('contextBridge'),'minimal preload bridge');
+
+check(files.bootstrap.includes("require('./system_polish').install()"),'native platform polish installed');
+check(files.bootstrap.includes("require('./network_ux').install()"),'network UX installed');
+check(files.bootstrap.includes("require('./lesson_workspace').install()"),'lesson workspace installed');
+check(files.bootstrap.includes("require('./desktop_ux').install()"),'desktop UX installed');
+check(files.bootstrap.includes("require('./lesson_layout').install()"),'lesson layout installed');
+check(files.bootstrap.includes("require('./role_startup').install()"),'role chooser installed');
+
+check(files.role.includes("loadFile(path.join(__dirname,'start.html'))"),'role chooser loads packaged start screen');
+check(files.role.includes("'/api/auth/teacher/code'"),'teacher code login wired');
+check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
+check(files.startJs.includes('teacherLogin')&&files.startJs.includes('openStudentLogin')&&files.startJs.includes('openParentCabinet'),'role actions wired');
+check(files.startHtml.includes('./build/icon.png')&&files.startHtml.includes('start.js')&&files.startHtml.includes('start.css'),'branded start assets linked');
+check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start screen styles present');
+check(files.offline.includes('Нет подключения')&&files.offline.includes('Аделия сама попробует восстановить соединение'),'branded offline screen');
+check(files.network.includes("loadFile(offlineFile())")&&files.network.includes('setInterval'),'offline reconnect loop');
+check(files.network.includes("removeAllListeners('update-available')")&&files.network.includes('downloadUpdate'),'polished updater flow');
+check(files.system.includes('setUserTasks'),'Windows quick actions');
+check(files.system.includes('app.dock.setMenu'),'macOS dock actions');
+check(files.system.includes('download-progress')&&files.system.includes('setProgressBar'),'native update progress');
+check(files.ux.includes("HOTKEY = 'CommandOrControl+Shift+A'"),'global Adelia hotkey');
+check(files.ux.includes('setOverlayIcon'),'Windows unread badge');
+check(files.layout.includes("'together','board-focus','mini-video','hide-video'"),'lesson layout modes');
+
+check(web.student.includes('/app/student_clean.css'),'student clean shell linked');
+check(web.teacher.includes('/app/teacher_clean.css')&&web.teacher.includes('/app/teacher_clean7.css'),'teacher clean7 shell linked');
+check(web.parent.includes('/app/parent/parent_clean.css'),'parent clean shell linked');
+check(web.landing.includes('Adelia-latest-windows-x64.exe')&&web.landing.includes('Adelia-latest-macos-arm64.dmg')&&web.landing.includes('Adelia-latest-macos-x64.dmg'),'stable desktop download aliases linked');
+
+if(failed)process.exit(1);
+console.log('Desktop release selftest passed.');
