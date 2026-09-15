@@ -2,20 +2,12 @@
 from __future__ import annotations
 import database
 from integrations.telemost_lifecycle import ensure_individual_conference, create_conference, finish_individual_conference
-from integrations import yandex_telemost
 from web_backend import lesson_workspace, group_lesson_access, group_portal, attendance_tracking, telemost_settings, lesson_link_delivery
 
 def _now(): return database.now_iso()
 def _meeting_disabled():return {'status':'disabled_by_teacher','conference_id':None,'join_url':None,'reused':False}
-def _safe_close_conference(conference_id):
-    cid=str(conference_id or '').strip()
-    if not cid:return {'status':'no_conference','conference_id':None}
-    try:
-        status=yandex_telemost._delete_conference(cid)
-        if status in {200,202,204}:return {'status':'closed','conference_id':cid}
-        if status==404:return {'status':'already_closed','conference_id':cid}
-        return {'status':'close_failed','conference_id':cid,'error':f'telemost_unexpected_status_{status}'}
-    except Exception as exc:return {'status':'close_failed','conference_id':cid,'error':str(exc)[:120]}
+def _access_revoked(conference_id):
+    return {'status':'access_revoked','conference_id':str(conference_id or '').strip() or None,'provider_ended':False}
 def start_individual(lesson_id):
     lid=int(lesson_id);meeting=ensure_individual_conference(lid) if telemost_settings.auto_on_start() else _meeting_disabled();opened=_now()
     if meeting.get('status') not in {'ok','disabled','disabled_by_teacher'}:raise RuntimeError('telemost_create_failed')
@@ -58,7 +50,7 @@ def finish_group(lesson_id):
     if not row:raise ValueError('group_lesson_not_found')
     for item in attendance_tracking.roster('GROUP_LESSON',lid):
         if item['attendance']['present']:attendance_tracking.record('GROUP_LESSON',lid,int(item['user_id']),'LEAVE',source='SYSTEM')
-    telemost=_safe_close_conference(row['telemost_conference_id']);now=_now();c=database.connect();c.execute("UPDATE group_lessons SET status='COMPLETED',telemost_conference_id=NULL,telemost_join_url=NULL,updated_at=? WHERE id=?",(now,lid));c.execute('UPDATE group_lesson_participants SET access_granted=0,updated_at=? WHERE lesson_id=?',(now,lid));c.commit();c.close();return {'status':'completed','lesson_id':lid,'telemost':telemost}
+    telemost=_access_revoked(row['telemost_conference_id']);now=_now();c=database.connect();c.execute("UPDATE group_lessons SET status='COMPLETED',telemost_join_url=NULL,updated_at=? WHERE id=?",(now,lid));c.execute('UPDATE group_lesson_participants SET access_granted=0,updated_at=? WHERE lesson_id=?',(now,lid));c.commit();c.close();return {'status':'completed','lesson_id':lid,'telemost':telemost}
 def start_open_event(event_id):
     eid=int(event_id);c=database.connect();row=c.execute('SELECT telemost_conference_id,telemost_join_url,board_url FROM open_learning_events WHERE id=?',(eid,)).fetchone();c.close()
     if not row:raise ValueError('event_not_found')
@@ -76,4 +68,4 @@ def start_open_event(event_id):
 def finish_open_event(event_id):
     eid=int(event_id);c=database.connect();row=c.execute('SELECT id,telemost_conference_id FROM open_learning_events WHERE id=?',(eid,)).fetchone();c.close()
     if not row:raise ValueError('event_not_found')
-    telemost=_safe_close_conference(row['telemost_conference_id']);now=_now();c=database.connect();c.execute("UPDATE open_learning_events SET status='COMPLETED',telemost_conference_id=NULL,telemost_join_url=NULL,updated_at=? WHERE id=?",(now,eid));c.execute('UPDATE open_event_participants SET access_granted=0,updated_at=? WHERE event_id=?',(now,eid));c.commit();c.close();return {'status':'completed','event_id':eid,'telemost':telemost}
+    telemost=_access_revoked(row['telemost_conference_id']);now=_now();c=database.connect();c.execute("UPDATE open_learning_events SET status='COMPLETED',telemost_join_url=NULL,updated_at=? WHERE id=?",(now,eid));c.execute('UPDATE open_event_participants SET access_granted=0,updated_at=? WHERE event_id=?',(now,eid));c.commit();c.close();return {'status':'completed','event_id':eid,'telemost':telemost}
