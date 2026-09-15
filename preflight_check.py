@@ -50,7 +50,7 @@ checks = {
     'web_backend/group_lesson_access.py': ['board_visible', 'telemost_visible'],
     'handlers/musthave_jobs.py': ['adelia_homework_watchdog', 'homework_watchdog.tick'],
     'vk_adapter/tutorbot-vk.service': ['-m vk_adapter.runtime', 'EnvironmentFile=-/etc/tutorbot/adelia.env'],
-    'web_backend/adelia-web.service': ['-m web_backend.api_v6', 'EnvironmentFile=-/etc/tutorbot/adelia.env'],
+    'web_backend/adelia-web.service': ['-m web_backend.api_v7', 'EnvironmentFile=-/etc/tutorbot/adelia.env'],
     'web_backend/adelia-homework-delivery.service': ['-m web_backend.homework_delivery_worker', 'EnvironmentFile=-/etc/tutorbot/adelia.env'],
     'web_backend/adelia-receipt-archive.service': ['-m web_backend.receipt_archive_worker', 'EnvironmentFile=-/etc/tutorbot/adelia.env', 'ReadWritePaths=/opt/tutorbot'],
     'core/calendar_policy.py': ['COLOR_COMPLETED = "10"', 'COLOR_ATTENTION = "11"', 'Пробное занятие бесплатное', 'PAYMENT_DUE_24H'],
