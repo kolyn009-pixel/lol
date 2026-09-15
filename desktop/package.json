@@ -8,8 +8,10 @@
     "start": "node verify_icon.js && node sync_role_assets.js && electron .",
     "selftest": "node verify_icon.js && node sync_role_assets.js && node selftest.js",
     "dist": "node verify_icon.js && node sync_role_assets.js && electron-builder",
-    "dist:win": "node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis",
-    "dist:mac": "node verify_icon.js && node sync_role_assets.js && electron-builder --mac"
+    "dist:win": "node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis --x64",
+    "dist:mac": "node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip",
+    "dist:mac:arm64": "node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --arm64",
+    "dist:mac:x64": "node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --x64"
   },
   "dependencies": {"electron-updater": "6.6.2"},
   "devDependencies": {"electron": "38.0.0", "electron-builder": "26.0.12"},
@@ -23,7 +25,8 @@
     "protocols": [{"name": "Аделия", "schemes": ["adelia"]}],
     "publish": [{"provider": "generic", "url": "https://adeliatutor.ru/desktop-updates/"}],
     "win": {"target": ["nsis"], "requestedExecutionLevel": "asInvoker", "icon": "build/icon.png"},
-    "mac": {"target": ["dmg", "zip"], "category": "public.app-category.education", "icon": "build/icon.png"},
-    "nsis": {"oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true, "shortcutName": "Аделия"}
+    "mac": {"target": ["dmg", "zip"], "category": "public.app-category.education", "icon": "build/icon.png", "identity": null},
+    "dmg": {"title": "Аделия", "backgroundColor": "#f8f4fc", "iconSize": 112, "window": {"width": 600, "height": 420}, "contents": [{"x": 170, "y": 220, "type": "file"}, {"x": 430, "y": 220, "type": "link", "path": "/Applications"}]},
+    "nsis": {"oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true, "shortcutName": "Аделия", "installerIcon": "build/icon.png", "uninstallerIcon": "build/icon.png", "installerHeaderIcon": "build/icon.png"}
   }
 }
