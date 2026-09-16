@@ -2,7 +2,8 @@
 
 The message body remains inside Adelia. Telegram/VK only notify the teacher that a
 new chat message exists, so external messengers are notification transports rather
-than copies of the private conversation.
+than copies of the private conversation. Teacher PWA push is delivered through the
+same event fanout layer as other Adelia notifications.
 """
 from __future__ import annotations
 
@@ -41,6 +42,22 @@ def _notify_teacher_channels(user,body=None):
     return result
 
 
+def _notify_teacher_push(user,inbox_id):
+    try:
+        from web_backend import push_events
+        name=str(user['name'] or 'Ученик')
+        return push_events.teachers(
+            '💬 Новое сообщение',
+            f'{name} написал в чате Аделии.',
+            '/teacher/',
+            f'teacher-message-{int(inbox_id)}',
+            {'type':'message','inbox_id':int(inbox_id),'user_id':int(user['id'])},
+        )
+    except Exception as exc:
+        print('[stage10] WEB teacher push error:',type(exc).__name__,repr(exc),flush=True)
+        return {'status':'failed','sent':0,'failed':1}
+
+
 def receive_web_student_message(user_id,text):
     uid=int(user_id);body=str(text or '').strip()
     if not body:raise ValueError('text_required')
@@ -66,7 +83,9 @@ def receive_web_student_message(user_id,text):
         priority='ACTION',entity_type='teacher_inbox',entity_id=iid,dedupe_key=f'inbox:{iid}'
     )
     notified=_notify_teacher_channels(user) if accepting else {'telegram':0,'vk':0,'failed':0}
+    push=_notify_teacher_push(user,iid)
     return {
         'status':'ok','message_id':mid,'inbox_id':iid,'delivery':'IMMEDIATE' if accepting else 'QUEUED',
-        'scheduled_for':None if accepting else deliver_at.isoformat(timespec='seconds'),'teacher_notifications':notified,
+        'scheduled_for':None if accepting else deliver_at.isoformat(timespec='seconds'),
+        'teacher_notifications':notified,'teacher_push':push,
     }
