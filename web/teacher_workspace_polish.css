@@ -1,0 +1,33 @@
+/* Adelia teacher workspace polish — shared visual cleanup for mobile + desktop */
+:root{--adelia-violet:#7048d8;--adelia-violet-2:#8b6bf0;--adelia-ink:#211b2d;--adelia-muted:#777084;--adelia-line:#e9e4f1;--adelia-surface:#fff;--adelia-soft:#f7f4fc;--adelia-shadow:0 18px 50px rgba(49,35,88,.10)}
+#app{padding-bottom:32px}
+#app>.error,#app .error{border-radius:16px;padding:14px 16px;background:#fff5f2;border:1px solid #ffd8cd;color:#8e3b24}
+.finance-head,.invoice-hero,.schedule-settings-hero,.messages-hero,.formula-hero{border-radius:28px!important;box-shadow:var(--adelia-shadow);overflow:hidden}
+.hw-plus-tabs,.finance-tabs,.invoice-tabs{gap:8px;flex-wrap:wrap}
+.hw-plus-tabs button,.finance-tabs button,.invoice-tabs button{min-height:42px;border-radius:14px!important;padding:0 16px!important}
+.finance-card,.finance-panel,.finance-history article,.invoice-card,.student-card,.clean-card{border-radius:20px!important;border:1px solid var(--adelia-line)!important;box-shadow:0 8px 24px rgba(49,35,88,.06)!important;background:var(--adelia-surface)!important}
+.finance-history article{padding:16px 18px!important;gap:14px}.finance-history article+article{margin-top:10px}
+.finance-kpis{gap:12px!important}.finance-kpis article{border-radius:20px!important;min-height:128px;padding:18px!important;border:1px solid var(--adelia-line)!important;background:linear-gradient(180deg,#fff,#fbf9ff)!important}
+.finance-kpis strong{font-size:clamp(26px,4vw,40px)!important;letter-spacing:-.03em}
+#financeBody .empty,#app .empty{border:1px dashed #d9d0e8;border-radius:18px;padding:28px 20px;background:#fbfaff;color:var(--adelia-muted);text-align:center}
+#app input,#app select,#app textarea{border-radius:15px!important;border:1px solid #ddd7e8!important;background:#fff!important;box-shadow:none!important}
+#app input:focus,#app select:focus,#app textarea:focus{border-color:#8e72eb!important;box-shadow:0 0 0 4px rgba(112,72,216,.10)!important;outline:0!important}
+#app button.primary,#app .primary,#app button.new-hw{border-radius:15px!important;box-shadow:0 10px 26px rgba(112,72,216,.20)}
+/* Messages: prevent iOS keyboard from turning composer into a full-screen block. */
+#app textarea{max-height:160px;resize:vertical}
+#app .message-compose textarea,#app .messages-compose textarea,#app textarea[placeholder*="сообщ"]{min-height:92px!important;height:92px!important;max-height:140px!important}
+/* Schedule save bar: compact sticky footer instead of an opaque sheet covering the timetable. */
+#app .schedule-save-bar,#app .schedule-sticky-save,#app .working-hours-save,#app [data-schedule-save-bar]{position:sticky!important;bottom:max(10px,env(safe-area-inset-bottom))!important;z-index:20!important;margin:18px auto 0!important;width:min(760px,calc(100% - 20px))!important;padding:12px 14px!important;border:1px solid rgba(112,72,216,.16)!important;border-radius:20px!important;background:rgba(255,255,255,.94)!important;backdrop-filter:blur(18px)!important;box-shadow:0 16px 42px rgba(49,35,88,.16)!important}
+/* More consistent section spacing */
+#app>section+section,#app>div+section{margin-top:18px}
+@media(max-width:760px){
+  .teacher-shell main{min-width:0}.teacher-shell main>header{padding-left:116px!important;padding-right:16px!important;min-height:112px!important;align-items:center!important}.teacher-shell main>header h1{font-size:clamp(28px,8vw,42px)!important;line-height:1!important}.teacher-shell main>header small{font-size:12px!important;letter-spacing:.16em!important}.header-actions{gap:8px!important;flex-wrap:wrap!important;justify-content:flex-end!important}.header-actions .soft{min-height:40px!important;padding:0 12px!important}.header-actions .new-hw{min-height:46px!important;padding:0 16px!important}
+  #app{padding:0 14px calc(28px + env(safe-area-inset-bottom))!important}
+  .finance-head,.invoice-hero,.schedule-settings-hero,.messages-hero,.formula-hero{border-radius:24px!important}
+  .finance-kpis{grid-template-columns:1fr 1fr!important}.finance-kpis article{min-height:112px!important;padding:14px!important}.finance-kpis article span{font-size:12px!important}.finance-kpis strong{font-size:25px!important}
+  .finance-history article{align-items:flex-start!important}.finance-history article>span{text-align:right;min-width:88px}
+  .finance-student-toolbar,.form-row{grid-template-columns:1fr!important}
+  #app .message-compose,#app .messages-compose{padding-bottom:max(10px,env(safe-area-inset-bottom))!important}
+  #app .message-compose textarea,#app .messages-compose textarea,#app textarea[placeholder*="сообщ"]{font-size:16px!important;min-height:86px!important;height:86px!important}
+}
+@media(max-width:430px){.finance-kpis{grid-template-columns:1fr!important}.finance-kpis article{min-height:auto!important}.header-actions .soft[data-install-adelia]{display:none}}
