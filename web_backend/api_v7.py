@@ -1,4 +1,4 @@
-"""Adelia web API v7: groups, Google reconnect and Telemost lifecycle."""
+"""Adelia web API v7: groups, Google reconnect, Telemost lifecycle and Web Push."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,13 +11,20 @@ from web_backend import event_campaign, formula_schema_repair, google_calendar_o
 from web_backend import group_lessons, group_lesson_access, group_portal, open_event_admin
 from web_backend import lesson_join, otp_secret, public_trial_access, public_trial_channel
 from web_backend import student_onboarding, student_regular_booking, student_social_profile
-from web_backend import telemost_runtime, telemost_settings, web_push
+from web_backend import telemost_runtime, telemost_settings, web_push, monthly_allowance
 from web_backend.stage12_indexes import ensure_indexes
 
 class Handler(api_v6.Handler):
-    server_version="AdeliaWeb/7.9"
+    server_version="AdeliaWeb/7.10"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
+    def _teacher_registration_push(self,user_id):
+        try:
+            import database
+            user=database.get_user(int(user_id));name=str(user['name'] or 'Новый ученик') if user else 'Новый ученик'
+            conn=database.connect();rows=conn.execute("SELECT DISTINCT entity_id FROM web_push_subscriptions WHERE role='teacher' AND enabled=1").fetchall();conn.close()
+            for row in rows:web_push.send('teacher',int(row['entity_id']),'👋 Новый ученик зарегистрировался',f'{name} завершил регистрацию на сайте. Откройте карточку ученика, чтобы посмотреть данные.','/teacher/','adelia-registration',{'type':'registration','user_id':int(user_id)})
+        except Exception as exc:print('[web-api] registration push error:',type(exc).__name__,repr(exc),flush=True)
     def do_GET(self):
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
         if path=="/api/push/status":
@@ -65,14 +72,30 @@ class Handler(api_v6.Handler):
             body=self._body()
             if body is None:return self._json(400,{"error":"invalid_json"})
             try:
-                if path.endswith('/subscribe'):
-                    return self._json(200,web_push.subscribe(auth,body.get('subscription'),self.headers.get('User-Agent')))
-                if path.endswith('/unsubscribe'):
-                    return self._json(200,web_push.unsubscribe(auth,body.get('endpoint')))
+                if path.endswith('/subscribe'):return self._json(200,web_push.subscribe(auth,body.get('subscription'),self.headers.get('User-Agent')))
+                if path.endswith('/unsubscribe'):return self._json(200,web_push.unsubscribe(auth,body.get('endpoint')))
                 return self._json(200,web_push.send_test(auth))
             except PermissionError:return self._json(401,{"error":"unauthorized"})
             except ValueError as exc:return self._json(400,{"error":str(exc)})
             except Exception as exc:print("[web-api] push POST error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
+        if path=="/api/teacher/crm/student/monthly-allowance":
+            if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
+            if not self._teacher():return self._json(401,{"error":"unauthorized"})
+            body=self._body()
+            if body is None:return self._json(400,{"error":"invalid_json"})
+            try:return self._json(200,monthly_allowance.configure(int(body.get('user_id')),int(body.get('lessons_per_month') or 0),body.get('active',True),body.get('label'),body.get('grant_now',True)))
+            except (TypeError,ValueError) as exc:return self._json(409,{"error":str(exc)or"invalid_request"})
+            except Exception as exc:print('[web-api] monthly allowance error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
+        if path=="/api/onboarding/complete":
+            if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
+            if not v1._allowed(self.client_address[0]):return self._json(429,{"error":"too_many_attempts"})
+            body=self._body()
+            if body is None:return self._json(400,{"error":"invalid_json"})
+            try:
+                result=student_onboarding.complete(body.get('token'),body.get('login'),body.get('password'),body.get('continuation_code'));self._teacher_registration_push(result['user_id']);return self._json(200,{'status':'ok','user_id':result['user_id'],'login':result['login'],'redirect':result['redirect'],'schedule_request_ids':result.get('schedule_request_ids',[])},cookie=result['session_token'])
+            except PermissionError as exc:return self._json(403,{'error':str(exc)or'forbidden'})
+            except ValueError as exc:return self._json(409,{'error':str(exc)or'invalid_request'})
+            except Exception as exc:print('[web-api] onboarding complete error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path in {"/api/teacher/lesson/open-entry","/api/teacher/lesson/mark-arrived","/api/teacher/lesson/finish"}:
             if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
             if not self._teacher():return self._json(401,{"error":"unauthorized"})
@@ -105,8 +128,7 @@ class Handler(api_v6.Handler):
             body=self._body()
             if body is None:return self._json(400,{"error":"invalid_json"})
             try:
-                lid=int(body.get("lesson_id"));uid=int(student["id"])
-                result=group_lesson_access.set_student_rsvp(lid,uid,body.get("status")) if path.endswith("group-lesson/rsvp") else lesson_join.set_attendance_intent(lid,uid,body.get("status"));return self._json(200,result)
+                lid=int(body.get("lesson_id"));uid=int(student["id"]);result=group_lesson_access.set_student_rsvp(lid,uid,body.get("status")) if path.endswith("group-lesson/rsvp") else lesson_join.set_attendance_intent(lid,uid,body.get("status"));return self._json(200,result)
             except PermissionError as exc:return self._json(403,{"error":str(exc)or"forbidden"})
             except (TypeError,ValueError) as exc:return self._json(409,{"error":str(exc)or"invalid_request"})
         if path=="/api/teacher/telemost/settings":
@@ -144,5 +166,5 @@ class Handler(api_v6.Handler):
 
 def main():
     if not otp_secret.configured():raise SystemExit("ADELIA_OTP_SECRET must be set to at least 32 bytes")
-    ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();web_push.ensure_schema();print(f"Adelia web API v7.9 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+    ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();web_push.ensure_schema();monthly_allowance.ensure_schema();print(f"Adelia web API v7.10 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=="__main__":main()
