@@ -34,7 +34,7 @@ def _dummy_password_work(password):hashlib.pbkdf2_hmac('sha256',str(password or 
 def has_student_credentials(student_id):
  ensure_student_web_login_table();conn=connect();row=conn.execute('SELECT 1 FROM student_web_credentials WHERE student_id=? LIMIT 1',(int(student_id),)).fetchone();conn.close();return bool(row)
 def _validate_credential_change(student_id,login,password):
- ensure_student_web_login_table();student_id=int(student_id);login=_normalize_login(login);password=_validate_password(password);conn=connect();student=conn.execute('SELECT id FROM users WHERE id=? AND active=1 LIMIT 1',(student_id,)).fetchone()
+ ensure_student_web_login_table();student_id=int(student_id);login=_normalize_login(login);password=_validate_password(password);conn=connect();student=conn.execute('SELECT id FROM users WHERE id=? LIMIT 1',(student_id,)).fetchone()
  if not student:conn.close();raise ValueError('student_not_found')
  owner=conn.execute('SELECT student_id FROM student_web_credentials WHERE login=? COLLATE NOCASE LIMIT 1',(login,)).fetchone();conn.close()
  if owner and int(owner['student_id'])!=student_id:raise ValueError('login_taken')
