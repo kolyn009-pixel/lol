@@ -1,18 +1,23 @@
 """Receipt review facade over TutorBot's existing receipts/payments flow.
 
-Browser responses deliberately exclude Telegram identifiers. Web receipt files
-are exposed only through authenticated teacher API routes, never as public paths.
+Browser responses deliberately exclude Telegram identifiers. Receipt files are
+exposed only through authenticated teacher API routes, never as public paths.
+WEB, Telegram and VK receipts can all be reopened from the teacher cabinet.
 """
 from __future__ import annotations
 from pathlib import Path
 from database import connect,approve_payment,reject_payment,approve_paid_booking_draft_payment
 from core import schedule_sync
+from web_backend import receipt_cloud_archive
 
 
 def _limit(v,default=100):
     try:v=int(v)
     except Exception:v=default
     return max(1,min(v,500))
+
+def _viewable_source(source):
+    return str(source or '').upper() in {'WEB','TELEGRAM','TG','TELEGRAM_PARENT','VK'}
 
 def list_receipts(status='WAITING',limit=100):
     status=str(status or 'WAITING').upper()
@@ -37,24 +42,38 @@ def list_receipts(status='WAITING',limit=100):
     except Exception:
         sql=sql.replace(",\n        COALESCE(a.status,'UNTRACKED') archive_status,a.archived_at,a.verified_at","").replace("\n      LEFT JOIN receipt_cloud_archives a ON a.receipt_id=r.id","")
         rows=conn.execute(sql,params).fetchall();result=[]
-        for r in rows:item=dict(r);item['archive_status']='UNTRACKED';item['archived_at']=None;item['verified_at']=None;item['can_view_file']=str(item.get('source_platform') or '').upper()=='WEB';result.append(item)
+        for r in rows:
+            item=dict(r);item['archive_status']='UNTRACKED';item['archived_at']=None;item['verified_at']=None;item['can_view_file']=_viewable_source(item.get('source_platform'));result.append(item)
         conn.close();return result
     conn.close();result=[]
     for r in rows:
-        item=dict(r);item['can_view_file']=str(item.get('source_platform') or '').upper()=='WEB';result.append(item)
+        item=dict(r);item['can_view_file']=_viewable_source(item.get('source_platform'));result.append(item)
     return result
 
 def web_receipt_file(receipt_id):
-    conn=connect();row=conn.execute("SELECT id,file_id,file_type,source_platform FROM receipts WHERE id=?",(int(receipt_id),)).fetchone();conn.close()
-    if not row:raise ValueError('receipt_not_found')
-    if str(row['source_platform'] or '').upper()!='WEB':raise ValueError('receipt_file_not_local')
-    path=Path(str(row['file_id'] or ''))
-    root=Path('/opt/tutorbot/data/web_receipts').resolve()
-    try:resolved=path.resolve()
-    except Exception:raise ValueError('receipt_file_invalid') from None
-    if root not in resolved.parents or not resolved.is_file():raise ValueError('receipt_file_not_found')
-    suffix=resolved.suffix.lower();mime={'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','pdf':'application/pdf'}.get(suffix.lstrip('.'),'application/octet-stream')
-    return resolved,mime
+    """Return any supported receipt as bytes-backed temporary file metadata.
+
+    The historical function name is kept because API v4 already calls it. For
+    WEB receipts this reads the protected local file. Telegram/VK receipts are
+    resolved through the durable receipt archive reader, using the same guarded
+    source adapters as the archive worker.
+    """
+    rid=int(receipt_id);item=receipt_cloud_archive._receipt(rid)
+    if not item:raise ValueError('receipt_not_found')
+    src=str(item.get('source_platform') or '').upper()
+    if not _viewable_source(src):raise ValueError('receipt_source_not_supported')
+    try:data=receipt_cloud_archive._receipt_bytes(item)
+    except Exception as exc:raise ValueError(str(exc) or 'receipt_file_not_found') from None
+    if not data:raise ValueError('receipt_file_not_found')
+    ext=receipt_cloud_archive._ext(item).lower();suffix='.'+ext
+    mime={'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp','pdf':'application/pdf'}.get(ext,'application/octet-stream')
+    # API v4 expects a Path-like object and calls read_bytes(). Write only into
+    # the private receipt-view cache, never under the public web root.
+    root=Path('/opt/tutorbot/data/receipt_view_cache');root.mkdir(parents=True,exist_ok=True)
+    path=root/f'receipt_{rid}{suffix}';path.write_bytes(data)
+    try:path.chmod(0o600)
+    except OSError:pass
+    return path,mime
 
 def archive_summary():
     conn=connect()
@@ -68,7 +87,7 @@ def summary():
     conn=connect();rows=conn.execute('SELECT status,COUNT(*) c FROM receipts GROUP BY status').fetchall();waiting_amount=conn.execute("SELECT COALESCE(SUM(p.total_amount),0) s FROM receipts r JOIN payments p ON p.id=r.payment_id AND p.user_id=r.user_id WHERE r.status='WAITING' AND p.status IN ('WAITING','PENDING','RECEIPT_SENT')").fetchone();conn.close();counts={str(r['status']).upper():int(r['c'] or 0) for r in rows};return {'waiting':counts.get('WAITING',0),'approved':counts.get('APPROVED',0),'rejected':counts.get('REJECTED',0),'waiting_amount':int(waiting_amount['s'] or 0),'archive':archive_summary()}
 
 def review(payment_id,action):
-    pid=int(payment_id);action=str(action or '').upper();conn=connect();row=conn.execute('SELECT id,status FROM payments WHERE id=?',(pid,)).fetchone();receipt=conn.execute('SELECT id,status FROM receipts WHERE payment_id=? ORDER BY id DESC LIMIT 1',(pid,)).fetchone();conn.close()
+    pid=int(payment_id);action=str(action or '').upper();conn=connect();row=conn.execute('SELECT id,status,user_id,total_amount FROM payments WHERE id=?',(pid,)).fetchone();receipt=conn.execute('SELECT id,status FROM receipts WHERE payment_id=? ORDER BY id DESC LIMIT 1',(pid,)).fetchone();conn.close()
     if not row:raise ValueError('payment_not_found')
     if not receipt:raise ValueError('receipt_not_found')
     if action=='APPROVE':
@@ -77,16 +96,23 @@ def review(payment_id,action):
         if draft_result is not None:
             package_id,draft_lesson_id=draft_result
             sync_error=None
-            try:
-                schedule_sync.sync_lessons_blocking([int(draft_lesson_id)])
+            try:schedule_sync.sync_lessons_blocking([int(draft_lesson_id)])
             except Exception as exc:
-                sync_error=type(exc).__name__
-                print('WEB PAID BOOKING LESSON SYNC ERROR:',pid,sync_error,flush=True)
+                sync_error=type(exc).__name__;print('WEB PAID BOOKING LESSON SYNC ERROR:',pid,sync_error,flush=True)
             result={'status':'ok','payment_id':pid,'package_id':package_id,'draft_lesson_id':draft_lesson_id,'result':'PAID'}
             if sync_error:result['sync_warning']=sync_error
-            return result
-        package_id=approve_payment(pid);return {'status':'ok','payment_id':pid,'package_id':package_id,'result':'PAID'}
+            _notify_review(row,True);return result
+        package_id=approve_payment(pid);_notify_review(row,True);return {'status':'ok','payment_id':pid,'package_id':package_id,'result':'PAID'}
     if action=='REJECT':
         if str(row['status']).upper()=='REJECTED':return {'status':'ok','payment_id':pid,'already_processed':True,'result':'REJECTED'}
-        reject_payment(pid);return {'status':'ok','payment_id':pid,'result':'REJECTED'}
+        reject_payment(pid);_notify_review(row,False);return {'status':'ok','payment_id':pid,'result':'REJECTED'}
     raise ValueError('invalid_review_action')
+
+def _notify_review(payment_row,approved):
+    try:
+        from web_backend import push_events
+        uid=int(payment_row['user_id']);amount=int(payment_row['total_amount'] or 0);money=f'{amount:,} ₽'.replace(',',' ')
+        if approved:title='✅ Оплата подтверждена';body=f'{money} · чек принят. Баланс и статус оплаты обновлены.'
+        else:title='⚠️ Чек нужно отправить повторно';body=f'{money} · чек отклонён. Откройте Аделию и прикрепите корректный чек.'
+        push_events.student_and_parents(uid,title,body,'/app/','/app/parent/',f'payment-review-{int(payment_row["id"])}',{'type':'payment_review','payment_id':int(payment_row['id']),'approved':bool(approved)})
+    except Exception as exc:print('[web-api] payment review push error:',type(exc).__name__,repr(exc),flush=True)
