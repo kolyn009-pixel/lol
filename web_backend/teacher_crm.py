@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from database import connect, get_user, now_iso
 import education_profile
+from core import minute_balance
+from web_backend import monthly_allowance
 RATE_FIELDS={"ege_physics_rate","oge_physics_rate","oge_chemistry_rate","olympiad_physics_rate","school_physics_rate","school_chemistry_rate"}
 PROFILE_FIELDS={"grade","study_goal","main_subject","phone","board_url","parent_name","parent_phone","education_type","education_level"}
 EDITABLE_FIELDS=RATE_FIELDS|PROFILE_FIELDS
@@ -47,7 +49,19 @@ def students(search=None,status=None,limit=200):
 def student(user_id):
     education_profile.initialize();uid=int(user_id);user=get_user(uid)
     if not user:return None
-    conn=connect();now=datetime.now().isoformat(timespec="seconds");stats=conn.execute("""SELECT (SELECT COUNT(*) FROM lessons WHERE user_id=? AND lesson_status='COMPLETED') lessons_completed,(SELECT COUNT(*) FROM homework WHERE user_id=? AND status IN ('ASSIGNED','SUBMITTED','UNDER_REVIEW','REVISION')) homework_open,(SELECT COUNT(*) FROM homework_submissions WHERE user_id=? AND status='SUBMITTED') submissions_waiting,(SELECT COALESCE(SUM(total_amount),0) FROM payments WHERE user_id=? AND status IN ('WAITING','PENDING')) payment_waiting""",(uid,uid,uid,uid)).fetchone();next_lesson=conn.execute("""SELECT id,start_time,end_time,duration_minutes,subject,study_goal,lesson_status,payment_status,price FROM lessons WHERE user_id=? AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED') ORDER BY start_time LIMIT 1""",(uid,now)).fetchone();recent=conn.execute("""SELECT id,start_time,duration_minutes,actual_duration_minutes,subject,study_goal,lesson_status,payment_status,price FROM lessons WHERE user_id=? ORDER BY start_time DESC LIMIT 8""",(uid,)).fetchall();conn.close();allowed=["id","name","grade","study_goal","main_subject","telegram_username","phone","board_url","parent_name","parent_phone","education_type","education_level","extra_minutes_balance","bonus_lessons_earned",*sorted(RATE_FIELDS)];profile={k:user[k] for k in allowed if k in user.keys()};profile.update(_education(user));return {"student":profile,"stats":dict(stats),"next_lesson":_dict(next_lesson),"recent_lessons":[dict(r) for r in recent]}
+    conn=connect();now=datetime.now().isoformat(timespec="seconds")
+    stats=conn.execute("""SELECT (SELECT COUNT(*) FROM lessons WHERE user_id=? AND lesson_status='COMPLETED') lessons_completed,(SELECT COUNT(*) FROM homework WHERE user_id=? AND status IN ('ASSIGNED','SUBMITTED','UNDER_REVIEW','REVISION')) homework_open,(SELECT COUNT(*) FROM homework_submissions WHERE user_id=? AND status='SUBMITTED') submissions_waiting,(SELECT COALESCE(SUM(total_amount),0) FROM payments WHERE user_id=? AND status IN ('WAITING','PENDING')) payment_waiting""",(uid,uid,uid,uid)).fetchone()
+    next_lesson=conn.execute("""SELECT id,start_time,end_time,duration_minutes,subject,study_goal,lesson_status,payment_status,price FROM lessons WHERE user_id=? AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED') ORDER BY start_time LIMIT 1""",(uid,now)).fetchone()
+    recent=conn.execute("""SELECT id,start_time,duration_minutes,actual_duration_minutes,subject,study_goal,lesson_status,payment_status,price FROM lessons WHERE user_id=? ORDER BY start_time DESC LIMIT 12""",(uid,)).fetchall()
+    homework=conn.execute("""SELECT id,title,status,deadline,created_at FROM homework WHERE user_id=? ORDER BY created_at DESC LIMIT 12""",(uid,)).fetchall()
+    payments=conn.execute("""SELECT id,subject,study_goal,payment_type,status,total_amount,lessons_count,created_at,confirmed_at FROM payments WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 12""",(uid,)).fetchall();conn.close()
+    allowed=["id","name","grade","study_goal","main_subject","telegram_username","phone","board_url","parent_name","parent_phone","education_type","education_level","extra_minutes_balance","bonus_lessons_earned",*sorted(RATE_FIELDS)]
+    profile={k:user[k] for k in allowed if k in user.keys()};profile.update(_education(user));profile['next_lesson']=next_lesson['start_time'] if next_lesson else None
+    try:balance=minute_balance.get_balance(uid)
+    except Exception:balance={"paid":0,"bonus":0,"total":0}
+    try:allowance=monthly_allowance.status(uid)
+    except Exception:allowance={"configured":False,"active":False,"lessons_per_month":0}
+    return {"student":profile,"stats":dict(stats),"next_lesson":_dict(next_lesson),"recent_lessons":[dict(r) for r in recent],"lessons":[dict(r) for r in recent],"homework":[dict(r) for r in homework],"payments":[dict(r) for r in payments],"balance":balance,"monthly_allowance":allowance}
 
 def update_student(user_id,fields):
     education_profile.initialize();uid=int(user_id);user=get_user(uid)
