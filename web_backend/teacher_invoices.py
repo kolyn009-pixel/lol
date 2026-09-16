@@ -2,13 +2,15 @@
 
 Invoices reuse the canonical lesson-payment model. Creating an invoice is
 idempotent because student_finance.create_lesson_payment reuses an existing
-payment linked to the same lesson.
+payment linked to the same lesson. A successful issue also attempts a PWA push
+notification; notification failures never block invoice creation.
 """
 from __future__ import annotations
 
 from datetime import datetime
 
 import database
+from web_backend import web_push
 from web_backend.student_finance import create_lesson_payment
 
 
@@ -32,6 +34,23 @@ def _lesson_price(row):
     hourly=int(row['hourly_rate'] or 0) if 'hourly_rate' in keys else 0
     duration=int(row['duration_minutes'] or 60) if 'duration_minutes' in keys else 60
     return round(hourly*duration/60) if hourly>0 else 0
+
+
+def _notify_invoice(user_id,lesson_id,result,row):
+    amount=int(result.get('total_amount') or result.get('amount') or _lesson_price(row) or 0)
+    subject={'PHYSICS':'Физика','CHEMISTRY':'Химия'}.get(str(row['subject'] or '').upper(),str(row['subject'] or 'занятие'))
+    try:
+        start=datetime.fromisoformat(str(row['start_time']))
+        when=start.strftime('%d.%m в %H:%M')
+    except Exception:
+        when='ближайшее занятие'
+    body=f'{subject} · {when}'
+    if amount>0:
+        body+=f' · к оплате {amount:,} ₽'.replace(',', ' ')
+    try:
+        return web_push.send('student',int(user_id),'Новый счёт в Аделии',body,'/app/',f'invoice-{int(lesson_id)}',{'lesson_id':int(lesson_id),'type':'invoice'})
+    except Exception as exc:
+        return {'status':'failed','sent':0,'failed':1,'error':type(exc).__name__}
 
 
 def candidates(limit=100):
@@ -98,7 +117,9 @@ def issue(lesson_id):
     except ValueError as exc:
         if str(exc)=='lesson_already_started':
             raise
-    result=create_lesson_payment(int(row['user_id']),lid)
+    uid=int(row['user_id'])
+    result=create_lesson_payment(uid,lid)
     result['lesson_id']=lid
-    result['user_id']=int(row['user_id'])
+    result['user_id']=uid
+    result['notification']=_notify_invoice(uid,lid,result,row)
     return result
