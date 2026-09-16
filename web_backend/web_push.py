@@ -2,7 +2,7 @@
 
 Secrets are provided only through environment variables:
  ADELIA_VAPID_PUBLIC_KEY  - URL-safe base64 public key for PushManager
- ADELIA_VAPID_PRIVATE_KEY - PEM or URL-safe base64 private key accepted by pywebpush
+ ADELIA_VAPID_PRIVATE_KEY - PEM, escaped PEM, DER key, or PEM file path accepted by pywebpush
  ADELIA_VAPID_SUBJECT     - mailto: or https: contact (default site URL)
 """
 from __future__ import annotations
@@ -23,7 +23,17 @@ def public_key():
 
 
 def private_key():
-    return str(os.getenv('ADELIA_VAPID_PRIVATE_KEY') or '').strip()
+    value=str(os.getenv('ADELIA_VAPID_PRIVATE_KEY') or '').strip()
+    if not value:
+        return ''
+    # Preferred production format is an absolute path to a protected PEM file.
+    if os.path.isfile(value):
+        return value
+    # Backwards compatibility: early Adelia deployments stored a PEM in an env
+    # file with literal "\\n" separators. Convert that representation to PEM.
+    if '-----BEGIN' in value and '\\n' in value:
+        return value.replace('\\n','\n')
+    return value
 
 
 def subject():
@@ -117,11 +127,12 @@ def send(role,entity_id,title,body,url='/app/',tag=None,data=None):
             webpush(subscription_info=_subscription_info(row),data=payload,vapid_private_key=private_key(),vapid_claims={'sub':subject()})
             conn.execute('UPDATE web_push_subscriptions SET last_success_at=?,last_error=NULL,updated_at=? WHERE id=?',(now,now,int(row['id'])));sent+=1
         except WebPushException as exc:
-            failed+=1;code=getattr(getattr(exc,'response',None),'status_code',None);err=f'{type(exc).__name__}:{code or ""}'[:300]
+            failed+=1;code=getattr(getattr(exc,'response',None),'status_code',None);detail=str(exc).replace('\n',' ')[:220];err=f'{type(exc).__name__}:{code or ""}:{detail}'[:300]
             disable=code in {404,410}
             conn.execute('UPDATE web_push_subscriptions SET enabled=?,last_error=?,updated_at=? WHERE id=?',(0 if disable else 1,err,now,int(row['id'])))
         except Exception as exc:
-            failed+=1;conn.execute('UPDATE web_push_subscriptions SET last_error=?,updated_at=? WHERE id=?',(type(exc).__name__[:300],now,int(row['id'])))
+            failed+=1;detail=str(exc).replace('\n',' ')[:240];err=f'{type(exc).__name__}:{detail}'[:300]
+            conn.execute('UPDATE web_push_subscriptions SET last_error=?,updated_at=? WHERE id=?',(err,now,int(row['id'])))
     conn.commit();conn.close();return {'status':'ok','sent':sent,'failed':failed}
 
 
