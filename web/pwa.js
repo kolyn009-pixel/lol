@@ -3,6 +3,8 @@
   let swRegistration=null;
   const standalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
   const ios=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;
+  const teacherScope=()=>location.pathname.startsWith('/teacher/');
+  const swConfig=()=>teacherScope()?{url:'/teacher/teacher-service-worker.js',scope:'/teacher/'}:{url:'/app/service-worker.js',scope:'/app/'};
   const notificationSupported=()=>typeof window.Notification!=='undefined'&&typeof Notification.requestPermission==='function';
   const pushSupported=()=>notificationSupported()&&'serviceWorker' in navigator&&'PushManager' in window;
   const permission=()=>notificationSupported()?Notification.permission:'unsupported';
@@ -12,14 +14,15 @@
 
   async function serviceWorkerReady(){
     if(!('serviceWorker' in navigator))throw new Error('service_worker_unsupported');
-    if(swRegistration?.active)return swRegistration;
-    let reg=await navigator.serviceWorker.getRegistration('/app/');
-    if(!reg)reg=await navigator.serviceWorker.register('/app/service-worker.js',{scope:'/app/'});
+    const cfg=swConfig();
+    if(swRegistration?.active&&swRegistration.scope.endsWith(cfg.scope))return swRegistration;
+    let reg=await navigator.serviceWorker.getRegistration(cfg.scope);
+    if(!reg)reg=await navigator.serviceWorker.register(cfg.url,{scope:cfg.scope});
     swRegistration=reg;
     if(reg.active)return reg;
     const worker=reg.installing||reg.waiting;
     if(worker){await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('service_worker_activation_timeout')),10000);const done=()=>{if(worker.state==='activated'){clearTimeout(timer);resolve()}else if(worker.state==='redundant'){clearTimeout(timer);reject(new Error('service_worker_redundant'))}};worker.addEventListener('statechange',done);done()})}
-    reg=await navigator.serviceWorker.getRegistration('/app/')||reg;swRegistration=reg;if(!reg.active)throw new Error('service_worker_not_active');return reg;
+    reg=await navigator.serviceWorker.getRegistration(cfg.scope)||reg;swRegistration=reg;if(!reg.active)throw new Error('service_worker_not_active');return reg;
   }
   async function currentSubscription(){if(!pushSupported())return null;const reg=await serviceWorkerReady();return reg.pushManager.getSubscription()}
   async function persistSubscription(subscription){const saved=await api('/api/push/subscribe',{method:'POST',body:JSON.stringify({subscription:subscription.toJSON()})});window.dispatchEvent(new CustomEvent('adelia:push-state',{detail:{status:'subscribed',subscription_id:saved.subscription_id}}));removePushAction();removeNotificationCard();return {status:'subscribed',subscription_id:saved.subscription_id}}
@@ -40,6 +43,6 @@
 
   window.AdeliaPWA={isStandalone:standalone,isIOS:ios,canInstall:()=>!!deferredPrompt||(!standalone()&&ios()),notificationPermission:permission,requestNotifications,syncPushSubscription,subscribeFromGesture,testPush,showNotificationPrompt:()=>showNotificationCard(true),async install(){if(standalone())return {status:'installed'};if(!deferredPrompt){if(ios())return {status:'manual',message:'В Safari нажмите «Поделиться», затем «На экран Домой».'};return {status:'unavailable'}}const prompt=deferredPrompt;deferredPrompt=null;await prompt.prompt();const choice=await prompt.userChoice.catch(()=>null);window.dispatchEvent(new CustomEvent('adelia:pwa-state'));return {status:choice?.outcome||'dismissed'}}};
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event});window.addEventListener('appinstalled',()=>{deferredPrompt=null});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/app/service-worker.js',{scope:'/app/'}).then(async reg=>{swRegistration=reg;if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});if(Notification.permission==='granted'){try{const result=await syncExistingSubscription();if(result.status==='user_gesture_required')mountPushAction()}catch(err){showPushRecoveryCard(err)}}}).catch(err=>{if(Notification.permission==='granted')showPushRecoveryCard(err)})})}
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>{const cfg=swConfig();navigator.serviceWorker.register(cfg.url,{scope:cfg.scope}).then(async reg=>{swRegistration=reg;if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});if(Notification.permission==='granted'){try{const result=await syncExistingSubscription();if(result.status==='user_gesture_required')mountPushAction()}catch(err){showPushRecoveryCard(err)}}}).catch(err=>{if(Notification.permission==='granted')showPushRecoveryCard(err)})})}
   window.addEventListener('load',()=>setTimeout(()=>showNotificationCard(false),1600));
 })();
