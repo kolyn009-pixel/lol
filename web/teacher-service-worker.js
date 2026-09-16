@@ -1,7 +1,8 @@
-const CACHE='adelia-teacher-shell-v2';
+const CACHE='adelia-teacher-shell-v3';
 const ICON='/adelia-apple-touch-icon-180.png';
 const BADGE='/adelia-favicon-32.png';
 const TYPE_META={
+ registration:{emoji:'👋',title:'Новый ученик'},
  invoice:{emoji:'💳',title:'Счёт отправлен'},
  payment:{emoji:'💰',title:'Поступила оплата'},
  receipt:{emoji:'🧾',title:'Новый чек'},
