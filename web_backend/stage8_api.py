@@ -11,7 +11,7 @@ class Stage8Mixin:
         if not path.startswith('/api/teacher/finance/'):return False
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:
-            if path=='/api/teacher/finance/dashboard':return self._json(200,dashboard(q.get('start',[None])[0],q.get('end',[None])[0]))
+            if path=='/api/teacher/finance/dashboard':return self._json(200,dashboard(q.get('start',[None])[0],q.get('end',[None])[0],q.get('period',[None])[0]))
             if path=='/api/teacher/finance/calendar-analytics':return self._json(200,calendar_analytics())
             if path=='/api/teacher/finance/receipts':return self._json(200,{'summary':receipt_summary(),'items':list_receipts(q.get('status',['WAITING'])[0],q.get('limit',[100])[0])})
             if path=='/api/teacher/finance/invoices':return self._json(200,teacher_invoices.candidates(q.get('limit',[100])[0]))
