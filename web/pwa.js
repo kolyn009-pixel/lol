@@ -39,6 +39,10 @@
   function removeNotificationCard(){document.getElementById('adeliaNotificationCard')?.remove()}
   function dismissed(){try{return localStorage.getItem(DISMISSED_KEY)==='1'}catch(_){return false}}
   function markDismissed(){try{localStorage.setItem(DISMISSED_KEY,'1')}catch(_){}}
+  function reconcileNotificationCard(){
+    if(!notificationSupported())return;
+    if(Notification.permission!=='default')removeNotificationCard();
+  }
   function notificationCopy(){
     if(ios()&&!standalone())return {title:'Включить уведомления Аделии',text:'На iPhone уведомления доступны после установки Аделии на экран «Домой».',action:'Как установить',mode:'install',note:'После установки откройте Аделию с домашнего экрана — там появится системный запрос.'};
     return {title:'Не пропускайте занятия и оплату',text:'Разрешите Аделии присылать уведомления о занятиях, домашних заданиях и важных изменениях.',action:'Включить уведомления',mode:'permission',note:'Разрешение можно изменить позже в настройках устройства.'};
@@ -50,11 +54,16 @@
       let result=Notification.permission;
       if(result==='default')result=await Notification.requestPermission();
       window.dispatchEvent(new CustomEvent('adelia:notification-permission',{detail:{permission:result}}));
-      if(result==='granted')return await syncPushSubscription();
+      if(result==='granted'){
+        removeNotificationCard();
+        try{return await syncPushSubscription()}catch(err){console.warn('PWA push subscribe:',err);return {status:'granted',push_status:'sync_failed'}}
+      }
+      if(result==='denied'){markDismissed();removeNotificationCard()}
       return {status:result};
     }catch(err){return {status:'error',error:String(err&&err.message||err)}}
   }
   function showNotificationCard(force=false){
+    reconcileNotificationCard();
     if(document.getElementById('adeliaNotificationCard'))return;
     if(!force&&dismissed())return;
     if(notificationSupported()&&Notification.permission!=='default')return;
@@ -62,12 +71,15 @@
     injectNotificationStyles();const copy=notificationCopy();const root=document.createElement('section');root.id='adeliaNotificationCard';root.className='adelia-notify-card';root.setAttribute('role','dialog');root.setAttribute('aria-label',copy.title);
     root.innerHTML=`<h3>🔔 ${copy.title}</h3><p>${copy.text}</p><div class="adelia-notify-actions"><button type="button" class="adelia-notify-enable">${copy.action}</button><button type="button" class="adelia-notify-later">Позже</button></div><small class="adelia-notify-note">${copy.note}</small>`;
     root.querySelector('.adelia-notify-later').onclick=()=>{markDismissed();removeNotificationCard()};
-    root.querySelector('.adelia-notify-enable').onclick=async()=>{if(copy.mode==='install'){const result=await window.AdeliaPWA.install();if(result?.message)alert(result.message);return}const result=await requestNotifications();if(['subscribed','granted'].includes(result.status))removeNotificationCard();else if(result.status==='denied'){markDismissed();removeNotificationCard()}};
+    root.querySelector('.adelia-notify-enable').onclick=async()=>{if(copy.mode==='install'){const result=await window.AdeliaPWA.install();if(result?.message)alert(result.message);return}await requestNotifications();reconcileNotificationCard()};
     document.body.appendChild(root);
   }
   window.AdeliaPWA={isStandalone:standalone,isIOS:ios,canInstall:()=>!!deferredPrompt||(!standalone()&&ios()),notificationPermission:permission,requestNotifications,syncPushSubscription,testPush,showNotificationPrompt:()=>showNotificationCard(true),async install(){if(standalone())return {status:'installed'};if(!deferredPrompt){if(ios())return {status:'manual',message:'В Safari нажмите «Поделиться», затем «На экран Домой».'};return {status:'unavailable'}}const prompt=deferredPrompt;deferredPrompt=null;await prompt.prompt();const choice=await prompt.userChoice.catch(()=>null);window.dispatchEvent(new CustomEvent('adelia:pwa-state'));return {status:choice?.outcome||'dismissed'}}};
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;window.dispatchEvent(new CustomEvent('adelia:pwa-state'))});
   window.addEventListener('appinstalled',()=>{deferredPrompt=null;window.dispatchEvent(new CustomEvent('adelia:pwa-state'))});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/app/service-worker.js',{scope:'/app/'}).then(async reg=>{if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});if(Notification.permission==='granted'){try{await syncPushSubscription()}catch(err){console.warn('PWA push sync:',err)}}}).catch(err=>console.warn('PWA service worker:',err))});navigator.serviceWorker.addEventListener('controllerchange',()=>window.dispatchEvent(new CustomEvent('adelia:pwa-state')))}
+  window.addEventListener('adelia:notification-permission',reconcileNotificationCard);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)reconcileNotificationCard()});
+  window.addEventListener('focus',reconcileNotificationCard);
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/app/service-worker.js',{scope:'/app/'}).then(async reg=>{if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});if(Notification.permission==='granted'){removeNotificationCard();try{await syncPushSubscription()}catch(err){console.warn('PWA push sync:',err)}}}).catch(err=>console.warn('PWA service worker:',err))});navigator.serviceWorker.addEventListener('controllerchange',()=>window.dispatchEvent(new CustomEvent('adelia:pwa-state')))}
   window.addEventListener('load',()=>setTimeout(()=>showNotificationCard(false),1800));
 })();
