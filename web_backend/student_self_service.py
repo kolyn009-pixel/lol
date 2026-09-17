@@ -5,7 +5,7 @@ schedule pauses write through the same database functions used by TutorBot.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import database
 
@@ -22,6 +22,18 @@ def _schedule_owned(user_id, schedule_id):
     if not schedule or int(schedule['user_id']) != int(user_id):
         raise PermissionError('schedule_not_found')
     return schedule
+
+
+def _teacher_day_off_applies(lesson):
+    start=datetime.fromisoformat(str(lesson['start_time']));end=datetime.fromisoformat(str(lesson['end_time']))
+    for row in database.get_schedule_exceptions(start.date().isoformat()):
+        item=dict(row)
+        if str(item.get('exception_type') or '').upper()!='CLOSED':continue
+        if not item.get('start_time') or not item.get('end_time'):return True
+        sh,sm=map(int,str(item['start_time'])[:5].split(':'));eh,em=map(int,str(item['end_time'])[:5].split(':'))
+        closed_start=start.replace(hour=sh,minute=sm,second=0,microsecond=0);closed_end=start.replace(hour=eh,minute=em,second=0,microsecond=0)
+        if start<closed_end and end>closed_start:return True
+    return False
 
 
 def regular_schedules(user_id):
@@ -90,6 +102,11 @@ def sickness(user_id, lesson_id, comment=None):
 def cancel_lesson(user_id, lesson_id):
     lesson = _lesson_owned(user_id, lesson_id)
     if str(lesson['lesson_status']).upper() != 'CONFIRMED': raise ValueError('lesson_not_confirmed')
+    teacher_day_off=_teacher_day_off_applies(lesson)
+    if teacher_day_off:
+        from web_backend import teacher_lesson_actions
+        result=teacher_lesson_actions.cancel(int(lesson_id),'Выходной преподавателя — ученик выбрал отмену')
+        return {'status':'ok','lesson_id':int(lesson_id),'late':False,'teacher_day_off':True,'lesson_status':'CANCELLED','refunded':bool(result.get('refunded')),'integrations':result.get('integrations')}
     late = database.get_hours_until_lesson(lesson) < 2
     updated = database.cancel_lesson_by_student(int(lesson_id), int(user_id), late=late, reason='STUDENT_CANCEL_WEB')
     integrations = None
@@ -99,6 +116,7 @@ def cancel_lesson(user_id, lesson_id):
     except Exception as exc:
         integrations = {'google': {'status': 'error', 'error': str(exc)}, 'telemost': None}
     return {'status': 'ok', 'lesson_id': int(lesson_id), 'late': bool(late),
+            'teacher_day_off':False,
             'lesson_status': updated['lesson_status'] if updated else ('LATE_CANCELLED' if late else 'CANCELLED'),
             'integrations': integrations}
 
@@ -112,6 +130,6 @@ def request_reschedule(user_id, lesson_id, reason=None):
 
 def lesson_actions(user_id, lesson_id):
     lesson = _lesson_owned(user_id, lesson_id); status = str(lesson['lesson_status'] or '').upper()
-    if status != 'CONFIRMED': return {'can_cancel': False, 'can_reschedule': False, 'can_sickness': False, 'late_cancel': False}
-    hours = database.get_hours_until_lesson(lesson)
-    return {'can_cancel': True, 'can_reschedule': True, 'can_sickness': True, 'late_cancel': hours < 2, 'hours_until': round(float(hours), 2)}
+    if status != 'CONFIRMED': return {'can_cancel': False, 'can_reschedule': False, 'can_sickness': False, 'late_cancel': False, 'teacher_day_off':False}
+    teacher_day_off=_teacher_day_off_applies(lesson);hours = database.get_hours_until_lesson(lesson)
+    return {'can_cancel': True, 'can_reschedule': True, 'can_sickness': True, 'late_cancel': False if teacher_day_off else hours < 2, 'teacher_day_off':teacher_day_off, 'hours_until': round(float(hours), 2)}
