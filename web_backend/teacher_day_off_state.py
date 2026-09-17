@@ -51,6 +51,28 @@ def mark_lesson(lesson_id,exception_id=None):
     return mark_lessons(exception_id,[lesson_id])
 
 
+def inherit_marker(source_lesson_id,target_lesson_id):
+    """Copy an existing day-off entitlement to a replacement lesson."""
+    ensure_schema();conn=database.connect()
+    try:
+        row=conn.execute(
+            "SELECT exception_id,reason FROM teacher_day_off_lessons WHERE lesson_id=?",
+            (int(source_lesson_id),),
+        ).fetchone()
+        if not row:return False
+        conn.execute("""
+            INSERT INTO teacher_day_off_lessons(lesson_id,exception_id,marked_at,reason)
+            VALUES(?,?,?,?)
+            ON CONFLICT(lesson_id) DO UPDATE SET
+                exception_id=COALESCE(excluded.exception_id,teacher_day_off_lessons.exception_id),
+                marked_at=excluded.marked_at,
+                reason=excluded.reason
+        """,(int(target_lesson_id),row['exception_id'],database.now_iso(),row['reason'] or 'TEACHER_DAY_OFF'))
+        conn.commit();return True
+    finally:
+        conn.close()
+
+
 def is_marked(lesson_id):
     ensure_schema();conn=database.connect()
     try:
