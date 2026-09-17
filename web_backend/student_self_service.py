@@ -25,6 +25,11 @@ def _schedule_owned(user_id, schedule_id):
 
 
 def _teacher_day_off_applies(lesson):
+    try:
+        from web_backend import teacher_day_off_state
+        if teacher_day_off_state.is_marked(int(lesson['id'])):return True
+    except Exception:
+        pass
     start=datetime.fromisoformat(str(lesson['start_time']));end=datetime.fromisoformat(str(lesson['end_time']))
     for row in database.get_schedule_exceptions(start.date().isoformat()):
         item=dict(row)
