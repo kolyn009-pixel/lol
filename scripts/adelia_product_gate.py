@@ -52,8 +52,14 @@ need(parent,[
     '/app/parent/parent_clean.css','/app/parent/parent_v5.js','/app/parent/pwa.js',
     '/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'
 ],'parent')
-need(parent_pwa,["/app/parent/service-worker.js","scope:'/app/parent/'",'beforeinstallprompt'],'parent pwa')
-need(parent_sw,["/app/parent/","adelia-parent-v2"],'parent service worker')
+need(parent_pwa,[
+    "BASE='/app/parent/'",
+    "SCOPE='/app/parent/'",
+    "SW=BASE+'service-worker.js'",
+    'navigator.serviceWorker.register(SW,{scope:SCOPE})',
+    'beforeinstallprompt'
+],'parent pwa')
+need(parent_sw,["BASE='/app/parent/'","adelia-parent-v3",'notificationclick','push'],'parent service worker')
 
 manifest('web/manifest.webmanifest','/app/','/app/')
 manifest('web/teacher-manifest.webmanifest','/teacher/','/teacher/')
