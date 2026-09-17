@@ -1,4 +1,4 @@
-"""High-level Web Push fanout helpers for Adelia events."""
+"""High-level notification fanout helpers for Adelia events."""
 from __future__ import annotations
 
 import database
@@ -21,6 +21,19 @@ def _parent_ids(student_id):
     except Exception:
         return []
     finally:conn.close()
+
+
+def _messengers(student_id,title,body,telegram=True,vk=True):
+    """Best-effort duplicate to linked Telegram/VK accounts.
+
+    Kept optional so existing Web Push callers preserve their current behavior.
+    """
+    text=f"{str(title).strip()}\n\n{str(body).strip()}".strip()
+    try:
+        from vk_adapter.channel_delivery import send_student
+        return send_student(int(student_id),text,telegram=bool(telegram),vk=bool(vk))
+    except Exception as exc:
+        return {'telegram':False,'vk':False,'error':type(exc).__name__}
 
 
 def teachers(title,body,url='/teacher/',tag=None,data=None):
@@ -48,5 +61,8 @@ def parents(student_id,title,body,url='/app/parent/',tag=None,data=None):
     return {'status':'ok','targets':targets,'sent':sent,'failed':failed}
 
 
-def student_and_parents(student_id,title,body,url='/app/',parent_url='/app/parent/',tag=None,data=None):
-    return {'student':student(student_id,title,body,url,tag,data),'parents':parents(student_id,title,body,parent_url,tag,data)}
+def student_and_parents(student_id,title,body,url='/app/',parent_url='/app/parent/',tag=None,data=None,mirror_messengers=False,telegram=True,vk=True):
+    result={'student':student(student_id,title,body,url,tag,data),'parents':parents(student_id,title,body,parent_url,tag,data)}
+    if mirror_messengers:
+        result['messengers']=_messengers(student_id,title,body,telegram=telegram,vk=vk)
+    return result
