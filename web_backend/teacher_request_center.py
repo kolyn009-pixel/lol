@@ -14,7 +14,7 @@ def _lesson_requests(limit=100):
 def _schedule_requests(limit=100):
  student_onboarding.ensure_schema();student_regular_booking.ensure_schema();c=database.connect()
  try:
-  rows=c.execute("""SELECT r.id,r.user_id,r.study_goal,r.subject,r.weekday,r.start_time,r.duration_minutes,r.status,r.request_source,r.student_timezone,r.student_local_weekday,r.student_local_start_time,r.onboarding_session_id,r.request_group,r.created_at,u.name,u.grade,s.region,s.timezone FROM regular_schedules r JOIN users u ON u.id=r.user_id LEFT JOIN student_onboarding_sessions s ON s.id=r.onboarding_session_id WHERE r.status='PENDING' AND r.request_source='STUDENT' ORDER BY r.created_at ASC,r.id ASC LIMIT ?""",(max(1,min(int(limit),300)),)).fetchall();return [dict(r) for r in rows]
+  rows=c.execute("""SELECT r.id,r.user_id,r.study_goal,r.subject,r.weekday,r.start_time,r.duration_minutes,r.start_date,r.end_date,r.status,r.active,r.request_source,r.student_timezone,r.student_local_weekday,r.student_local_start_time,r.onboarding_session_id,r.request_group,r.created_at,u.name,u.grade,s.region,s.timezone FROM regular_schedules r JOIN users u ON u.id=r.user_id LEFT JOIN student_onboarding_sessions s ON s.id=r.onboarding_session_id WHERE r.status='PENDING' AND r.request_source='STUDENT' ORDER BY r.created_at ASC,r.id ASC LIMIT ?""",(max(1,min(int(limit),300)),)).fetchall();return [dict(r) for r in rows]
  finally:c.close()
 
 
@@ -24,7 +24,7 @@ def _schedule_groups(rows):
   key=row.get('request_group') or f"LEGACY-{int(row['id'])}"
   group=seen.get(key)
   if group is None:
-   group={'request_group':key,'grouped':bool(row.get('request_group')),'user_id':int(row['user_id']),'name':row.get('name'),'grade':row.get('grade'),'subject':row.get('subject'),'study_goal':row.get('study_goal'),'region':row.get('region'),'timezone':row.get('timezone'),'created_at':row.get('created_at'),'items':[]}
+   group={'request_group':key,'grouped':bool(row.get('request_group')),'user_id':int(row['user_id']),'name':row.get('name'),'grade':row.get('grade'),'subject':row.get('subject'),'study_goal':row.get('study_goal'),'region':row.get('region'),'timezone':row.get('timezone'),'created_at':row.get('created_at'),'start_date':row.get('start_date'),'end_date':row.get('end_date'),'items':[]}
    seen[key]=group;groups.append(group)
   group['items'].append(row)
  for group in groups:group['weekly_count']=len(group['items'])
@@ -60,7 +60,14 @@ def approve_schedule(schedule_id):
  sid=int(schedule_id);row=database.get_regular_schedule(sid)
  if not row:raise ValueError('schedule_not_found')
  if row['status']!='PENDING':raise ValueError('schedule_not_pending')
+ if not row['start_date'] or not row['end_date']:raise ValueError('schedule_dates_missing')
  database.approve_regular_schedule(sid)
+ conn=database.connect()
+ try:
+  conn.execute("UPDATE regular_schedules SET active=1,updated_at=? WHERE id=? AND status='APPROVED'",(database.now_iso(),sid));conn.commit()
+ finally:conn.close()
+ activated=database.get_regular_schedule(sid)
+ if not activated or not int(activated['active'] or 0):raise ValueError('schedule_activation_failed')
  generation=database.generate_regular_lessons(sid)
  created=[int(x) for x in (generation.get('created') or [])]
  sync={'synced_lesson_ids':[],'failed':[]}
@@ -70,7 +77,7 @@ def approve_schedule(schedule_id):
    sync=schedule_sync.sync_lessons_blocking(created)
   except Exception as exc:
    sync={'synced_lesson_ids':[],'failed':[{'reason':'schedule_sync_error','detail':type(exc).__name__}]}
- return {'status':'ok','schedule_id':sid,'schedule_status':'APPROVED','generation':generation,'sync':sync}
+ return {'status':'ok','schedule_id':sid,'schedule_status':'APPROVED','active':True,'start_date':activated['start_date'],'end_date':activated['end_date'],'generation':generation,'sync':sync}
 
 
 def reject_schedule(schedule_id,reason=None):
