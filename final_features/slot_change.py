@@ -305,6 +305,12 @@ def move_to_requested(req_id):
     """Move one lesson and reconcile external links after the local commit."""
     req=get_request(req_id)
     if not req: raise ValueError("Запрос не найден.")
-    lesson=database.free_reschedule_lesson(req["requester_lesson_id"],req["desired_start"],req["desired_end"])
-    _sync_moved([req["requester_lesson_id"]])
-    return lesson
+    old_lesson_id=int(req["requester_lesson_id"])
+    new_lesson_id=int(database.free_reschedule_lesson(old_lesson_id,req["desired_start"],req["desired_end"]))
+    try:
+        from web_backend import teacher_day_off_state
+        teacher_day_off_state.inherit_marker(old_lesson_id,new_lesson_id)
+    except Exception:
+        pass
+    _sync_moved([old_lesson_id,new_lesson_id])
+    return database.get_lesson(new_lesson_id)
