@@ -55,7 +55,7 @@ class Handler(api_v5.Handler):
    except PermissionError as exc:return self._json(404,{'error':str(exc) or 'not_found'})
    except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
    except Exception as exc:print('[web-api] recurring booking error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
-  teacher_actions={'/api/teacher/lesson/warn':'warn','/api/teacher/lesson/cancel':'cancel','/api/teacher/lesson/reschedule':'reschedule','/api/teacher/lesson/payment-reminder':'payment_reminder','/api/teacher/reschedule/finalize':'finalize'}
+  teacher_actions={'/api/teacher/lesson/warn':'warn','/api/teacher/lesson/cancel':'cancel','/api/teacher/lesson/reschedule':'reschedule','/api/teacher/lesson/payment-reminder':'payment_reminder','/api/teacher/lesson/payment-wait':'payment_wait','/api/teacher/reschedule/finalize':'finalize'}
   if path in teacher_actions:
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
    teacher=self._teacher()
@@ -68,6 +68,7 @@ class Handler(api_v5.Handler):
     elif action=='cancel':result=teacher_lesson_actions.cancel(int(body.get('lesson_id')),body.get('reason'))
     elif action=='reschedule':result=teacher_lesson_actions.propose_move(int(body.get('lesson_id')),body.get('desired_start'),int(teacher['admin_telegram_id']),body.get('note'))
     elif action=='payment_reminder':result=teacher_lesson_actions.remind_payment(int(body.get('lesson_id')))
+    elif action=='payment_wait':result=teacher_lesson_actions.confirm_payment_wait(int(body.get('lesson_id')),int(teacher['admin_telegram_id']))
     else:result=teacher_lesson_actions.finalize_move(int(body.get('request_id')),int(teacher['admin_telegram_id']))
     return self._json(200,result)
    except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
