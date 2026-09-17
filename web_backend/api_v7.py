@@ -53,12 +53,11 @@ class Handler(api_v6.Handler):
             try:return self._json(200,google_calendar_oauth.status())
             except Exception as exc:print("[web-api] google calendar status error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
         if path=="/api/integrations/google/callback":
-            teacher=self._teacher()
-            if not teacher:return self._redirect(google_calendar_oauth.teacher_redirect("auth_required"))
             try:
-                params=parse_qs(parsed.query,keep_blank_values=True);state=str((params.get("state")or[""])[0]);data=google_calendar_oauth.verify_state(state)
-                if int(data["teacher_id"])!=int(teacher["admin_telegram_id"]):raise PermissionError("teacher_mismatch")
-                google_calendar_oauth.complete_callback(parsed.query);return self._redirect(google_calendar_oauth.teacher_redirect("connected"))
+                params=parse_qs(parsed.query,keep_blank_values=True);state=str((params.get("state")or[""])[0])
+                google_calendar_oauth.verify_state(state)
+                google_calendar_oauth.complete_callback(parsed.query)
+                return self._redirect(google_calendar_oauth.teacher_redirect("connected"))
             except PermissionError:return self._redirect(google_calendar_oauth.teacher_redirect("denied"))
             except ValueError:return self._redirect(google_calendar_oauth.teacher_redirect("invalid_state"))
             except Exception as exc:print("[web-api] google oauth error:",type(exc).__name__,repr(exc),flush=True);return self._redirect(google_calendar_oauth.teacher_redirect("failed"))
@@ -85,7 +84,7 @@ class Handler(api_v6.Handler):
             if body is None:return self._json(400,{"error":"invalid_json"})
             try:return self._json(200,monthly_allowance.configure(int(body.get('user_id')),int(body.get('lessons_per_month') or 0),body.get('active',True),body.get('label'),body.get('grant_now',True)))
             except (TypeError,ValueError) as exc:return self._json(409,{"error":str(exc)or"invalid_request"})
-            except Exception as exc:print('[web-api] monthly allowance error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
+            except Exception as exc:print('[web-api] monthly allowance error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=="/api/onboarding/complete":
             if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
             if not v1._allowed(self.client_address[0]):return self._json(429,{"error":"too_many_attempts"})
