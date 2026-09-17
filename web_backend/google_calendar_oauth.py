@@ -114,6 +114,7 @@ def authorization_url(teacher_id):
         scopes=google_calendar.SCOPES,
         state=state,
         redirect_uri=redirect_uri(),
+        autogenerate_code_verifier=False,
     )
     url, returned_state = flow.authorization_url(
         access_type="offline",
@@ -151,6 +152,7 @@ def complete_callback(query_string):
         scopes=google_calendar.SCOPES,
         state=state,
         redirect_uri=redirect_uri(),
+        autogenerate_code_verifier=False,
     )
     callback_url = redirect_uri() + ("?" + str(query_string) if query_string else "")
     flow.fetch_token(authorization_response=callback_url)
