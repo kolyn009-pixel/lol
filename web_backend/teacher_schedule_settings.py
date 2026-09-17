@@ -87,21 +87,7 @@ def _affected_lessons(day,start_time=None,end_time=None):
     return result
 
 
-def _notify_affected(affected):
-    sent=failed=0
-    try:from web_backend import push_events
-    except Exception:return {"sent":0,"failed":len(affected)}
-    for item in affected:
-        try:
-            start=datetime.fromisoformat(str(item["start_time"]));when=start.strftime("%d.%m в %H:%M");lid=int(item["id"]);uid=int(item["user_id"])
-            body=f"Занятие {when} попало в выходной преподавателя. Выберите перенос на свободное время или отмените занятие."
-            result=push_events.student_and_parents(uid,"🗓️ Нужно решить по занятию",body,f"/app/lesson/?id={lid}","/app/parent/",f"teacher-day-off-{lid}",{"type":"schedule","lesson_id":lid,"reason":"teacher_day_off","actions":["reschedule","cancel"]})
-            sent+=int((result.get("student") or {}).get("sent") or 0)+int((result.get("parents") or {}).get("sent") or 0);failed+=int((result.get("student") or {}).get("failed") or 0)+int((result.get("parents") or {}).get("failed") or 0)
-        except Exception:failed+=1
-    return {"sent":sent,"failed":failed}
-
-
-def add_day_off(payload):
+def preview_day_off(payload):
     if not isinstance(payload,dict):raise ValueError("invalid_payload")
     try:day=date.fromisoformat(str(payload.get("date") or ""))
     except Exception:raise ValueError("invalid_date")
@@ -111,9 +97,28 @@ def add_day_off(payload):
         start=_time(payload.get("start_time"));end=_time(payload.get("end_time"))
         if _minutes(end)<=_minutes(start):raise ValueError("invalid_closed_interval")
     affected=_affected_lessons(day.isoformat(),start,end)
-    item_id=database.add_schedule_exception(day.isoformat(),"CLOSED",start,end,str(payload.get("comment") or "").strip()[:300] or "Выходной преподавателя")
+    return {"status":"ok","preview":True,"date":day.isoformat(),"whole_day":whole_day,"start_time":start,"end_time":end,"affected_lessons":affected,"affected_count":len(affected),"student_choices":["RESCHEDULE","CANCEL"],"existing_lessons_changed":False}
+
+
+def _notify_affected(affected):
+    sent=failed=0
+    try:from web_backend import push_events
+    except Exception:return {"sent":0,"failed":len(affected)}
+    for item in affected:
+        try:
+            start=datetime.fromisoformat(str(item["start_time"]));when=start.strftime("%d.%m в %H:%M");lid=int(item["id"]);uid=int(item["user_id"])
+            body=f"Занятие {when} попало в выходной преподавателя. Выберите перенос на свободное время или отмените занятие."
+            result=push_events.student_and_parents(uid,"🗓️ Нужно решить по занятию",body,f"/app/lesson/?id={lid}","/app/parent/",f"teacher-day-off-{lid}",{"type":"schedule","lesson_id":lid,"reason":"teacher_day_off","actions":["reschedule","cancel"]},mirror_messengers=True)
+            sent+=int((result.get("student") or {}).get("sent") or 0)+int((result.get("parents") or {}).get("sent") or 0);failed+=int((result.get("student") or {}).get("failed") or 0)+int((result.get("parents") or {}).get("failed") or 0)
+        except Exception:failed+=1
+    return {"sent":sent,"failed":failed}
+
+
+def add_day_off(payload):
+    preview=preview_day_off(payload);day=preview["date"];start=preview["start_time"];end=preview["end_time"];whole_day=preview["whole_day"];affected=preview["affected_lessons"]
+    item_id=database.add_schedule_exception(day,"CLOSED",start,end,str(payload.get("comment") or "").strip()[:300] or "Выходной преподавателя")
     delivery=_notify_affected(affected)
-    return {"status":"ok","exception_id":int(item_id),"date":day.isoformat(),"whole_day":whole_day,"start_time":start,"end_time":end,"affected_lessons":affected,"affected_count":len(affected),"notifications":delivery,"student_choices":["RESCHEDULE","CANCEL"],"existing_lessons_changed":False}
+    return {"status":"ok","exception_id":int(item_id),"date":day,"whole_day":whole_day,"start_time":start,"end_time":end,"affected_lessons":affected,"affected_count":len(affected),"notifications":delivery,"student_choices":["RESCHEDULE","CANCEL"],"existing_lessons_changed":False}
 
 
 def remove_day_off(exception_id):
@@ -131,6 +136,7 @@ def snapshot():
 def replace(payload):
     if not isinstance(payload,dict):raise ValueError("invalid_payload")
     action=str(payload.get("action") or "").strip().lower()
+    if action=="preview_exception":return preview_day_off(payload)
     if action=="add_exception":return add_day_off(payload)
     if action=="remove_exception":return remove_day_off(payload.get("exception_id"))
     mode=str(payload.get("mode") or "SAME").upper()
