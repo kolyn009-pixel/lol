@@ -3,11 +3,11 @@ from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
 from web_backend import api as v1
-from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_access,public_trial_slots,public_trial_channel,student_onboarding,teacher_request_center,onboarding_schedule_options,payment_hub,teacher_schedule_settings,server_health,student_regular_booking,trial_approval_atomic
+from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_access,public_trial_slots,public_trial_channel,student_onboarding,teacher_request_center,onboarding_schedule_options,payment_hub,teacher_schedule_settings,server_health,student_regular_booking,trial_approval_atomic,teacher_lesson_actions
 from web_backend.stage12_indexes import ensure_indexes
 from web_backend.student_auth import peek_student_login_code
 class Handler(api_v5.Handler):
- server_version='AdeliaWeb/6.12'
+ server_version='AdeliaWeb/6.13'
  def do_GET(self):
   u=urlparse(self.path);path=u.path;q=parse_qs(u.query)
   if path=='/api/public/trial/slots':
@@ -51,10 +51,26 @@ class Handler(api_v5.Handler):
    if not auth:return self._json(401,{'error':'unauthorized'})
    body=self._body()
    if body is None:return self._json(400,{'error':'invalid_json'})
-   try:return self._json(200,student_regular_booking.create_group(int(auth['id']),int(body.get('program_id')),body.get('selections') or []))
+   try:return self._json(200,student_regular_booking.create_group(int(auth['id']),int(body.get('program_id')),body.get('selections') or [],body.get('end_date')))
    except PermissionError as exc:return self._json(404,{'error':str(exc) or 'not_found'})
    except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
    except Exception as exc:print('[web-api] recurring booking error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+  teacher_actions={'/api/teacher/lesson/warn':'warn','/api/teacher/lesson/cancel':'cancel','/api/teacher/lesson/reschedule':'reschedule','/api/teacher/reschedule/finalize':'finalize'}
+  if path in teacher_actions:
+   if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+   teacher=self._teacher()
+   if not teacher:return self._json(401,{'error':'unauthorized'})
+   body=self._body()
+   if body is None:return self._json(400,{'error':'invalid_json'})
+   try:
+    action=teacher_actions[path]
+    if action=='warn':result=teacher_lesson_actions.warn(int(body.get('lesson_id')),body.get('text'))
+    elif action=='cancel':result=teacher_lesson_actions.cancel(int(body.get('lesson_id')),body.get('reason'))
+    elif action=='reschedule':result=teacher_lesson_actions.propose_move(int(body.get('lesson_id')),body.get('desired_start'),int(teacher['admin_telegram_id']),body.get('note'))
+    else:result=teacher_lesson_actions.finalize_move(int(body.get('request_id')),int(teacher['admin_telegram_id']))
+    return self._json(200,result)
+   except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
+   except Exception as exc:print('[web-api] teacher lesson action error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
   if path=='/api/teacher/trial/approve':
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
    teacher=self._teacher()
@@ -124,5 +140,5 @@ class Handler(api_v5.Handler):
   return super().do_POST()
 def main():
  if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
- ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();print(f'Adelia web API v6.12 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
+ ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();print(f'Adelia web API v6.13 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
