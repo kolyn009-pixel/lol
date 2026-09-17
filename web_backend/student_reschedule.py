@@ -70,8 +70,17 @@ def respond_to_exchange(user_id,request_id,accepted):
 def cancel_request(user_id,request_id):
     req=slot_change.get_request(int(request_id))
     if not req or int(req['requester_student_id'])!=int(user_id):raise PermissionError('request_not_found')
-    if req['status'] not in ACTIVE_REQUESTS:raise ValueError('request_not_actionable')
-    slot_change.set_status(int(request_id),'CANCELLED');return {'status':'ok','request_status':'CANCELLED'}
+    previous=str(req['status'])
+    if previous not in ACTIVE_REQUESTS:raise ValueError('request_not_actionable')
+    slot_change.set_status(int(request_id),'CANCELLED')
+    try:
+        from web_backend import push_events
+        if req['occupant_student_id'] and previous in {'WAITING_OCCUPANT','WAITING_FINAL_ADMIN'}:
+            push_events.student_and_parents(int(req['occupant_student_id']),'🔁 Предложение переноса отменено','Другой ученик отменил свою заявку на изменение времени. Твоё занятие остаётся на прежнем месте, никаких действий не требуется.','/app/?tab=schedule','/app/parent/',f'exchange-cancelled-{int(request_id)}',{'type':'schedule_exchange_cancelled','request_id':int(request_id)},mirror_messengers=True)
+        if previous in {'WAITING_OCCUPANT','WAITING_FINAL_ADMIN'}:
+            push_events.teachers('🔁 Заявка на перенос отменена',f'Инициатор отменил заявку #{int(request_id)}. Все занятия остаются на прежних местах.','/teacher/',f'exchange-cancelled-teacher-{int(request_id)}',{'type':'schedule_exchange_cancelled','request_id':int(request_id)})
+    except Exception:pass
+    return {'status':'ok','request_status':'CANCELLED','previous_status':previous}
 
 def _serialize_request(req,perspective):
     original=database.get_lesson(int(req['requester_lesson_id']))
