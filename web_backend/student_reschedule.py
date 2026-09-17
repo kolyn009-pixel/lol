@@ -12,6 +12,19 @@ def _lesson_owned(user_id,lesson_id):
     if str(lesson['lesson_status'] or '').upper()!='CONFIRMED':raise ValueError('lesson_not_confirmed')
     return lesson
 
+def _transition(request_id,from_statuses,to_status,**fields):
+    allowed={'occupant_response'};now=database.now_iso();statuses=tuple(str(x) for x in from_statuses);marks=','.join('?' for _ in statuses);parts=['status=?','updated_at=?'];vals=[str(to_status),now]
+    for key,value in fields.items():
+        if key in allowed:parts.append(f'{key}=?');vals.append(value)
+    if str(to_status) in {'DECLINED','CANCELLED'}:parts.append('resolved_at=?');vals.append(now)
+    vals.extend([int(request_id),*statuses]);conn=database.connect()
+    try:
+        conn.execute('BEGIN IMMEDIATE');cur=conn.execute(f"UPDATE slot_change_requests SET {','.join(parts)} WHERE id=? AND status IN ({marks})",vals)
+        if cur.rowcount!=1:conn.rollback();return False
+        conn.commit();return True
+    except Exception:conn.rollback();raise
+    finally:conn.close()
+
 def free_slots_for_lesson(user_id,lesson_id,days=14):
     lesson=_lesson_owned(user_id,lesson_id);program_id=lesson['program_id']
     if not program_id:raise ValueError('lesson_program_missing')
@@ -48,17 +61,15 @@ def incoming(user_id):
 def respond_to_exchange(user_id,request_id,accepted):
     req=slot_change.get_request(int(request_id))
     if not req or int(req['occupant_student_id'] or 0)!=int(user_id):raise PermissionError('exchange_not_found')
-    if req['status']!='WAITING_OCCUPANT':raise ValueError('exchange_not_actionable')
+    target='WAITING_FINAL_ADMIN' if accepted else 'DECLINED';response='ACCEPTED' if accepted else 'DECLINED'
+    if not _transition(int(request_id),('WAITING_OCCUPANT',),target,occupant_response=response):raise ValueError('exchange_not_actionable')
     if accepted:
-        slot_change.set_status(int(request_id),'WAITING_FINAL_ADMIN',occupant_response='ACCEPTED')
         try:
             from web_backend import push_events
-            mode=str(req['exchange_mode'] or 'SWAP').upper()
-            label='сдвиг другого занятия' if mode=='SHIFT' else 'обмен временем'
+            mode=str(req['exchange_mode'] or 'SWAP').upper();label='сдвиг другого занятия' if mode=='SHIFT' else 'обмен временем'
             push_events.teachers('🔁 Перенос готов к подтверждению',f'Второй ученик согласился на {label}. Заявка #{int(request_id)} ждёт финального подтверждения преподавателя.','/teacher/',f'exchange-final-{int(request_id)}',{'type':'schedule_exchange_final','request_id':int(request_id),'mode':mode})
         except Exception:pass
         return {'status':'ok','request_status':'WAITING_FINAL_ADMIN'}
-    slot_change.set_status(int(request_id),'DECLINED',occupant_response='DECLINED')
     try:
         from web_backend import push_events
         requester_id=int(req['requester_student_id'])
@@ -72,7 +83,7 @@ def cancel_request(user_id,request_id):
     if not req or int(req['requester_student_id'])!=int(user_id):raise PermissionError('request_not_found')
     previous=str(req['status'])
     if previous not in ACTIVE_REQUESTS:raise ValueError('request_not_actionable')
-    slot_change.set_status(int(request_id),'CANCELLED')
+    if not _transition(int(request_id),(previous,),'CANCELLED'):raise ValueError('request_not_actionable')
     try:
         from web_backend import push_events
         if req['occupant_student_id'] and previous in {'WAITING_OCCUPANT','WAITING_FINAL_ADMIN'}:
