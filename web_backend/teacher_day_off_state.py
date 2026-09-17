@@ -26,7 +26,7 @@ def ensure_schema():
 
 
 def mark_lessons(exception_id,lesson_ids):
-    ensure_schema();now=database.now_iso();ids=sorted({int(x) for x in lesson_ids})
+    ensure_schema();now=database.now_iso();ids=sorted({int(x) for x in lesson_ids});exception_id=int(exception_id) if exception_id is not None else None
     if not ids:return 0
     conn=database.connect()
     try:
@@ -36,15 +36,19 @@ def mark_lessons(exception_id,lesson_ids):
                 INSERT INTO teacher_day_off_lessons(lesson_id,exception_id,marked_at,reason)
                 VALUES(?,?,?,'TEACHER_DAY_OFF')
                 ON CONFLICT(lesson_id) DO UPDATE SET
-                    exception_id=excluded.exception_id,
+                    exception_id=COALESCE(excluded.exception_id,teacher_day_off_lessons.exception_id),
                     marked_at=excluded.marked_at,
                     reason=excluded.reason
-            """,(lesson_id,int(exception_id),now))
+            """,(lesson_id,exception_id,now))
         conn.commit();return len(ids)
     except Exception:
         conn.rollback();raise
     finally:
         conn.close()
+
+
+def mark_lesson(lesson_id,exception_id=None):
+    return mark_lessons(exception_id,[lesson_id])
 
 
 def is_marked(lesson_id):
