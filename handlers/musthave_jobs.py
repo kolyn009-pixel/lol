@@ -7,7 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import Forbidden
 
 import database
-from core import admin_roles
+from core import admin_roles, payment_reminder_routing
 from automation import schedule_tools
 from handlers import runtime_patch_v2, review_v2, pricing_ux_patch, public_trial_notifications, student_onboarding_runtime
 from vk_adapter import telegram_link, lesson_link_bridge
@@ -103,7 +103,7 @@ async def homework_watchdog_job(context):
         print("HOMEWORK WATCHDOG JOB:",repr(exc),flush=True)
 
 def register(application):
-    student_onboarding_runtime.register(application);runtime_patch_v2.install(application);review_v2.install(application);pricing_ux_patch.install(application);lesson_link_bridge.install();public_trial_notifications.register(application);jq=application.job_queue
+    student_onboarding_runtime.register(application);runtime_patch_v2.install(application);payment_reminder_routing.install();review_v2.install(application);pricing_ux_patch.install(application);lesson_link_bridge.install();public_trial_notifications.register(application);jq=application.job_queue
     if not jq:return
     jq.run_repeating(weekly_dispatcher,interval=60,first=20,name="adelia_weekly_dispatcher")
     jq.run_repeating(runtime_patch_v2.regular_series_sync_job,interval=6*60*60,first=45,name="adelia_regular_full_sync")
