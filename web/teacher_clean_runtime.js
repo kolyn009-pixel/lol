@@ -5,72 +5,22 @@ const aside=document.querySelector('.teacher-shell>aside');
 if(!header||!aside)return;
 let toggle=header.querySelector('[data-clean-menu]');
 if(!toggle){
-  toggle=document.createElement('button');
-  toggle.type='button';
-  toggle.className='clean-menu-toggle';
-  toggle.dataset.cleanMenu='1';
-  toggle.setAttribute('aria-label','Открыть меню');
-  toggle.setAttribute('aria-expanded','false');
-  toggle.textContent='☰';
-  header.prepend(toggle);
+  toggle=document.createElement('button');toggle.type='button';toggle.className='clean-menu-toggle';toggle.dataset.cleanMenu='1';toggle.setAttribute('aria-label','Открыть меню');toggle.setAttribute('aria-expanded','false');toggle.textContent='☰';header.prepend(toggle);
 }
 function close(){body.classList.remove('menu-open');toggle.setAttribute('aria-expanded','false')}
 function open(){body.classList.add('menu-open');toggle.setAttribute('aria-expanded','true')}
-toggle.addEventListener('click',()=>body.classList.contains('menu-open')?close():open());
-aside.addEventListener('click',e=>{if(e.target.closest('[data-view]'))close()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
-document.addEventListener('click',e=>{if(!body.classList.contains('menu-open'))return;if(e.target.closest('.teacher-shell>aside')||e.target.closest('[data-clean-menu]'))return;close()});
-
-const style=document.createElement('style');
-style.textContent=`
-.teacher-quick-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto}
-.teacher-quick-actions button{border:1px solid #e7e0ff;background:#fff;color:#44366e;border-radius:10px;padding:7px 10px;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
-.teacher-quick-actions button:hover{background:#f8f5ff;border-color:#cfc1ff}
-.teacher-quick-actions .qa-warn{background:#fff9e9;border-color:#f1df9b;color:#765d12}
-.teacher-quick-actions .qa-cancel{background:#fff5f5;border-color:#f3c7c7;color:#9e3030}
-.teacher-quick-actions .qa-open{background:#6847f5;border-color:#6847f5;color:#fff}
-@media(max-width:900px){.teacher-quick-actions{width:100%;margin:8px 0 0}.teacher-quick-actions button{flex:1 1 auto}.row:has(.teacher-quick-actions){flex-wrap:wrap}}
-`;
-document.head.append(style);
-
-function clickView(view){const b=document.querySelector(`nav [data-view="${view}"]`);if(b)b.click()}
-function enhanceToday(){
-  const title=document.querySelector('#title');
-  if(!title||title.textContent.trim()!=='Сегодня')return;
-  document.querySelectorAll('#app .row').forEach(row=>{
-    const lessonButton=row.querySelector('[data-lesson]');
-    const studentButton=row.querySelector('[data-student]');
-    if(!lessonButton||row.querySelector('.teacher-quick-actions'))return;
-    const lessonId=lessonButton.dataset.lesson;
-    const studentId=studentButton?.dataset.student||'';
-    lessonButton.style.display='none';
-    if(studentButton)studentButton.style.display='none';
-    const actions=document.createElement('div');
-    actions.className='teacher-quick-actions';
-    actions.innerHTML=`<button type="button" class="qa-open" data-qa="open">Открыть</button><button type="button" data-qa="move">Перенести</button><button type="button" class="qa-warn" data-qa="warn">Предупредить</button><button type="button" class="qa-cancel" data-qa="cancel">Отменить</button>${studentId?'<button type="button" data-qa="student">Ученик</button>':''}`;
-    actions.addEventListener('click',e=>{
-      const b=e.target.closest('[data-qa]');if(!b)return;
-      const action=b.dataset.qa;
-      if(action==='open'){lessonButton.click();return}
-      if(action==='student'&&studentButton){studentButton.click();return}
-      if(action==='move'){
-        sessionStorage.setItem('adelia_teacher_action',JSON.stringify({type:'reschedule',lesson_id:Number(lessonId),student_id:Number(studentId||0)}));
-        lessonButton.click();return;
-      }
-      if(action==='warn'){
-        sessionStorage.setItem('adelia_teacher_action',JSON.stringify({type:'warn',lesson_id:Number(lessonId),student_id:Number(studentId||0)}));
-        clickView('messages');return;
-      }
-      if(action==='cancel'){
-        sessionStorage.setItem('adelia_teacher_action',JSON.stringify({type:'cancel',lesson_id:Number(lessonId),student_id:Number(studentId||0)}));
-        lessonButton.click();
-      }
-    });
-    row.append(actions);
-  });
-}
-
-const observer=new MutationObserver(()=>enhanceToday());
-observer.observe(document.querySelector('#app'),{childList:true,subtree:true});
-enhanceToday();
+toggle.addEventListener('click',()=>body.classList.contains('menu-open')?close():open());aside.addEventListener('click',e=>{if(e.target.closest('[data-view]'))close()});document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});document.addEventListener('click',e=>{if(!body.classList.contains('menu-open'))return;if(e.target.closest('.teacher-shell>aside')||e.target.closest('[data-clean-menu]'))return;close()});
+const style=document.createElement('style');style.textContent=`
+.teacher-quick-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto}.teacher-quick-actions button{border:1px solid #e7e0ff;background:#fff;color:#44366e;border-radius:10px;padding:7px 10px;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}.teacher-quick-actions button:hover{background:#f8f5ff;border-color:#cfc1ff}.teacher-quick-actions button:disabled{opacity:.55;cursor:wait}.teacher-quick-actions .qa-warn{background:#fff9e9;border-color:#f1df9b;color:#765d12}.teacher-quick-actions .qa-cancel{background:#fff5f5;border-color:#f3c7c7;color:#9e3030}.teacher-quick-actions .qa-open{background:#6847f5;border-color:#6847f5;color:#fff}.teacher-quick-actions .qa-payment{background:#fff7e8;border-color:#efc66d;color:#75530d}.teacher-unpaid-row{background:linear-gradient(90deg,#fffaf0,#fff);border-color:#efd596!important}.teacher-payment-badge{display:inline-flex;align-items:center;margin:4px 0 0;padding:4px 8px;border-radius:999px;background:#fff1cf;color:#75530d;font-size:11px;font-weight:700}.teacher-action-note{width:100%;font-size:11px;color:#5d5278;margin-top:2px}@media(max-width:900px){.teacher-quick-actions{width:100%;margin:8px 0 0}.teacher-quick-actions button{flex:1 1 auto}.row:has(.teacher-quick-actions){flex-wrap:wrap}}
+`;document.head.append(style);
+async function post(path,payload){const r=await fetch(path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload||{})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||j.detail||'Не удалось выполнить действие');return j}
+function note(actions,text,error=false){let el=actions.querySelector('.teacher-action-note');if(!el){el=document.createElement('div');el.className='teacher-action-note';actions.append(el)}el.textContent=text;el.style.color=error?'#a53131':'#5d5278'}
+async function withBusy(button,fn){const old=button.textContent;button.disabled=true;try{return await fn()}finally{button.disabled=false;button.textContent=old}}
+function localIso(value){if(!value)return null;const d=new Date(value);if(Number.isNaN(d.getTime()))return null;const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`}
+let dashboardMap=new Map(),loadingDashboard=false;
+async function loadDashboardMap(){if(loadingDashboard)return;loadingDashboard=true;try{const r=await fetch('/api/teacher/dashboard',{credentials:'same-origin'});if(!r.ok)return;const d=await r.json();dashboardMap=new Map((d.next_lessons||[]).map(x=>[String(x.id),x]));decorateRows()}catch(_){}finally{loadingDashboard=false}}
+function decorateRows(){if(document.querySelector('#title')?.textContent.trim()!=='Сегодня')return;document.querySelectorAll('#app .row').forEach(row=>{const lessonButton=row.querySelector('[data-lesson]');if(!lessonButton)return;const item=dashboardMap.get(String(lessonButton.dataset.lesson));if(!item)return;row.dataset.paymentStatus=String(item.payment_status||'');if(String(item.payment_status||'').toUpperCase()==='AWAITING_PAYMENT'){row.classList.add('teacher-unpaid-row');const main=row.querySelector('.row-main');if(main&&!main.querySelector('.teacher-payment-badge'))main.insertAdjacentHTML('beforeend','<span class="teacher-payment-badge">💳 Ожидает оплаты</span>')}})}
+function enhanceToday(){if(document.querySelector('#title')?.textContent.trim()!=='Сегодня')return;document.querySelectorAll('#app .row').forEach(row=>{const lessonButton=row.querySelector('[data-lesson]'),studentButton=row.querySelector('[data-student]');if(!lessonButton||row.querySelector('.teacher-quick-actions'))return;const lessonId=Number(lessonButton.dataset.lesson),studentId=Number(studentButton?.dataset.student||0);lessonButton.style.display='none';if(studentButton)studentButton.style.display='none';const actions=document.createElement('div');actions.className='teacher-quick-actions';const unpaid=String(dashboardMap.get(String(lessonId))?.payment_status||row.dataset.paymentStatus||'').toUpperCase()==='AWAITING_PAYMENT';actions.innerHTML=`<button type="button" class="qa-open" data-qa="open">Открыть</button><button type="button" data-qa="move">Перенести</button><button type="button" class="qa-warn" data-qa="warn">Предупредить</button><button type="button" class="qa-cancel" data-qa="cancel">Отменить</button>${studentId?'<button type="button" data-qa="student">Ученик</button>':''}${unpaid?'<button type="button" class="qa-payment" data-qa="payment">Напомнить об оплате</button>':''}`;
+actions.addEventListener('click',async e=>{const b=e.target.closest('[data-qa]');if(!b)return;const action=b.dataset.qa;if(action==='open'){lessonButton.click();return}if(action==='student'&&studentButton){studentButton.click();return}try{if(action==='warn'){const text=prompt('Что сообщить ученику?','Небольшое изменение по занятию. Пожалуйста, проверь уведомление в Аделии.');if(!text)return;await withBusy(b,()=>post('/api/teacher/lesson/warn',{lesson_id:lessonId,text}));note(actions,'Сообщение отправлено');return}if(action==='cancel'){const reason=prompt('Причина отмены (можно оставить пустой):','');if(reason===null)return;if(!confirm('Отменить занятие? Оплата и минуты ученика не сгорят.'))return;await withBusy(b,()=>post('/api/teacher/lesson/cancel',{lesson_id:lessonId,reason}));note(actions,'Занятие отменено без штрафа');setTimeout(()=>location.reload(),450);return}if(action==='move'){const raw=prompt('Новое время занятия, например 18.09.2026 16:30:','');if(!raw)return;const m=raw.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})$/);if(!m)throw new Error('Введите дату как ДД.ММ.ГГГГ ЧЧ:ММ');const desired=localIso(new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5]));const result=await withBusy(b,()=>post('/api/teacher/lesson/reschedule',{lesson_id:lessonId,desired_start:desired}));note(actions,result.status==='waiting_occupant'?(result.mode==='SHIFT'?'Нужно согласие другого ученика на сдвиг':'Нужно согласие другого ученика на обмен'):'Занятие перенесено');return}if(action==='payment'){await withBusy(b,()=>post('/api/teacher/lesson/payment-reminder',{lesson_id:lessonId}));b.textContent='Напоминание отправлено';b.disabled=true;note(actions,'Ученик и связанный родитель получили напоминание')}}catch(err){note(actions,err.message||'Ошибка',true)}});row.append(actions)});decorateRows()}
+const observer=new MutationObserver(()=>{enhanceToday();if(document.querySelector('#title')?.textContent.trim()==='Сегодня'&&!dashboardMap.size)loadDashboardMap()});observer.observe(document.querySelector('#app'),{childList:true,subtree:true});loadDashboardMap();enhanceToday();
 })();
