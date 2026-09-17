@@ -1,7 +1,8 @@
 """Durable lesson markers for teacher-created schedule exceptions.
 
 Markers intentionally survive deletion of the schedule exception so students keep
-the penalty-free cancel/reschedule rights they were already given.
+the penalty-free cancel/reschedule choice they were already given. The entitlement
+belongs to the originally affected lesson and is consumed by a successful reschedule.
 """
 from __future__ import annotations
 
@@ -52,25 +53,15 @@ def mark_lesson(lesson_id,exception_id=None):
 
 
 def inherit_marker(source_lesson_id,target_lesson_id):
-    """Copy an existing day-off entitlement to a replacement lesson."""
-    ensure_schema();conn=database.connect()
-    try:
-        row=conn.execute(
-            "SELECT exception_id,reason FROM teacher_day_off_lessons WHERE lesson_id=?",
-            (int(source_lesson_id),),
-        ).fetchone()
-        if not row:return False
-        conn.execute("""
-            INSERT INTO teacher_day_off_lessons(lesson_id,exception_id,marked_at,reason)
-            VALUES(?,?,?,?)
-            ON CONFLICT(lesson_id) DO UPDATE SET
-                exception_id=COALESCE(excluded.exception_id,teacher_day_off_lessons.exception_id),
-                marked_at=excluded.marked_at,
-                reason=excluded.reason
-        """,(int(target_lesson_id),row['exception_id'],database.now_iso(),row['reason'] or 'TEACHER_DAY_OFF'))
-        conn.commit();return True
-    finally:
-        conn.close()
+    """Do not carry a teacher-day-off entitlement onto a replacement lesson.
+
+    A teacher day off gives the student one penalty-free choice for the affected
+    lesson: cancel it or reschedule it. Once rescheduled, the replacement lesson
+    follows normal cancellation/reschedule rules and must not inherit the marker.
+    The source marker remains durable for audit/history and is harmless because the
+    source lesson has been cancelled by the canonical free-reschedule flow.
+    """
+    return False
 
 
 def is_marked(lesson_id):
