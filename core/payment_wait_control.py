@@ -51,27 +51,35 @@ def confirm_wait(lesson_id,teacher_id=None):
     if not lesson: raise ValueError('lesson_not_found')
     if str(lesson['lesson_status'] or '').upper() not in {'PENDING','CONFIRMED'}: raise ValueError('lesson_not_active')
     if str(lesson['payment_status'] or '').upper()!='AWAITING_PAYMENT': raise ValueError('payment_not_awaiting')
-    existing=get(int(lesson_id))
-    if existing and existing.get('teacher_wait_confirmed_at'):
-        existing['already_confirmed']=True
-        return existing
     ensure_schema();now=database.now_iso();conn=database.connect()
     try:
-        conn.execute("""
-            INSERT INTO lesson_payment_wait_overrides(lesson_id,risk_notified_at,teacher_wait_confirmed_at,teacher_id,updated_at)
-            VALUES(?,?,?,?,?)
-            ON CONFLICT(lesson_id) DO UPDATE SET
-                risk_notified_at=COALESCE(lesson_payment_wait_overrides.risk_notified_at,excluded.risk_notified_at),
-                teacher_wait_confirmed_at=COALESCE(lesson_payment_wait_overrides.teacher_wait_confirmed_at,excluded.teacher_wait_confirmed_at),
-                teacher_id=COALESCE(lesson_payment_wait_overrides.teacher_id,excluded.teacher_id),
-                updated_at=excluded.updated_at
-        """,(int(lesson_id),now,now,int(teacher_id) if teacher_id else None,now))
+        conn.execute('BEGIN IMMEDIATE')
+        row=conn.execute("SELECT * FROM lesson_payment_wait_overrides WHERE lesson_id=?",(int(lesson_id),)).fetchone()
+        if row and row['teacher_wait_confirmed_at']:
+            state=dict(row);state['already_confirmed']=True;conn.rollback();return state
+        if row:
+            conn.execute("""
+                UPDATE lesson_payment_wait_overrides
+                SET risk_notified_at=COALESCE(risk_notified_at,?),
+                    teacher_wait_confirmed_at=?,
+                    teacher_id=COALESCE(teacher_id,?),
+                    updated_at=?
+                WHERE lesson_id=? AND teacher_wait_confirmed_at IS NULL
+            """,(now,now,int(teacher_id) if teacher_id else None,now,int(lesson_id)))
+        else:
+            conn.execute("""
+                INSERT INTO lesson_payment_wait_overrides(lesson_id,risk_notified_at,teacher_wait_confirmed_at,teacher_id,updated_at)
+                VALUES(?,?,?,?,?)
+            """,(int(lesson_id),now,now,int(teacher_id) if teacher_id else None,now))
         conn.commit()
+        row=conn.execute("SELECT * FROM lesson_payment_wait_overrides WHERE lesson_id=?",(int(lesson_id),)).fetchone()
+        state=dict(row) if row else {}
+        state['already_confirmed']=False
+        return state
+    except Exception:
+        conn.rollback();raise
     finally:
         conn.close()
-    state=get(int(lesson_id)) or {}
-    state['already_confirmed']=False
-    return state
 
 
 def suppress_auto_cancel(lesson_id):
