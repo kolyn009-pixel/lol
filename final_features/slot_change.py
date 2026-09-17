@@ -30,7 +30,11 @@ def ensure_schema():
       note TEXT,
       exchange_mode TEXT,
       occupant_proposed_start TEXT,
-      occupant_proposed_end TEXT
+      occupant_proposed_end TEXT,
+      apply_requester_before_start TEXT,
+      apply_requester_before_end TEXT,
+      apply_occupant_before_start TEXT,
+      apply_occupant_before_end TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_slot_change_status
       ON slot_change_requests(status, created_at);
@@ -41,6 +45,10 @@ def ensure_schema():
     if 'exchange_mode' not in cols:c.execute('ALTER TABLE slot_change_requests ADD COLUMN exchange_mode TEXT')
     if 'occupant_proposed_start' not in cols:c.execute('ALTER TABLE slot_change_requests ADD COLUMN occupant_proposed_start TEXT')
     if 'occupant_proposed_end' not in cols:c.execute('ALTER TABLE slot_change_requests ADD COLUMN occupant_proposed_end TEXT')
+    if 'apply_requester_before_start' not in cols:c.execute('ALTER TABLE slot_change_requests ADD COLUMN apply_requester_before_start TEXT')
+    if 'apply_requester_before_end' not in cols:c.execute('ALTER TABLE slot_change_requests ADD COLUMN apply_requester_before_end TEXT')
+    if 'apply_occupant_before_start' not in cols:c.execute('ALTER TABLE slot_change_requests ADD COLUMN apply_occupant_before_start TEXT')
+    if 'apply_occupant_before_end' not in cols:c.execute('ALTER TABLE slot_change_requests ADD COLUMN apply_occupant_before_end TEXT')
     c.commit(); c.close()
 
 
@@ -201,6 +209,32 @@ def set_status(req_id, status, **fields):
     c=database.connect(); c.execute(f"UPDATE slot_change_requests SET {','.join(parts)} WHERE id=?",vals); c.commit(); c.close()
 
 
+def _same_times(lesson,start,end):
+    return str(lesson['start_time'])==str(start) and str(lesson['end_time'])==str(end)
+
+
+def _ensure_apply_snapshot(req,a,b):
+    fields=(req['apply_requester_before_start'],req['apply_requester_before_end'],req['apply_occupant_before_start'],req['apply_occupant_before_end'])
+    if all(fields):return req
+    now=database.now_iso();c=database.connect()
+    try:
+        c.execute('BEGIN IMMEDIATE')
+        cur=c.execute("""
+          UPDATE slot_change_requests
+          SET apply_requester_before_start=COALESCE(apply_requester_before_start,?),
+              apply_requester_before_end=COALESCE(apply_requester_before_end,?),
+              apply_occupant_before_start=COALESCE(apply_occupant_before_start,?),
+              apply_occupant_before_end=COALESCE(apply_occupant_before_end,?),
+              updated_at=?
+          WHERE id=?
+        """,(a['start_time'],a['end_time'],b['start_time'],b['end_time'],now,int(req['id'])))
+        if cur.rowcount!=1:raise ValueError('reschedule_request_not_found')
+        c.commit()
+    except Exception:c.rollback();raise
+    finally:c.close()
+    return get_request(int(req['id']))
+
+
 def _apply_shift(req,a,b):
     new_a_start=datetime.fromisoformat(req['desired_start']);new_a_end=datetime.fromisoformat(req['desired_end'])
     new_b_start=datetime.fromisoformat(req['occupant_proposed_start']);new_b_end=datetime.fromisoformat(req['occupant_proposed_end'])
@@ -219,7 +253,12 @@ def _apply_shift(req,a,b):
 
 
 def swap_times(req_id):
-    """Apply approved exchange and reconcile Calendar/Telemost after commit."""
+    """Apply approved exchange once and reconcile Calendar/Telemost after commit.
+
+    A durable before-state snapshot makes stale APPLYING recovery idempotent: if
+    lesson times already equal the intended target, a retry only re-syncs them
+    instead of swapping them back.
+    """
     req=get_request(req_id)
     if not req or not req["occupant_lesson_id"]:
         raise ValueError("Для этого запроса нет второго занятия.")
@@ -227,15 +266,32 @@ def swap_times(req_id):
     if not a or not b: raise ValueError("Одно из занятий не найдено.")
     if a["lesson_status"] != "CONFIRMED" or b["lesson_status"] != "CONFIRMED":
         raise ValueError("Обмен возможен только для подтверждённых занятий.")
-    if str(req['exchange_mode'] or '').upper()=='SHIFT' and req['occupant_proposed_start'] and req['occupant_proposed_end']:
+    req=_ensure_apply_snapshot(req,a,b)
+    before_a_start=req['apply_requester_before_start'];before_a_end=req['apply_requester_before_end']
+    before_b_start=req['apply_occupant_before_start'];before_b_end=req['apply_occupant_before_end']
+    mode=str(req['exchange_mode'] or '').upper()
+    if mode=='SHIFT' and req['occupant_proposed_start'] and req['occupant_proposed_end']:
+        target_a_start=req['desired_start'];target_a_end=req['desired_end']
+        target_b_start=req['occupant_proposed_start'];target_b_end=req['occupant_proposed_end']
+    else:
+        target_a_start=before_b_start;target_a_end=before_b_end
+        target_b_start=before_a_start;target_b_end=before_a_end
+    a=database.get_lesson(req["requester_lesson_id"]);b=database.get_lesson(req["occupant_lesson_id"])
+    already_applied=_same_times(a,target_a_start,target_a_end) and _same_times(b,target_b_start,target_b_end)
+    still_original=_same_times(a,before_a_start,before_a_end) and _same_times(b,before_b_start,before_b_end)
+    if already_applied:
+        result=(a,b)
+    elif not still_original:
+        raise ValueError('reschedule_apply_state_changed')
+    elif mode=='SHIFT' and req['occupant_proposed_start'] and req['occupant_proposed_end']:
         result=_apply_shift(req,a,b)
     else:
         c=database.connect()
         try:
             c.execute("BEGIN IMMEDIATE")
             now=datetime.now().isoformat(timespec='seconds')
-            c.execute("UPDATE lessons SET start_time=?,end_time=?,updated_at=? WHERE id=?",(b["start_time"],b["end_time"],now,a["id"]))
-            c.execute("UPDATE lessons SET start_time=?,end_time=?,updated_at=? WHERE id=?",(a["start_time"],a["end_time"],now,b["id"]))
+            c.execute("UPDATE lessons SET start_time=?,end_time=?,updated_at=? WHERE id=?",(target_a_start,target_a_end,now,a["id"]))
+            c.execute("UPDATE lessons SET start_time=?,end_time=?,updated_at=? WHERE id=?",(target_b_start,target_b_end,now,b["id"]))
             c.commit()
         except Exception:
             c.rollback(); raise
