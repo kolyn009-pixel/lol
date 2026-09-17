@@ -79,11 +79,27 @@ def propose_move(lesson_id,desired_start,teacher_id,note=None):
     push_events.student_and_parents(occupant_id,'🔁 Предложение переноса',body,'/app/?tab=schedule','/app/parent/',f'exchange-{int(rid)}',{'type':'schedule_exchange','request_id':int(rid),'mode':mode},mirror_messengers=True);return {'status':'waiting_occupant','request_id':int(rid),'lesson_id':int(lesson_id),'mode':mode,'occupant_student_id':occupant_id,'occupant_proposed_start':req['occupant_proposed_start'],'occupant_proposed_end':req['occupant_proposed_end']}
 
 def finalize_move(request_id,teacher_id):
-    req=slot_change.get_request(int(request_id))
-    if not req:raise ValueError('request_not_found')
-    if str(req['status'])!='WAITING_FINAL_ADMIN':raise ValueError('request_not_ready')
-    first,second=slot_change.swap_times(int(request_id));slot_change.set_status(int(request_id),'APPLIED',admin_final_by=int(teacher_id))
+    rid=int(request_id);tid=int(teacher_id);conn=database.connect()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        row=conn.execute('SELECT status,requester_lesson_id,occupant_lesson_id FROM slot_change_requests WHERE id=?',(rid,)).fetchone()
+        if not row:raise ValueError('request_not_found')
+        if str(row['status'])=='APPLIED':
+            conn.rollback();return {'status':'ok','request_id':rid,'already_applied':True,'lesson_ids':[int(row['requester_lesson_id']),int(row['occupant_lesson_id'])]}
+        if str(row['status'])!='WAITING_FINAL_ADMIN':raise ValueError('request_not_ready')
+        cur=conn.execute("UPDATE slot_change_requests SET status='APPLYING',admin_final_by=?,updated_at=? WHERE id=? AND status='WAITING_FINAL_ADMIN'",(tid,database.now_iso(),rid))
+        if cur.rowcount!=1:raise ValueError('request_not_ready')
+        conn.commit()
+    except Exception:
+        conn.rollback();raise
+    finally:conn.close()
+    try:
+        first,second=slot_change.swap_times(rid)
+    except Exception:
+        slot_change.set_status(rid,'WAITING_FINAL_ADMIN')
+        raise
+    slot_change.set_status(rid,'APPLIED',admin_final_by=tid)
     for item in (first,second):
         if not item:continue
-        push_events.student_and_parents(int(item['user_id']),'🔁 Время занятия изменено',f'Новое время: {datetime.fromisoformat(str(item["start_time"])).strftime("%d.%m в %H:%M")}.',f'/app/lesson/?id={int(item["id"])}','/app/parent/',f'exchange-applied-{int(request_id)}-{int(item["id"])}',{'type':'schedule','lesson_id':int(item['id']),'request_id':int(request_id)},mirror_messengers=True)
-    return {'status':'ok','request_id':int(request_id),'lesson_ids':[int(first['id']),int(second['id'])]}
+        push_events.student_and_parents(int(item['user_id']),'🔁 Время занятия изменено',f'Новое время: {datetime.fromisoformat(str(item["start_time"])).strftime("%d.%m в %H:%M")}.',f'/app/lesson/?id={int(item["id"])}','/app/parent/',f'exchange-applied-{rid}-{int(item["id"])}',{'type':'schedule','lesson_id':int(item['id']),'request_id':rid},mirror_messengers=True)
+    return {'status':'ok','request_id':rid,'already_applied':False,'lesson_ids':[int(first['id']),int(second['id'])]}
