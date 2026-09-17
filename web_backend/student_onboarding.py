@@ -1,6 +1,6 @@
 """Permanent-student onboarding for returning TutorBot students and trial continuations."""
 from __future__ import annotations
-from datetime import datetime,timedelta
+from datetime import datetime,timedelta,date
 from zoneinfo import ZoneInfo,ZoneInfoNotFoundError
 import json,secrets,string
 import database
@@ -12,7 +12,7 @@ DAY_MAP={'MON':0,'TUE':1,'WED':2,'THU':3,'FRI':4,'SAT':5,'SUN':6}
 def _now():return datetime.now()
 def _iso(dt=None):return (dt or _now()).isoformat(timespec='seconds')
 def _token(prefix='JOIN'):
- alphabet=string.ascii_uppercase+string.digits;return prefix+'-'+''.join(secrets.choice(alphabet) for _ in range(10))
+ alphabet=string.ascii_uppercase+string.digits;return prefix+''.join([]) if False else prefix+'-'+''.join(secrets.choice(alphabet) for _ in range(10))
 def _clean(v,n=120):return str(v or '').strip()[:n]
 def _goal(v):
  x=_clean(v,80).upper();m={'ПОДГОТОВКА К ОГЭ':'OGE','ОГЭ':'OGE','ПОДГОТОВКА К ЕГЭ':'EGE','ЕГЭ':'EGE','ОЛИМПИАДНАЯ ФИЗИКА':'OLYMPIAD','ОЛИМПИАДНАЯ ПОДГОТОВКА':'OLYMPIAD','ШКОЛЬНАЯ ПРОГРАММА':'SCHOOL','ПОВЫСИТЬ УСПЕВАЕМОСТЬ':'SCHOOL','ПОВЫШЕНИЕ УСПЕВАЕМОСТИ':'SCHOOL'};return m.get(x,x if x in {'OGE','EGE','OLYMPIAD','SCHOOL'} else 'SCHOOL')
@@ -113,7 +113,13 @@ def _teacher_slot(local_day,local_time,student_timezone):
  if not (0<=hh<=23 and 0<=mm<=59):raise ValueError('invalid_time')
  teacher_tz_name=database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara';stz=ZoneInfo(student_timezone);ttz=ZoneInfo(teacher_tz_name);now=datetime.now(stz);delta=(DAY_MAP[local_day]-now.weekday())%7;ref=(now+timedelta(days=delta)).replace(hour=hh,minute=mm,second=0,microsecond=0)
  if ref<=now:ref+=timedelta(days=7)
- converted=ref.astimezone(ttz);return converted.weekday(),converted.strftime('%H:%M'),teacher_tz_name
+ converted=ref.astimezone(ttz);return converted.weekday(),converted.strftime('%H:%M'),teacher_tz_name,converted.date().isoformat()
+def _schedule_cycle_end(start_date):
+ d=date.fromisoformat(str(start_date));return date(d.year,5,31).isoformat() if d.month<=5 else date(d.year,12,31).isoformat()
+def _nearest_teacher_start(weekday,start_time,timezone_name=None):
+ tz=ZoneInfo(str(timezone_name or database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara'));now=datetime.now(tz);hh,mm=[int(x) for x in str(start_time).split(':',1)];delta=(int(weekday)-now.weekday())%7;candidate=(now+timedelta(days=delta)).replace(hour=hh,minute=mm,second=0,microsecond=0)
+ if candidate<=now:candidate+=timedelta(days=7)
+ return candidate.date().isoformat()
 def save_schedule(token,selections):
  row=_active(_row(token))
  if row['status'] not in {'REGION_SET','SCHEDULE_SET'}:raise ValueError('region_not_set')
@@ -122,7 +128,7 @@ def save_schedule(token,selections):
   if not isinstance(x,dict):continue
   day=_clean(x.get('weekday'),20).upper();time=_clean(x.get('time'),8);duration=int(x.get('duration_minutes') or 60)
   if day in DAY_MAP and time and 30<=duration<=180:
-   teacher_day,teacher_time,teacher_timezone=_teacher_slot(day,time,row['timezone']);clean.append({'weekday':day,'time':time,'duration_minutes':duration,'teacher_weekday':teacher_day,'teacher_time':teacher_time,'teacher_timezone':teacher_timezone})
+   teacher_day,teacher_time,teacher_timezone,teacher_start_date=_teacher_slot(day,time,row['timezone']);clean.append({'weekday':day,'time':time,'duration_minutes':duration,'teacher_weekday':teacher_day,'teacher_time':teacher_time,'teacher_timezone':teacher_timezone,'teacher_start_date':teacher_start_date,'end_date':_schedule_cycle_end(teacher_start_date)})
  if not clean:raise ValueError('schedule_required')
  c=database.connect();c.execute("UPDATE student_onboarding_sessions SET schedule_json=?,status='SCHEDULE_SET',updated_at=? WHERE id=?",(json.dumps(clean,ensure_ascii=False),_iso(),int(row['id'])));c.commit();c.close();return status_payload(token)
 def _materialize_schedule_requests(row,uid):
@@ -131,11 +137,12 @@ def _materialize_schedule_requests(row,uid):
  if not values:return []
  now=_iso();created=[];c=database.connect()
  try:
-  c.execute('BEGIN IMMEDIATE');existing={(int(r['weekday']),str(r['start_time']),int(r['duration_minutes'])):int(r['id']) for r in c.execute("SELECT id,weekday,start_time,duration_minutes FROM regular_schedules WHERE onboarding_session_id=? AND status IN ('PENDING','APPROVED')",(int(row['id']),)).fetchall()}
+  c.execute('BEGIN IMMEDIATE');existing={(int(r['weekday']),str(r['start_time']),int(r['duration_minutes'])):dict(r) for r in c.execute("SELECT id,weekday,start_time,duration_minutes,start_date,end_date FROM regular_schedules WHERE onboarding_session_id=? AND status IN ('PENDING','APPROVED')",(int(row['id']),)).fetchall()}
   for item in values:
-   day=int(item['teacher_weekday']);start=str(item['teacher_time']);duration=int(item['duration_minutes']);key=(day,start,duration)
-   if key in existing:created.append(existing[key]);continue
-   cur=c.execute("""INSERT INTO regular_schedules(user_id,study_goal,subject,weekday,start_time,duration_minutes,active,student_approved,admin_approved,status,request_source,requested_at,created_at,updated_at,onboarding_session_id,student_timezone,student_local_weekday,student_local_start_time) VALUES(?,?,?,?,?,?,0,1,0,'PENDING','STUDENT',?,?,?,?,?,?,?)""",(int(uid),_goal(row.get('study_goal')),_subject(row.get('subject')),day,start,duration,now,now,now,int(row['id']),row.get('timezone'),item.get('weekday'),item.get('time')));created.append(int(cur.lastrowid))
+   day=int(item['teacher_weekday']);start=str(item['teacher_time']);duration=int(item['duration_minutes']);key=(day,start,duration);start_date=str(item.get('teacher_start_date') or _nearest_teacher_start(day,start,item.get('teacher_timezone')));end_date=str(item.get('end_date') or _schedule_cycle_end(start_date))
+   if key in existing:
+    old=existing[key];c.execute("UPDATE regular_schedules SET start_date=COALESCE(start_date,?),end_date=COALESCE(end_date,?),updated_at=? WHERE id=?",(start_date,end_date,now,int(old['id'])));created.append(int(old['id']));continue
+   cur=c.execute("""INSERT INTO regular_schedules(user_id,study_goal,subject,weekday,start_time,duration_minutes,active,student_approved,admin_approved,status,request_source,requested_at,created_at,updated_at,start_date,end_date,onboarding_session_id,student_timezone,student_local_weekday,student_local_start_time) VALUES(?,?,?,?,?,?,0,1,0,'PENDING','STUDENT',?,?,?,?,?,?,?,?,?)""",(int(uid),_goal(row.get('study_goal')),_subject(row.get('subject')),day,start,duration,now,now,now,start_date,end_date,int(row['id']),row.get('timezone'),item.get('weekday'),item.get('time')));created.append(int(cur.lastrowid))
   c.commit()
  finally:c.close()
  return created
