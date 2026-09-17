@@ -1,9 +1,9 @@
 """Teacher-side quick actions for today's lessons.
 
 Actions are deliberately explicit: teacher cancellation never penalizes a student,
-warning is a notification only, and reschedule requests reuse the canonical
-slot-change flow so conflicts can become SHIFT/SWAP proposals instead of silently
-moving somebody else's lesson.
+warning is a notification only, payment reminders keep the lesson unpaid, and
+reschedule requests reuse the canonical slot-change flow so conflicts can become
+SHIFT/SWAP proposals instead of silently moving somebody else's lesson.
 """
 from __future__ import annotations
 
@@ -43,6 +43,33 @@ def warn(lesson_id, text):
         {'type':'teacher_warning','lesson_id':int(lesson_id)},
     )
     return {'status':'ok','lesson_id':int(lesson_id),'delivery':result}
+
+
+def remind_payment(lesson_id):
+    lesson = _lesson(lesson_id)
+    if str(lesson['lesson_status'] or '').upper() not in {'PENDING','CONFIRMED'}:
+        raise ValueError('lesson_not_active')
+    if str(lesson['payment_status'] or '').upper() != 'AWAITING_PAYMENT':
+        raise ValueError('payment_not_awaiting')
+    body = (
+        'До занятия осталось немного времени. Оплата за занятие ещё не подтверждена. '
+        'Чтобы подключение прошло без задержки, оплатите занятие заранее.'
+    )
+    delivery = push_events.student_and_parents(
+        int(lesson['user_id']),
+        '💳 Напоминание об оплате',
+        body,
+        f'/app/lesson/?id={int(lesson_id)}',
+        '/app/parent/',
+        f'payment-reminder-teacher-{int(lesson_id)}-{int(datetime.now().timestamp())}',
+        {'type':'reminder','lesson_id':int(lesson_id),'reason':'teacher_payment_reminder'},
+    )
+    return {
+        'status':'ok',
+        'lesson_id':int(lesson_id),
+        'payment_status':'AWAITING_PAYMENT',
+        'delivery':delivery,
+    }
 
 
 def cancel(lesson_id, reason=None):
