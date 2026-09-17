@@ -37,8 +37,9 @@ def confirm_payment_wait(lesson_id,teacher_id=None):
     if str(lesson['payment_status'] or '').upper()!='AWAITING_PAYMENT':raise ValueError('payment_not_awaiting')
     from core import payment_wait_control
     state=payment_wait_control.confirm_wait(int(lesson_id),teacher_id)
-    delivery=remind_payment(int(lesson_id))['delivery']
-    return {'status':'ok','lesson_id':int(lesson_id),'payment_status':'AWAITING_PAYMENT','payment_wait_confirmed':True,'state':state,'delivery':delivery}
+    already=bool(state.get('already_confirmed'))
+    delivery=None if already else remind_payment(int(lesson_id))['delivery']
+    return {'status':'ok','lesson_id':int(lesson_id),'payment_status':'AWAITING_PAYMENT','payment_wait_confirmed':True,'already_confirmed':already,'state':state,'delivery':delivery}
 
 def cancel(lesson_id,reason=None):
     lesson=_lesson(lesson_id);status=str(lesson['lesson_status'] or '').upper()
