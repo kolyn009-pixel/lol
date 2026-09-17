@@ -26,6 +26,26 @@ def _rows():
         conn.close()
 
 
+def _schedule_lesson_ids():
+    conn = database.connect()
+    try:
+        q = ",".join("?" for _ in SCHEDULE_IDS)
+        rows = conn.execute(
+            f"""
+            SELECT id
+            FROM lessons
+            WHERE regular_schedule_id IN ({q})
+              AND DATE(start_time) BETWEEN ? AND ?
+              AND lesson_status != 'REJECTED'
+            ORDER BY start_time,id
+            """,
+            (*SCHEDULE_IDS, DEFAULT_START_DATE, TARGET_END_DATE),
+        ).fetchall()
+        return [int(r["id"]) for r in rows]
+    finally:
+        conn.close()
+
+
 def _duplicate_lessons(user_id):
     conn = database.connect()
     try:
@@ -125,10 +145,12 @@ def run(apply=False):
         created.extend(ids)
         print(f"schedule={sid} generated={len(ids)} ids={ids}")
 
+    sync_targets = _schedule_lesson_ids()
     sync = {"synced_lesson_ids": [], "failed": []}
-    if created:
+    if sync_targets:
         from core import schedule_sync
-        sync = schedule_sync.sync_lessons_blocking(created)
+        sync = schedule_sync.sync_lessons_blocking(sync_targets)
+    print(f"SYNC_TARGETS={sync_targets}")
     print(f"SYNC={sync}")
 
     after = _rows()
@@ -143,6 +165,7 @@ def run(apply=False):
         raise SystemExit(f"RECOVERY_FAILED: duplicate active lessons found: {dupes}")
 
     print(f"CREATED_TOTAL={len(created)}")
+    print(f"SYNC_TARGET_TOTAL={len(sync_targets)}")
     print("DUPLICATES=0")
     print("IVAN_RECOVERY=OK")
 
