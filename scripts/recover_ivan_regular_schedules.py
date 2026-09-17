@@ -96,7 +96,8 @@ def run(apply=False):
     try:
         conn.execute("BEGIN IMMEDIATE")
         for row in rows:
-            start_date = row.get("start_date") or DEFAULT_START_DATE
+            existing_start = str(row.get("start_date") or "").strip()
+            start_date = max(existing_start, DEFAULT_START_DATE) if existing_start else DEFAULT_START_DATE
             if start_date > TARGET_END_DATE:
                 raise ValueError(f"schedule {row['id']} start_date after target end_date")
             conn.execute(
