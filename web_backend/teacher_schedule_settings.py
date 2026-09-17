@@ -117,8 +117,10 @@ def _notify_affected(affected):
 def add_day_off(payload):
     preview=preview_day_off(payload);day=preview["date"];start=preview["start_time"];end=preview["end_time"];whole_day=preview["whole_day"];affected=preview["affected_lessons"]
     item_id=database.add_schedule_exception(day,"CLOSED",start,end,str(payload.get("comment") or "").strip()[:300] or "Выходной преподавателя")
+    from web_backend import teacher_day_off_state
+    marked=teacher_day_off_state.mark_lessons(int(item_id),[int(x["id"]) for x in affected])
     delivery=_notify_affected(affected)
-    return {"status":"ok","exception_id":int(item_id),"date":day,"whole_day":whole_day,"start_time":start,"end_time":end,"affected_lessons":affected,"affected_count":len(affected),"notifications":delivery,"student_choices":["RESCHEDULE","CANCEL"],"existing_lessons_changed":False}
+    return {"status":"ok","exception_id":int(item_id),"date":day,"whole_day":whole_day,"start_time":start,"end_time":end,"affected_lessons":affected,"affected_count":len(affected),"marked_lessons":marked,"notifications":delivery,"student_choices":["RESCHEDULE","CANCEL"],"existing_lessons_changed":False}
 
 
 def remove_day_off(exception_id):
