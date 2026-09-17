@@ -36,12 +36,16 @@ async def _notify_teacher(context,lesson_id,lesson):
     text=f"💳 До занятия 2 часа — оплата не подтверждена\n\n👤 {_name(lesson)}\nОткройте «Сегодня» в Аделии и выберите: ждать оплату или отменить занятие."
     try:
         from core import admin_roles
-        for tid in admin_roles.get_admin_telegram_ids(): await context.bot.send_message(chat_id=int(tid),text=text)
-    except Exception:pass
+        for admin in admin_roles.list_admins():
+            tid=admin.get('telegram_id')
+            if tid is not None:
+                await context.bot.send_message(chat_id=int(tid),text=text)
+    except Exception as exc:print('TEACHER PAYMENT RISK TG ERROR:',int(lesson_id),repr(exc),flush=True)
     try:
         from vk_adapter import schema as s,app
-        for peer in s.get_admin_external_ids('VK'):app.send(int(peer),text,linked=True,mode='teacher')
-    except Exception:pass
+        for peer in s.get_admin_external_ids('VK'):
+            app.send(int(peer),text,linked=True,mode='teacher')
+    except Exception as exc:print('TEACHER PAYMENT RISK VK ERROR:',int(lesson_id),repr(exc),flush=True)
 
 
 def install():
@@ -97,8 +101,6 @@ def install():
                     push_events.teachers('💳 До занятия 2 часа — оплаты нет',f"{_name(lesson)}: оплата не подтверждена. Решите, ждать оплату или отменить занятие.",'/teacher/',f'payment-risk-{int(lesson_id)}',{'type':'payment_risk','lesson_id':int(lesson_id)})
                 except Exception as exc:print('TEACHER PAYMENT RISK PUSH ERROR:',int(lesson_id),repr(exc),flush=True)
                 await _notify_teacher(context,int(lesson_id),lesson)
-            # No immediate legacy cancellation: teacher must decide first.
-            # Payment remains AWAITING_PAYMENT, so lesson start stays blocked.
             return
         payment_deadline_job._adelia_teacher_payment_decision=True;payment_deadline_job._adelia_original=original_deadline;runtime.payment_deadline_job=payment_deadline_job
     _INSTALLED=True
