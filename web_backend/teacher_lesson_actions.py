@@ -82,14 +82,23 @@ def finalize_move(request_id,teacher_id):
     rid=int(request_id);tid=int(teacher_id);conn=database.connect()
     try:
         conn.execute('BEGIN IMMEDIATE')
-        row=conn.execute('SELECT status,requester_lesson_id,occupant_lesson_id FROM slot_change_requests WHERE id=?',(rid,)).fetchone()
+        row=conn.execute('SELECT status,requester_lesson_id,occupant_lesson_id,updated_at FROM slot_change_requests WHERE id=?',(rid,)).fetchone()
         if not row:raise ValueError('request_not_found')
-        if str(row['status'])=='APPLIED':
+        status=str(row['status'])
+        if status=='APPLIED':
             conn.rollback();return {'status':'ok','request_id':rid,'already_applied':True,'lesson_ids':[int(row['requester_lesson_id']),int(row['occupant_lesson_id'])]}
-        if str(row['status'])!='WAITING_FINAL_ADMIN':raise ValueError('request_not_ready')
-        cur=conn.execute("UPDATE slot_change_requests SET status='APPLYING',admin_final_by=?,updated_at=? WHERE id=? AND status='WAITING_FINAL_ADMIN'",(tid,database.now_iso(),rid))
-        if cur.rowcount!=1:raise ValueError('request_not_ready')
-        conn.commit()
+        if status=='APPLYING':
+            try:stale=datetime.fromisoformat(str(row['updated_at'])) <= datetime.now()-timedelta(minutes=2)
+            except Exception:stale=False
+            if not stale:raise ValueError('request_applying')
+            cur=conn.execute("UPDATE slot_change_requests SET status='APPLYING',admin_final_by=?,updated_at=? WHERE id=? AND status='APPLYING' AND updated_at=?",(tid,database.now_iso(),rid,row['updated_at']))
+            if cur.rowcount!=1:raise ValueError('request_applying')
+            conn.commit()
+        else:
+            if status!='WAITING_FINAL_ADMIN':raise ValueError('request_not_ready')
+            cur=conn.execute("UPDATE slot_change_requests SET status='APPLYING',admin_final_by=?,updated_at=? WHERE id=? AND status='WAITING_FINAL_ADMIN'",(tid,database.now_iso(),rid))
+            if cur.rowcount!=1:raise ValueError('request_not_ready')
+            conn.commit()
     except Exception:
         conn.rollback();raise
     finally:conn.close()
