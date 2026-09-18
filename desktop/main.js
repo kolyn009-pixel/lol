@@ -31,6 +31,31 @@ function readPrefs() { try { return JSON.parse(fs.readFileSync(prefsPath(), 'utf
 function writePrefs(prefs) { try { fs.mkdirSync(path.dirname(prefsPath()), { recursive: true }); fs.writeFileSync(prefsPath(), JSON.stringify(prefs), 'utf8'); } catch (_) {} }
 function prefsWithDefaults() { return { closeToTray: true, ...readPrefs() }; }
 function savePref(key, value) { const prefs = prefsWithDefaults(); prefs[key] = value; writePrefs(prefs); refreshTrayMenu(); return prefs; }
+function visibleBounds(bounds) {
+  if (!bounds || !Number.isFinite(bounds.x) || !Number.isFinite(bounds.y) || !Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)) return null;
+  const displays = screen.getAllDisplays();
+  const visible = displays.some(d => {
+    const a=d.workArea;
+    const ix=Math.max(0,Math.min(bounds.x+bounds.width,a.x+a.width)-Math.max(bounds.x,a.x));
+    const iy=Math.max(0,Math.min(bounds.y+bounds.height,a.y+a.height)-Math.max(bounds.y,a.y));
+    return ix>=160 && iy>=120;
+  });
+  return visible ? bounds : null;
+}
+function savedMainBounds() {
+  const b=visibleBounds(readPrefs().mainWindowBounds);
+  if (!b) return null;
+  return {
+    x:Math.round(b.x),y:Math.round(b.y),
+    width:Math.max(900,Math.round(b.width)),height:Math.max(620,Math.round(b.height))
+  };
+}
+function rememberMainBounds(win) {
+  if (!win || win.isDestroyed() || win.isMinimized() || win.isMaximized() || win.isFullScreen()) return;
+  const p=prefsWithDefaults();
+  p.mainWindowBounds=win.getBounds();
+  writePrefs(p);
+}
 function offlinePage() { return 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Аделия — нет сети</title><style>body{margin:0;font-family:system-ui;background:#f7f5fb;color:#241f2b;display:grid;place-items:center;min-height:100vh}.card{max-width:480px;padding:32px;border:1px solid #e5def0;border-radius:24px;background:#fff;box-shadow:0 14px 50px #2c234015}.logo{font-size:30px}.muted{color:#756e80;line-height:1.5}button{border:0;border-radius:14px;padding:12px 18px;background:#7048d8;color:#fff;font:inherit;font-weight:700;cursor:pointer}</style><div class="card"><div class="logo">💜 Аделия</div><h1>Нет подключения к интернету</h1><p class="muted">Кабинет не смог подключиться к adeliatutor.ru. Проверьте интернет и попробуйте ещё раз.</p><button onclick="location.href='${APP_URL}'">Повторить</button></div></html>`); }
 
 function appPath(pathname = '/', params = {}) {
@@ -125,7 +150,14 @@ function openBoardWindow(url) {
   boardWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:560, minHeight:400, title:'Доска — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-board', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:true } }), 'board');
   hardenNavigation(boardWindow, trustedBoard); boardWindow.loadURL(url); tileLessonWindows(); return true;
 }
-function closeLessonWindows() { for (const win of [...lessonWindows]) if (!win.isDestroyed()) win.close(); lessonWindows.clear(); meetingWindow=null; boardWindow=null; }
+function closeLessonWindows(focusMain=false) {
+  for (const win of [...lessonWindows]) if (!win.isDestroyed()) win.close();
+  lessonWindows.clear(); meetingWindow=null; boardWindow=null;
+  if (focusMain && mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show(); mainWindow.focus();
+  }
+}
 
 function trayIcon() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="9" fill="#7650d8"/><path d="M16 25S6 19.2 6 12.4C6 8.9 8.6 7 11.3 7c2 0 3.7 1 4.7 2.5C17 8 18.7 7 20.7 7 23.4 7 26 8.9 26 12.4 26 19.2 16 25 16 25Z" fill="white"/></svg>`;
@@ -163,12 +195,16 @@ function setupAutoUpdates() {
 }
 
 function createWindow(initialUrl = APP_URL) {
-  const win=new BrowserWindow({width:1280,height:820,minWidth:900,minHeight:620,show:false,backgroundColor:'#ffffff',title:'Аделия',webPreferences:{preload:path.join(__dirname,'preload.js'),partition:'persist:adelia',contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,backgroundThrottling:true}}); mainWindow=win;
+  const restored=savedMainBounds();
+  const win=new BrowserWindow({width:restored?.width||1280,height:restored?.height||820,...(restored?{x:restored.x,y:restored.y}:{}),minWidth:900,minHeight:620,show:false,backgroundColor:'#ffffff',title:'Аделия',webPreferences:{preload:path.join(__dirname,'preload.js'),partition:'persist:adelia',contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,backgroundThrottling:true}}); mainWindow=win;
   win.webContents.setWindowOpenHandler(({url})=>{if(trustedApp(url)){win.loadURL(url);return{action:'deny'};}if(trustedChild(url)){openMeetingWindow(url);return{action:'deny'};}if(trustedBoard(url)){openBoardWindow(url);return{action:'deny'};}openExternalSafe(url);return{action:'deny'};});
   win.webContents.on('will-navigate',(event,url)=>{if(!trustedApp(url)){event.preventDefault();if(trustedChild(url))openMeetingWindow(url);else if(trustedBoard(url))openBoardWindow(url);else openExternalSafe(url);}});
   win.webContents.on('did-fail-load',(_e,code,_desc,validatedURL,isMainFrame)=>{if(isMainFrame&&code!==-3&&trustedApp(validatedURL||APP_URL))win.loadURL(offlinePage());});
   win.once('ready-to-show',()=>win.show());
-  win.on('close',event=>{ if (!isQuitting && prefsWithDefaults().closeToTray) { event.preventDefault(); win.hide(); } });
+  let boundsTimer=null;
+  const queueBoundsSave=()=>{if(boundsTimer)clearTimeout(boundsTimer);boundsTimer=setTimeout(()=>rememberMainBounds(win),250)};
+  win.on('resize',queueBoundsSave);win.on('move',queueBoundsSave);
+  win.on('close',event=>{ rememberMainBounds(win); if (!isQuitting && prefsWithDefaults().closeToTray) { event.preventDefault(); win.hide(); } });
   win.on('closed',()=>{closeLessonWindows();if(mainWindow===win)mainWindow=null;});
   win.loadURL(trustedApp(initialUrl) ? initialUrl : APP_URL);
   return win;
@@ -194,7 +230,7 @@ if (!gotSingleInstanceLock) {
     const boardSession=session.fromPartition('persist:adelia-board'); boardSession.setPermissionCheckHandler(()=>false); boardSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
 
     ipcMain.handle('adelia:lesson-tool',(event,payload)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;if(!payload||typeof payload.url!=='string')return false;if(payload.kind==='meeting')return openMeetingWindow(payload.url);if(payload.kind==='board')return openBoardWindow(payload.url);return false;});
-    ipcMain.handle('adelia:end-lesson-workspace',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;closeLessonWindows();return true;});
+    ipcMain.handle('adelia:end-lesson-workspace',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;closeLessonWindows(true);return true;});
     ipcMain.handle('adelia:desktop-prefs',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return null;return prefsWithDefaults();});
     ipcMain.handle('adelia:set-close-to-tray',(event,value)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return null;return savePref('closeToTray',!!value);});
     ipcMain.handle('adelia:open-route',(event,payload)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;const route=payload&&payload.route;const id=payload&&payload.id;showMain(routeUrl(route,id));return true;});
