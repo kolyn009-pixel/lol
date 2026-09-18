@@ -15,6 +15,8 @@ let updateTimer = null;
 let updateBusy = false;
 let meetingWindow = null;
 let boardWindow = null;
+let deviceCheckWindow = null;
+let deviceCheckLessonId = '';
 let tray = null;
 let isQuitting = false;
 const lessonWindows = new Set();
@@ -159,6 +161,30 @@ function closeLessonWindows(focusMain=false) {
   }
 }
 
+function openDeviceCheck(lessonId='') {
+  deviceCheckLessonId=String(lessonId||'');
+  if (focusExisting(deviceCheckWindow)) return true;
+  deviceCheckWindow=new BrowserWindow({
+    width:920,height:690,minWidth:760,minHeight:600,
+    parent:mainWindow&&!mainWindow.isDestroyed()?mainWindow:undefined,
+    modal:false,show:false,title:'Проверка перед занятием — Аделия',
+    backgroundColor:'#f5f3f8',
+    webPreferences:{
+      preload:path.join(__dirname,'device_check_preload.js'),
+      partition:'persist:adelia-device-check',
+      contextIsolation:true,nodeIntegration:false,sandbox:true,
+      webSecurity:true,backgroundThrottling:false
+    }
+  });
+  deviceCheckWindow.setMenuBarVisibility(false);
+  deviceCheckWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+  deviceCheckWindow.webContents.on('will-navigate',event=>event.preventDefault());
+  deviceCheckWindow.once('ready-to-show',()=>deviceCheckWindow&&!deviceCheckWindow.isDestroyed()&&deviceCheckWindow.show());
+  deviceCheckWindow.on('closed',()=>{deviceCheckWindow=null;deviceCheckLessonId=''});
+  deviceCheckWindow.loadFile(path.join(__dirname,'device_check.html'));
+  return true;
+}
+
 function trayIcon() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="9" fill="#7650d8"/><path d="M16 25S6 19.2 6 12.4C6 8.9 8.6 7 11.3 7c2 0 3.7 1 4.7 2.5C17 8 18.7 7 20.7 7 23.4 7 26 8.9 26 12.4 26 19.2 16 25 16 25Z" fill="white"/></svg>`;
   return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`).resize({ width: 24, height: 24 });
@@ -228,12 +254,28 @@ if (!gotSingleInstanceLock) {
     const mainSession=session.fromPartition('persist:adelia'); mainSession.setPermissionCheckHandler(()=>false); mainSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
     const lessonSession=session.fromPartition('persist:adelia-lesson'); const lessonMediaAllowed=(webContents,permission,requestingOrigin)=>{const origin=requestingOrigin||(webContents?webContents.getURL():'');return trustedChild(origin)&&['media','microphone','camera'].includes(permission);}; lessonSession.setPermissionCheckHandler((wc,p,o)=>lessonMediaAllowed(wc,p,o)); lessonSession.setPermissionRequestHandler((wc,p,cb,d)=>cb(lessonMediaAllowed(wc,p,d&&d.requestingUrl)));
     const boardSession=session.fromPartition('persist:adelia-board'); boardSession.setPermissionCheckHandler(()=>false); boardSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
+    const deviceCheckSession=session.fromPartition('persist:adelia-device-check');
+    const deviceCheckMediaAllowed=(wc,permission)=>{
+      const owner=deviceCheckWindow&&!deviceCheckWindow.isDestroyed()&&wc===deviceCheckWindow.webContents;
+      return !!owner&&['media','microphone','camera'].includes(permission);
+    };
+    deviceCheckSession.setPermissionCheckHandler((wc,p)=>deviceCheckMediaAllowed(wc,p));
+    deviceCheckSession.setPermissionRequestHandler((wc,p,cb)=>cb(deviceCheckMediaAllowed(wc,p)));
 
     ipcMain.handle('adelia:lesson-tool',(event,payload)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;if(!payload||typeof payload.url!=='string')return false;if(payload.kind==='meeting')return openMeetingWindow(payload.url);if(payload.kind==='board')return openBoardWindow(payload.url);return false;});
     ipcMain.handle('adelia:end-lesson-workspace',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;closeLessonWindows(true);return true;});
     ipcMain.handle('adelia:desktop-prefs',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return null;return prefsWithDefaults();});
     ipcMain.handle('adelia:set-close-to-tray',(event,value)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return null;return savePref('closeToTray',!!value);});
     ipcMain.handle('adelia:open-route',(event,payload)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;const route=payload&&payload.route;const id=payload&&payload.id;showMain(routeUrl(route,id));return true;});
+    ipcMain.handle('adelia:device-check',(event,payload)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;return openDeviceCheck(payload&&payload.lessonId);});
+    ipcMain.handle('adelia:device-check-complete',(event)=>{
+      if(!deviceCheckWindow||event.sender!==deviceCheckWindow.webContents)return false;
+      const id=deviceCheckLessonId;
+      deviceCheckWindow.close();
+      showMain(routeUrl('lesson',id));
+      return true;
+    });
+    ipcMain.handle('adelia:device-check-close',(event)=>{if(!deviceCheckWindow||event.sender!==deviceCheckWindow.webContents)return false;deviceCheckWindow.close();return true;});
 
     createTray();
     const startupDeep = deepLinkFromArgv(process.argv);
@@ -244,5 +286,5 @@ if (!gotSingleInstanceLock) {
   });
 }
 
-app.on('before-quit',()=>{isQuitting=true;if(updateTimer)clearInterval(updateTimer);closeLessonWindows();});
+app.on('before-quit',()=>{isQuitting=true;if(updateTimer)clearInterval(updateTimer);if(deviceCheckWindow&&!deviceCheckWindow.isDestroyed())deviceCheckWindow.destroy();closeLessonWindows();});
 app.on('window-all-closed',()=>{if(process.platform==='darwin'&&isQuitting)app.quit();});
