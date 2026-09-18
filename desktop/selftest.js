@@ -12,7 +12,7 @@ const files={
 const web={
   student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js'),
   individual:readRepo('web/teacher_lesson_flow.js'),group:readRepo('web/teacher_group_live12.js'),event:readRepo('web/teacher_event_live13.js'),
-  telemostSettings:readRepo('web/teacher_telemost_settings.js'),parentManifest:readRepo('web/parent/manifest.webmanifest')
+  telemostSettings:readRepo('web/teacher_telemost_settings.js'),lessonUi:readRepo('web/desktop_lesson_workspace.js'),lessonUiCss:readRepo('web/desktop_lesson_workspace.css'),desktopManifest:read('bundled_ui_manifest.js'),parentManifest:readRepo('web/parent/manifest.webmanifest')
 };
 let failed=false;
 function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed=true}
@@ -80,6 +80,10 @@ check(files.system.includes('download-progress')&&files.system.includes('setProg
 check(files.ux.includes("HOTKEY = 'CommandOrControl+Shift+A'"),'global Adelia hotkey');
 check(files.ux.includes('setOverlayIcon'),'Windows unread badge');
 check(files.layout.includes("'together','board-focus','mini-video','hide-video'"),'lesson layout modes');
+check(web.lessonUi.includes('setLessonLayout')&&web.lessonUi.includes('toggleLessonVideo')&&web.lessonUi.includes('endLessonWorkspace'),'desktop lesson controller actions');
+check(web.lessonUi.includes('dual-screen')&&web.lessonUi.includes('board-focus')&&web.lessonUi.includes('mini-video'),'desktop lesson controller modes');
+check(web.lessonUiCss.includes('.adelia-desktop-lessonbar'),'desktop lesson controller styles');
+check(web.desktopManifest.includes('desktop_lesson_workspace.css')&&web.desktopManifest.includes('desktop_lesson_workspace.js'),'lesson controller bundled into desktop UI');
 
 check(web.individual.includes("openLessonTool('meeting'")&&web.individual.includes("openLessonTool('board'")&&web.individual.includes('endLessonWorkspace()'),'individual desktop lifecycle');
 check(web.group.includes("openLessonTool('meeting'")&&web.group.includes("openLessonTool('board'")&&web.group.includes('endLessonWorkspace()'),'group desktop lifecycle');
