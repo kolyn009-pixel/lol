@@ -10,7 +10,8 @@ const CHILD_ORIGINS = new Set(['https://telemost.yandex.ru']);
 const BOARD_HOSTS = new Set(['myboard.io', 'www.myboard.io']);
 const UPDATE_CHECK_MS = 4 * 60 * 60 * 1000;
 const UPDATE_CHANNEL = process.env.ADELIA_UPDATE_CHANNEL === 'stable' ? 'stable' : 'beta';
-const UPDATE_BASE_URL = `https://adeliatutor.ru/desktop-updates/${UPDATE_CHANNEL}/`;
+const UPDATE_TARGET = process.platform === 'win32' ? 'win-x64' : (process.platform === 'darwin' ? `macos-${process.arch}` : `linux-${process.arch}`);
+const UPDATE_BASE_URL = `https://adeliatutor.ru/desktop-updates/${UPDATE_CHANNEL}/${UPDATE_TARGET}/`;
 const PROTOCOL = 'adelia';
 let mainWindow = null;
 let updateTimer = null;
@@ -314,7 +315,7 @@ if (!gotSingleInstanceLock) {
     });
     ipcMain.handle('adelia:device-check-close',(event)=>{if(!deviceCheckWindow||event.sender!==deviceCheckWindow.webContents)return false;deviceCheckWindow.close();return true;});
     ipcMain.handle('adelia:open-about',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;return openAboutWindow();});
-    ipcMain.handle('adelia:about-info',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;return {version:app.getVersion(),channel:UPDATE_CHANNEL==='beta'?'Beta':'Stable',platform:process.platform,arch:process.arch,buildSha:buildSha(),packaged:app.isPackaged,updateState};});
+    ipcMain.handle('adelia:about-info',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;return {version:app.getVersion(),channel:UPDATE_CHANNEL==='beta'?'Beta':'Stable',platform:process.platform,arch:process.arch,updateTarget:UPDATE_TARGET,buildSha:buildSha(),packaged:app.isPackaged,updateState};});
     ipcMain.handle('adelia:about-check-updates',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;if(!app.isPackaged)return sendUpdateState({status:'current'});if(lessonWindows.size>0)return sendUpdateState({status:'error',message:'Завершите текущее занятие перед проверкой обновления.'});try{sendUpdateState({status:'checking'});await autoUpdater.checkForUpdates();return updateState}catch(err){return sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'})}});
     ipcMain.handle('adelia:about-install-update',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents||updateState.status!=='downloaded')return false;closeLessonWindows();autoUpdater.quitAndInstall(false,true);return true;});
     ipcMain.handle('adelia:about-close',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return false;aboutWindow.close();return true;});
