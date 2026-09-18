@@ -67,6 +67,10 @@ require("teacher_schedule_booking_paused" in regular_booking, "regular booking i
 require("teacher_schedule_booking_paused" in trial_slots, "trial slots ignore region-change pause")
 require("whRegionOpen" in schedule_ui, "teacher region change UI entrypoint missing")
 require("whRegionCommit" in schedule_ui, "teacher region change confirmation missing")
+require("currentRegularEdits" in schedule_ui, "teacher region change does not expose editable regular schedules")
+require("_normalize_regular_edits" in schedule_backend, "teacher region change does not validate regular schedule edits")
+require("_apply_regular_edits" in schedule_backend, "teacher region change does not apply explicit regular schedule edits")
+require("_convert_regular_rows_for_timezone" not in schedule_backend, "teacher region change still auto-rebases regular schedules")
 
 for required in (
     "bootstrap.js", "main.js", "preload.js", "lesson_workspace.js",
