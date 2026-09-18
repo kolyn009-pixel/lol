@@ -103,8 +103,10 @@ class Handler(api_v6.Handler):
             try:
                 lid=int(body.get("lesson_id"))
                 if path.endswith("/open-entry"):
-                    result=telemost_runtime.start_individual(lid);meeting=result.get("telemost")or{}
-                    return self._json(200,{**result,"status":"ok","opened_at":datetime.now().isoformat(timespec="seconds"),"meeting_url":meeting.get("join_url")})
+                    result=telemost_runtime.start_individual(lid)
+                    if result.get("status")!="opened":return self._json(409,{"error":result.get("status","open_entry_failed"),**result})
+                    meeting=result.get("telemost")or{}
+                    return self._json(200,{**result,"status":"ok","opened_at":result.get("opened_at")or datetime.now().isoformat(timespec="seconds"),"meeting_url":meeting.get("join_url")})
                 if path.endswith("/mark-arrived"):
                     result=lesson_join.teacher_mark_arrived(lid);return self._json(200,result) if result.get("status")=="ok" else self._json(409,{"error":result.get("status","mark_arrived_failed")})
                 result=telemost_runtime.finish_individual(lid,body.get("attendance_status","PRESENT"),body.get("tutor_comment"),body.get("mode","NOW"));return self._json(200,result) if result.get("status")=="ok" else self._json(409,{"error":result.get("status","finish_failed")})
