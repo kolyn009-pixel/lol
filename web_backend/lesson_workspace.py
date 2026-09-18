@@ -5,7 +5,7 @@ operations are delegated to core.lesson_lifecycle/database.finish_lesson so the
 same minute accounting, bonus/underwork logic and downstream post-lesson flow
 stay authoritative for WEB, Telegram and VK.
 """
-from database import connect, now_iso, get_lesson
+from database import connect, now_iso, get_lesson, start_lesson as canonical_start_lesson
 from core import lesson_lifecycle
 
 
@@ -58,7 +58,7 @@ def _finished_payload(lesson, already_finished=False):
 
 
 def start_lesson(lesson_id):
-    """Start once; repeated WEB clicks return the existing start timestamp."""
+    """Start through the canonical TutorBot lifecycle; keep WEB retries idempotent."""
     lesson_id=int(lesson_id)
     conn=connect();row=conn.execute("SELECT * FROM lessons WHERE id=?",(lesson_id,)).fetchone()
     if not row:conn.close();return {"status":"not_found"}
@@ -72,9 +72,23 @@ def start_lesson(lesson_id):
         if status!="IN_PROGRESS":
             conn.execute("UPDATE lessons SET lesson_status='IN_PROGRESS',updated_at=? WHERE id=?",(now_iso(),lesson_id));conn.commit()
         conn.close();return {"status":"ok","started_at":started,"lesson_status":"IN_PROGRESS","channel":"WEB","already_started":True}
-    started=now_iso();conn.execute("UPDATE lessons SET started_at=?,lesson_status='IN_PROGRESS',updated_at=? WHERE id=? AND started_at IS NULL AND finished_at IS NULL",(started,now_iso(),lesson_id));conn.commit();fresh=conn.execute("SELECT started_at,lesson_status,finished_at FROM lessons WHERE id=?",(lesson_id,)).fetchone();conn.close()
+    payment_status=str(row["payment_status"] or "").upper()
+    is_trial=bool(row["is_trial"])
+    conn.close()
+    allowed={"PAID","FREE","RESERVED_BALANCE","WAIVED","COVERED"}
+    if not is_trial and payment_status not in allowed:
+        return {"status":"payment_required","payment_status":payment_status}
+    try:
+        started=canonical_start_lesson(lesson_id)
+    except ValueError as exc:
+        fresh=get_lesson(lesson_id)
+        if fresh and fresh["started_at"] and not fresh["finished_at"]:
+            return {"status":"ok","started_at":fresh["started_at"],"lesson_status":fresh["lesson_status"],"channel":"WEB","already_started":True}
+        return {"status":"start_blocked","detail":str(exc)}
+    fresh=get_lesson(lesson_id)
+    if not fresh:return {"status":"not_found"}
     if fresh["finished_at"]:return {"status":"already_finished"}
-    return {"status":"ok","started_at":fresh["started_at"] or started,"lesson_status":fresh["lesson_status"],"channel":"WEB","already_started":bool(fresh["started_at"] and fresh["started_at"]!=started)}
+    return {"status":"ok","started_at":fresh["started_at"] or started,"lesson_status":fresh["lesson_status"],"channel":"WEB","already_started":False}
 
 
 def finish_lesson(lesson_id,attendance_status="PRESENT",tutor_comment=None,mode="NOW"):
