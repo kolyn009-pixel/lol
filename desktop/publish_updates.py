@@ -69,6 +69,9 @@ def main() -> None:
     parser.add_argument("source", type=Path, help="electron-builder dist directory")
     parser.add_argument("target", type=Path, help="clean local release bundle directory")
     parser.add_argument("--platform", choices=("win", "mac", "all"), default="all")
+    parser.add_argument("--channel", choices=("beta", "stable"), default="beta")
+    parser.add_argument("--version", help="desktop semantic version recorded in the release manifest")
+    parser.add_argument("--git-sha", help="source commit recorded in the release manifest")
     parser.add_argument("--arch", choices=("x64", "arm64"), help="required for a macOS browser-download alias")
     args = parser.parse_args()
 
@@ -91,7 +94,23 @@ def main() -> None:
         shutil.rmtree(target)
     target.mkdir(parents=True)
 
-    manifest = {"files": []}
+    version = (args.version or "").strip()
+    git_sha = (args.git_sha or "").strip()
+    if args.channel == "beta" and version and "-beta." not in version:
+        raise SystemExit("beta channel requires a beta semantic version")
+    if args.channel == "stable" and version and "-" in version:
+        raise SystemExit("stable channel refuses prerelease versions")
+    manifest = {
+        "schema": 2,
+        "channel": args.channel,
+        "version": version or None,
+        "git_sha": git_sha or None,
+        "rollback": {
+            "strategy": "atomic_channel_directory",
+            "instruction": "Keep the previous channel directory and atomically repoint the live channel symlink if rollback is required."
+        },
+        "files": [],
+    }
     for src in collect(source):
         dst = target / src.name
         shutil.copy2(src, dst)
@@ -101,6 +120,7 @@ def main() -> None:
         manifest["files"].append({"name": alias.name, "size": alias.stat().st_size, "sha512": sha512(alias), "browser_alias": True})
 
     (target / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    (target / "release.json").write_text(json.dumps({k: manifest[k] for k in ("schema", "channel", "version", "git_sha", "rollback")}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "target": str(target), "files": len(manifest["files"])}, ensure_ascii=False))
 
 
