@@ -15,3 +15,6 @@ body{background:radial-gradient(circle at 7% 5%,rgba(126,91,245,.16),transparent
 .student-actions button:hover,.student-actions button:focus-visible{transform:translateY(-1px);box-shadow:0 12px 28px rgba(75,54,116,.08);outline:none}
 .code::placeholder{color:#c5bfcc}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* First-run welcome */
+.welcome{width:100%;max-width:440px;margin:auto}.welcome-mark{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:#f0ebff;color:#6847f5;font-size:22px;font-weight:900;margin-bottom:16px}.welcome .eyebrow{color:#6847f5}.welcome h2{margin:8px 0 6px;font-size:31px;letter-spacing:-.045em}.welcome>p{margin:0 0 18px;color:#817a88;font-size:11px}.welcome-points{display:grid;gap:8px}.welcome-points>div{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;padding:12px;border:1px solid #e8e3ed;border-radius:14px;background:#fff}.welcome-points>div>b{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#f4f0ff;color:#6847f5;font-size:8px}.welcome-points span{display:grid;gap:3px}.welcome-points strong{font-size:10px}.welcome-points small{color:#88818f;font-size:8px;line-height:1.45}.welcome .primary{margin-top:14px}
