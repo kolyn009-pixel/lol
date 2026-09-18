@@ -16,8 +16,9 @@ function render(lesson){
  if(Date.now()<snoozeUntil&&d>5){hide();return}
  const urgent=d<=5; const el=shell(); el.hidden=false; el.classList.toggle('urgent',urgent);
  const same=String(lastId)===String(lesson.id); lastId=lesson.id;
- el.innerHTML='<div class="apl-accent"></div><div class="apl-copy"><span class="apl-kicker">'+(urgent?'Скоро начинаем':'Ближайшее занятие')+'</span><b>'+esc(lesson.subject||'Занятие')+' · '+esc(fmtTime(lesson.start_time))+'</b><small>'+esc(countdown(lesson.start_time))+(lesson.started?' · уже началось':'')+'</small></div><div class="apl-actions"><button type="button" class="apl-later" data-later>Позже</button><button type="button" class="apl-open" data-open>Открыть занятие</button></div>';
+ el.innerHTML='<div class="apl-accent"></div><div class="apl-copy"><span class="apl-kicker">'+(urgent?'Скоро начинаем':'Ближайшее занятие')+'</span><b>'+esc(lesson.subject||'Занятие')+' · '+esc(fmtTime(lesson.start_time))+'</b><small>'+esc(countdown(lesson.start_time))+(lesson.started?' · уже началось':'')+'</small></div><div class="apl-actions"><button type="button" class="apl-later" data-later>Позже</button><button type="button" class="apl-check" data-check>Камера и звук</button><button type="button" class="apl-open" data-open>Открыть занятие</button></div>';
  el.querySelector('[data-open]').onclick=async()=>{try{await D.openRoute('lesson',lesson.id)}catch(_){}};
+ el.querySelector('[data-check]').onclick=async()=>{try{await D.openDeviceCheck(lesson.id)}catch(_){}};
  el.querySelector('[data-later]').onclick=()=>{snoozeUntil=Date.now()+5*60000;hide()};
  if(!same&&urgent&&el.animate)el.animate([{transform:'translateY(10px)',opacity:.2},{transform:'translateY(0)',opacity:1}],{duration:260,easing:'cubic-bezier(.2,.8,.2,1)'});
 }
