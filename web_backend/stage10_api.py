@@ -50,17 +50,39 @@ class Stage10Mixin:
         except Exception as exc:print('[stage10] teacher messages GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         return self._json(404,{'error':'not_found'})
 
+    def _stage10_upload(self,student_id,origin='WEB'):
+        form=self._multipart();item=form['file'] if form is not None and 'file' in form else None
+        if item is None or not getattr(item,'filename',None):raise ValueError('file_required')
+        data=item.file.read(message_media.MAX_BYTES+1)
+        if len(data)>message_media.MAX_BYTES:raise ValueError('media_too_large')
+        mime=getattr(item,'type',None) or 'application/octet-stream'
+        kind='photo' if str(mime).lower().startswith('image/') else 'document'
+        return message_media.store_bytes(int(student_id),data,item.filename,mime,kind,origin=origin)
+
     def stage10_post(self,path):
         if not path.startswith('/api/teacher/messages'):return False
         teacher=self._teacher()
         if not teacher:return self._json(401,{'error':'unauthorized'})
+        if path=='/api/teacher/messages/upload':
+            try:
+                form=self._multipart()
+                item=form['file'] if form is not None and 'file' in form else None
+                if item is None or not getattr(item,'filename',None):raise ValueError('file_required')
+                uid=int(form.getfirst('user_id','0'))
+                data=item.file.read(message_media.MAX_BYTES+1)
+                if len(data)>message_media.MAX_BYTES:raise ValueError('media_too_large')
+                mime=getattr(item,'type',None) or 'application/octet-stream'
+                kind='photo' if str(mime).lower().startswith('image/') else 'document'
+                return self._json(200,{'attachment':message_media.store_bytes(uid,data,item.filename,mime,kind,origin='WEB')})
+            except ValueError as exc:return self._json(413 if str(exc)=='media_too_large' else 400,{'error':str(exc),'max_bytes':message_media.MAX_BYTES})
+            except Exception as exc:print('[stage10] teacher media upload error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         body=self._body()
         if body is None:return self._json(400,{'error':'invalid_json'})
         try:
             if path=='/api/teacher/messages/send':
                 tid=teacher.get('id') if hasattr(teacher,'get') else None
                 # Normal Send is Adelia-only. External channels require the explicit action below.
-                result=send_teacher_reply(int(body.get('user_id')),body.get('text'),[],tid)
+                result=send_teacher_reply(int(body.get('user_id')),body.get('text'),[],tid,body.get('attachment'))
                 return self._json(200,result)
             if path=='/api/teacher/messages/send-external':
                 result=send_existing_message_channels(int(body.get('message_id')),body.get('channels'))
