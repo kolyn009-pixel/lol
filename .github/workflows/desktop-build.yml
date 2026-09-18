@@ -17,7 +17,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  preflight:
+    name: Actions runner preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify runner and desktop source
+        shell: bash
+        run: |
+          node --version
+          test -f desktop/package.json
+          node -e "const p=require('./desktop/package.json'); console.log('DESKTOP_VERSION='+p.version)"
+          echo "ACTIONS_PREFLIGHT=OK"
+
   build:
+    needs: preflight
     name: ${{ matrix.label }}
     strategy:
       fail-fast: false
