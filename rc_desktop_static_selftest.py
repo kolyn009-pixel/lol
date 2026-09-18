@@ -37,6 +37,7 @@ student = read(WEB / "index.html")
 teacher = read(WEB / "teacher.html")
 parent = read(WEB / "parent" / "index.html")
 landing = read(WEB / "landing.js")
+landing_html = read(WEB / "landing.html")
 individual = read(WEB / "teacher_lesson_flow.js")
 group = read(WEB / "teacher_group_live12.js")
 event = read(WEB / "teacher_event_live13.js")
@@ -133,7 +134,13 @@ for name, source in (("individual",individual),("group",group),("event",event),(
 require("/app/student_clean.css" in student, "student clean shell linked")
 require("/app/teacher_clean.css" in teacher and "/app/teacher_clean7.css" in teacher, "teacher clean shell linked")
 require("/app/parent/parent_clean.css" in parent, "parent clean shell linked")
-require("Adelia-latest-windows-x64.exe" in landing and "Adelia-latest-macos-arm64.dmg" in landing and "Adelia-latest-macos-x64.dmg" in landing, "stable desktop download aliases linked")
+require("Adelia-latest-windows-x64.exe" in landing, "Windows desktop recommendation alias linked")
+require(
+    "Adelia-latest-windows-x64.exe" in landing_html
+    and "Adelia-latest-macos-arm64.dmg" in landing_html
+    and "Adelia-latest-macos-x64.dmg" in landing_html,
+    "stable desktop download aliases linked",
+)
 require(str(parent_manifest.get("name") or "").startswith("Аделия"), "parent PWA branded Adelia")
 icons = parent_manifest.get("icons") or []
 require(any(x.get("src") == "/adelia-favicon-32.png" and x.get("sizes") == "32x32" for x in icons), "parent canonical 32 icon")
