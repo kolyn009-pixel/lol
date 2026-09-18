@@ -17,6 +17,8 @@ let meetingWindow = null;
 let boardWindow = null;
 let deviceCheckWindow = null;
 let deviceCheckLessonId = '';
+let aboutWindow = null;
+let updateState = { status:'idle' };
 let tray = null;
 let isQuitting = false;
 const lessonWindows = new Set();
@@ -185,6 +187,31 @@ function openDeviceCheck(lessonId='') {
   return true;
 }
 
+function buildSha() {
+  return String(process.env.ADELIA_BUILD_SHA || process.env.GITHUB_SHA || '').trim().slice(0,12) || null;
+}
+function sendUpdateState(next) {
+  updateState={...updateState,...next};
+  if (aboutWindow && !aboutWindow.isDestroyed()) aboutWindow.webContents.send('adelia:about-update-state', updateState);
+  return updateState;
+}
+function openAboutWindow() {
+  if (focusExisting(aboutWindow)) return true;
+  aboutWindow=new BrowserWindow({
+    width:730,height:590,minWidth:560,minHeight:520,show:false,
+    parent:mainWindow&&!mainWindow.isDestroyed()?mainWindow:undefined,
+    title:'Об Аделии',backgroundColor:'#f5f3f8',
+    webPreferences:{preload:path.join(__dirname,'about_preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}
+  });
+  aboutWindow.setMenuBarVisibility(false);
+  aboutWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+  aboutWindow.webContents.on('will-navigate',event=>event.preventDefault());
+  aboutWindow.once('ready-to-show',()=>aboutWindow&&!aboutWindow.isDestroyed()&&aboutWindow.show());
+  aboutWindow.on('closed',()=>{aboutWindow=null});
+  aboutWindow.loadFile(path.join(__dirname,'about.html'));
+  return true;
+}
+
 function trayIcon() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="9" fill="#7650d8"/><path d="M16 25S6 19.2 6 12.4C6 8.9 8.6 7 11.3 7c2 0 3.7 1 4.7 2.5C17 8 18.7 7 20.7 7 23.4 7 26 8.9 26 12.4 26 19.2 16 25 16 25Z" fill="white"/></svg>`;
   return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`).resize({ width: 24, height: 24 });
@@ -199,6 +226,7 @@ function refreshTrayMenu() {
     { label:'Домашние задания', click:()=>showMain(routeUrl('homework')) },
     { type:'separator' },
     { label:'Сворачивать в трей при закрытии', type:'checkbox', checked:!!prefs.closeToTray, click:item=>savePref('closeToTray', !!item.checked) },
+    { label:'Об Аделии и обновления', click:()=>openAboutWindow() },
     { type:'separator' },
     { label:'Выйти из Аделии', click:()=>{ isQuitting=true; app.quit(); } }
   ]));
@@ -213,10 +241,14 @@ function createTray() {
 }
 
 function setupAutoUpdates() {
-  if (!app.isPackaged) return;
   autoUpdater.autoDownload=false; autoUpdater.autoInstallOnAppQuit=true;
-  autoUpdater.on('update-available', async info => { if(updateBusy)return; updateBusy=true; try { const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Доступно обновление Аделии',message:`Доступна новая версия ${info.version}.`,detail:'Скачать обновление сейчас? Можно продолжать пользоваться приложением во время загрузки.',buttons:['Скачать','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0) await autoUpdater.downloadUpdate(); } catch(_){} finally{updateBusy=false;} });
-  autoUpdater.on('update-downloaded', async info => { const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Обновление готово',message:`Версия ${info.version} загружена.`,detail:'Перезапустить Аделию и установить обновление сейчас?',buttons:['Перезапустить и обновить','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0){closeLessonWindows();autoUpdater.quitAndInstall(false,true);} });
+  autoUpdater.on('checking-for-update',()=>sendUpdateState({status:'checking'}));
+  autoUpdater.on('update-not-available',()=>sendUpdateState({status:'current'}));
+  autoUpdater.on('download-progress',info=>sendUpdateState({status:'downloading',percent:Number(info.percent||0)}));
+  autoUpdater.on('error',err=>sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'}));
+  if (!app.isPackaged) { sendUpdateState({status:'current'}); return; }
+  autoUpdater.on('update-available', async info => { sendUpdateState({status:'available',version:info.version}); if(updateBusy)return; updateBusy=true; try { const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Доступно обновление Аделии',message:`Доступна новая версия ${info.version}.`,detail:'Скачать обновление сейчас? Можно продолжать пользоваться приложением во время загрузки.',buttons:['Скачать','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0) await autoUpdater.downloadUpdate(); } catch(_){} finally{updateBusy=false;} });
+  autoUpdater.on('update-downloaded', async info => { sendUpdateState({status:'downloaded',version:info.version,percent:100}); const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Обновление готово',message:`Версия ${info.version} загружена.`,detail:'Перезапустить Аделию и установить обновление сейчас?',buttons:['Перезапустить и обновить','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0){closeLessonWindows();autoUpdater.quitAndInstall(false,true);} });
   const check=()=>{if(updateBusy||lessonWindows.size>0)return;autoUpdater.checkForUpdates().catch(()=>{});}; setTimeout(check,15000); updateTimer=setInterval(check,UPDATE_CHECK_MS);
 }
 
@@ -276,6 +308,11 @@ if (!gotSingleInstanceLock) {
       return true;
     });
     ipcMain.handle('adelia:device-check-close',(event)=>{if(!deviceCheckWindow||event.sender!==deviceCheckWindow.webContents)return false;deviceCheckWindow.close();return true;});
+    ipcMain.handle('adelia:open-about',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;return openAboutWindow();});
+    ipcMain.handle('adelia:about-info',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;return {version:app.getVersion(),channel:'Beta',platform:process.platform,arch:process.arch,buildSha:buildSha(),packaged:app.isPackaged,updateState};});
+    ipcMain.handle('adelia:about-check-updates',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;if(!app.isPackaged)return sendUpdateState({status:'current'});if(lessonWindows.size>0)return sendUpdateState({status:'error',message:'Завершите текущее занятие перед проверкой обновления.'});try{sendUpdateState({status:'checking'});await autoUpdater.checkForUpdates();return updateState}catch(err){return sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'})}});
+    ipcMain.handle('adelia:about-install-update',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents||updateState.status!=='downloaded')return false;closeLessonWindows();autoUpdater.quitAndInstall(false,true);return true;});
+    ipcMain.handle('adelia:about-close',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return false;aboutWindow.close();return true;});
 
     createTray();
     const startupDeep = deepLinkFromArgv(process.argv);
@@ -286,5 +323,5 @@ if (!gotSingleInstanceLock) {
   });
 }
 
-app.on('before-quit',()=>{isQuitting=true;if(updateTimer)clearInterval(updateTimer);if(deviceCheckWindow&&!deviceCheckWindow.isDestroyed())deviceCheckWindow.destroy();closeLessonWindows();});
+app.on('before-quit',()=>{isQuitting=true;if(updateTimer)clearInterval(updateTimer);if(deviceCheckWindow&&!deviceCheckWindow.isDestroyed())deviceCheckWindow.destroy();if(aboutWindow&&!aboutWindow.isDestroyed())aboutWindow.destroy();closeLessonWindows();});
 app.on('window-all-closed',()=>{if(process.platform==='darwin'&&isQuitting)app.quit();});
