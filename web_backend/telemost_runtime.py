@@ -9,7 +9,16 @@ def _meeting_disabled():return {'status':'disabled_by_teacher','conference_id':N
 def _access_revoked(conference_id):
     return {'status':'access_revoked','conference_id':str(conference_id or '').strip() or None,'provider_ended':False}
 def start_individual(lesson_id):
-    lid=int(lesson_id);meeting=ensure_individual_conference(lid) if telemost_settings.auto_on_start() else _meeting_disabled();opened=_now()
+    lid=int(lesson_id)
+    c=database.connect();row=c.execute('SELECT l.*,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?',(lid,)).fetchone();c.close()
+    if not row:return {'status':'not_found','lesson_id':lid}
+    status=str(row['lesson_status'] or '').upper()
+    if status in {'CANCELLED','REJECTED','NO_SHOW','LATE_CANCELLED','SICKNESS','COMPLETED'} or row['finished_at']:
+        return {'status':'invalid_status','lesson_id':lid,'lesson_status':status}
+    payment=str(row['payment_status'] or '').upper()
+    paid=bool(row['is_trial']) or payment in {'PAID','FREE','RESERVED_BALANCE','WAIVED','COVERED'}
+    if not paid:return {'status':'payment_required','lesson_id':lid,'payment_status':payment}
+    meeting=ensure_individual_conference(lid) if telemost_settings.auto_on_start() else _meeting_disabled();opened=_now()
     if meeting.get('status') not in {'ok','disabled','disabled_by_teacher'}:raise RuntimeError('telemost_create_failed')
     c=database.connect();c.execute('UPDATE lessons SET meeting_link_sent_at=COALESCE(meeting_link_sent_at,?),updated_at=? WHERE id=?',(opened,opened,lid));c.commit();row=c.execute('SELECT l.started_at,l.lesson_status,l.meeting_link_sent_at,l.meeting_url,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?',(lid,)).fetchone();c.close()
     delivery=None
@@ -24,10 +33,11 @@ def finish_individual(lesson_id,attendance_status='PRESENT',tutor_comment=None,m
         c=database.connect();c.execute('UPDATE lessons SET meeting_link_sent_at=NULL,meeting_url=NULL,updated_at=? WHERE id=?',(_now(),lid));c.commit();c.close()
     return {**result,'telemost':telemost}
 def individual_student_access(lesson_id,user_id):
-    lid=int(lesson_id);uid=int(user_id);c=database.connect();row=c.execute('SELECT l.id,l.user_id,l.lesson_status,l.started_at,l.finished_at,l.meeting_link_sent_at,l.meeting_url,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?',(lid,)).fetchone();c.close()
+    lid=int(lesson_id);uid=int(user_id);c=database.connect();row=c.execute('SELECT l.id,l.user_id,l.lesson_status,l.payment_status,l.is_trial,l.started_at,l.finished_at,l.meeting_link_sent_at,l.meeting_url,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?',(lid,)).fetchone();c.close()
     if not row or int(row['user_id'])!=uid:raise PermissionError('lesson_access_denied')
-    visible=bool(row['meeting_link_sent_at'] and not row['finished_at'] and str(row['lesson_status'] or '').upper() not in {'CANCELLED','REJECTED','NO_SHOW','LATE_CANCELLED','SICKNESS','COMPLETED'})
-    return {'lesson_id':lid,'links_visible':visible,'meeting_url':row['meeting_url'] if visible else None,'board_url':row['board_url'],'lesson_status':row['lesson_status'],'started_at':row['started_at']}
+    payment=str(row['payment_status'] or '').upper();paid=bool(row['is_trial']) or payment in {'PAID','FREE','RESERVED_BALANCE','WAIVED','COVERED'}
+    visible=bool(paid and row['meeting_link_sent_at'] and not row['finished_at'] and str(row['lesson_status'] or '').upper() not in {'CANCELLED','REJECTED','NO_SHOW','LATE_CANCELLED','SICKNESS','COMPLETED'})
+    return {'lesson_id':lid,'links_visible':visible,'payment_required':not paid,'payment_status':row['payment_status'],'meeting_url':row['meeting_url'] if visible else None,'board_url':row['board_url'],'lesson_status':row['lesson_status'],'started_at':row['started_at']}
 def start_group(lesson_id,teacher_id):
     lid=int(lesson_id);preview=group_lesson_access.teacher_start_preview(lid)
     if preview['unresolved']:raise ValueError('group_lesson_has_unresolved_admissions')
