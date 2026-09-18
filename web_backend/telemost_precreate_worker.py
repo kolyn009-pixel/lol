@@ -49,7 +49,7 @@ def _in_window(value, lo, hi):
 def _prepare_individual(lo, hi):
     conn = database.connect()
     rows = conn.execute(
-        """SELECT id,start_time,lesson_status,finished_at
+        """SELECT id,start_time,lesson_status,payment_status,is_trial,finished_at
              FROM lessons
             WHERE start_time IS NOT NULL
               AND finished_at IS NULL
@@ -59,6 +59,10 @@ def _prepare_individual(lo, hi):
     out = []
     for row in rows:
         if str(row["lesson_status"] or "").upper() in FINAL_INDIVIDUAL:
+            continue
+        payment = str(row["payment_status"] or "").upper()
+        admitted = bool(row["is_trial"]) or payment in {"PAID", "FREE", "RESERVED_BALANCE", "WAIVED", "COVERED"}
+        if not admitted:
             continue
         if not _in_window(row["start_time"], lo, hi):
             continue
