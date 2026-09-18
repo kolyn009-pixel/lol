@@ -6,7 +6,8 @@ deleted: affected students are notified and can either reschedule or cancel.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import re
 
 import database
@@ -129,10 +130,164 @@ def remove_day_off(exception_id):
     database.delete_schedule_exception(exception_id);return {"status":"ok","exception_id":exception_id}
 
 
+def _zone(name):
+    value=str(name or "").strip()[:80]
+    try:return value,ZoneInfo(value)
+    except ZoneInfoNotFoundError:raise ValueError("invalid_timezone")
+
+
+def booking_paused():
+    return str(database.get_setting("teacher_schedule_booking_paused","0") or "0").lower() in {"1","true","on","yes"}
+
+
+def _pending_timezone():
+    if str(database.get_setting("teacher_timezone_change_pending","0") or "0").lower() not in {"1","true","on","yes"}:return None
+    value=database.get_setting("teacher_timezone_pending",None)
+    return str(value) if value else None
+
+
+def _anchor_monday(tz):
+    today=datetime.now(tz).date()
+    return today-timedelta(days=today.weekday())
+
+
+def _convert_weekly_item(weekday,start_time,end_time,old_tz,new_tz,anchor):
+    day=anchor+timedelta(days=int(weekday))
+    sh,sm=[int(x) for x in str(start_time)[:5].split(":")]
+    eh,em=[int(x) for x in str(end_time)[:5].split(":")]
+    start=datetime(day.year,day.month,day.day,sh,sm,tzinfo=old_tz).astimezone(new_tz)
+    end=datetime(day.year,day.month,day.day,eh,em,tzinfo=old_tz).astimezone(new_tz)
+    return {
+        "weekday":int(start.weekday()),
+        "start_time":start.strftime("%H:%M"),
+        "end_time":end.strftime("%H:%M"),
+        "end_weekday":int(end.weekday()),
+        "crosses_day":start.date()!=end.date(),
+        "offset":start.strftime("%z"),
+    }
+
+
+def _regular_preview(old_tz,new_tz,anchor):
+    conn=database.connect()
+    try:rows=conn.execute("""SELECT rs.id,rs.user_id,rs.weekday,rs.start_time,rs.duration_minutes,rs.status,u.name AS student_name FROM regular_schedules rs JOIN users u ON u.id=rs.user_id WHERE COALESCE(rs.active,1)=1 AND COALESCE(rs.status,'APPROVED') NOT IN ('CANCELLED','REJECTED') ORDER BY rs.weekday,rs.start_time,rs.id""").fetchall()
+    finally:conn.close()
+    out=[]
+    for row in rows:
+        day=anchor+timedelta(days=int(row["weekday"]))
+        hh,mm=[int(x) for x in str(row["start_time"])[:5].split(":")]
+        old_start=datetime(day.year,day.month,day.day,hh,mm,tzinfo=old_tz)
+        new_start=old_start.astimezone(new_tz)
+        out.append({
+            "id":int(row["id"]),
+            "student_id":int(row["user_id"]),
+            "student_name":row["student_name"],
+            "status":str(row["status"] or "APPROVED"),
+            "duration_minutes":int(row["duration_minutes"] or 60),
+            "old_weekday":int(row["weekday"]),
+            "old_start_time":str(row["start_time"])[:5],
+            "new_weekday":int(new_start.weekday()),
+            "new_start_time":new_start.strftime("%H:%M"),
+            "new_offset":new_start.strftime("%z"),
+        })
+    return out
+
+
+def preview_timezone_change(timezone_name):
+    current_name,current_tz=_zone(database.get_setting("bot_timezone","Europe/Samara") or "Europe/Samara")
+    target_name,target_tz=_zone(timezone_name)
+    anchor=_anchor_monday(current_tz)
+    converted=[]
+    for row in _rows():
+        item=_convert_weekly_item(row["weekday"],row["start_time"],row["end_time"],current_tz,target_tz,anchor)
+        converted.append({**row,"local":item})
+    conn=database.connect()
+    try:
+        future=conn.execute("""SELECT COUNT(*) n FROM lessons WHERE start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED')""",(datetime.now().isoformat(timespec="seconds"),)).fetchone()
+    finally:conn.close()
+    return {
+        "status":"ok",
+        "current_timezone":current_name,
+        "timezone":target_name,
+        "anchor_week_start":anchor.isoformat(),
+        "items":converted,
+        "regular_schedules":_regular_preview(current_tz,target_tz,anchor),
+        "existing_future_lessons":int((future["n"] if future else 0) or 0),
+        "existing_lessons_changed":False,
+        "booking_paused":booking_paused(),
+    }
+
+
+def begin_timezone_change(payload):
+    target=str(payload.get("timezone") or "").strip()
+    preview=preview_timezone_change(target)
+    database.set_setting("teacher_timezone_change_pending","1")
+    database.set_setting("teacher_timezone_pending",preview["timezone"])
+    database.set_setting("teacher_timezone_change_started_at",database.now_iso())
+    database.set_setting("teacher_schedule_booking_paused","1")
+    preview["pending"]=True
+    preview["booking_paused"]=True
+    return preview
+
+
+def cancel_timezone_change():
+    database.delete_setting("teacher_timezone_change_pending")
+    database.delete_setting("teacher_timezone_pending")
+    database.delete_setting("teacher_timezone_change_started_at")
+    database.set_setting("teacher_schedule_booking_paused","0")
+    result=snapshot();result["status"]="ok";result["timezone_change_cancelled"]=True;return result
+
+
+def _upsert_setting(conn,key,value,now):
+    conn.execute("""INSERT INTO bot_settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at""",(str(key),None if value is None else str(value),now))
+
+
+def _convert_regular_rows_for_timezone(conn,old_tz,new_tz,anchor,now):
+    rows=conn.execute("""SELECT id,weekday,start_time FROM regular_schedules WHERE COALESCE(active,1)=1 AND COALESCE(status,'APPROVED') NOT IN ('CANCELLED','REJECTED')""").fetchall()
+    changed=0
+    for row in rows:
+        day=anchor+timedelta(days=int(row["weekday"]))
+        hh,mm=[int(x) for x in str(row["start_time"])[:5].split(":")]
+        old_start=datetime(day.year,day.month,day.day,hh,mm,tzinfo=old_tz)
+        local=old_start.astimezone(new_tz)
+        conn.execute("UPDATE regular_schedules SET weekday=?,start_time=?,updated_at=? WHERE id=?",(int(local.weekday()),local.strftime("%H:%M"),now,int(row["id"])))
+        changed+=1
+    return changed
+
+
+def commit_timezone_change(payload):
+    pending=_pending_timezone()
+    if not pending:raise ValueError("timezone_change_not_pending")
+    target_name,target_tz=_zone(payload.get("timezone") or pending)
+    if target_name!=pending:raise ValueError("timezone_mismatch")
+    current_name,current_tz=_zone(database.get_setting("bot_timezone","Europe/Samara") or "Europe/Samara")
+    mode=str(payload.get("mode") or "SAME").upper()
+    if mode not in MODES:raise ValueError("invalid_week_mode")
+    rows=_normalize_rows(payload.get("items") or [],mode)
+    anchor=_anchor_monday(current_tz);now=database.now_iso();conn=database.connect()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("UPDATE working_hours SET active=0,updated_at=? WHERE active=1",(now,))
+        for row in rows:conn.execute("""INSERT INTO working_hours(weekday,start_time,end_time,active,created_at,updated_at,week_type) VALUES(?,?,?,?,?,?,?)""",(row["weekday"],row["start_time"],row["end_time"],1,now,now,row["week_type"]))
+        regular_changed=_convert_regular_rows_for_timezone(conn,current_tz,target_tz,anchor,now)
+        _upsert_setting(conn,"teacher_week_mode",mode,now)
+        _upsert_setting(conn,"bot_timezone",target_name,now)
+        _upsert_setting(conn,"teacher_schedule_booking_paused","0",now)
+        conn.execute("DELETE FROM bot_settings WHERE key IN ('teacher_timezone_change_pending','teacher_timezone_pending','teacher_timezone_change_started_at')")
+        conn.commit()
+    except Exception:conn.rollback();raise
+    finally:conn.close()
+    result=snapshot();result.update({"status":"ok","timezone_changed":True,"previous_timezone":current_name,"regular_schedules_rebased":regular_changed,"existing_lessons_changed":False,"saved_at":datetime.now().isoformat(timespec="seconds")});return result
+
+
 def snapshot():
     mode=str(database.get_setting("teacher_week_mode","SAME") or "SAME").upper()
     if mode not in MODES:mode="SAME"
-    rows=_rows();return {"timezone":str(database.get_setting("bot_timezone","Europe/Samara") or "Europe/Samara"),"mode":mode,"items":rows,"exceptions":_exceptions(),"warnings":_warnings(rows,mode)}
+    rows=_rows();pending=_pending_timezone()
+    result={"timezone":str(database.get_setting("bot_timezone","Europe/Samara") or "Europe/Samara"),"mode":mode,"items":rows,"exceptions":_exceptions(),"warnings":_warnings(rows,mode),"booking_paused":booking_paused(),"timezone_change":{"pending":bool(pending),"pending_timezone":pending,"started_at":database.get_setting("teacher_timezone_change_started_at",None)}}
+    if pending:
+        try:result["timezone_change"]["preview"]=preview_timezone_change(pending)
+        except Exception:result["timezone_change"]["preview"]=None
+    return result
 
 
 def replace(payload):
@@ -141,6 +296,10 @@ def replace(payload):
     if action=="preview_exception":return preview_day_off(payload)
     if action=="add_exception":return add_day_off(payload)
     if action=="remove_exception":return remove_day_off(payload.get("exception_id"))
+    if action=="preview_timezone":return preview_timezone_change(payload.get("timezone"))
+    if action=="begin_timezone_change":return begin_timezone_change(payload)
+    if action=="cancel_timezone_change":return cancel_timezone_change()
+    if action=="commit_timezone_change":return commit_timezone_change(payload)
     mode=str(payload.get("mode") or "SAME").upper()
     if mode not in MODES:raise ValueError("invalid_week_mode")
     rows=_normalize_rows(payload.get("items") or [],mode);now=database.now_iso();conn=database.connect()
