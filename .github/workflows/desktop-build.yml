@@ -1,4 +1,4 @@
-name: Desktop build
+name: Desktop beta build
 
 on:
   workflow_dispatch:
@@ -12,59 +12,122 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: desktop-beta-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: ${{ matrix.label }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
+            label: Windows x64
             artifact: adelia-windows-x64
             command: npm run dist:win
+            bundle_platform: win
+            bundle_arch: x64
             files: |
-              desktop/dist/*.exe
-              desktop/dist/*.yml
-              desktop/dist/*.blockmap
+              desktop/beta-bundle/**
           - os: macos-latest
-            artifact: adelia-macos-apple-silicon
+            label: macOS Apple Silicon
+            artifact: adelia-macos-arm64
             command: npm run dist:mac:arm64
+            bundle_platform: mac
+            bundle_arch: arm64
             files: |
-              desktop/dist/*arm64*.dmg
-              desktop/dist/*arm64*.zip
-              desktop/dist/*.yml
-              desktop/dist/*.blockmap
+              desktop/beta-bundle/**
           - os: macos-latest
-            artifact: adelia-macos-intel
+            label: macOS Intel
+            artifact: adelia-macos-x64
             command: npm run dist:mac:x64
+            bundle_platform: mac
+            bundle_arch: x64
             files: |
-              desktop/dist/*x64*.dmg
-              desktop/dist/*x64*.zip
-              desktop/dist/*.yml
-              desktop/dist/*.blockmap
+              desktop/beta-bundle/**
+
     runs-on: ${{ matrix.os }}
+
     defaults:
       run:
         working-directory: desktop
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install pinned dependencies
         run: npm install --no-audit --no-fund --package-lock=false
-      - name: Align finance selftest with current receipt route
-        shell: bash
-        run: node -e "const fs=require('fs');const p='selftest.js';let s=fs.readFileSync(p,'utf8');s=s.replace('/teacher/finance/receipt/confirm','/teacher/finance/receipt/review');fs.writeFileSync(p,s)"
+
       - name: Desktop release selftest
         run: npm run selftest
-      - name: Build desktop package
+
+      - name: Build desktop installer
         run: ${{ matrix.command }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - name: Upload installers
+
+      - name: Write beta manifest
+        run: node write_beta_manifest.js
+
+      - name: Prepare verified beta bundle
+        shell: bash
+        run: |
+          rm -rf beta-bundle
+          python publish_updates.py dist beta-bundle --platform "${{ matrix.bundle_platform }}" \
+            ${{ matrix.bundle_platform == 'mac' && format('--arch {0}', matrix.bundle_arch) || '' }}
+          cp dist/beta-manifest.json beta-bundle/build-manifest.json
+
+      - name: Verify beta bundle
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("beta-bundle")
+          assert root.is_dir(), "beta bundle missing"
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          build = json.loads((root / "build-manifest.json").read_text(encoding="utf-8"))
+
+          assert manifest.get("files"), "publish manifest empty"
+          assert build.get("git_sha") == "${{ github.sha }}", (build.get("git_sha"), "${{ github.sha }}")
+
+          names = {p.name for p in root.iterdir() if p.is_file()}
+          if "${{ matrix.bundle_platform }}" == "win":
+              assert any(n.endswith(".exe") for n in names), names
+              assert "Adelia-latest-windows-x64.exe" in names, names
+          else:
+              assert any(n.endswith(".dmg") for n in names), names
+              assert any(n.endswith(".zip") for n in names), names
+              assert f"Adelia-latest-macos-${{ matrix.bundle_arch }}.dmg" in names, names
+
+          print("BETA_BUNDLE_VERIFY=OK")
+          print("GIT_SHA=${{ github.sha }}")
+          print("FILES=", sorted(names))
+          PY
+
+      - name: Upload beta installers
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
+          name: ${{ matrix.artifact }}-${{ github.sha }}
           path: ${{ matrix.files }}
           if-no-files-found: error
           retention-days: 14
+          compression-level: 0
