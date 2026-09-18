@@ -204,4 +204,4 @@ function install() {
   });
 }
 
-module.exports = { install, write, scrub, sanitizeData };
+module.exports = { install, write, scrub, sanitizeData, openReportWindow };
