@@ -37,6 +37,8 @@ check(pkg.scripts?.['dist:win']?.includes('npm run sync:icon'),'Windows build sy
 check(pkg.scripts?.['dist:mac:arm64']?.includes('--arm64'),'macOS Apple Silicon build');
 check(pkg.scripts?.['dist:mac:x64']?.includes('--x64'),'macOS Intel build');
 check(pkg.build.nsis?.createDesktopShortcut===true,'Windows desktop shortcut');
+check(pkg.build.nsis?.deleteAppDataOnUninstall===false,'Windows uninstall preserves local preferences and session data');
+check(pkg.build.nsis?.runAfterFinish===true&&pkg.build.nsis?.differentialPackage===true,'Windows installer update-friendly behavior');
 check(pkg.build.dmg?.contents?.some(x=>x.path==='/Applications'),'macOS drag-to-Applications installer');
 for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html','lesson_workspace.js','diagnostics.js','report_preload.js','report.html','report.css','report.js','device_check_preload.js','device_check.html','device_check.css','device_check.js','about_preload.js','about.html','about.css','about.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
 check(files.iconSync.includes('https://adeliatutor.ru/assets/icons/adelia-icon-512.png'),'desktop uses canonical server icon');
@@ -66,6 +68,8 @@ check(files.about.includes('checkUpdates')&&files.about.includes('installUpdate'
 check(files.aboutPreload.includes('adelia:about-info')&&files.aboutPreload.includes('adelia:about-update-state'),'release center minimal preload');
 check(files.aboutHtml.includes('Проверить обновления')&&files.aboutHtml.includes('Перезапустить и обновить'),'release center UI present');
 check(files.diagnostics.includes('MAX_BYTES = 512 * 1024')&&files.diagnostics.includes('uncaughtExceptionMonitor')&&files.diagnostics.includes('render_process_gone'),'bounded local crash diagnostics');
+check(files.diagnostics.includes('session-open.json')&&files.diagnostics.includes('unclean_previous_session_detected')&&files.diagnostics.includes('markSessionClean'),'unclean-exit recovery marker');
+check(files.diagnostics.includes('Аделия восстановилась после сбоя')&&files.diagnostics.includes('Сохранить отчёт'),'post-crash diagnostics offer');
 check(files.diagnostics.includes("'[redacted]'")&&files.diagnostics.includes('[email-redacted]')&&files.diagnostics.includes('sanitizeData'),'diagnostic redaction rules');
 check(files.diagnostics.includes("ipcMain.handle('adelia:report-export'")&&files.reportPreload.includes('adelia:report-export'),'problem report export IPC isolated');
 check(files.reportHtml.includes('содержимое чатов')&&files.reportHtml.includes('Токены')&&files.reportHtml.includes('Сохранить отчёт'),'problem report privacy disclosure');
@@ -93,6 +97,8 @@ check(files.role.includes("'/api/auth/teacher/code'"),'teacher code login wired'
 check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
 check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("role==='teacher'")&&files.role.includes("role==='parent'")&&files.role.includes("role==='student'"),'authenticated desktop role is restored');
 check(files.startJs.includes('teacherLogin')&&files.startJs.includes('openStudentLogin')&&files.startJs.includes('openParentCabinet'),'role actions wired');
+check(files.startJs.includes("FIRST_RUN_KEY='adelia.desktop.welcome.v1'")&&files.startJs.includes('welcomeContinue'),'first-run welcome is one-time');
+check(files.startJs.includes('проверить камеру и звук')&&files.startJs.includes('технический отчёт'),'first-run explains lesson readiness and support');
 check(files.startHtml.includes('./build/icon.png')&&files.startHtml.includes('start.js')&&files.startHtml.includes('start.css'),'branded start assets linked');
 check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start screen styles present');
 check(pkg.build.files.includes('bundled_ui_manifest.js'),'desktop bundled UI manifest packaged');
