@@ -40,6 +40,9 @@ def _recurring_busy(weekday,start_min,end_min):
 
 
 def feed(token):
+    if str(database.get_setting('teacher_schedule_booking_paused','0') or '0').lower() in {'1','true','on','yes'}:
+        state=student_onboarding.status_payload(token)
+        return {'timezone': state.get('timezone'), 'teacher_timezone': str(database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara'), 'duration_minutes': DURATION_MINUTES, 'items': [], 'booking_paused': True}
     state=student_onboarding.status_payload(token)
     if state['status'] not in {'REGION_SET','SCHEDULE_SET'}:
         raise ValueError('region_not_set')
