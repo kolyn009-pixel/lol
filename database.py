@@ -7611,6 +7611,15 @@ def generate_regular_lessons(
     until_date=None
 ):
 
+    if str(get_setting("teacher_schedule_booking_paused","0") or "0").lower() in {"1","true","on","yes"}:
+        return {
+            "created": [],
+            "created_count": 0,
+            "skipped": [{"reason": "TEACHER_REGION_CHANGE_PAUSED"}],
+            "skipped_count": 1,
+            "paused": True,
+        }
+
     schedule = get_regular_schedule(
         schedule_id
     )
