@@ -1,8 +1,9 @@
 """Teacher web-cabinet queries and safe mutations over TutorBot's database."""
 from datetime import datetime,timedelta
+from zoneinfo import ZoneInfo,ZoneInfoNotFoundError
 from time import monotonic
 from threading import Lock
-from database import connect,create_homework,get_user
+from database import connect,create_homework,get_user,get_setting
 from core import payment_wait_control
 _CACHE={};_CACHE_LOCK=Lock()
 def _dict(row):return dict(row) if row else None
@@ -14,6 +15,11 @@ def _cached(key,ttl,loader):
  value=loader()
  with _CACHE_LOCK:_CACHE[key]=(now,value)
  return value
+def _teacher_now():
+ name=str(get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara')
+ try:tz=ZoneInfo(name)
+ except ZoneInfoNotFoundError:name='Europe/Samara';tz=ZoneInfo(name)
+ return name,datetime.now(tz).replace(tzinfo=None)
 def _week_bounds(now):
  monday=now.date()-timedelta(days=now.weekday());start=datetime.combine(monday,datetime.min.time());end=start+timedelta(days=7);return start.isoformat(timespec='seconds'),end.isoformat(timespec='seconds')
 def _lesson_select():
@@ -21,7 +27,7 @@ def _lesson_select():
 def dashboard():
  def load():
   from web_backend import lesson_join
-  lesson_join.ensure_schema();payment_wait_control.ensure_schema();conn=connect();now=datetime.now();today=now.date().isoformat();tomorrow=(now.date()+timedelta(days=1)).isoformat();week_start,week_end=_week_bounds(now);now_iso=now.isoformat(timespec='seconds')
+  lesson_join.ensure_schema();payment_wait_control.ensure_schema();timezone_name,now=_teacher_now();conn=connect();today=now.date().isoformat();tomorrow=(now.date()+timedelta(days=1)).isoformat();week_start,week_end=_week_bounds(now);now_iso=now.isoformat(timespec='seconds')
   counters=conn.execute("SELECT (SELECT COUNT(*) FROM users WHERE active=1) students,(SELECT COUNT(*) FROM lessons WHERE start_time>=? AND start_time<? AND lesson_status NOT IN ('CANCELLED','REJECTED','SICKNESS')) lessons_today,(SELECT COUNT(*) FROM homework_submissions WHERE status='SUBMITTED') submissions",(today,tomorrow)).fetchone()
   expected_week=conn.execute("SELECT COALESCE(SUM(COALESCE(price,0)),0) n FROM lessons WHERE start_time>=? AND start_time<? AND lesson_status NOT IN ('CANCELLED','REJECTED','SICKNESS') AND payment_status IN ('AWAITING_PAYMENT','UNPAID')",(week_start,week_end)).fetchone()['n']
   summary=conn.execute("""SELECT COUNT(CASE WHEN lesson_status='COMPLETED' THEN 1 END) worked,COUNT(CASE WHEN start_time>=? AND lesson_status NOT IN ('COMPLETED','CANCELLED','REJECTED','SICKNESS') THEN 1 END) remaining,COUNT(CASE WHEN lesson_status='CANCELLED' THEN 1 END) cancelled,COUNT(CASE WHEN lesson_status='SICKNESS' THEN 1 END) sickness,COUNT(CASE WHEN lesson_status NOT IN ('CANCELLED','REJECTED','SICKNESS') THEN 1 END) planned FROM lessons WHERE start_time>=? AND start_time<?""",(now_iso,week_start,week_end)).fetchone()
@@ -29,11 +35,11 @@ def dashboard():
   week_lessons=conn.execute(_lesson_select()+"WHERE l.start_time>=? AND l.start_time<? AND l.lesson_status!='REJECTED' ORDER BY l.start_time",(week_start,week_end)).fetchall()
   next_lessons=conn.execute(_lesson_select()+"WHERE l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','COMPLETED','REJECTED','SICKNESS') ORDER BY l.start_time LIMIT 8",(now_iso,)).fetchall()
   pending=conn.execute("SELECT s.id submission_id,s.homework_id,s.submitted_at,s.student_comment,h.title,h.subject,u.id user_id,u.name FROM homework_submissions s JOIN homework h ON h.id=s.homework_id JOIN users u ON u.id=s.user_id WHERE s.status='SUBMITTED' ORDER BY s.submitted_at ASC LIMIT 12").fetchall();conn.close()
-  return {'stats':{'students':counters['students'],'lessons_today':counters['lessons_today'],'submissions':counters['submissions'],'unpaid':expected_week,'expected_week':expected_week},'week':{'start':week_start,'end':week_end,'worked':summary['worked'],'remaining':summary['remaining'],'cancelled':summary['cancelled'],'sickness':summary['sickness'],'planned':summary['planned']},'today_lessons':[_dict(x) for x in today_lessons],'week_lessons':[_dict(x) for x in week_lessons],'next_lessons':[_dict(x) for x in next_lessons],'pending_reviews':[_dict(x) for x in pending]}
+  return {'stats':{'students':counters['students'],'lessons_today':counters['lessons_today'],'submissions':counters['submissions'],'unpaid':expected_week,'expected_week':expected_week},'week':{'start':week_start,'end':week_end,'today':today,'timezone':timezone_name,'worked':summary['worked'],'remaining':summary['remaining'],'cancelled':summary['cancelled'],'sickness':summary['sickness'],'planned':summary['planned']},'today_lessons':[_dict(x) for x in today_lessons],'week_lessons':[_dict(x) for x in week_lessons],'next_lessons':[_dict(x) for x in next_lessons],'pending_reviews':[_dict(x) for x in pending]}
  return _cached('dashboard',8.0,load)
 def students():
  def load():
-  conn=connect();now=datetime.now().isoformat(timespec='seconds');rows=conn.execute("SELECT u.id,u.name,u.grade,u.study_goal,u.main_subject,u.telegram_username,MIN(CASE WHEN l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','COMPLETED') THEN l.start_time END) next_lesson,COUNT(DISTINCT CASE WHEN h.status IN ('ASSIGNED','SUBMITTED','UNDER_REVIEW','REVISION') THEN h.id END) homework_open FROM users u LEFT JOIN lessons l ON l.user_id=u.id LEFT JOIN homework h ON h.user_id=u.id WHERE u.active=1 GROUP BY u.id ORDER BY u.name COLLATE NOCASE",(now,)).fetchall();conn.close();return [_dict(x) for x in rows]
+  conn=connect();_,now=_teacher_now();now=now.isoformat(timespec='seconds');rows=conn.execute("SELECT u.id,u.name,u.grade,u.study_goal,u.main_subject,u.telegram_username,MIN(CASE WHEN l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','COMPLETED') THEN l.start_time END) next_lesson,COUNT(DISTINCT CASE WHEN h.status IN ('ASSIGNED','SUBMITTED','UNDER_REVIEW','REVISION') THEN h.id END) homework_open FROM users u LEFT JOIN lessons l ON l.user_id=u.id LEFT JOIN homework h ON h.user_id=u.id WHERE u.active=1 GROUP BY u.id ORDER BY u.name COLLATE NOCASE",(now,)).fetchall();conn.close();return [_dict(x) for x in rows]
  return _cached('students',15.0,load)
 def student_card(user_id):
  user=get_user(int(user_id))
