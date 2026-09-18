@@ -1,6 +1,6 @@
 name: Adelia RC gate
 
-on:
+'on':
   workflow_dispatch:
   push:
     branches: [release/adelia-unified-rc]
