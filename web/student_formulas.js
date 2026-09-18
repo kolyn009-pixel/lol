@@ -2,7 +2,10 @@
 const E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function J(path,opt={}){const r=await fetch('/api'+path,{credentials:'same-origin',...opt});const j=await r.json().catch(()=>({}));if(r.status===401)throw new Error('unauthorized');if(!r.ok)throw new Error(j.error||'Ошибка');return j}
 function math(s){return `<div class="formula-math" data-latex="${E(s||'')}">${E(s||'')}</div>`}
-function renderMath(root=document){root.querySelectorAll('.formula-math').forEach(el=>{try{if(window.katex)window.katex.render(el.dataset.latex||'',el,{throwOnError:false,displayMode:true,strict:false})}catch(_){}})}
+let katexLoad=null;
+function ensureKatex(){if(window.katex)return Promise.resolve(true);if(katexLoad)return katexLoad;katexLoad=new Promise(resolve=>{const css=document.createElement('link');css.rel='stylesheet';css.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';document.head.appendChild(css);const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';s.async=true;let done=false;const finish=ok=>{if(done)return;done=true;resolve(ok)};s.onload=()=>finish(!!window.katex);s.onerror=()=>finish(false);document.head.appendChild(s);setTimeout(()=>finish(false),3500)});return katexLoad}
+function paintMath(root=document){root.querySelectorAll('.formula-math').forEach(el=>{try{if(window.katex)window.katex.render(el.dataset.latex||'',el,{throwOnError:false,displayMode:true,strict:false})}catch(_){}})}
+function renderMath(root=document){paintMath(root);if(!window.katex)ensureKatex().then(ok=>{if(ok)paintMath(root)})}
 function name(s){return s==='PHYSICS'?'Физика':s==='CHEMISTRY'?'Химия':s||''}
 function eduName(t){return t==='COLLEGE'?'Колледж':'Школа'}
 function levelName(t,n){if(!n)return 'Все уровни';return t==='COLLEGE'?`${n} курс`:`${n} класс`}
