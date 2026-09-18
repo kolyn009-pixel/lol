@@ -9505,7 +9505,6 @@ def finish_lesson(
 
     should_credit_bonus = bool(underworked_minutes > 0 and not lesson["bonus_minutes_processed"])
     if not lesson["bonus_minutes_processed"]:
-        cursor.execute("UPDATE lessons SET bonus_minutes_processed=1 WHERE id=?", (lesson_id,))
         cursor.execute("""
             INSERT INTO lesson_time_adjustments(
                 user_id,lesson_id,difference_minutes,bonus_lessons_added,balance_after,created_at
@@ -9515,15 +9514,19 @@ def finish_lesson(
     conn.commit()
     conn.close()
 
-    # If the lesson ended early, every missing minute becomes an immediately usable
-    # bonus minute. Teacher overtime never reduces or charges the student's balance.
+    # Credit missing minutes before marking the lesson processed.  The credit itself
+    # is keyed by lesson_id, so a retry after a partial failure cannot double-credit.
     if should_credit_bonus:
         try:
             from core import minute_balance
             minute_balance.add_bonus_minutes(
                 lesson["user_id"], program_id, underworked_minutes,
-                reason="UNDERWORKED_TIME_CREDIT"
+                reason="UNDERWORKED_TIME_CREDIT", lesson_id=lesson_id
             )
+            conn = connect()
+            conn.execute("UPDATE lessons SET bonus_minutes_processed=1,updated_at=? WHERE id=?", (now_iso(),lesson_id))
+            conn.commit()
+            conn.close()
             balance_after = underworked_minutes
         except Exception as error:
             print("BONUS MINUTES CREDIT ERROR:", error)
