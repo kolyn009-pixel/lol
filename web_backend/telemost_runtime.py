@@ -29,7 +29,10 @@ def start_individual(lesson_id):
 def finish_individual(lesson_id,attendance_status='PRESENT',tutor_comment=None,mode='NOW'):
     lid=int(lesson_id);result=lesson_workspace.finish_lesson(lid,attendance_status,tutor_comment,mode);telemost={'status':'not_finished'}
     if result.get('status')=='ok':
-        telemost=finish_individual_conference(lid)
+        if result.get('already_finished'):
+            telemost={'status':'already_finished'}
+        else:
+            telemost=finish_individual_conference(lid)
         c=database.connect();c.execute('UPDATE lessons SET meeting_link_sent_at=NULL,meeting_url=NULL,updated_at=? WHERE id=?',(_now(),lid));c.commit();c.close()
     return {**result,'telemost':telemost}
 def individual_student_access(lesson_id,user_id):
