@@ -96,12 +96,23 @@ try:
     assert int(approved["active"] or 0) == 1
     assert any(int(r["id"]) == schedule_id for r in database.get_active_regular_schedules())
 
+    balance_before_generation = minute_balance.get_balance(user_id, hourly_rate=1800)
+    assert balance_before_generation["total"] == 180, balance_before_generation
+
     generation = database.generate_regular_lessons(schedule_id)
     assert generation["created_count"] == 1, generation
     lesson_id = int(generation["created"][0])
     lesson = database.get_lesson(lesson_id)
+    if lesson["payment_status"] != "RESERVED_BALANCE":
+        raise AssertionError(
+            "regular lesson did not reserve compatible balance: "
+            f"payment_status={lesson['payment_status']!r} "
+            f"charged={lesson['charged']!r} "
+            f"reserved_minutes={lesson['reserved_minutes']!r} "
+            f"rate={lesson['hourly_rate']!r} "
+            f"balance_before={balance_before_generation!r}"
+        )
     assert lesson["lesson_status"] == "CONFIRMED"
-    assert lesson["payment_status"] == "RESERVED_BALANCE"
     assert int(lesson["charged"] or 0) == 1
     assert int(lesson["reserved_minutes"] or 0) == 60
     assert int(lesson["reserved_paid_minutes"] or 0) == 60
