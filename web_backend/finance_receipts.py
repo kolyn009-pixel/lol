@@ -91,7 +91,9 @@ def review(payment_id,action):
     if not row:raise ValueError('payment_not_found')
     if not receipt:raise ValueError('receipt_not_found')
     if action=='APPROVE':
-        if str(row['status']).upper()=='PAID':return {'status':'ok','payment_id':pid,'already_processed':True,'result':'PAID'}
+        if str(row['status']).upper()=='PAID':
+            package_id=approve_payment(pid)
+            return {'status':'ok','payment_id':pid,'package_id':package_id,'already_processed':True,'result':'PAID'}
         draft_result=approve_paid_booking_draft_payment(pid)
         if draft_result is not None:
             package_id,draft_lesson_id=draft_result
