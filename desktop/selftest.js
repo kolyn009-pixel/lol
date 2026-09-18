@@ -12,7 +12,7 @@ const files={
 const web={
   student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js'),
   individual:readRepo('web/teacher_lesson_flow.js'),group:readRepo('web/teacher_group_live12.js'),event:readRepo('web/teacher_event_live13.js'),
-  telemostSettings:readRepo('web/teacher_telemost_settings.js'),lessonUi:readRepo('web/desktop_lesson_workspace.js'),lessonUiCss:readRepo('web/desktop_lesson_workspace.css'),desktopManifest:read('bundled_ui_manifest.js'),parentManifest:readRepo('web/parent/manifest.webmanifest')
+  telemostSettings:readRepo('web/teacher_telemost_settings.js'),lessonUi:readRepo('web/desktop_lesson_workspace.js'),lessonUiCss:readRepo('web/desktop_lesson_workspace.css'),prelessonUi:readRepo('web/desktop_prelesson.js'),prelessonCss:readRepo('web/desktop_prelesson.css'),desktopManifest:read('bundled_ui_manifest.js'),parentManifest:readRepo('web/parent/manifest.webmanifest')
 };
 let failed=false;
 function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed=true}
@@ -86,6 +86,10 @@ check(web.lessonUi.includes('setLessonLayout')&&web.lessonUi.includes('toggleLes
 check(web.lessonUi.includes('dual-screen')&&web.lessonUi.includes('board-focus')&&web.lessonUi.includes('mini-video'),'desktop lesson controller modes');
 check(web.lessonUiCss.includes('.adelia-desktop-lessonbar'),'desktop lesson controller styles');
 check(web.desktopManifest.includes('desktop_lesson_workspace.css')&&web.desktopManifest.includes('desktop_lesson_workspace.js'),'lesson controller bundled into desktop UI');
+check(web.prelessonUi.includes("D.getUxState()")&&web.prelessonUi.includes("D.openRoute('lesson',lesson.id)"),'desktop pre-lesson uses dashboard state and canonical lesson route');
+check(web.prelessonUi.includes('d>30')&&web.prelessonUi.includes('snoozeUntil'),'desktop pre-lesson timing and snooze');
+check(web.prelessonCss.includes('.adelia-prelesson')&&web.prelessonCss.includes('.apl-open'),'desktop pre-lesson styles');
+check(web.desktopManifest.includes('desktop_prelesson.css')&&web.desktopManifest.includes('desktop_prelesson.js'),'student pre-lesson bundled into desktop UI');
 
 check(web.individual.includes("openLessonTool('meeting'")&&web.individual.includes("openLessonTool('board'")&&web.individual.includes('endLessonWorkspace()'),'individual desktop lifecycle');
 check(web.group.includes("openLessonTool('meeting'")&&web.group.includes("openLessonTool('board'")&&web.group.includes('endLessonWorkspace()'),'group desktop lifecycle');
