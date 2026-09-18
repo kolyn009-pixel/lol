@@ -109,7 +109,8 @@ jobs:
         shell: bash
         run: |
           rm -rf beta-bundle
-          python publish_updates.py dist beta-bundle ${{ matrix.publish_args }}
+          VERSION=$(node -p "require('./package.json').version")
+          python publish_updates.py dist beta-bundle ${{ matrix.publish_args }} --channel beta --version "$VERSION" --git-sha "${{ github.sha }}"
           cp dist/beta-manifest.json beta-bundle/build-manifest.json
 
       - name: Verify beta bundle
@@ -125,6 +126,10 @@ jobs:
           build = json.loads((root / "build-manifest.json").read_text(encoding="utf-8"))
 
           assert manifest.get("files"), "publish manifest empty"
+          assert manifest.get("channel") == "beta", manifest
+          assert str(manifest.get("version", "")).startswith("0.3.0-beta."), manifest
+          assert manifest.get("git_sha") == "${{ github.sha }}", manifest
+          assert (root / "release.json").is_file(), "release metadata missing"
           assert build.get("git_sha") == "${{ github.sha }}", (build.get("git_sha"), "${{ github.sha }}")
 
           names = {p.name for p in root.iterdir() if p.is_file()}
