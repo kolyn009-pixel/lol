@@ -28,6 +28,7 @@ student_html = text(WEB / "index.html")
 student_boot = text(WEB / "student_boot.js")
 router = text(WEB / "teacher_clean_router.js")
 runtime = text(WEB / "teacher_clean_runtime.js")
+lesson_flow = text(WEB / "teacher_lesson_flow.js")
 desktop_selftest = text(DESKTOP / "selftest.js")
 
 for name, html in (("teacher", teacher_html), ("student", student_html)):
@@ -43,8 +44,9 @@ require(
     "teacher clean router must load after legacy teacher runtime",
 )
 require("teacher_runtime_hotfix.js" not in teacher_html, "legacy teacher runtime hotfix is still linked")
-require("RESERVED_BALANCE" in runtime, "teacher runtime lost RESERVED_BALANCE handling")
+require("AWAITING_PAYMENT" in runtime, "teacher runtime lost unpaid-state handling")
 require("/api/teacher/lesson/payment-wait" in runtime, "teacher payment-wait action missing")
+require("/teacher/lesson/open-entry" in lesson_flow, "teacher lesson flow bypasses canonical open-entry endpoint")
 require("window.AdeliaTeacherRoute=route" in router, "teacher clean route entrypoint missing")
 
 for required in (
