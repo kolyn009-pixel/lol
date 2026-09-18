@@ -44,3 +44,5 @@ jobs:
           PY
       - name: Teacher day-off isolated DB selftest
         run: python rc_day_off_selftest.py
+      - name: Unified isolated release selftest
+        run: python rc_release_selftest.py
