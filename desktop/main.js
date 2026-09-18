@@ -230,6 +230,7 @@ function refreshTrayMenu() {
     { type:'separator' },
     { label:'Сворачивать в трей при закрытии', type:'checkbox', checked:!!prefs.closeToTray, click:item=>savePref('closeToTray', !!item.checked) },
     { label:'Об Аделии и обновления', click:()=>openAboutWindow() },
+    { label:'Сообщить о проблеме', click:()=>{ try { require('./diagnostics').openReportWindow(); } catch (_) {} } },
     { type:'separator' },
     { label:'Выйти из Аделии', click:()=>{ isQuitting=true; app.quit(); } }
   ]));
