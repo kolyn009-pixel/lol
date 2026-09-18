@@ -29,6 +29,8 @@ student_boot = text(WEB / "student_boot.js")
 router = text(WEB / "teacher_clean_router.js")
 runtime = text(WEB / "teacher_clean_runtime.js")
 lesson_flow = text(WEB / "teacher_lesson_flow.js")
+teacher_core = text(WEB / "teacher.js")
+teacher_dashboard = text(WEB / "teacher_dashboard_week.js")
 desktop_selftest = text(DESKTOP / "selftest.js")
 
 for name, html in (("teacher", teacher_html), ("student", student_html)):
@@ -48,6 +50,10 @@ require("AWAITING_PAYMENT" in runtime, "teacher runtime lost unpaid-state handli
 require("/api/teacher/lesson/payment-wait" in runtime, "teacher payment-wait action missing")
 require("/teacher/lesson/open-entry" in lesson_flow, "teacher lesson flow bypasses canonical open-entry endpoint")
 require("window.AdeliaTeacherRoute=route" in router, "teacher clean route entrypoint missing")
+require("window.AdeliaTeacherDashboardV2" in teacher_core, "legacy teacher dashboard does not delegate to canonical dashboard")
+require("window.AdeliaTeacherDashboardV2=render" in teacher_dashboard, "canonical teacher dashboard export missing")
+require("window.dashboard=render" in teacher_dashboard, "canonical teacher dashboard does not own dashboard entrypoint")
+require("teacher-dashboard-v2" in teacher_dashboard, "polished teacher dashboard markup missing")
 
 for required in (
     "bootstrap.js", "main.js", "preload.js", "lesson_workspace.js",
