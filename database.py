@@ -3952,6 +3952,8 @@ def approve_regular_schedule_v2(
         SET
             status = 'APPROVED',
 
+            active = 1,
+
             admin_approved = 1,
 
             approved_at = ?,
