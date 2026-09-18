@@ -105,12 +105,12 @@ def message_history_text(user_id,limit=12):
     lines=["💬 ПРЕПОДАВАТЕЛЬ",""]
     for r in reversed(rows):lines.append(f"{'👨‍🏫' if r['direction']=='OUT' else '👤'} {_fmt_dt(r['created_at'])}\n{r['body']}")
     return "\n\n".join(lines)[-3500:]
-def submit_teacher_message(user_id,text,source_vk_id=None):
+def submit_teacher_message(user_id,text,source_vk_id=None,attachment=None):
     u=database.get_user(int(user_id));body=str(text or "").strip()
-    if not u or not body:return False,"Пустое сообщение не отправлено."
+    if not u or (not body and not attachment):return False,"Пустое сообщение не отправлено."
     accepting,deliver_at=crm_service.inbound_delivery_state();status="OPEN" if accepting else "QUEUED";iid=messaging.create_inbox(body,int(u["telegram_id"] or 0),student_id=int(user_id),subject="Сообщение от ученика из VK",status=status)
     crm_id=crm_service.log_message(int(user_id),"IN",body,None,"TEACHER","DELIVERED" if accepting else "QUEUED",None if accepting else deliver_at.isoformat(timespec="seconds"),inbox_id=iid)
-    unified_messaging.record_message(int(user_id),'IN',body,participant_type='STUDENT',sender_type='STUDENT',sender_id=int(user_id),origin_channel='VK',status='DELIVERED' if accepting else 'QUEUED',legacy_source='crm_student_messages',legacy_id=crm_id)
+    unified_messaging.record_message(int(user_id),'IN',body,participant_type='STUDENT',sender_type='STUDENT',sender_id=int(user_id),origin_channel='VK',content_type=str((attachment or {}).get('kind') or 'TEXT').upper(),attachment=attachment,status='DELIVERED' if accepting else 'QUEUED',legacy_source='crm_student_messages',legacy_id=crm_id)
     event_center.push("TEACHER_INBOX",f"Сообщение из VK от {u['name']}",body[:500],priority="ACTION",entity_type="teacher_inbox",entity_id=iid,dedupe_key=f"inbox:{iid}")
     try:
         from . import app as vk_app
