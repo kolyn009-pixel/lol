@@ -71,6 +71,8 @@ def _working_spans(day, rows, tz):
 
 
 def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
+    if str(database.get_setting('teacher_schedule_booking_paused','0') or '0').lower() in {'1','true','on','yes'}:
+        return {'timezone': str(timezone_name or 'Europe/Moscow'), 'teacher_timezone': str(database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara'), 'duration_minutes': int(duration_minutes or DEFAULT_DURATION), 'items': [], 'booking_paused': True}
     client_name, client_tz = _client_tz(timezone_name)
     duration = int(duration_minutes or DEFAULT_DURATION)
     if duration != DEFAULT_DURATION:
