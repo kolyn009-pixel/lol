@@ -94,6 +94,10 @@ echo "===== 6. UNIFIED ISOLATED RELEASE SELFTEST ====="
 "$PYTHON" rc_release_selftest.py
 
 echo
+echo "===== 6B. UNIFIED MEDIA SELFTEST ====="
+"$PYTHON" rc_media_selftest.py
+
+echo
 echo "===== 7. FRONTEND STATIC SELFTEST ====="
 "$PYTHON" rc_frontend_static_selftest.py
 
