@@ -5,6 +5,7 @@ const handlers={
   groups:()=>window.teacherGroups?.(),
   homework:()=>window.teacherHomework?.(),
   reviews:()=>window.teacherReviews?.(),
+  messages:()=>window.teacherMessages?.(),
   formulas:()=>window.teacherFormulas?.(),
   finance:()=>window.teacherFinance?.(),
   students:()=>window.teacherStudentsClean?.(),
