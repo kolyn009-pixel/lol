@@ -7,6 +7,7 @@ from web_backend.student_portal import dashboard as student_dashboard, schedule 
 from web_backend.student_homework import submit_answers
 from web_backend.manual_homework import submit as submit_manual_homework
 from web_backend.message_inbound import receive_web_student_message
+from web_backend import message_media
 from web_backend.lesson_join import student_workspace, student_join, teacher_open_entry, join_events
 from web_backend.lesson_context import context as lesson_context, add_note as lesson_add_note, send_teacher_message
 from web_backend.post_lesson_flow import state as post_state, save_marks, complete_review, skip_homework
@@ -87,12 +88,25 @@ class Handler(Stage10Mixin,Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Ha
         if handled is not False:return handled
         handled=self.stage6_post(path)
         if handled is not False:return handled
+        if path=='/api/student/message-media/upload':
+            auth=self._student()
+            if not auth:return self._json(401,{'error':'unauthorized'})
+            try:
+                form=self._multipart();item=form['file'] if form is not None and 'file' in form else None
+                if item is None or not getattr(item,'filename',None):return self._json(400,{'error':'file_required'})
+                data=item.file.read(message_media.MAX_BYTES+1)
+                if len(data)>message_media.MAX_BYTES:return self._json(413,{'error':'media_too_large','max_bytes':message_media.MAX_BYTES})
+                mime=getattr(item,'type',None) or 'application/octet-stream'
+                kind='photo' if str(mime).lower().startswith('image/') else 'document'
+                return self._json(200,{'attachment':message_media.store_bytes(int(auth['id']),data,item.filename,mime,kind,origin='WEB')})
+            except ValueError as exc:return self._json(400,{'error':str(exc)})
+            except Exception as exc:print('[web-api] student media upload error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/student/message':
             auth=self._student()
             if not auth:return self._json(401,{'error':'unauthorized'})
             body=self._body()
             if body is None:return self._json(400,{'error':'invalid_json'})
-            try:return self._json(200,receive_web_student_message(int(auth['id']),body.get('text')))
+            try:return self._json(200,receive_web_student_message(int(auth['id']),body.get('text'),body.get('attachment')))
             except ValueError as exc:return self._json(400,{'error':str(exc)})
             except Exception as exc:print('[web-api] student message error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         if path=='/api/student/homework/submit':
