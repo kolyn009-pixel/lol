@@ -62,6 +62,15 @@ def ensure_schema():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_minute_charges_lesson ON lesson_minute_charges(lesson_id, refunded)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS lesson_bonus_credits (
+                lesson_id INTEGER PRIMARY KEY,
+                payment_id INTEGER NOT NULL,
+                package_id INTEGER NOT NULL,
+                minutes INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
 
         # Fill programme defaults only where an individual value has not been set.
         rows = conn.execute("SELECT id, study_goal FROM student_programs WHERE default_duration_minutes IS NULL OR default_duration_minutes <= 0").fetchall()
@@ -346,7 +355,12 @@ def refund_lesson_minutes(lesson_id: int) -> bool:
         conn.close()
 
 
-def add_bonus_minutes(user_id: int, program_id: int | None, minutes: int, reason="UNDERWORKED_TIME_CREDIT"):
+def add_bonus_minutes(user_id: int, program_id: int | None, minutes: int, reason="UNDERWORKED_TIME_CREDIT", lesson_id: int | None = None):
+    """Credit bonus minutes once.
+
+    When lesson_id is supplied, lesson_bonus_credits makes the operation
+    idempotent across retries and process crashes.
+    """
     ensure_schema()
     minutes = int(minutes)
     if minutes <= 0:
@@ -361,6 +375,14 @@ def add_bonus_minutes(user_id: int, program_id: int | None, minutes: int, reason
     conn = database.connect()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        if lesson_id is not None:
+            existing = conn.execute(
+                "SELECT package_id FROM lesson_bonus_credits WHERE lesson_id=?",
+                (int(lesson_id),),
+            ).fetchone()
+            if existing:
+                conn.rollback()
+                return int(existing["package_id"])
         cur = conn.execute("""
             INSERT INTO payments(user_id,study_goal,subject,payment_type,lessons_count,price_per_lesson,
                 subtotal,discount_percent,package_discount_amount,promo_discount_amount,total_amount,status,
@@ -375,10 +397,17 @@ def add_bonus_minutes(user_id: int, program_id: int | None, minutes: int, reason
             VALUES(?,?,?,?,0,0,0,0,0,'ACTIVE','BONUS',?,?,?,?,0,?,0)
         """, (payment_id,int(user_id),study_goal,subject,reason,_now(),int(program_id) if program_id else None,minutes,base))
         package_id = cur.lastrowid
+        if lesson_id is not None:
+            conn.execute(
+                "INSERT INTO lesson_bonus_credits(lesson_id,payment_id,package_id,minutes,created_at) VALUES(?,?,?,?,?)",
+                (int(lesson_id), int(payment_id), int(package_id), minutes, _now()),
+            )
         try:
             from final_features import ledger as minute_ledger
-            minute_ledger.append(int(user_id), "BONUS_CREDIT", program_id=(int(program_id) if program_id else None), payment_id=payment_id, package_id=package_id,
-                bonus_delta=minutes, hourly_rate=0, reason=reason, idempotency_key=f"bonus:package:{package_id}", conn=conn)
+            minute_ledger.append(int(user_id), "BONUS_CREDIT", program_id=(int(program_id) if program_id else None),
+                lesson_id=(int(lesson_id) if lesson_id is not None else None), payment_id=payment_id, package_id=package_id,
+                bonus_delta=minutes, hourly_rate=0, reason=reason,
+                idempotency_key=(f"underwork:lesson:{int(lesson_id)}" if lesson_id is not None else f"bonus:package:{package_id}"), conn=conn)
         except Exception:
             pass
         conn.commit()
