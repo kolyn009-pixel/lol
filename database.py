@@ -8662,6 +8662,25 @@ def free_reschedule_lesson(
         cursor.lastrowid
     )
 
+    # A free reschedule transfers the existing minute reservation instead of
+    # refunding and reserving again. Move the charge rows to the replacement
+    # lesson so any later cancellation refunds the exact same minutes once.
+    minute_charge_table = cursor.execute("""
+        SELECT 1
+        FROM sqlite_master
+        WHERE type='table' AND name='lesson_minute_charges'
+        LIMIT 1
+    """).fetchone()
+    if minute_charge_table is not None:
+        cursor.execute("""
+            UPDATE lesson_minute_charges
+            SET lesson_id = ?
+            WHERE lesson_id = ? AND refunded = 0
+        """, (
+            new_lesson_id,
+            lesson_id,
+        ))
+
     cursor.execute("""
         UPDATE lessons
 
