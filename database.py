@@ -5162,12 +5162,26 @@ def approve_payment(
         == "PAID"
     ):
 
+        package = cursor.execute(
+            "SELECT id FROM lesson_packages WHERE payment_id=? ORDER BY id LIMIT 1",
+            (int(payment_id),),
+        ).fetchone()
+
         conn.rollback()
         conn.close()
 
-        raise ValueError(
-            "Платёж уже подтверждён."
-        )
+        if package is None:
+            raise ValueError(
+                "Подтверждённый платёж не имеет связанного пакета."
+            )
+
+        try:
+            from core import minute_balance
+            minute_balance.credit_confirmed_payment(int(payment_id), int(package["id"]))
+        except Exception as error:
+            print("MINUTE CREDIT RETRY ERROR:", error)
+
+        return int(package["id"])
 
     # ========================================================
     # ОПЛАТА КОНКРЕТНОГО НАЗНАЧЕННОГО ЗАНЯТИЯ
