@@ -1,6 +1,7 @@
 (()=>{'use strict';
 const SPECIAL=new Set(['schedule','groups','messages','formulas','finance','health','students','analytics']);
 const handlers={
+  schedule:()=>window.teacherSchedule?.(),
   formulas:()=>window.teacherFormulas?.(),
   finance:()=>window.teacherFinance?.(),
   students:()=>window.teacherStudentsClean?.(),
