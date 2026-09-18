@@ -55,6 +55,15 @@ require("window.AdeliaTeacherDashboardV2=render" in teacher_dashboard, "canonica
 require("window.dashboard=render" in teacher_dashboard, "canonical teacher dashboard does not own dashboard entrypoint")
 require("teacher-dashboard-v2" in teacher_dashboard, "polished teacher dashboard markup missing")
 
+teacher_messages = text(WEB / "teacher_messages_stage10.js")
+student_chat = text(WEB / "student_chat.js")
+stage10_api = text(ROOT / "web_backend" / "stage10_api.py")
+api_v2 = text(ROOT / "web_backend" / "api_v2.py")
+require("FormData" in teacher_messages and "/teacher/messages/upload" in teacher_messages, "teacher web chat media upload missing")
+require("FormData" in student_chat and "/student/message-media/upload" in student_chat, "student web chat media upload missing")
+require("/api/teacher/messages/upload" in stage10_api, "teacher authenticated media upload endpoint missing")
+require("/api/student/message-media/upload" in api_v2, "student authenticated media upload endpoint missing")
+
 schedule_ui = text(WEB / "teacher_schedule_settings.js")
 schedule_backend = text(ROOT / "web_backend" / "teacher_schedule_settings.py")
 regular_booking = text(ROOT / "web_backend" / "student_regular_booking.py")
