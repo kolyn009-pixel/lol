@@ -7,7 +7,7 @@ const pkg=JSON.parse(read('package.json'));
 const files={
   bootstrap:read('bootstrap.js'),main:read('main.js'),preload:read('preload.js'),workspace:read('lesson_workspace.js'),
   ux:read('desktop_ux.js'),layout:read('lesson_layout.js'),role:read('role_startup.js'),system:read('system_polish.js'),
-  network:read('network_ux.js'),deviceCheck:read('device_check.js'),deviceCheckPreload:read('device_check_preload.js'),deviceCheckHtml:read('device_check.html'),iconSync:read('generate_assets.js'),startJs:read('start.js'),startHtml:read('start.html'),startCss:read('start.css'),offline:read('offline.html')
+  network:read('network_ux.js'),deviceCheck:read('device_check.js'),deviceCheckPreload:read('device_check_preload.js'),deviceCheckHtml:read('device_check.html'),about:read('about.js'),aboutPreload:read('about_preload.js'),aboutHtml:read('about.html'),iconSync:read('generate_assets.js'),startJs:read('start.js'),startHtml:read('start.html'),startCss:read('start.css'),offline:read('offline.html')
 };
 const web={
   student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js'),
@@ -17,7 +17,7 @@ const web={
 let failed=false;
 function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed=true}
 function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
-for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,device_check:files.deviceCheck,device_check_preload:files.deviceCheckPreload,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings}))parseJs(`${n}.js`,s);
+for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,device_check:files.deviceCheck,device_check_preload:files.deviceCheckPreload,about:files.about,about_preload:files.aboutPreload,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings}))parseJs(`${n}.js`,s);
 
 check(pkg.version==='0.2.0','desktop package version');
 check(pkg.main==='bootstrap.js','desktop bootstrap entry');
@@ -37,7 +37,7 @@ check(pkg.scripts?.['dist:mac:arm64']?.includes('--arm64'),'macOS Apple Silicon 
 check(pkg.scripts?.['dist:mac:x64']?.includes('--x64'),'macOS Intel build');
 check(pkg.build.nsis?.createDesktopShortcut===true,'Windows desktop shortcut');
 check(pkg.build.dmg?.contents?.some(x=>x.path==='/Applications'),'macOS drag-to-Applications installer');
-for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html','lesson_workspace.js','device_check_preload.js','device_check.html','device_check.css','device_check.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
+for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html','lesson_workspace.js','device_check_preload.js','device_check.html','device_check.css','device_check.js','about_preload.js','about.html','about.css','about.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
 check(files.iconSync.includes('https://adeliatutor.ru/assets/icons/adelia-icon-512.png'),'desktop uses canonical server icon');
 check(!files.iconSync.includes('roundedRect'),'desktop icon is not generated artwork');
 
@@ -53,6 +53,11 @@ check(files.main.includes('closeToTray'),'configurable close-to-tray');
 check(files.main.includes('mainWindowBounds')&&files.main.includes('visibleBounds'),'main window geometry persists safely');
 check(files.main.includes('closeLessonWindows(true)'),'lesson workspace returns focus to Adelia');
 check(files.main.includes("persist:adelia-device-check")&&files.main.includes('deviceCheckMediaAllowed'),'device check uses isolated media partition');
+check(files.main.includes("ipcMain.handle('adelia:about-info'")&&files.main.includes("ipcMain.handle('adelia:about-check-updates'")&&files.preload.includes('openAbout'),'desktop release center IPC wired');
+check(files.main.includes("status:'downloading'")&&files.main.includes("status:'downloaded'")&&files.main.includes('buildSha()'),'desktop update state and build identity');
+check(files.about.includes('checkUpdates')&&files.about.includes('installUpdate')&&files.about.includes('onUpdateState'),'release center update actions');
+check(files.aboutPreload.includes('adelia:about-info')&&files.aboutPreload.includes('adelia:about-update-state'),'release center minimal preload');
+check(files.aboutHtml.includes('Проверить обновления')&&files.aboutHtml.includes('Перезапустить и обновить'),'release center UI present');
 check(files.main.includes("ipcMain.handle('adelia:device-check'")&&files.preload.includes('openDeviceCheck'),'device check IPC wired');
 check(files.deviceCheck.includes('getUserMedia')&&files.deviceCheck.includes('enumerateDevices')&&files.deviceCheck.includes('AnalyserNode'),'real camera and microphone diagnostics');
 check(files.deviceCheckPreload.includes('device-check-complete')&&files.deviceCheckPreload.includes('device-check-close'),'device check preload is minimal');
