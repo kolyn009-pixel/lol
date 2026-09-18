@@ -1,6 +1,6 @@
 {
   "name": "adelia-desktop",
-  "version": "0.2.0",
+  "version": "0.3.0-beta.1",
   "private": true,
   "description": "Аделия — приложение для обучения и преподавания",
   "main": "bootstrap.js",
@@ -70,7 +70,8 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://adeliatutor.ru/desktop-updates/"
+        "url": "https://adeliatutor.ru/desktop-updates/beta/",
+        "channel": "beta"
       }
     ],
     "win": {
@@ -124,6 +125,7 @@
       "installerIcon": "build/icon.png",
       "uninstallerIcon": "build/icon.png",
       "installerHeaderIcon": "build/icon.png"
-    }
+    },
+    "generateUpdatesFilesForAllChannels": false
   }
 }
