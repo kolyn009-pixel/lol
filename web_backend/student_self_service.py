@@ -129,8 +129,9 @@ def cancel_lesson(user_id, lesson_id):
 def request_reschedule(user_id, lesson_id, reason=None):
     lesson = _lesson_owned(user_id, lesson_id)
     if str(lesson['lesson_status']).upper() != 'CONFIRMED': raise ValueError('lesson_not_confirmed')
-    database.create_pending_reschedule(int(lesson_id), str(reason or 'STUDENT_WEB_REQUEST')[:300])
-    return {'status': 'ok', 'lesson_id': int(lesson_id), 'request_status': 'PENDING'}
+    teacher_day_off=_teacher_day_off_applies(lesson)
+    database.create_pending_reschedule(int(lesson_id), str(reason or ('TEACHER_DAY_OFF' if teacher_day_off else 'STUDENT_WEB_REQUEST'))[:300])
+    return {'status': 'ok', 'lesson_id': int(lesson_id), 'request_status': 'PENDING', 'teacher_day_off':teacher_day_off}
 
 
 def lesson_actions(user_id, lesson_id):
