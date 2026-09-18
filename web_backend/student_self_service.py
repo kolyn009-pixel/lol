@@ -106,7 +106,10 @@ def sickness(user_id, lesson_id, comment=None):
 
 def cancel_lesson(user_id, lesson_id):
     lesson = _lesson_owned(user_id, lesson_id)
-    if str(lesson['lesson_status']).upper() != 'CONFIRMED': raise ValueError('lesson_not_confirmed')
+    status=str(lesson['lesson_status']).upper()
+    if status=='CANCELLED':
+        return {'status':'ok','lesson_id':int(lesson_id),'late':False,'teacher_day_off':_teacher_day_off_applies(lesson),'lesson_status':'CANCELLED','refunded':False,'already_cancelled':True,'integrations':None}
+    if status != 'CONFIRMED': raise ValueError('lesson_not_confirmed')
     teacher_day_off=_teacher_day_off_applies(lesson)
     if teacher_day_off:
         from web_backend import teacher_lesson_actions
