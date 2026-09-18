@@ -9,9 +9,27 @@ const MAX_BYTES = 512 * 1024;
 const MAX_FILES = 3;
 let installed = false;
 let reportWindow = null;
+let previousSessionUnclean = false;
 
 function logsDir() {
   return path.join(app.getPath('userData'), 'diagnostics');
+}
+
+function sessionMarkerPath() {
+  return path.join(logsDir(), 'session-open.json');
+}
+
+function markSessionOpen() {
+  try {
+    fs.mkdirSync(logsDir(), { recursive: true });
+    const marker = sessionMarkerPath();
+    previousSessionUnclean = fs.existsSync(marker);
+    fs.writeFileSync(marker, JSON.stringify({ pid: process.pid, started_at: new Date().toISOString() }) + '\n', { encoding: 'utf8', mode: 0o600 });
+  } catch (_) {}
+}
+
+function markSessionClean() {
+  try { fs.rmSync(sessionMarkerPath(), { force: true }); } catch (_) {}
 }
 
 function logPath(index = 0) {
@@ -161,6 +179,7 @@ function openReportWindow() {
 function install() {
   if (installed) return;
   installed = true;
+  markSessionOpen();
 
   process.on('uncaughtExceptionMonitor', error => {
     write('uncaught_exception', { type: error && error.name, error: error && error.message });
@@ -185,8 +204,31 @@ function install() {
     });
   });
 
+  app.once('before-quit', () => {
+    write('app_clean_exit');
+    markSessionClean();
+  });
+
   app.whenReady().then(() => {
-    write('app_ready', buildInfo());
+    write('app_ready', { ...buildInfo(), recovered_from_unclean_exit: previousSessionUnclean });
+    if (previousSessionUnclean) {
+      write('unclean_previous_session_detected');
+      setTimeout(async () => {
+        try {
+          const result = await dialog.showMessageBox({
+            type: 'warning',
+            title: 'Аделия восстановилась после сбоя',
+            message: 'В прошлый раз приложение завершилось неожиданно.',
+            detail: 'Кабинет уже можно использовать. Если хотите помочь разобраться в причине, сохраните обезличенный диагностический отчёт.',
+            buttons: ['Продолжить', 'Сохранить отчёт'],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+          });
+          if (result.response === 1) openReportWindow();
+        } catch (_) {}
+      }, 1200);
+    }
     ipcMain.handle('adelia:open-report', () => openReportWindow());
     ipcMain.handle('adelia:report-info', event => {
       if (!reportWindow || event.sender !== reportWindow.webContents) return null;
