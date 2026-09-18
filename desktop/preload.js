@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('adeliaDesktop', Object.freeze({
   endLessonWorkspace: () => ipcRenderer.invoke('adelia:end-lesson-workspace'),
   openRoute: (route, id = '') => ipcRenderer.invoke('adelia:open-route', { route, id }),
   openDeviceCheck: lessonId => ipcRenderer.invoke('adelia:device-check', { lessonId: String(lessonId || '') }),
+  openAbout: () => ipcRenderer.invoke('adelia:open-about'),
   getPreferences: () => ipcRenderer.invoke('adelia:desktop-prefs'),
   setCloseToTray: value => ipcRenderer.invoke('adelia:set-close-to-tray', !!value),
   getUxState: () => ipcRenderer.invoke('adelia:ux-state'),
