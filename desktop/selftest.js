@@ -19,14 +19,14 @@ function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed
 function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
 for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,device_check:files.deviceCheck,device_check_preload:files.deviceCheckPreload,about:files.about,about_preload:files.aboutPreload,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings}))parseJs(`${n}.js`,s);
 
-check(pkg.version==='0.2.0','desktop package version');
+check(pkg.version==='0.3.0-beta.1','desktop beta package version');
 check(pkg.main==='bootstrap.js','desktop bootstrap entry');
 check(pkg.build?.appId==='ru.adeliatutor.desktop','stable app id');
 check(pkg.build?.asar===true,'asar enabled');
 check(pkg.devDependencies?.electron==='38.0.0','Electron pinned');
 check(pkg.devDependencies?.['electron-builder']==='26.0.12','electron-builder pinned');
 check(pkg.dependencies?.['electron-updater']==='6.6.2','electron-updater pinned');
-check(pkg.build.publish?.[0]?.url==='https://adeliatutor.ru/desktop-updates/','trusted update endpoint');
+check(pkg.build.publish?.[0]?.url==='https://adeliatutor.ru/desktop-updates/beta/'&&pkg.build.publish?.[0]?.channel==='beta','isolated trusted beta update endpoint');
 check(pkg.build.protocols?.[0]?.schemes?.includes('adelia'),'adelia deep-link protocol registered');
 check(pkg.build.win?.target?.includes('nsis'),'Windows NSIS target');
 check(pkg.build.mac?.target?.includes('dmg')&&pkg.build.mac?.target?.includes('zip'),'macOS DMG + ZIP targets');
@@ -55,6 +55,7 @@ check(files.main.includes('closeLessonWindows(true)'),'lesson workspace returns 
 check(files.main.includes("persist:adelia-device-check")&&files.main.includes('deviceCheckMediaAllowed'),'device check uses isolated media partition');
 check(files.main.includes("ipcMain.handle('adelia:about-info'")&&files.main.includes("ipcMain.handle('adelia:about-check-updates'")&&files.preload.includes('openAbout'),'desktop release center IPC wired');
 check(files.main.includes("status:'downloading'")&&files.main.includes("status:'downloaded'")&&files.main.includes('buildSha()'),'desktop update state and build identity');
+check(files.main.includes("UPDATE_CHANNEL")&&files.main.includes("desktop-updates/${UPDATE_CHANNEL}/")&&files.main.includes("autoUpdater.allowPrerelease=UPDATE_CHANNEL==='beta'"),'explicit beta/stable updater channel isolation');
 check(files.about.includes('checkUpdates')&&files.about.includes('installUpdate')&&files.about.includes('onUpdateState'),'release center update actions');
 check(files.aboutPreload.includes('adelia:about-info')&&files.aboutPreload.includes('adelia:about-update-state'),'release center minimal preload');
 check(files.aboutHtml.includes('Проверить обновления')&&files.aboutHtml.includes('Перезапустить и обновить'),'release center UI present');
