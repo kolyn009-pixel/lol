@@ -68,7 +68,7 @@ check(files.aboutHtml.includes('Проверить обновления')&&files
 check(files.diagnostics.includes('MAX_BYTES = 512 * 1024')&&files.diagnostics.includes('uncaughtExceptionMonitor')&&files.diagnostics.includes('render_process_gone'),'bounded local crash diagnostics');
 check(files.diagnostics.includes("'[redacted]'")&&files.diagnostics.includes('[email-redacted]')&&files.diagnostics.includes('sanitizeData'),'diagnostic redaction rules');
 check(files.diagnostics.includes("ipcMain.handle('adelia:report-export'")&&files.reportPreload.includes('adelia:report-export'),'problem report export IPC isolated');
-check(files.reportHtml.includes('содержимое чатов')&&files.reportHtml.includes('Токены')&&files.report.includes('Сохранить'),'problem report privacy disclosure');
+check(files.reportHtml.includes('содержимое чатов')&&files.reportHtml.includes('Токены')&&files.reportHtml.includes('Сохранить отчёт'),'problem report privacy disclosure');
 check(files.main.includes('Сообщить о проблеме')&&files.main.includes("require('./diagnostics').openReportWindow()"),'problem report available from tray');
 check(files.main.includes("ipcMain.handle('adelia:device-check'")&&files.preload.includes('openDeviceCheck'),'device check IPC wired');
 check(files.deviceCheck.includes('getUserMedia')&&files.deviceCheck.includes('enumerateDevices')&&files.deviceCheck.includes('AnalyserNode'),'real camera and microphone diagnostics');
