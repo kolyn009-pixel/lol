@@ -8504,8 +8504,16 @@ def free_reschedule_lesson(
             "Это занятие нельзя перенести."
         )
 
+    teacher_day_off = False
+    try:
+        from web_backend import teacher_day_off_state
+        teacher_day_off = teacher_day_off_state.is_marked(int(lesson_id))
+    except Exception:
+        teacher_day_off = False
+
     if (
-        get_hours_until_lesson(
+        not teacher_day_off
+        and get_hours_until_lesson(
             lesson
         ) < 2
     ):
