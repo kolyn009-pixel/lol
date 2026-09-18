@@ -9,8 +9,10 @@ tmp=Path(tempfile.mkdtemp(prefix="adelia_rc_media_"))
 os.environ["ADELIA_MESSAGE_MEDIA_DIR"]=str(tmp/"media")
 
 import database
+database.TEST_DATA_DIR=str(tmp)
+database.TEST_DB_NAME=str(tmp/"media.db")
 database.set_test_mode(True)
-database.DB_NAME=str(tmp/"media.db")
+assert Path(database.current_db_name()).resolve()==(tmp/"media.db").resolve(), database.current_db_name()
 database.create_tables()
 
 from web_backend import message_media, unified_messaging as um, message_delivery
