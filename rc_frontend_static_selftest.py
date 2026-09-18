@@ -55,6 +55,19 @@ require("window.AdeliaTeacherDashboardV2=render" in teacher_dashboard, "canonica
 require("window.dashboard=render" in teacher_dashboard, "canonical teacher dashboard does not own dashboard entrypoint")
 require("teacher-dashboard-v2" in teacher_dashboard, "polished teacher dashboard markup missing")
 
+schedule_ui = text(WEB / "teacher_schedule_settings.js")
+schedule_backend = text(ROOT / "web_backend" / "teacher_schedule_settings.py")
+regular_booking = text(ROOT / "web_backend" / "student_regular_booking.py")
+trial_slots = text(ROOT / "web_backend" / "public_trial_slots.py")
+require("begin_timezone_change" in schedule_backend, "teacher timezone begin workflow missing")
+require("commit_timezone_change" in schedule_backend, "teacher timezone commit workflow missing")
+require("existing_lessons_changed" in schedule_backend, "teacher timezone workflow lost existing-lesson invariant")
+require("teacher_schedule_booking_paused" in schedule_backend, "teacher timezone booking pause missing")
+require("teacher_schedule_booking_paused" in regular_booking, "regular booking ignores region-change pause")
+require("teacher_schedule_booking_paused" in trial_slots, "trial slots ignore region-change pause")
+require("whRegionOpen" in schedule_ui, "teacher region change UI entrypoint missing")
+require("whRegionCommit" in schedule_ui, "teacher region change confirmation missing")
+
 for required in (
     "bootstrap.js", "main.js", "preload.js", "lesson_workspace.js",
     "desktop_ux.js", "lesson_layout.js", "role_startup.js",
