@@ -9441,6 +9441,55 @@ def finish_lesson(
             "Занятие не найдено."
         )
 
+    if lesson["lesson_status"] == "COMPLETED" and lesson["finished_at"]:
+        paid_minutes = int(lesson["duration_minutes"] or 0)
+        actual_minutes = int(lesson["actual_duration_minutes"] or 0)
+        extra_minutes = int(lesson["extra_minutes"] or 0)
+        underworked_minutes = int(lesson["underworked_minutes"] or 0)
+        program_id = lesson["program_id"]
+        if program_id is None:
+            program = cursor.execute("""
+                SELECT * FROM student_programs
+                WHERE user_id=? AND study_goal=? AND subject=? AND active=1
+                ORDER BY is_primary DESC, id LIMIT 1
+            """, (lesson["user_id"], lesson["study_goal"], lesson["subject"])).fetchone()
+            if program is not None:
+                program_id = program["id"]
+        pending_bonus = bool(underworked_minutes > 0 and not lesson["bonus_minutes_processed"])
+        conn.rollback()
+        conn.close()
+
+        bonus_minutes_awarded = 0
+        if pending_bonus:
+            try:
+                from core import minute_balance
+                minute_balance.add_bonus_minutes(
+                    lesson["user_id"], program_id, underworked_minutes,
+                    reason="UNDERWORKED_TIME_CREDIT", lesson_id=lesson_id
+                )
+                conn = connect()
+                conn.execute(
+                    "UPDATE lessons SET bonus_minutes_processed=1,updated_at=? WHERE id=? AND bonus_minutes_processed=0",
+                    (now_iso(), lesson_id),
+                )
+                conn.commit()
+                conn.close()
+                bonus_minutes_awarded = underworked_minutes
+            except Exception as error:
+                print("BONUS MINUTES CREDIT RETRY ERROR:", error)
+
+        return {
+            "lesson_id": lesson_id,
+            "scheduled_minutes": paid_minutes,
+            "actual_minutes": actual_minutes,
+            "extra_minutes": extra_minutes,
+            "underworked_minutes": underworked_minutes,
+            "bonus_lessons_awarded": 0,
+            "bonus_minutes_awarded": bonus_minutes_awarded,
+            "underworked_minutes_balance": bonus_minutes_awarded,
+            "already_finished": True,
+        }
+
     if lesson["lesson_status"] != "IN_PROGRESS":
 
         conn.rollback()
@@ -9527,6 +9576,7 @@ def finish_lesson(
 
     bonus_lessons = 0
     balance_after = 0
+    bonus_minutes_awarded = 0
     program_id = lesson["program_id"]
 
     if program_id is None:
@@ -9563,6 +9613,7 @@ def finish_lesson(
             conn.commit()
             conn.close()
             balance_after = underworked_minutes
+            bonus_minutes_awarded = underworked_minutes
         except Exception as error:
             print("BONUS MINUTES CREDIT ERROR:", error)
 
@@ -9586,7 +9637,7 @@ def finish_lesson(
             bonus_lessons,
 
         "bonus_minutes_awarded":
-            underworked_minutes if underworked_minutes > 0 else 0,
+            bonus_minutes_awarded,
 
         "underworked_minutes_balance":
             balance_after,
