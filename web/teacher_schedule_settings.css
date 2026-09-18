@@ -16,3 +16,22 @@ body.desktop-teacher-v2 .wh-shell{max-width:1320px;margin:0 auto;padding-bottom:
 .wh-tz-lesson>div small,.wh-tz-lesson label small{display:block;margin-top:3px;color:#938b9e;font-size:8px}.wh-tz-lesson label{display:block;color:#81798c;font-size:9px}.wh-tz-lesson select,.wh-tz-lesson input{width:100%;height:35px;box-sizing:border-box;margin-top:4px;border:1px solid #e2dced;border-radius:9px;background:#fff;padding:0 8px;font:inherit;font-size:10px;color:#3b3447}.wh-tz-lesson i{align-self:center}
 @media(max-width:720px){.wh-tz-lesson{grid-template-columns:1fr 1fr!important}.wh-tz-lesson>div{grid-column:1/-1}.wh-tz-lesson i{display:none}.wh-tz-lesson strong{text-align:left}}
 
+
+/* Day-off controls: compact native-feeling toggle instead of a stretched checkbox. */
+.dayoff-panel>p{margin:6px 0 18px;color:#81798c;line-height:1.45}
+.dayoff-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.dayoff-field{display:flex;flex-direction:column;gap:6px;color:#4a4354;font-size:12px;font-weight:650}
+.dayoff-field input{height:44px;box-sizing:border-box;border:1px solid #e2dced;border-radius:13px;background:#fff;padding:0 13px;font:inherit;color:#302938;transition:border-color .18s,box-shadow .18s,opacity .18s}
+.dayoff-field input:focus{outline:0;border-color:#9b82e8;box-shadow:0 0 0 3px rgba(104,71,245,.09)}
+.dayoff-time-field input{width:116px}
+.dayoff-time-field input:disabled{background:#f7f5f9;color:#aaa3b2;opacity:.68}
+.dayoff-toggle{height:44px;box-sizing:border-box;display:inline-flex;align-items:center;gap:9px;padding:0 3px;cursor:pointer;user-select:none;white-space:nowrap}
+.dayoff-toggle input{position:absolute;width:1px!important;height:1px!important;opacity:0;pointer-events:none}
+.dayoff-toggle-track{position:relative;display:block;width:42px;height:24px;flex:0 0 42px;border-radius:999px;background:#d9d5df;box-shadow:inset 0 0 0 1px rgba(67,55,82,.06);transition:background .18s,box-shadow .18s}
+.dayoff-toggle-track:after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(35,27,48,.22);transition:transform .18s cubic-bezier(.2,.8,.2,1)}
+.dayoff-toggle input:checked+.dayoff-toggle-track{background:#6847f5;box-shadow:inset 0 0 0 1px rgba(71,42,174,.08),0 3px 10px rgba(104,71,245,.16)}
+.dayoff-toggle input:checked+.dayoff-toggle-track:after{transform:translateX(18px)}
+.dayoff-toggle input:focus-visible+.dayoff-toggle-track{outline:3px solid rgba(104,71,245,.18);outline-offset:2px}
+.dayoff-toggle-label{font-size:12px;font-weight:700;color:#443d4e}
+.dayoff-preview-btn{min-height:44px}
+@media(max-width:720px){.dayoff-controls{display:grid;grid-template-columns:1fr 1fr;align-items:end}.dayoff-field:first-child,.dayoff-preview-btn{grid-column:1/-1}.dayoff-field input,.dayoff-time-field input{width:100%}.dayoff-toggle{align-self:end}}
