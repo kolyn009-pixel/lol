@@ -1,8 +1,8 @@
 'use strict';
 module.exports={
   student:{
-    css:['desktop_shell.css','group_events_ui.css','desktop_polish.css','desktop_student_app.css','desktop_lesson_workspace.css'],
-    js:['desktop_shell.js','group_events_ui.js','desktop_polish.js','desktop_lesson_workspace.js']
+    css:['desktop_shell.css','group_events_ui.css','desktop_polish.css','desktop_student_app.css','desktop_lesson_workspace.css','desktop_prelesson.css'],
+    js:['desktop_shell.js','group_events_ui.js','desktop_polish.js','desktop_lesson_workspace.js','desktop_prelesson.js']
   },
   teacher:{
     css:['teacher_v4.css','teacher_v5.css','desktop_teacher_app.css','desktop_lesson_workspace.css'],
