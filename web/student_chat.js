@@ -5,7 +5,9 @@ const api=async(path,opt={})=>{const r=await fetch('/api'+path,{credentials:'sam
 let poll=null;
 
 function avatar(){return '<div class="student-chat-avatar">A</div>'}
-function bubble(x){const mine=x.direction==='IN';return `<article class="student-chat-bubble ${mine?'mine':'teacher'}"><div class="student-chat-meta"><b>${mine?'Вы':'Преподаватель'}</b><span>${fmt(x.created_at)}</span></div><div class="student-chat-text">${esc(x.text||'')}</div>${!mine&&x.read_at?'<small class="student-chat-read">Прочитано</small>':''}</article>`}
+function mediaItems(a){if(!a)return [];if(Array.isArray(a))return a;if(Array.isArray(a.items))return a.items;return [a]}
+function mediaHtml(x){return mediaItems(x.attachment).map(a=>{const url=esc(a.url||'');const name=esc(a.name||'Вложение');if(!url)return '';return String(a.kind||'').toLowerCase()==='photo'?'<a class="student-chat-photo" href="'+url+'" target="_blank" rel="noopener"><img src="'+url+'" alt="'+name+'" loading="lazy"></a>':'<a class="student-chat-file" href="'+url+'" target="_blank" rel="noopener">📎 '+name+'</a>'}).join('')}
+function bubble(x){const mine=x.direction==='IN';return `<article class="student-chat-bubble ${mine?'mine':'teacher'}"><div class="student-chat-meta"><b>${mine?'Вы':'Преподаватель'}</b><span>${fmt(x.created_at)}</span></div><div class="student-chat-text">${esc(x.text||'')}</div>${mediaHtml(x)}${!mine&&x.read_at?'<small class="student-chat-read">Прочитано</small>':''}</article>`}
 
 async function chatScreen(){
   const d=await api('/student/messages?limit=200');
