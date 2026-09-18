@@ -170,12 +170,21 @@ def handle_message(m):
   if pending=="teacher_message":
    label=raw+(('\n' if raw else '')+f"📎 {_attachment_label(attachments)}" if attachments else '')
    if not label:send(p,'Пришли текст, фото или файл 💜',True);return
-   _,r=service.submit_teacher_message(uid,label,v)
+   durable=None
    if attachments:
     try:
-     from .attachment_bridge import vk_forward_to_admin_telegram
+     from .attachment_bridge import vk_attachment_descriptor,_bytes_request,vk_forward_to_admin_telegram
+     from web_backend import message_media
+     stored=[]
+     for item in attachments:
+      d=vk_attachment_descriptor(item)
+      if not d or not d.get('url'):continue
+      content=_bytes_request(d['url'],timeout=90)
+      stored.append(message_media.store_bytes(uid,content,d['filename'],d['content_type'],d['kind'],origin='VK',external_ref=d.get('vk_key')))
+     durable=message_media.bundle(stored)
      vk_forward_to_admin_telegram(attachments,f"💬 Файл от {u['name']}\n\n{raw}")
     except Exception as exc:print('VK STUDENT ATTACHMENT ERROR:',repr(exc))
+   _,r=service.submit_teacher_message(uid,label,v,durable)
    send(p,r,True);return
   if pending=="booking":_,r=service.submit_booking_request(uid,raw);send(p,r,True);return
  if c=="cancel":_PENDING.pop(v,None);send(p,"Хорошо, действие отменено 💜",True);return
