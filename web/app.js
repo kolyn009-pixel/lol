@@ -4,13 +4,17 @@ const money=n=>Number(n||0).toLocaleString('ru-RU')+' ₽';
 const titles={home:'Главная',schedule:'Занятия',homework:'Домашка',payments:'Оплата',messages:'Сообщения',profile:'Профиль',studentLogin:'Вход'};
 let auth=null;
 let current='home';
-let authMode='password';
+let authMode='gateway';
 
 async function api(path,opt={}){
-  const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});
-  const j=await r.json().catch(()=>({}));
-  if(!r.ok){const e=new Error(j.error||'Ошибка');e.status=r.status;throw e}
-  return j;
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),12000);
+  try{
+    const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt,signal:opt.signal||ctrl.signal});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){const e=new Error(j.error||'Ошибка');e.status=r.status;throw e}
+    return j;
+  }catch(e){if(e?.name==='AbortError'){const x=new Error('NETWORK_TIMEOUT');x.status=0;throw x}throw e}
+  finally{clearTimeout(timer)}
 }
 function fmtDate(v){if(!v)return '—';const d=new Date(v);return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(d)}
 function fmtTime(v){if(!v)return '—';const d=new Date(v);return new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'}).format(d)}
@@ -20,8 +24,9 @@ function payStatus(v){return ({PAID:'Оплачено',AWAITING_PAYMENT:'Ожи�
 function lessonStatus(v){return ({CONFIRMED:'Подтверждено',PENDING:'Ожидает подтверждения',IN_PROGRESS:'Идёт занятие',COMPLETED:'Завершено',CANCELLED:'Отменено',REJECTED:'Отклонено'})[String(v||'').toUpperCase()]||v||'—'}
 function loading(){return '<div class="skeleton-stack"><div class="skeleton hero-skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>'}
 function authCard(){
- if(authMode==='code')return `<section class="form-card auth-card"><span class="status">Аделия 💜</span><h2>Первый вход или восстановление</h2><p>Получите одноразовый код в TutorBot. После подтверждения создайте логин и пароль — код каждый раз больше не понадобится.</p><label>Код из бота</label><input class="code-input" id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"><label>Новый логин</label><input id="newLogin" autocomplete="username" autocapitalize="none" placeholder="например, ivan.petrov"><label>Новый пароль</label><input id="newPassword" type="password" autocomplete="new-password" placeholder="минимум 8 символов"><button class="form-primary" id="studentSetupButton">Подтвердить и сохранить</button><button class="mini-btn" id="showPasswordLogin">Уже есть логин и пароль</button><div id="loginResult"></div></section>`;
- return `<section class="form-card auth-card"><span class="status">Аделия 💜</span><h2>Вход в личный кабинет</h2><p>Введите постоянный логин и пароль. На этом устройстве кабинет останется открытым после перезапуска браузера или приложения.</p><label>Логин</label><input id="loginName" autocomplete="username" autocapitalize="none" placeholder="Логин"><label>Пароль</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Пароль"><button class="form-primary" id="studentPasswordLoginButton">Войти</button><button class="mini-btn" id="showCodeLogin">Первый вход / забыли пароль?</button><div id="loginResult"></div></section>`;
+ if(authMode==='gateway')return `<section class="adelia-login-gateway"><div class="login-aurora login-aurora-a"></div><div class="login-aurora login-aurora-b"></div><div class="login-intro"><span class="login-brand-mark">А</span><div class="eyebrow">Аделия · учебное пространство</div><h2>С возвращением</h2><p>Выберите свой кабинет — дальше Аделия откроет всё необходимое для занятий.</p></div><div class="login-role-grid"><button class="login-role-card student" id="chooseStudent"><span class="role-visual"><i>✦</i><i>ƒ</i><i>→</i></span><span class="role-copy"><small>Учусь</small><b>Я ученик</b><em>Расписание, домашние задания, чат и материалы</em></span><span class="role-arrow">→</span></button><button class="login-role-card parent" id="chooseParent"><span class="role-visual"><i>◌</i><i>✓</i><i>♡</i></span><span class="role-copy"><small>Слежу за прогрессом</small><b>Я родитель</b><em>Расписание ребёнка, прогресс и оплаты</em></span><span class="role-arrow">→</span></button></div><a class="teacher-login-link" href="/teacher/">Преподаватель? Открыть рабочий кабинет →</a></section>`;
+ if(authMode==='code')return `<section class="form-card auth-card adelia-login-form"><button class="auth-back" id="backToRoles" type="button">← Выбрать другой кабинет</button><span class="status">Аделия · ученик</span><h2>Первый вход или восстановление</h2><p>Получите одноразовый код в TutorBot. После подтверждения создайте логин и пароль.</p><label>Код из бота</label><input class="code-input" id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"><label>Новый логин</label><input id="newLogin" autocomplete="username" autocapitalize="none" placeholder="например, ivan.petrov"><label>Новый пароль</label><input id="newPassword" type="password" autocomplete="new-password" placeholder="минимум 8 символов"><button class="form-primary" id="studentSetupButton">Подтвердить и сохранить</button><button class="mini-btn" id="showPasswordLogin">Уже есть логин и пароль</button><div id="loginResult"></div></section>`;
+ return `<section class="form-card auth-card adelia-login-form"><button class="auth-back" id="backToRoles" type="button">← Выбрать другой кабинет</button><span class="status">Аделия · ученик</span><h2>Вход в кабинет</h2><p>Введите постоянный логин и пароль. На этом устройстве кабинет останется открытым.</p><label>Логин</label><input id="loginName" autocomplete="username" autocapitalize="none" placeholder="Логин"><label>Пароль</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Пароль"><button class="form-primary" id="studentPasswordLoginButton">Войти</button><button class="mini-btn" id="showCodeLogin">Первый вход / забыли пароль?</button><div id="loginResult"></div></section>`;
 }
 
 async function ensureAuth(){
@@ -91,6 +96,9 @@ async function doPasswordLogin(){const out=$('#loginResult'),login=($('#loginNam
 async function doSetupLogin(){const out=$('#loginResult'),code=($('#loginCode')?.value||'').replace(/\D/g,''),login=($('#newLogin')?.value||'').trim().toLowerCase(),password=$('#newPassword')?.value||'';if(code.length!==6){out.innerHTML='<p class="form-error">Введите 6 цифр из TutorBot.</p>';return}if(!/^[a-z0-9._-]{4,32}$/.test(login)){out.innerHTML='<p class="form-error">Логин: 4–32 символа, латинские буквы, цифры, . _ -</p>';return}if(password.length<8){out.innerHTML='<p class="form-error">Пароль должен быть не короче 8 символов.</p>';return}try{const r=await api('/auth/student/code',{method:'POST',body:JSON.stringify({code:`setup:${code}:${login}:${password}`})});auth={role:'student',id:r.student?.id};out.innerHTML='<div class="form-success">✓ Данные для входа сохранены</div>';setTimeout(()=>render('home'),220)}catch(e){const m=e.message==='expired'?'Код истёк. Получите новый в TutorBot.':e.message==='login_taken'?'Этот логин уже занят.':'Не удалось подтвердить код или сохранить данные.';out.innerHTML=`<p class="form-error">${m}</p>`}}
 
 function bind(){
+  const cs=$('#chooseStudent');if(cs)cs.onclick=()=>showAuth('password');
+  const cp=$('#chooseParent');if(cp)cp.onclick=()=>{document.body.classList.add('auth-leaving');setTimeout(()=>location.href='/app/parent/',180)};
+  const br=$('#backToRoles');if(br)br.onclick=()=>showAuth('gateway');
   document.querySelectorAll('[data-go]').forEach(x=>x.onclick=()=>render(x.dataset.go));
   document.querySelectorAll('[data-hw]').forEach(x=>x.onclick=()=>openHomework(x.dataset.hw));
   document.querySelectorAll('[data-external]').forEach(x=>x.onclick=()=>window.open(x.dataset.external,'_blank','noopener'));
