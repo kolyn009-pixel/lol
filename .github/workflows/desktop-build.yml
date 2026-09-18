@@ -27,24 +27,21 @@ jobs:
             label: Windows x64
             artifact: adelia-windows-x64
             command: npm run dist:win
-            bundle_platform: win
-            bundle_arch: x64
+            publish_args: --platform win
             files: |
               desktop/beta-bundle/**
           - os: macos-latest
             label: macOS Apple Silicon
             artifact: adelia-macos-arm64
             command: npm run dist:mac:arm64
-            bundle_platform: mac
-            bundle_arch: arm64
+            publish_args: --platform mac --arch arm64
             files: |
               desktop/beta-bundle/**
           - os: macos-latest
             label: macOS Intel
             artifact: adelia-macos-x64
             command: npm run dist:mac:x64
-            bundle_platform: mac
-            bundle_arch: x64
+            publish_args: --platform mac --arch x64
             files: |
               desktop/beta-bundle/**
 
@@ -64,8 +61,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: desktop/package.json
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -90,8 +85,7 @@ jobs:
         shell: bash
         run: |
           rm -rf beta-bundle
-          python publish_updates.py dist beta-bundle --platform "${{ matrix.bundle_platform }}" \
-            ${{ matrix.bundle_platform == 'mac' && format('--arch {0}', matrix.bundle_arch) || '' }}
+          python publish_updates.py dist beta-bundle ${{ matrix.publish_args }}
           cp dist/beta-manifest.json beta-bundle/build-manifest.json
 
       - name: Verify beta bundle
@@ -110,13 +104,16 @@ jobs:
           assert build.get("git_sha") == "${{ github.sha }}", (build.get("git_sha"), "${{ github.sha }}")
 
           names = {p.name for p in root.iterdir() if p.is_file()}
-          if "${{ matrix.bundle_platform }}" == "win":
+          platform = "${{ runner.os }}"
+          arch = "${{ matrix.label }}"
+          if platform == "Windows":
               assert any(n.endswith(".exe") for n in names), names
               assert "Adelia-latest-windows-x64.exe" in names, names
           else:
               assert any(n.endswith(".dmg") for n in names), names
               assert any(n.endswith(".zip") for n in names), names
-              assert f"Adelia-latest-macos-${{ matrix.bundle_arch }}.dmg" in names, names
+              expected = "Adelia-latest-macos-arm64.dmg" if "Apple Silicon" in arch else "Adelia-latest-macos-x64.dmg"
+              assert expected in names, names
 
           print("BETA_BUNDLE_VERIFY=OK")
           print("GIT_SHA=${{ github.sha }}")
