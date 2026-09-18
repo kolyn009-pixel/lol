@@ -12,6 +12,7 @@ from database import get_user
 from crm_plus import service as crm_service
 from vk_adapter import channel_delivery
 from web_backend import unified_messaging as um
+from web_backend import message_media
 
 
 EXTERNAL_CHANNELS={'TELEGRAM','VK'}
@@ -30,7 +31,7 @@ def _normalize_channels(channels):
     return list(dict.fromkeys(requested))
 
 
-def _deliver_existing(mid,uid,body,channels):
+def _deliver_existing(mid,uid,body,channels,attachment=None):
     requested=_normalize_channels(channels);result={};any_sent=False
     user=get_user(int(uid))
     if not user or not user['active']:raise ValueError('student_not_found')
@@ -42,7 +43,19 @@ def _deliver_existing(mid,uid,body,channels):
             continue
         um.record_delivery(mid,channel,'STUDENT',recipient,'QUEUED')
         try:
-            ok=channel_delivery.send_telegram(uid,body) if channel=='TELEGRAM' else channel_delivery.send_vk(uid,body)
+            media=message_media.attachment_items(attachment)
+            if media:
+                from vk_adapter.attachment_bridge import telegram_send_bytes,vk_send_bytes
+                ok=True
+                for item in media:
+                    meta,data=message_media.read(item.get('token'))
+                    if channel=='TELEGRAM':
+                        sent=telegram_send_bytes(int(recipient),data,meta['name'],body,meta.get('kind')=='photo',meta.get('mime'))
+                    else:
+                        sent=vk_send_bytes(int(recipient),data,meta['name'],body,meta.get('kind')=='photo',meta.get('mime'))
+                    ok=ok and bool(sent)
+            else:
+                ok=channel_delivery.send_telegram(uid,body) if channel=='TELEGRAM' else channel_delivery.send_vk(uid,body)
         except Exception as exc:
             ok=False
             print(f'[stage10] {channel} delivery error:',repr(exc),flush=True)
@@ -92,9 +105,12 @@ def send_existing_message_channels(message_id,channels):
     if not requested:raise ValueError('channels_required')
     um.ensure_tables();conn=database.connect()
     try:
-        row=conn.execute("SELECT id,student_id,direction,sender_type,body FROM unified_messages WHERE id=? LIMIT 1",(mid,)).fetchone()
+        row=conn.execute("SELECT id,student_id,direction,sender_type,body,attachment_json FROM unified_messages WHERE id=? LIMIT 1",(mid,)).fetchone()
     finally:conn.close()
     if not row:raise ValueError('message_not_found')
     if str(row['direction']).upper()!='OUT' or str(row['sender_type']).upper()!='TEACHER':raise ValueError('message_not_teacher_outbound')
-    result,any_sent=_deliver_existing(mid,int(row['student_id']),str(row['body'] or ''),requested)
+    import json
+    try:attachment=json.loads(row['attachment_json'] or 'null')
+    except Exception:attachment=None
+    result,any_sent=_deliver_existing(mid,int(row['student_id']),str(row['body'] or ''),requested,attachment)
     return {'status':'ok' if any_sent else 'delivery_failed','message_id':mid,'deliveries':result}
