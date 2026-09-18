@@ -1,9 +1,10 @@
 (()=>{'use strict';
-const SPECIAL=new Set(['schedule','groups','messages','formulas','finance','health','students']);
+const SPECIAL=new Set(['schedule','groups','messages','formulas','finance','health','students','analytics']);
 const handlers={
   formulas:()=>window.teacherFormulas?.(),
   finance:()=>window.teacherFinance?.(),
-  students:()=>window.teacherStudentsClean?.()
+  students:()=>window.teacherStudentsClean?.(),
+  analytics:()=>window.teacherProgress?.()
 };
 function setActive(view){document.querySelectorAll('aside nav button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));}
 function closeMenu(){document.body.classList.remove('menu-open');}
