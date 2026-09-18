@@ -3,7 +3,7 @@ const fs=require('fs'),path=require('path'),vm=require('vm');
 const root=__dirname,repo=path.resolve(root,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const readRepo=p=>fs.readFileSync(path.join(repo,p),'utf8');
-const publishScript=readRepo('scripts/desktop_update_publish.sh'),rollbackScript=readRepo('scripts/desktop_update_rollback.sh'),nginxUpdates=read('nginx-desktop-updates.conf');
+const publishScript=readRepo('scripts/desktop_update_publish.sh'),rollbackScript=readRepo('scripts/desktop_update_rollback.sh'),releaseManager=readRepo('scripts/desktop_release_manager.sh'),releaseSetRollback=readRepo('scripts/desktop_release_set_rollback.sh'),nginxUpdates=read('nginx-desktop-updates.conf');
 const pkg=JSON.parse(read('package.json'));
 const files={
   bootstrap:read('bootstrap.js'),main:read('main.js'),preload:read('preload.js'),workspace:read('lesson_workspace.js'),
@@ -59,7 +59,9 @@ check(files.main.includes("status:'downloading'")&&files.main.includes("status:'
 check(files.main.includes("UPDATE_CHANNEL")&&files.main.includes("UPDATE_TARGET")&&files.main.includes("desktop-updates/${UPDATE_CHANNEL}/${UPDATE_TARGET}/")&&files.main.includes("autoUpdater.allowPrerelease=UPDATE_CHANNEL==='beta'"),'explicit channel and platform updater isolation');
 check(publishScript.includes('immutable release already exists')&&publishScript.includes('mv -Tf')&&publishScript.includes('HTTP_RELEASE_METADATA=OK'),'atomic desktop update publisher');
 check(rollbackScript.includes('explicit release id required')&&rollbackScript.includes('mv -Tf')&&rollbackScript.includes('HTTP_ROLLBACK_METADATA=OK'),'explicit desktop update rollback');
-check(nginxUpdates.includes('win-x64|macos-arm64|macos-x64')&&nginxUpdates.includes('immutable'),'per-target desktop update nginx policy');
+check(releaseManager.includes('PREFLIGHT ALL THREE BUNDLES')&&releaseManager.includes('release-set.json')&&releaseManager.includes('AUTO_ROLLBACK_TO=')&&releaseManager.includes('DESKTOP_RELEASE_MANAGER=PASS'),'atomic three-platform release manager');
+check(releaseSetRollback.includes('explicit release-set id required')&&releaseSetRollback.includes('ROLLBACK_VERIFY_RESTORED=')&&releaseSetRollback.includes('DESKTOP_RELEASE_SET_ROLLBACK=PASS'),'atomic whole-release rollback');
+check(nginxUpdates.includes('win-x64|macos-arm64|macos-x64')&&nginxUpdates.includes('One channel symlink switches all three'),'atomic release-set nginx policy');
 check(files.about.includes('checkUpdates')&&files.about.includes('installUpdate')&&files.about.includes('onUpdateState'),'release center update actions');
 check(files.aboutPreload.includes('adelia:about-info')&&files.aboutPreload.includes('adelia:about-update-state'),'release center minimal preload');
 check(files.aboutHtml.includes('Проверить обновления')&&files.aboutHtml.includes('Перезапустить и обновить'),'release center UI present');
