@@ -2,16 +2,6 @@ name: Desktop beta build
 
 on:
   workflow_dispatch:
-  push:
-    branches: [release/adelia-unified-rc]
-    paths:
-      - 'desktop/**'
-      - 'web/desktop_*.js'
-      - 'web/desktop_*.css'
-      - 'web/teacher_lesson_flow.js'
-      - 'web/teacher_group_live12.js'
-      - 'web/teacher_event_live13.js'
-      - '.github/workflows/desktop-build.yml'
 
 permissions:
   contents: read
