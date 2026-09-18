@@ -66,10 +66,10 @@ def _deliver_existing(mid,uid,body,channels,attachment=None):
     return result,any_sent
 
 
-def send_teacher_reply(user_id,text,channels=None,teacher_id=None):
+def send_teacher_reply(user_id,text,channels=None,teacher_id=None,attachment=None):
     """Create an Adelia chat message; external fan-out is opt-in only."""
     uid=int(user_id);body=str(text or '').strip()
-    if not body:raise ValueError('text_required')
+    if not body and not attachment:raise ValueError('text_required')
     if len(body)>4000:raise ValueError('text_too_long')
     user=get_user(uid)
     if not user or not user['active']:raise ValueError('student_not_found')
@@ -78,12 +78,12 @@ def send_teacher_reply(user_id,text,channels=None,teacher_id=None):
     crm_id=crm_service.log_message(uid,'OUT',body,teacher_id,'STUDENT','SENT')
     mid=um.record_message(
         uid,'OUT',body,participant_type='STUDENT',sender_type='TEACHER',sender_id=teacher_id,
-        origin_channel='WEB',status='SENT',legacy_source='crm_student_messages',legacy_id=crm_id
+        origin_channel='WEB',content_type=str((attachment or {}).get('kind') or 'TEXT').upper(),attachment=attachment,status='SENT',legacy_source='crm_student_messages',legacy_id=crm_id
     )
 
     # WEB represents visibility in the Adelia chat itself.
     um.record_delivery(mid,'WEB','STUDENT',uid,'DELIVERED')
-    result,any_external=_deliver_existing(mid,uid,body,requested)
+    result,any_external=_deliver_existing(mid,uid,body,requested,attachment)
 
     conn=database.connect()
     try:
