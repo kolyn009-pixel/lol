@@ -36,13 +36,6 @@ def _messengers(student_id,title,body,telegram=True,vk=True):
         return {'telegram':False,'vk':False,'error':type(exc).__name__}
 
 
-def _persist_teacher_day_off_marker(data):
-    if not isinstance(data,dict) or str(data.get('reason') or '')!='teacher_day_off' or not data.get('lesson_id'):
-        return
-    from web_backend import teacher_day_off_state
-    teacher_day_off_state.mark_lesson(int(data['lesson_id']))
-
-
 def teachers(title,body,url='/teacher/',tag=None,data=None):
     sent=failed=0;targets=0
     for tid in _teacher_ids():
@@ -69,7 +62,6 @@ def parents(student_id,title,body,url='/app/parent/',tag=None,data=None):
 
 
 def student_and_parents(student_id,title,body,url='/app/',parent_url='/app/parent/',tag=None,data=None,mirror_messengers=False,telegram=True,vk=True):
-    _persist_teacher_day_off_marker(data)
     result={'student':student(student_id,title,body,url,tag,data),'parents':parents(student_id,title,body,parent_url,tag,data)}
     if mirror_messengers:
         result['messengers']=_messengers(student_id,title,body,telegram=telegram,vk=vk)
