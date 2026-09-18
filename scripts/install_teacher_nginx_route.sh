@@ -11,16 +11,12 @@ cp "$CONF" "$BACKUP_DIR/adeliatutor.ru.$STAMP"
 
 python3 - "$CONF" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 p = Path(sys.argv[1])
 s = p.read_text()
-start = s.find("    # Teacher cabinet canonical shortcut")
-if start < 0:
-    raise SystemExit("teacher canonical marker not found")
-app_marker = s.find("    # Adelia student / parent application", start)
-if app_marker < 0:
-    raise SystemExit("student application marker not found")
+
 block = """    # Teacher cabinet canonical shortcut
     location = /teacher {
         return 302 /app/teacher.html;
@@ -31,7 +27,25 @@ block = """    # Teacher cabinet canonical shortcut
     }
 
 """
-p.write_text(s[:start] + block + s[app_marker:])
+
+teacher_re = re.compile(
+    r"(?ms)^\s*# Teacher cabinet canonical shortcut\s*$"
+    r".*?"
+    r"(?=^\s*(?:# Adelia student / parent application\s*$|location\s*=\s*/app\s*\{))"
+)
+
+if teacher_re.search(s):
+    s = teacher_re.sub(block, s, count=1)
+else:
+    app_match = re.search(
+        r"(?m)^\s*(?:# Adelia student / parent application\s*$|location\s*=\s*/app\s*\{)",
+        s,
+    )
+    if not app_match:
+        raise SystemExit("student application route not found")
+    s = s[:app_match.start()] + block + s[app_match.start():]
+
+p.write_text(s)
 PY
 
 nginx -t
