@@ -1,4 +1,5 @@
 'use strict';
+require('./diagnostics').install();
 require('./system_polish').install();
 require('./network_ux').install();
 require('./lesson_workspace').install();
