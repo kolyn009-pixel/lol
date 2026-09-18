@@ -14,20 +14,112 @@
     "dist:mac:arm64": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --arm64",
     "dist:mac:x64": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --x64"
   },
-  "dependencies": {"electron-updater": "6.6.2"},
-  "devDependencies": {"electron": "38.0.0", "electron-builder": "26.0.12"},
+  "dependencies": {
+    "electron-updater": "6.6.2"
+  },
+  "devDependencies": {
+    "electron": "38.0.0",
+    "electron-builder": "26.0.12"
+  },
   "build": {
     "appId": "ru.adeliatutor.desktop",
     "productName": "Аделия",
     "artifactName": "Adelia-${version}-${os}-${arch}.${ext}",
     "asar": true,
-    "files": ["bootstrap.js", "system_polish.js", "network_ux.js", "offline.html", "lesson_workspace.js", "desktop_ux.js", "lesson_layout.js", "role_startup.js", "bundled_ui.js", "bundled_ui_manifest.js", "role_assets/**/*", "start.html", "start.css", "start.js", "main.js", "preload.js", "package.json", "verify_icon.js", "build/icon.png"],
-    "directories": {"output": "dist", "buildResources": "build"},
-    "protocols": [{"name": "Аделия", "schemes": ["adelia"]}],
-    "publish": [{"provider": "generic", "url": "https://adeliatutor.ru/desktop-updates/"}],
-    "win": {"target": ["nsis"], "requestedExecutionLevel": "asInvoker", "icon": "build/icon.png"},
-    "mac": {"target": ["dmg", "zip"], "category": "public.app-category.education", "icon": "build/icon.png", "identity": null},
-    "dmg": {"title": "Аделия", "backgroundColor": "#f8f4fc", "iconSize": 112, "window": {"width": 600, "height": 420}, "contents": [{"x": 170, "y": 220, "type": "file"}, {"x": 430, "y": 220, "type": "link", "path": "/Applications"}]},
-    "nsis": {"oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true, "shortcutName": "Аделия", "installerIcon": "build/icon.png", "uninstallerIcon": "build/icon.png", "installerHeaderIcon": "build/icon.png"}
+    "files": [
+      "bootstrap.js",
+      "system_polish.js",
+      "network_ux.js",
+      "offline.html",
+      "lesson_workspace.js",
+      "device_check.js",
+      "device_check.css",
+      "device_check.html",
+      "device_check_preload.js",
+      "desktop_ux.js",
+      "lesson_layout.js",
+      "role_startup.js",
+      "bundled_ui.js",
+      "bundled_ui_manifest.js",
+      "role_assets/**/*",
+      "start.html",
+      "start.css",
+      "start.js",
+      "main.js",
+      "preload.js",
+      "package.json",
+      "verify_icon.js",
+      "build/icon.png"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "protocols": [
+      {
+        "name": "Аделия",
+        "schemes": [
+          "adelia"
+        ]
+      }
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://adeliatutor.ru/desktop-updates/"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.education",
+      "icon": "build/icon.png",
+      "identity": null,
+      "extendInfo": {
+        "NSCameraUsageDescription": "Аделии нужен доступ к камере для проверки перед онлайн-занятием.",
+        "NSMicrophoneUsageDescription": "Аделии нужен доступ к микрофону для проверки звука перед онлайн-занятием."
+      }
+    },
+    "dmg": {
+      "title": "Аделия",
+      "backgroundColor": "#f8f4fc",
+      "iconSize": 112,
+      "window": {
+        "width": 600,
+        "height": 420
+      },
+      "contents": [
+        {
+          "x": 170,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 430,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Аделия",
+      "installerIcon": "build/icon.png",
+      "uninstallerIcon": "build/icon.png",
+      "installerHeaderIcon": "build/icon.png"
+    }
   }
 }
