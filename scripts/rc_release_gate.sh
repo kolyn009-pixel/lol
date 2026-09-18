@@ -94,7 +94,11 @@ echo "===== 6. UNIFIED ISOLATED RELEASE SELFTEST ====="
 "$PYTHON" rc_release_selftest.py
 
 echo
-echo "===== 7. DESKTOP / FRONTEND STATIC SELFTEST ====="
+echo "===== 7. FRONTEND STATIC SELFTEST ====="
+"$PYTHON" rc_frontend_static_selftest.py
+
+echo
+echo "===== 7B. DESKTOP NODE SELFTEST ====="
 if command -v node >/dev/null 2>&1; then
   if [ -f desktop/selftest.js ]; then
     node desktop/selftest.js
