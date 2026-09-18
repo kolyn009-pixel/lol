@@ -13,7 +13,7 @@ from web_backend.lesson_workspace import start_lesson
 from web_backend import telemost_settings
 
 _BLOCKED={"CANCELLED","REJECTED","NO_SHOW","LATE_CANCELLED","SICKNESS","COMPLETED"}
-_PAID_ACCESS={"PAID","FREE","WAIVED","COVERED"}
+_PAID_ACCESS={"PAID","FREE","RESERVED_BALANCE","WAIVED","COVERED"}
 _VALID_RSVP={"UNKNOWN","GOING","MAYBE","NOT_GOING"}
 
 def ensure_schema():
