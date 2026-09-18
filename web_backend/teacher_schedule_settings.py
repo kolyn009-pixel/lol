@@ -241,16 +241,38 @@ def _upsert_setting(conn,key,value,now):
     conn.execute("""INSERT INTO bot_settings(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at""",(str(key),None if value is None else str(value),now))
 
 
-def _convert_regular_rows_for_timezone(conn,old_tz,new_tz,anchor,now):
-    rows=conn.execute("""SELECT id,weekday,start_time FROM regular_schedules WHERE COALESCE(active,1)=1 AND COALESCE(status,'APPROVED') NOT IN ('CANCELLED','REJECTED')""").fetchall()
+def _normalize_regular_edits(conn,items):
+    if not isinstance(items,list):raise ValueError("invalid_regular_schedule_edits")
+    rows=conn.execute("""SELECT id,weekday,start_time,duration_minutes FROM regular_schedules WHERE COALESCE(active,1)=1 AND COALESCE(status,'APPROVED') NOT IN ('CANCELLED','REJECTED') ORDER BY id""").fetchall()
+    expected={int(row["id"]):row for row in rows}
+    if len(items)!=len(expected):raise ValueError("regular_schedule_edits_incomplete")
+    normalized=[];seen=set()
+    for raw in items:
+        if not isinstance(raw,dict):raise ValueError("invalid_regular_schedule_edit")
+        rid=int(raw.get("id"))
+        if rid not in expected or rid in seen:raise ValueError("invalid_regular_schedule_id")
+        seen.add(rid);weekday=int(raw.get("weekday"));start=_time(raw.get("start_time"))
+        if weekday<0 or weekday>6:raise ValueError("invalid_weekday")
+        normalized.append({"id":rid,"weekday":weekday,"start_time":start,"duration_minutes":int(expected[rid]["duration_minutes"] or 60)})
+    if seen!=set(expected):raise ValueError("regular_schedule_edits_incomplete")
+    buckets={}
+    for row in normalized:buckets.setdefault(row["weekday"],[]).append(row)
+    for bucket in buckets.values():
+        ordered=sorted(bucket,key=lambda r:_minutes(r["start_time"]))
+        for left,right in zip(ordered,ordered[1:]):
+            if _minutes(right["start_time"]) < _minutes(left["start_time"])+int(left["duration_minutes"]):raise ValueError("regular_schedule_overlap")
+    return normalized
+
+
+def _apply_regular_edits(conn,items,now):
     changed=0
-    for row in rows:
-        day=anchor+timedelta(days=int(row["weekday"]))
-        hh,mm=[int(x) for x in str(row["start_time"])[:5].split(":")]
-        old_start=datetime(day.year,day.month,day.day,hh,mm,tzinfo=old_tz)
-        local=old_start.astimezone(new_tz)
-        conn.execute("UPDATE regular_schedules SET weekday=?,start_time=?,updated_at=? WHERE id=?",(int(local.weekday()),local.strftime("%H:%M"),now,int(row["id"])))
-        changed+=1
+    for row in items:
+        current=conn.execute("SELECT weekday,start_time FROM regular_schedules WHERE id=?",(int(row["id"]),)).fetchone()
+        if not current:raise ValueError("regular_schedule_not_found")
+        new_time=str(row["start_time"])[:5]
+        if int(current["weekday"])!=int(row["weekday"]) or str(current["start_time"])[:5]!=new_time:
+            conn.execute("UPDATE regular_schedules SET weekday=?,start_time=?,updated_at=? WHERE id=?",(int(row["weekday"]),new_time,now,int(row["id"])))
+            changed+=1
     return changed
 
 
@@ -263,12 +285,13 @@ def commit_timezone_change(payload):
     mode=str(payload.get("mode") or "SAME").upper()
     if mode not in MODES:raise ValueError("invalid_week_mode")
     rows=_normalize_rows(payload.get("items") or [],mode)
-    anchor=_anchor_monday(current_tz);now=database.now_iso();conn=database.connect()
+    now=database.now_iso();conn=database.connect()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        regular_edits=_normalize_regular_edits(conn,payload.get("regular_schedules") or [])
         conn.execute("UPDATE working_hours SET active=0,updated_at=? WHERE active=1",(now,))
         for row in rows:conn.execute("""INSERT INTO working_hours(weekday,start_time,end_time,active,created_at,updated_at,week_type) VALUES(?,?,?,?,?,?,?)""",(row["weekday"],row["start_time"],row["end_time"],1,now,now,row["week_type"]))
-        regular_changed=_convert_regular_rows_for_timezone(conn,current_tz,target_tz,anchor,now)
+        regular_changed=_apply_regular_edits(conn,regular_edits,now)
         _upsert_setting(conn,"teacher_week_mode",mode,now)
         _upsert_setting(conn,"bot_timezone",target_name,now)
         _upsert_setting(conn,"teacher_schedule_booking_paused","0",now)
@@ -276,7 +299,7 @@ def commit_timezone_change(payload):
         conn.commit()
     except Exception:conn.rollback();raise
     finally:conn.close()
-    result=snapshot();result.update({"status":"ok","timezone_changed":True,"previous_timezone":current_name,"regular_schedules_rebased":regular_changed,"existing_lessons_changed":False,"saved_at":datetime.now().isoformat(timespec="seconds")});return result
+    result=snapshot();result.update({"status":"ok","timezone_changed":True,"previous_timezone":current_name,"regular_schedules_updated":regular_changed,"existing_lessons_changed":False,"saved_at":datetime.now().isoformat(timespec="seconds")});return result
 
 
 def snapshot():
