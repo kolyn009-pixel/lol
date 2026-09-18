@@ -2349,8 +2349,39 @@ def get_student_rate_info(
         subject
     )
 
+    # student_programs.custom_hourly_rate is canonical.  The legacy users.*
+    # rate column remains a fallback for old profiles that have not yet been
+    # migrated to programme-scoped pricing.
+    conn = connect()
+    try:
+        program = conn.execute("""
+            SELECT custom_hourly_rate
+            FROM student_programs
+            WHERE user_id = ?
+              AND study_goal = ?
+              AND subject = ?
+              AND COALESCE(active,1) = 1
+              AND COALESCE(approval_status,'APPROVED') = 'APPROVED'
+            ORDER BY is_primary DESC, id
+            LIMIT 1
+        """, (
+            int(user_id),
+            study_goal,
+            subject,
+        )).fetchone()
+    finally:
+        conn.close()
+
+    program_custom_rate = (
+        program["custom_hourly_rate"]
+        if program is not None
+        else None
+    )
+
     custom_rate = (
-        user[column]
+        program_custom_rate
+        if program_custom_rate is not None
+        else user[column]
     )
 
     common_rate = (
