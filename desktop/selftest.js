@@ -69,6 +69,8 @@ check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("rol
 check(files.startJs.includes('teacherLogin')&&files.startJs.includes('openStudentLogin')&&files.startJs.includes('openParentCabinet'),'role actions wired');
 check(files.startHtml.includes('./build/icon.png')&&files.startHtml.includes('start.js')&&files.startHtml.includes('start.css'),'branded start assets linked');
 check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start screen styles present');
+check(pkg.build.files.includes('bundled_ui_manifest.js'),'desktop bundled UI manifest packaged');
+check(files.startCss.includes('prefers-reduced-motion'),'start screen respects reduced motion');
 check(files.offline.includes('Нет подключения')&&files.offline.includes('Аделия сама попробует восстановить соединение'),'branded offline screen');
 check(files.network.includes("loadFile(offlineFile())")&&files.network.includes('setInterval'),'offline reconnect loop');
 check(files.network.includes("removeAllListeners('update-available')")&&files.network.includes('downloadUpdate'),'polished updater flow');
