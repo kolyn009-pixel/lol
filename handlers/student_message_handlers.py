@@ -142,20 +142,30 @@ async def collect(update:Update,context:ContextTypes.DEFAULT_TYPE):
     status='OPEN' if accepting else 'QUEUED'
     iid=messaging.create_inbox(label,update.effective_user.id,student_id=user['id'],subject='Срочное сообщение от ученика' if urgent else 'Сообщение от ученика',status=status)
     crm_id=crm_service.log_message(user['id'],'IN',label,None,'TEACHER','DELIVERED' if accepting else 'QUEUED',None if accepting else deliver_at.isoformat(timespec='seconds'),inbox_id=iid)
-    unified_messaging.record_message(
-        user['id'],'IN',label,participant_type='STUDENT',sender_type='STUDENT',sender_id=user['id'],
-        origin_channel='TELEGRAM',content_type=(attachment or {}).get('kind','TEXT').upper(),attachment=attachment,
-        status='DELIVERED' if accepting else 'QUEUED',legacy_source='crm_student_messages',legacy_id=crm_id
-    )
+    durable_attachment=None;content=None
     if attachment:
         try:
+            from vk_adapter.attachment_bridge import telegram_file_bytes
+            from web_backend import message_media
+            content=telegram_file_bytes(attachment['file_id'])
+            durable_attachment=message_media.store_bytes(
+                user['id'],content,attachment['name'],attachment['mime'],attachment['kind'],
+                origin='TELEGRAM',external_ref=attachment['file_id']
+            )
+        except Exception as exc:
+            print('STUDENT TG ATTACHMENT STORE ERROR:',repr(exc))
+    unified_messaging.record_message(
+        user['id'],'IN',label,participant_type='STUDENT',sender_type='STUDENT',sender_id=user['id'],
+        origin_channel='TELEGRAM',content_type=(attachment or {}).get('kind','TEXT').upper(),attachment=durable_attachment or attachment,
+        status='DELIVERED' if accepting else 'QUEUED',legacy_source='crm_student_messages',legacy_id=crm_id
+    )
+    if attachment and content is not None:
+        try:
             from vk_adapter.attachment_bridge import (
-                telegram_file_bytes,
                 telegram_send_bytes,
                 vk_send_bytes,
             )
             from vk_adapter import schema as vk_schema
-            content=telegram_file_bytes(attachment['file_id'])
 
             try:
                 from core import admin_roles
