@@ -33,6 +33,7 @@ async function setup(){
  try{await api('/auth/student/code',{method:'POST',body:JSON.stringify({code:`setup:${verifiedCode}:${login}:${password}`})});location.replace('/app/')}catch(e){const x=String(e.message||'');out.textContent=x==='login_taken'?'Этот логин уже занят. Выберите другой.':x==='expired'?'Код успел истечь. Получите новый код в боте.':'Не удалось сохранить вход. Попробуйте ещё раз.';btn.disabled=false}
 }
 function intercept(){
+ if(window.authMode==='gateway'||document.querySelector('.adelia-login-gateway'))return;
  const card=document.querySelector('.auth-card');if(!card||window.__adeliaAuthV2===false)return;
  const oldSetup=card.querySelector('#studentSetupButton');
  if(oldSetup||card.querySelector('#loginCode')){window.__adeliaAuthV2=true;codeScreen()}
