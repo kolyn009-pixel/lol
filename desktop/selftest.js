@@ -3,6 +3,7 @@ const fs=require('fs'),path=require('path'),vm=require('vm');
 const root=__dirname,repo=path.resolve(root,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const readRepo=p=>fs.readFileSync(path.join(repo,p),'utf8');
+const publishScript=readRepo('scripts/desktop_update_publish.sh'),rollbackScript=readRepo('scripts/desktop_update_rollback.sh'),nginxUpdates=read('nginx-desktop-updates.conf');
 const pkg=JSON.parse(read('package.json'));
 const files={
   bootstrap:read('bootstrap.js'),main:read('main.js'),preload:read('preload.js'),workspace:read('lesson_workspace.js'),
@@ -26,7 +27,7 @@ check(pkg.build?.asar===true,'asar enabled');
 check(pkg.devDependencies?.electron==='38.0.0','Electron pinned');
 check(pkg.devDependencies?.['electron-builder']==='26.0.12','electron-builder pinned');
 check(pkg.dependencies?.['electron-updater']==='6.6.2','electron-updater pinned');
-check(pkg.build.publish?.[0]?.url==='https://adeliatutor.ru/desktop-updates/beta/'&&pkg.build.publish?.[0]?.channel==='beta','isolated trusted beta update endpoint');
+check(pkg.build.publish?.[0]?.url==='https://adeliatutor.ru/desktop-updates/beta/'&&pkg.build.publish?.[0]?.channel==='beta','isolated trusted beta build endpoint');
 check(pkg.build.protocols?.[0]?.schemes?.includes('adelia'),'adelia deep-link protocol registered');
 check(pkg.build.win?.target?.includes('nsis'),'Windows NSIS target');
 check(pkg.build.mac?.target?.includes('dmg')&&pkg.build.mac?.target?.includes('zip'),'macOS DMG + ZIP targets');
@@ -55,7 +56,10 @@ check(files.main.includes('closeLessonWindows(true)'),'lesson workspace returns 
 check(files.main.includes("persist:adelia-device-check")&&files.main.includes('deviceCheckMediaAllowed'),'device check uses isolated media partition');
 check(files.main.includes("ipcMain.handle('adelia:about-info'")&&files.main.includes("ipcMain.handle('adelia:about-check-updates'")&&files.preload.includes('openAbout'),'desktop release center IPC wired');
 check(files.main.includes("status:'downloading'")&&files.main.includes("status:'downloaded'")&&files.main.includes('buildSha()'),'desktop update state and build identity');
-check(files.main.includes("UPDATE_CHANNEL")&&files.main.includes("desktop-updates/${UPDATE_CHANNEL}/")&&files.main.includes("autoUpdater.allowPrerelease=UPDATE_CHANNEL==='beta'"),'explicit beta/stable updater channel isolation');
+check(files.main.includes("UPDATE_CHANNEL")&&files.main.includes("UPDATE_TARGET")&&files.main.includes("desktop-updates/${UPDATE_CHANNEL}/${UPDATE_TARGET}/")&&files.main.includes("autoUpdater.allowPrerelease=UPDATE_CHANNEL==='beta'"),'explicit channel and platform updater isolation');
+check(publishScript.includes('immutable release already exists')&&publishScript.includes('mv -Tf')&&publishScript.includes('HTTP_RELEASE_METADATA=OK'),'atomic desktop update publisher');
+check(rollbackScript.includes('explicit release id required')&&rollbackScript.includes('mv -Tf')&&rollbackScript.includes('HTTP_ROLLBACK_METADATA=OK'),'explicit desktop update rollback');
+check(nginxUpdates.includes('win-x64|macos-arm64|macos-x64')&&nginxUpdates.includes('immutable'),'per-target desktop update nginx policy');
 check(files.about.includes('checkUpdates')&&files.about.includes('installUpdate')&&files.about.includes('onUpdateState'),'release center update actions');
 check(files.aboutPreload.includes('adelia:about-info')&&files.aboutPreload.includes('adelia:about-update-state'),'release center minimal preload');
 check(files.aboutHtml.includes('Проверить обновления')&&files.aboutHtml.includes('Перезапустить и обновить'),'release center UI present');
