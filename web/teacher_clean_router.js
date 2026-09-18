@@ -1,11 +1,12 @@
 (()=>{'use strict';
-const SPECIAL=new Set(['schedule','groups','homework','reviews','messages','formulas','finance','health','students','analytics']);
+const SPECIAL=new Set(['schedule','groups','homework','reviews','messages','payments','formulas','finance','health','students','analytics']);
 const handlers={
   schedule:()=>window.teacherSchedule?.(),
   groups:()=>window.teacherGroups?.(),
   homework:()=>window.teacherHomework?.(),
   reviews:()=>window.teacherReviews?.(),
   messages:()=>window.teacherMessages?.(),
+  payments:()=>window.teacherPayments?.(),
   formulas:()=>window.teacherFormulas?.(),
   finance:()=>window.teacherFinance?.(),
   students:()=>window.teacherStudentsClean?.(),
