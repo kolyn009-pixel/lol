@@ -50,6 +50,8 @@ check(files.main.includes('myboard.io')&&files.main.includes('trustedBoard'),'bo
 check(files.main.includes('requestSingleInstanceLock'),'single-instance desktop app');
 check(files.main.includes('new Tray('),'system tray');
 check(files.main.includes('closeToTray'),'configurable close-to-tray');
+check(files.main.includes('mainWindowBounds')&&files.main.includes('visibleBounds'),'main window geometry persists safely');
+check(files.main.includes('closeLessonWindows(true)'),'lesson workspace returns focus to Adelia');
 check(files.preload.includes('contextBridge'),'minimal preload bridge');
 check(files.preload.includes('openLessonTool')&&files.preload.includes('endLessonWorkspace'),'lesson workspace IPC exposed');
 check(files.main.includes("ipcMain.handle('adelia:lesson-tool'")&&files.main.includes("ipcMain.handle('adelia:end-lesson-workspace'"),'lesson workspace IPC handled');
