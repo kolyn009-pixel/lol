@@ -48,6 +48,7 @@ def _validated_end_date(value,tz):
 
 
 def create_group(user_id,program_id,selections,end_date=None):
+    if str(database.get_setting('teacher_schedule_booking_paused','0') or '0').lower() in {'1','true','on','yes'}:raise ValueError('teacher_schedule_paused')
     """Create one logical request containing 1..7 weekly slots through end_date."""
     ensure_schema();program=_program(user_id,program_id)
     if not isinstance(selections,list) or not 1<=len(selections)<=MAX_WEEKLY:raise ValueError('invalid_schedule_count')
