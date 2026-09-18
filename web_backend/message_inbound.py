@@ -58,9 +58,9 @@ def _notify_teacher_push(user,inbox_id):
         return {'status':'failed','sent':0,'failed':1}
 
 
-def receive_web_student_message(user_id,text):
+def receive_web_student_message(user_id,text,attachment=None):
     uid=int(user_id);body=str(text or '').strip()
-    if not body:raise ValueError('text_required')
+    if not body and not attachment:raise ValueError('text_required')
     if len(body)>4000:raise ValueError('text_too_long')
     user=database.get_user(uid)
     if not user or not user['active']:raise ValueError('student_not_found')
@@ -75,7 +75,7 @@ def receive_web_student_message(user_id,text):
     )
     mid=um.record_message(
         uid,'IN',body,participant_type='STUDENT',sender_type='STUDENT',sender_id=uid,
-        origin_channel='WEB',status='DELIVERED' if accepting else 'QUEUED',
+        origin_channel='WEB',content_type=str((attachment or {}).get('kind') or 'TEXT').upper(),attachment=attachment,status='DELIVERED' if accepting else 'QUEUED',
         legacy_source='crm_student_messages',legacy_id=crm_id
     )
     event_center.push(
