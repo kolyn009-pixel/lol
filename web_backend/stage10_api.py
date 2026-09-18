@@ -4,6 +4,7 @@ from database import connect
 from web_backend import unified_messaging as um
 from web_backend.message_delivery import send_teacher_reply,send_existing_message_channels
 from web_backend.message_read_sync import mark_conversation_read
+from web_backend import message_media
 
 
 def _channel_map(user_ids):
@@ -24,6 +25,18 @@ def _conversation_items(limit,unread_only=False):
 
 class Stage10Mixin:
     def stage10_get(self,path,q):
+        if path.startswith('/api/message-media/'):
+            auth=self._auth()
+            if not auth:return self._json(401,{'error':'unauthorized'})
+            token=path.rsplit('/',1)[-1]
+            try:
+                meta,data=message_media.read(token)
+                role=str(auth.get('role') or '')
+                if role=='student' and int(auth.get('id') or 0)!=int(meta.get('student_id') or 0):return self._json(403,{'error':'forbidden'})
+                if role not in {'student','teacher'}:return self._json(403,{'error':'forbidden'})
+                self.send_response(200);self.send_header('Content-Type',str(meta.get('mime') or 'application/octet-stream'));self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','private, max-age=86400');self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(data);return
+            except (ValueError,FileNotFoundError):return self._json(404,{'error':'media_not_found'})
+            except Exception as exc:print('[stage10] message media GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if not path.startswith('/api/teacher/messages'):return False
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:
