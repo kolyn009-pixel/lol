@@ -8600,6 +8600,10 @@ def free_reschedule_lesson(
 
             charged,
 
+            reserved_minutes,
+            reserved_paid_minutes,
+            reserved_bonus_minutes,
+
             request_source,
 
             requested_at,
@@ -8627,6 +8631,7 @@ def free_reschedule_lesson(
             ?,
             'CONFIRMED',
             ?,
+            ?, ?, ?,
             'STUDENT_RESCHEDULE',
             ?,
             ?,
@@ -8649,6 +8654,9 @@ def free_reschedule_lesson(
         lesson["payment_id"],
         lesson["package_id"],
         lesson["charged"],
+        lesson["reserved_minutes"],
+        lesson["reserved_paid_minutes"],
+        lesson["reserved_bonus_minutes"],
         now_iso(),
         now_iso(),
         lesson["is_trial"],
