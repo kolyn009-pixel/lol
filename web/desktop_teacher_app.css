@@ -1,0 +1,20 @@
+/* Adelia Desktop — teacher-only workspace shell */
+:root{--desktop-a:#6847f5;--desktop-bg:#f4f2f7;--desktop-line:#e8e3ee}
+html,body{background:var(--desktop-bg)!important}
+body{overflow-x:hidden}
+.teacher-shell{min-height:100vh!important;grid-template-columns:236px minmax(0,1fr)!important;background:var(--desktop-bg)!important}
+.teacher-shell>aside{position:sticky!important;top:0!important;height:100vh!important;padding:22px 14px!important;border-right:1px solid rgba(225,219,233,.9)!important;background:rgba(250,248,252,.96)!important;backdrop-filter:blur(24px)!important}
+.teacher-shell>aside .brand{margin:0 5px 22px!important;padding:0!important}
+.teacher-shell>aside nav{display:grid!important;gap:3px!important}
+.teacher-shell>aside nav button,.teacher-more summary{min-height:42px!important;border-radius:12px!important;padding:0 12px!important}
+.teacher-shell>aside nav button.active{background:linear-gradient(135deg,#eee9ff,#f5f2ff)!important;box-shadow:inset 0 0 0 1px rgba(104,71,245,.08)!important;color:#5f3fd0!important}
+.teacher-shell>main{min-width:0!important;padding:0 28px 48px!important}
+.teacher-shell main>header{position:sticky!important;top:0!important;z-index:35!important;min-height:86px!important;margin:0 -28px 18px!important;padding:18px 28px 14px!important;background:rgba(244,242,247,.90)!important;backdrop-filter:blur(22px)!important;border-bottom:1px solid rgba(224,218,231,.7)!important}
+.teacher-shell main>header h1{font-size:32px!important;letter-spacing:-.045em!important}
+.header-actions{gap:8px!important}.header-actions button{min-height:40px!important;border-radius:12px!important}
+#app{max-width:1480px!important;margin:0 auto!important}
+.teacher-dashboard-v2 .week-overview{gap:9px!important}.teacher-dashboard-v2 .week-metric{min-height:76px!important;border-radius:16px!important}
+.teacher-dashboard-v2 .dashboard-layout{gap:14px!important}
+.msg-shell{height:calc(100vh - 126px)!important;border-radius:18px!important;overflow:hidden!important}
+.wh-shell{max-width:1460px!important}
+@media(min-width:1500px){.teacher-shell{grid-template-columns:250px minmax(0,1fr)!important}.teacher-shell>main{padding-left:38px!important;padding-right:38px!important}.teacher-shell main>header{margin-left:-38px!important;margin-right:-38px!important;padding-left:38px!important;padding-right:38px!important}}
