@@ -1,0 +1,8 @@
+/* Adelia Desktop — parent-only workspace shell */
+html,body{background:#f4f5f9!important}
+#root{min-height:100vh!important}
+.parent-shell,.app-shell{min-height:100vh!important}
+.topbar,.parent-header{min-height:86px!important;padding:18px 32px!important;background:rgba(244,245,249,.90)!important;backdrop-filter:blur(22px)!important;border-bottom:1px solid rgba(224,226,234,.8)!important}
+.content,.parent-content,.dashboard{width:min(100%,1240px)!important;padding:30px 32px 60px!important}
+.card,.panel,.summary-card,.lesson-card,.payment-card,.progress-card,.attendance-card,.child-card,.notice-card{border-radius:18px!important;box-shadow:0 8px 26px rgba(33,30,52,.045)!important}
+.hero,.parent-hero{border-radius:24px!important}.stats,.summary-grid{gap:12px!important}.grid,.parent-grid{gap:16px!important}
