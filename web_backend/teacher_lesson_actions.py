@@ -43,6 +43,8 @@ def confirm_payment_wait(lesson_id,teacher_id=None):
 
 def cancel(lesson_id,reason=None):
     lesson=_lesson(lesson_id);status=str(lesson['lesson_status'] or '').upper()
+    if status in {'CANCELLED','REJECTED','NO_SHOW','LATE_CANCELLED','SICKNESS','COMPLETED'}:
+        return {'status':'ok','lesson_id':int(lesson_id),'already_cancelled':True,'refunded':False,'payment_status':str(lesson['payment_status'] or ''),'integrations':None,'delivery':None}
     if status not in {'PENDING','CONFIRMED'}:raise ValueError('lesson_not_cancellable')
     refunded=False
     if bool(lesson['charged']):refunded=bool(database.refund_lesson_balance(int(lesson_id),lesson['package_id']))
