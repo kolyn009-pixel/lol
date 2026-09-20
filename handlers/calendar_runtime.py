@@ -33,9 +33,18 @@ def _init_state_tables():
             CREATE TABLE IF NOT EXISTS calendar_lesson_state (
                 lesson_id INTEGER PRIMARY KEY,
                 state_key TEXT NOT NULL,
-                synced_at TEXT NOT NULL
+                synced_at TEXT NOT NULL,
+                updated_at TEXT
             )
         """)
+        columns = {
+            row["name"]
+            for row in c.execute("PRAGMA table_info(calendar_lesson_state)").fetchall()
+        }
+        if "synced_at" not in columns:
+            c.execute("ALTER TABLE calendar_lesson_state ADD COLUMN synced_at TEXT")
+        if "updated_at" not in columns:
+            c.execute("ALTER TABLE calendar_lesson_state ADD COLUMN updated_at TEXT")
         c.commit()
     finally:
         c.close()
@@ -73,13 +82,30 @@ def _stored_state(lesson_id):
 def _save_state(lesson_id, key):
     c = _connect()
     try:
-        c.execute("""
-            INSERT INTO calendar_lesson_state(lesson_id,state_key,synced_at)
-            VALUES(?,?,?)
-            ON CONFLICT(lesson_id) DO UPDATE SET
-                state_key=excluded.state_key,
-                synced_at=excluded.synced_at
-        """, (int(lesson_id), key, _now_iso()))
+        columns = {
+            row["name"]
+            for row in c.execute("PRAGMA table_info(calendar_lesson_state)").fetchall()
+        }
+        now = _now_iso()
+        if "updated_at" in columns:
+            c.execute("""
+                INSERT INTO calendar_lesson_state(
+                    lesson_id, state_key, synced_at, updated_at
+                )
+                VALUES(?,?,?,?)
+                ON CONFLICT(lesson_id) DO UPDATE SET
+                    state_key=excluded.state_key,
+                    synced_at=excluded.synced_at,
+                    updated_at=excluded.updated_at
+            """, (int(lesson_id), key, now, now))
+        else:
+            c.execute("""
+                INSERT INTO calendar_lesson_state(lesson_id,state_key,synced_at)
+                VALUES(?,?,?)
+                ON CONFLICT(lesson_id) DO UPDATE SET
+                    state_key=excluded.state_key,
+                    synced_at=excluded.synced_at
+            """, (int(lesson_id), key, now))
         c.commit()
     finally:
         c.close()
