@@ -55,13 +55,12 @@ def teacher_open_entry(lesson_id):
         meeting=ensure_individual_conference(int(lesson_id))
         if meeting.get("status") not in {"ok","disabled"}:return {"status":"meeting_create_failed"}
     else:meeting={"status":"disabled_by_teacher","conference_id":None,"join_url":None,"reused":False}
-    row=_row(lesson_id);already=bool(row["meeting_link_sent_at"]);opened=row["meeting_link_sent_at"] or now_iso()
+    row=_row(lesson_id);already=bool(row["meeting_link_sent_at"]);opened=row["meeting_link_sent_at"] or now_iso();delivery=None
     if not already:
         conn=connect();conn.execute("UPDATE lessons SET meeting_link_sent_at=?,updated_at=? WHERE id=? AND meeting_link_sent_at IS NULL",(opened,now_iso(),int(lesson_id)));conn.commit();conn.close();_event_once(lesson_id,row["user_id"],"TEACHER","ENTRY_OPENED","TEACHER")
-        if meeting.get("status")=="ok":
-            try:send_individual(int(lesson_id))
-            except Exception:pass
-    row=_row(lesson_id);return {"status":"ok","entry_open":True,"opened_at":opened,"started_at":row["started_at"],"meeting_url":row["meeting_url"] if meeting.get("status")=="ok" else None,"board_url":row["board_url"],"student_access":_paid(row),"already_open":already,"telemost":meeting,"telemost_auto_on_start":telemost_settings.auto_on_start()}
+        try:delivery=send_individual(int(lesson_id))
+        except Exception as exc:delivery={"status":"failed","error":type(exc).__name__}
+    row=_row(lesson_id);return {"status":"ok","entry_open":True,"opened_at":opened,"started_at":row["started_at"],"meeting_url":row["meeting_url"] if meeting.get("status")=="ok" else None,"board_url":row["board_url"],"student_access":_paid(row),"already_open":already,"delivery":delivery,"telemost":meeting,"telemost_auto_on_start":telemost_settings.auto_on_start()}
 
 def teacher_mark_arrived(lesson_id):
     """Manual factual start for a student who joined outside the website/app."""
