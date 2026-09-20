@@ -90,6 +90,10 @@ echo "===== 5. DAY-OFF ISOLATED DB SELFTEST ====="
 "$PYTHON" rc_day_off_selftest.py
 
 echo
+echo "===== 5B. CALENDAR LEGACY SCHEMA SELFTEST ====="
+"$PYTHON" rc_calendar_legacy_schema_selftest.py
+
+echo
 echo "===== 6. UNIFIED ISOLATED RELEASE SELFTEST ====="
 "$PYTHON" rc_release_selftest.py
 
