@@ -34,6 +34,26 @@ def _payment_text(title,board_url=None):
     parts=["💳 Преподаватель открыл занятие","",str(title or "Занятие"),"","Чтобы получить ссылку на Телемост, сначала оплатите занятие в личном кабинете Аделия."]
     if board_url:parts += ["","📝 Доска доступна независимо от оплаты:",str(board_url).strip()]
     parts += ["","После подтверждения оплаты доступ к занятию откроется автоматически."];return "\n".join(parts)
+
+def _delivery_ok(result, channel):
+    item=(result.get("deliveries") or {}).get(str(channel).lower()) or {}
+    return str(item.get("status") or "").upper() in {"SENT","DELIVERED","READ"}
+
+def _notify_teacher_vk(lesson_id,user_id,student_text,result,paid):
+    """Confirm website lesson-link fanout to the teacher's linked VK account."""
+    try:
+        from vk_adapter.channel_delivery import send_teacher_vk
+        user=database.get_user(int(user_id))
+        name=str(user["name"] or "Ученик") if user else "Ученик"
+        tg=_delivery_ok(result,"telegram");vk=_delivery_ok(result,"vk")
+        headline="✅ ССЫЛКИ НА ЗАНЯТИЕ ОТПРАВЛЕНЫ" if paid else "💳 УЧЕНИКУ ОТПРАВЛЕНО НАПОМИНАНИЕ ОБ ОПЛАТЕ"
+        parts=[headline,"",f"👤 {name}",f"Telegram: {'✅' if tg else '—'}",f"VK: {'✅' if vk else '—'}"]
+        lesson=database.get_lesson(int(lesson_id))
+        if paid and lesson and lesson["meeting_url"]:parts += ["","🎥 Телемост:",str(lesson["meeting_url"]).strip()]
+        if user and user["board_url"]:parts += ["","📝 Доска:",str(user["board_url"]).strip()]
+        send_teacher_vk("\n".join(parts))
+    except Exception as exc:
+        print("TEACHER VK LESSON DELIVERY CONFIRM ERROR:",repr(exc),flush=True)
 def send_individual(lesson_id):
     lid=int(lesson_id);c=database.connect();row=c.execute("""SELECT l.id,l.user_id,l.subject,l.meeting_url,l.payment_status,l.is_trial,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.id=?""",(lid,)).fetchone();c.close()
     if not row:return {"status":"skipped","reason":"lesson_missing"}
@@ -44,8 +64,10 @@ def send_individual(lesson_id):
         if not row["meeting_url"]:return {"status":"skipped","reason":"meeting_url_missing"}
         text=_text(title,row["meeting_url"],row["board_url"])
     else:text=_payment_text(title,row["board_url"])
-    result=message_delivery.send_teacher_reply(uid,text)
-    if result.get("status")=="ok":_mark_sent("INDIVIDUAL",lid,uid,result.get("message_id"))
+    result=message_delivery.send_teacher_reply(uid,text,channels=['TELEGRAM','VK'])
+    if result.get("status")=="ok":
+        _mark_sent("INDIVIDUAL",lid,uid,result.get("message_id"))
+        _notify_teacher_vk(lid, uid, text, result, paid)
     return {"user_id":uid,"access":"telemost" if paid else "payment_required",**result}
 def send_group(lesson_id):
     lid=int(lesson_id);c=database.connect();lesson=c.execute("""SELECT gl.id,gl.telemost_join_url,gl.board_url,g.name FROM group_lessons gl JOIN study_groups g ON g.id=gl.group_id WHERE gl.id=?""",(lid,)).fetchone()
