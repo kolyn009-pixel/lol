@@ -75,8 +75,8 @@ check(files.diagnostics.includes("ipcMain.handle('adelia:report-export'")&&files
 check(files.reportHtml.includes('содержимое чатов')&&files.reportHtml.includes('Токены')&&files.reportHtml.includes('Сохранить отчёт'),'problem report privacy disclosure');
 check(files.main.includes('Сообщить о проблеме')&&files.main.includes("require('./diagnostics').openReportWindow()"),'problem report available from tray');
 check(files.main.includes("ipcMain.handle('adelia:device-check'")&&files.preload.includes('openDeviceCheck'),'device check IPC wired');
-check(files.deviceCheck.includes('getUserMedia')&&files.deviceCheck.includes('enumerateDevices')&&files.deviceCheck.includes('AnalyserNode'),'real camera and microphone diagnostics');
-check(files.deviceCheckPreload.includes('device-check-complete')&&files.deviceCheckPreload.includes('device-check-close'),'device check preload is minimal');
+check(files.deviceCheck.includes('getUserMedia')&&files.deviceCheck.includes('enumerateDevices')&&files.deviceCheck.includes('createAnalyser'),'real camera and microphone diagnostics');
+check(files.deviceCheckPreload.includes('device-check-complete')&&files.deviceCheckPreload.includes('device-check-cancel')&&files.deviceCheckPreload.includes('contextBridge'),'device check preload is minimal');
 check(files.deviceCheckHtml.includes('cameraSelect')&&files.deviceCheckHtml.includes('micSelect'),'device selectors present');
 check(pkg.build.mac?.extendInfo?.NSCameraUsageDescription&&pkg.build.mac?.extendInfo?.NSMicrophoneUsageDescription,'macOS camera and microphone usage descriptions');
 check(files.preload.includes('contextBridge'),'minimal preload bridge');
@@ -103,7 +103,7 @@ check(files.startHtml.includes('./build/icon.png')&&files.startHtml.includes('st
 check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start screen styles present');
 check(pkg.build.files.includes('bundled_ui_manifest.js'),'desktop bundled UI manifest packaged');
 check(files.startCss.includes('prefers-reduced-motion'),'start screen respects reduced motion');
-check(files.offline.includes('Нет подключения')&&files.offline.includes('Аделия сама попробует восстановить соединение'),'branded offline screen');
+check(files.offline.includes('Нет подключения')&&files.offline.includes('Аделия продолжит проверять соединение')&&files.offline.includes('Проверить подключение'),'branded offline screen');
 check(files.network.includes("loadFile(offlineFile())")&&files.network.includes('setInterval'),'offline reconnect loop');
 check(files.network.includes("removeAllListeners('update-available')")&&files.network.includes('downloadUpdate'),'polished updater flow');
 check(files.system.includes('setUserTasks'),'Windows quick actions');
@@ -133,7 +133,7 @@ for(const [name,source] of Object.entries({individual:web.individual,group:web.g
 check(web.student.includes('/app/student_clean.css'),'student clean shell linked');
 check(web.teacher.includes('/app/teacher_clean.css')&&web.teacher.includes('/app/teacher_clean7.css'),'teacher clean7 shell linked');
 check(web.parent.includes('/app/parent/parent_clean.css'),'parent clean shell linked');
-check(web.landing.includes('Adelia-latest-windows-x64.exe')&&web.landing.includes('Adelia-latest-macos-arm64.dmg')&&web.landing.includes('Adelia-latest-macos-x64.dmg'),'stable desktop download aliases linked');
+check(web.landing.includes('Adelia-latest-windows-x64.exe')&&readRepo('web/landing.html').includes('Adelia-latest-macos-arm64.dmg')&&readRepo('web/landing.html').includes('Adelia-latest-macos-x64.dmg'),'stable desktop download aliases linked');
 const parentManifest=JSON.parse(web.parentManifest);
 check(parentManifest.name.startsWith('Аделия'),'parent PWA branded Adelia');
 check(parentManifest.icons?.some(x=>x.src==='/adelia-favicon-32.png'&&x.sizes==='32x32'),'parent canonical 32 icon');
