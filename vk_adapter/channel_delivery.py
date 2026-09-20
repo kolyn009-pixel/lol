@@ -66,17 +66,39 @@ def send_telegram(user_id: int, text: str, reply_markup=None):
     return send_telegram_chat(chat_id, text, reply_markup=reply_markup) if chat_id else False
 
 
-def send_vk(user_id: int, text: str):
-    peer = vk_peer(int(user_id))
-    if not peer:
+def send_vk_peer(peer_id: int, text: str, linked=True):
+    if not peer_id:
         return False
     try:
         from . import app as vk_app
-        vk_app.send(peer, str(text), linked=True)
+        vk_app.send(int(peer_id), str(text), linked=bool(linked))
         return True
     except Exception as exc:
-        print("CHANNEL VK SEND ERROR:", repr(exc))
+        print("CHANNEL VK PEER SEND ERROR:", repr(exc))
         return False
+
+
+def send_vk(user_id: int, text: str):
+    peer = vk_peer(int(user_id))
+    return send_vk_peer(peer, text, linked=True) if peer else False
+
+
+def send_teacher_vk(text: str):
+    """Send an operational confirmation to every linked teacher VK account."""
+    try:
+        from . import schema
+        peers = schema.get_admin_external_ids("VK")
+    except Exception as exc:
+        print("CHANNEL TEACHER VK LOOKUP ERROR:", repr(exc))
+        return {"sent": 0, "failed": 1, "targets": 0}
+
+    sent = failed = 0
+    for peer in peers:
+        if send_vk_peer(int(peer), text, linked=True):
+            sent += 1
+        else:
+            failed += 1
+    return {"sent": sent, "failed": failed, "targets": len(peers)}
 
 
 def send_student(user_id: int, text: str, telegram=True, vk=True, telegram_reply_markup=None):
