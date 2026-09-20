@@ -45,7 +45,7 @@ telemost_settings = read(WEB / "teacher_telemost_settings.js")
 parent_manifest_text = read(WEB / "parent" / "manifest.webmanifest")
 parent_manifest = json.loads(parent_manifest_text)
 
-require(pkg.get("version") == "0.2.0", "desktop package version")
+require(pkg.get("version") == "0.3.0-beta.1", "desktop package version")
 require(pkg.get("main") == "bootstrap.js", "desktop bootstrap entry")
 build = pkg.get("build") or {}
 require(build.get("appId") == "ru.adeliatutor.desktop", "stable app id")
@@ -54,7 +54,17 @@ require((pkg.get("devDependencies") or {}).get("electron") == "38.0.0", "Electro
 require((pkg.get("devDependencies") or {}).get("electron-builder") == "26.0.12", "electron-builder pinned")
 require((pkg.get("dependencies") or {}).get("electron-updater") == "6.6.2", "electron-updater pinned")
 publish = build.get("publish") or []
-require(bool(publish) and publish[0].get("url") == "https://adeliatutor.ru/desktop-updates/", "trusted update endpoint")
+require(
+    bool(publish)
+    and publish[0].get("provider") == "generic"
+    and str(publish[0].get("url") or "").startswith("https://adeliatutor.ru/desktop-updates/")
+    and publish[0].get("channel") == "beta"
+    and "UPDATE_CHANNEL" in main
+    and "UPDATE_TARGET" in main
+    and "desktop-updates/${UPDATE_CHANNEL}/${UPDATE_TARGET}/" in main
+    and "setFeedURL" in main,
+    "trusted update endpoint",
+)
 protocols = build.get("protocols") or []
 require(bool(protocols) and "adelia" in (protocols[0].get("schemes") or []), "adelia deep-link protocol registered")
 require("nsis" in ((build.get("win") or {}).get("target") or []), "Windows NSIS target")
@@ -111,7 +121,13 @@ require("APP_ORIGIN+'/api/auth/me'" in role and "role==='teacher'" in role and "
 require("teacherLogin" in start_js and "openStudentLogin" in start_js and "openParentCabinet" in start_js, "role actions wired")
 require("./build/icon.png" in start_html and "start.js" in start_html and "start.css" in start_html, "branded start assets linked")
 require(".role" in start_css and ".intro" in start_css, "start screen styles present")
-require("Нет подключения" in offline and "Аделия сама попробует восстановить соединение" in offline, "branded offline screen")
+require(
+    "Нет подключения" in offline
+    and "Аделия" in offline
+    and "автоматически" in offline
+    and "Проверить подключение" in offline,
+    "branded offline screen",
+)
 require("loadFile(offlineFile())" in network and "setInterval" in network, "offline reconnect loop")
 require("removeAllListeners('update-available')" in network and "downloadUpdate" in network, "polished updater flow")
 require("setUserTasks" in system, "Windows quick actions")
