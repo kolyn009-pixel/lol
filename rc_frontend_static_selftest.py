@@ -73,6 +73,14 @@ require("href=\"/teacher/\"" in student_app, "teacher entry link missing from au
 require("prefers-reduced-motion:reduce" in student_css, "auth gateway reduced-motion fallback missing")
 require("window.authMode==='gateway'" in student_auth, "auth v2 does not respect role gateway")
 
+lesson_link_delivery = text(ROOT / "web_backend" / "lesson_link_delivery.py")
+lesson_join = text(ROOT / "web_backend" / "lesson_join.py")
+channel_delivery = text(ROOT / "vk_adapter" / "channel_delivery.py")
+require("channels=['TELEGRAM','VK']" in lesson_link_delivery, "website lesson start does not fan out links to Telegram and VK")
+require("send_teacher_vk" in lesson_link_delivery, "teacher VK delivery confirmation missing")
+require('"delivery":delivery' in lesson_join, "website lesson start does not expose channel delivery result")
+require("def send_teacher_vk" in channel_delivery, "teacher VK delivery helper missing")
+
 teacher_messages = text(WEB / "teacher_messages_stage10.js")
 student_chat = text(WEB / "student_chat.js")
 stage10_api = text(ROOT / "web_backend" / "stage10_api.py")
