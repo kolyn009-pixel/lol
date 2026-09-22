@@ -76,6 +76,18 @@ require("href=\"/teacher/\"" in student_app, "teacher entry link missing from au
 require("prefers-reduced-motion:reduce" in student_css, "auth gateway reduced-motion fallback missing")
 require("window.authMode==='gateway'" in student_auth, "auth v2 does not respect role gateway")
 
+parent_html = text(WEB / "parent" / "index.html")
+parent_app = text(WEB / "parent" / "app.js")
+parent_sw = text(WEB / "parent" / "service-worker.js")
+student_sw = text(WEB / "service-worker.js")
+require("parent_v5.css" in parent_html, "parent mobile shell stylesheet is not linked")
+require("parent_clean.css" in parent_sw and "parent_v5.css" in parent_sw and "parent_v5.js" in parent_sw, "parent PWA shell cache is incomplete")
+require("AbortController" in parent_app and "NETWORK_TIMEOUT" in parent_app, "parent API timeout/retry UX missing")
+require("NETWORK_LIMIT_MS" in parent_sw and "boundedFetch" in parent_sw, "parent service worker network wait is unbounded")
+require("NETWORK_LIMIT_MS" in student_sw and "boundedFetch" in student_sw, "student service worker network wait is unbounded")
+require("AbortController" in student_boot, "student authenticated boot network wait is unbounded")
+require("AbortController" in student_auth and "NETWORK_TIMEOUT" in student_auth, "student auth network wait is unbounded")
+
 manual_booking = text(ROOT / "web_backend" / "teacher_manual_booking.py")
 api_v7 = text(ROOT / "web_backend" / "api_v7.py")
 require("create_admin_lesson" in manual_booking, "teacher manual booking bypasses canonical lesson creation")
