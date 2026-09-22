@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const api=async(path,opt={})=>{const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||'request_failed');e.status=r.status;throw e}return j};
+const api=async(path,opt={})=>{const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),12000);try{const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt,signal:opt.signal||ctrl.signal});const j=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(j.error||'request_failed');e.status=r.status;throw e}return j}catch(e){if(e?.name==='AbortError')throw new Error('NETWORK_TIMEOUT');throw e}finally{clearTimeout(timer)}};
 let verifiedCode='';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function host(){return document.querySelector('#content')||document.querySelector('main')||document.body}
