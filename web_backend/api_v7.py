@@ -11,7 +11,7 @@ from web_backend import event_campaign, formula_schema_repair, google_calendar_o
 from web_backend import group_lessons, group_lesson_access, group_portal, open_event_admin
 from web_backend import lesson_join, otp_secret, public_trial_access, public_trial_channel
 from web_backend import student_onboarding, student_regular_booking, student_social_profile
-from web_backend import telemost_runtime, telemost_settings, web_push, monthly_allowance
+from web_backend import telemost_runtime, telemost_settings, web_push, monthly_allowance, teacher_manual_booking
 from web_backend.stage12_indexes import ensure_indexes
 
 class Handler(api_v6.Handler):
@@ -77,6 +77,14 @@ class Handler(api_v6.Handler):
             except PermissionError:return self._json(401,{"error":"unauthorized"})
             except ValueError as exc:return self._json(400,{"error":str(exc)})
             except Exception as exc:print("[web-api] push POST error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
+        if path=="/api/teacher/lesson/create":
+            if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
+            if not self._teacher():return self._json(401,{"error":"unauthorized"})
+            body=self._body()
+            if body is None:return self._json(400,{"error":"invalid_json"})
+            try:return self._json(200,teacher_manual_booking.create(body.get("user_id"),body.get("start_time"),body.get("duration_minutes")or 60,body.get("payment_mode")or"AWAITING_PAYMENT"))
+            except (TypeError,ValueError) as exc:return self._json(409,{"error":str(exc)or"invalid_request"})
+            except Exception as exc:print("[web-api] teacher manual booking error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
         if path=="/api/teacher/crm/student/monthly-allowance":
             if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
             if not self._teacher():return self._json(401,{"error":"unauthorized"})
