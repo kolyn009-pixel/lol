@@ -65,6 +65,16 @@
       if(!btn.hasAttribute('aria-label')){const label=btn.querySelector('small')?.textContent?.trim();if(label)btn.setAttribute('aria-label',label)}
     });
   }
+  async function syncDashboardState(){
+    try{
+      const [dashRes,msgRes]=await Promise.all([fetch('/api/teacher/dashboard',{credentials:'same-origin',cache:'no-store'}),fetch('/api/teacher/messages?limit=100',{credentials:'same-origin',cache:'no-store'})]);
+      if(!dashRes.ok)return;
+      const dash=await dashRes.json(),messages=msgRes.ok?await msgRes.json():{items:[]};
+      const next=(dash.next_lessons||[])[0]||null;
+      const unread=(messages.items||[]).reduce((sum,x)=>sum+Math.max(0,Number(x.unread||0)),0);
+      await D.updateDashboardState?.({nextLesson:next,unreadMessages:unread,activeHomework:Number(dash.stats?.submissions||0)});
+    }catch(_){}
+  }
   function addCounters(){
     D.getUxState().then(s=>{
       const unread=Number(s?.dashboard?.unreadMessages||0),homework=Number(s?.dashboard?.activeHomework||0);
@@ -75,5 +85,5 @@
   }
   const observer=new MutationObserver(()=>{polishNavigation();addCounters()});
   observer.observe(document.body,{childList:true,subtree:true});
-  polishNavigation();addCounters();setInterval(addCounters,30000);
+  polishNavigation();addCounters();syncDashboardState();setInterval(addCounters,30000);setInterval(syncDashboardState,60000);
 })();
