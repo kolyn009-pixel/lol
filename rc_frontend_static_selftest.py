@@ -85,6 +85,7 @@ require("parent_clean.css" in parent_sw and "parent_v5.css" in parent_sw and "pa
 require("AbortController" in parent_app and "NETWORK_TIMEOUT" in parent_app, "parent API timeout/retry UX missing")
 require("NETWORK_LIMIT_MS" in parent_sw and "boundedFetch" in parent_sw, "parent service worker network wait is unbounded")
 require("NETWORK_LIMIT_MS" in student_sw and "boundedFetch" in student_sw, "student service worker network wait is unbounded")
+require("Promise.race([fetch(request)" in student_sw and "Promise.race([boundedFetch(request)" not in student_sw, "student service worker boundedFetch is recursive")
 require("AbortController" in student_boot, "student authenticated boot network wait is unbounded")
 require("AbortController" in student_auth and "NETWORK_TIMEOUT" in student_auth, "student auth network wait is unbounded")
 
