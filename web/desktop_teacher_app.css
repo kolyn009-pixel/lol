@@ -32,3 +32,21 @@ body{overflow-x:hidden}
 .library-shell,.formula-shell,.progress-shell,.groups-shell,.health-shell{max-width:none!important}
 .v4-empty-state,.empty{min-height:0!important}
 @media(max-width:1180px){.teacher-dashboard-v2 .dashboard-layout{grid-template-columns:1fr!important}.teacher-dashboard-v2 .week-overview{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+
+
+/* Desktop teacher workspace — native-density pass */
+html body .clean-menu-toggle,html body .v4-mobile-menu{display:none!important}
+html body .teacher-shell>main>header .header-actions [data-install-adelia],html body .teacher-shell>main>header .v4-install{display:none!important}
+html body .teacher-shell>main>header{min-height:78px!important;padding-top:14px!important;padding-bottom:12px!important}
+html body .teacher-shell main>header h1{font-size:30px!important}
+html body .teacher-shell main>header small{letter-spacing:.08em!important;text-transform:uppercase!important;font-size:10px!important;color:#8a8292!important}
+html body .header-actions{display:flex!important;align-items:center!important;flex-wrap:wrap!important;justify-content:flex-end!important}
+html body .header-actions button{min-height:38px!important;padding:0 13px!important;font-weight:750!important}
+html body .teacher-book-student{background:#6847f5!important;border-color:#6847f5!important;color:#fff!important;box-shadow:0 8px 22px rgba(104,71,245,.18)!important}
+html body .teacher-dashboard-v2 .dashboard-layout{align-items:start!important}
+html body .teacher-dashboard-v2 .week-overview{margin-bottom:14px!important}
+html body #app .row{border-radius:15px!important}
+html body .teacher-quick-actions{gap:5px!important}
+html body .teacher-quick-actions button{min-height:32px!important;padding:6px 9px!important;font-size:11px!important}
+html body .teacher-booking-card{border-radius:20px!important;box-shadow:0 30px 100px rgba(31,22,55,.22)!important}
+@media(max-width:1180px){html body .header-actions{justify-content:flex-start!important}}
