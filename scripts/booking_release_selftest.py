@@ -50,6 +50,18 @@ def run():
     assert "ignore_trial_id=rid" in trial_source
     assert "trial_slot_taken" in trial_source
 
+    # Telegram booking must keep both single and recurring student flows reachable.
+    import pathlib
+    bot_source = (pathlib.Path(__file__).resolve().parents[1] / "bot.py").read_text(encoding="utf-8")
+    assert 'data == "booking_single"' in bot_source
+    assert 'data.startswith("booking_duration|")' in bot_source
+    assert 'data == "request_confirm"' in bot_source
+    assert 'data.startswith("single_draft")' in bot_source
+    assert '1️⃣ Выбрать разовое занятие' in bot_source
+    assert "get_regular_recurring_slots" in bot_source
+    assert "REGULAR_BOOKING_AVAILABILITY:" in bot_source
+    assert "SINGLE_BOOKING_FLOW:" in bot_source
+
     print("BOOKING_RELEASE_SELFTEST_PASSED")
 
 
