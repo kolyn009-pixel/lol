@@ -19,6 +19,22 @@ try:
     database.create_tables()
     minute_balance.ensure_schema()
 
+    # Canonical homework schema is singular: homework. The production deploy
+    # must never require the legacy/non-canonical plural table name.
+    c = database.connect()
+    try:
+        tables = {
+            row["name"]
+            for row in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+    finally:
+        c.close()
+    assert "homework" in tables, tables
+    assert "homework_submissions" in tables, tables
+    assert "homework_reviews" in tables, tables
+
     ts = database.now_iso()
     c = database.connect()
     try:
