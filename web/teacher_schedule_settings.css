@@ -35,3 +35,8 @@ body.desktop-teacher-v2 .wh-shell{max-width:1320px;margin:0 auto;padding-bottom:
 .dayoff-toggle-label{font-size:12px;font-weight:700;color:#443d4e}
 .dayoff-preview-btn{min-height:44px}
 @media(max-width:720px){.dayoff-controls{display:grid;grid-template-columns:1fr 1fr;align-items:end}.dayoff-field:first-child,.dayoff-preview-btn{grid-column:1/-1}.dayoff-field input,.dayoff-time-field input{width:100%}.dayoff-toggle{align-self:end}}
+
+
+/* Desktop schedule editor — compact weekly control surface */
+@media(min-width:981px){.wh-shell{max-width:none}.wh-hero{padding:18px 20px;border-radius:18px}.wh-hero h2{font-size:24px}.wh-summary{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.wh-summary>div{min-height:72px;padding:12px 13px;border-radius:14px}.wh-summary b{font-size:22px}.wh-panel,.wh-week{padding:16px;margin:10px 0;border-radius:17px}.wh-mode{gap:8px}.wh-mode label{min-height:38px;box-sizing:border-box;padding:8px 11px;border-radius:11px}.wh-week-head{margin-bottom:11px}.wh-grid{grid-template-columns:repeat(4,minmax(210px,1fr));gap:8px}.wh-day{padding:11px;border-radius:13px}.wh-day header{margin-bottom:8px}.wh-row{gap:5px;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) 30px}.wh-row input{padding:7px 8px;border-radius:9px;font-size:11px}.wh-remove{width:30px;height:30px;border-radius:8px}.wh-add{width:30px;height:30px;border-radius:8px}.wh-off{padding:6px 0}.wh-savebar{bottom:12px;padding:10px 12px 10px 15px;border-radius:15px}.telemost-setting-row{padding:18px 20px}.telemost-setting-row h3{font-size:17px}.wh-region-card{padding:14px 16px;border-radius:16px}.wh-region-wizard{padding:15px;border-radius:16px}}
+@media(min-width:981px) and (max-width:1320px){.wh-grid{grid-template-columns:repeat(3,minmax(210px,1fr))}}
