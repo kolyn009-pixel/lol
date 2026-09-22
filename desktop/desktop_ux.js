@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, globalShortcut, nativeImage, net } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, nativeImage, net, Notification } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,7 +17,8 @@ function readPrefs() {
 function defaults() {
   return {
     closeToTray: true,
-    notificationsEnabled: true,
+    notificationsEnabled: false,
+    notificationsChoiceMade: false,
     autostartEnabled: !!app.getLoginItemSettings().openAtLogin,
     hotkeyEnabled: true,
     ...readPrefs(),
@@ -93,7 +94,7 @@ function startReconnectLoop() {
 function installIpc() {
   ipcMain.handle('adelia:ux-state', () => ({ preferences: defaults(), dashboard: dashboardState, hotkey: HOTKEY }));
   ipcMain.handle('adelia:set-notifications', (_event, value) => {
-    const prefs = writePrefs({ ...defaults(), notificationsEnabled: !!value });
+    const prefs = writePrefs({ ...defaults(), notificationsEnabled: !!value, notificationsChoiceMade: true });
     applyPrefs(prefs); return prefs;
   });
   ipcMain.handle('adelia:set-autostart', (_event, value) => {
@@ -112,6 +113,16 @@ function install() {
     applyPrefs(defaults());
     installIpc();
     startReconnectLoop();
+    setTimeout(async()=>{
+      const prefs=defaults();
+      if(prefs.notificationsChoiceMade)return;
+      const win=mainWindow();
+      const result=await require('electron').dialog.showMessageBox(win||undefined,{type:'info',title:'Уведомления Аделии',message:'Включить уведомления Аделии?',detail:'Аделия сможет напоминать о ближайших занятиях, новых сообщениях, домашней работе и важных изменениях расписания.',buttons:['Включить','Не сейчас'],defaultId:0,cancelId:1,noLink:true});
+      const enabled=result.response===0;
+      const next=writePrefs({...defaults(),notificationsEnabled:enabled,notificationsChoiceMade:true});
+      applyPrefs(next);
+      if(enabled&&Notification.isSupported())new Notification({title:'Аделия',body:'Уведомления включены. Важные события теперь не потеряются.'}).show();
+    },1800);
   });
   app.on('before-quit', () => {
     if (reconnectTimer) clearInterval(reconnectTimer);
