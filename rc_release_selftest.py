@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import database
 from core import minute_balance
@@ -34,6 +34,23 @@ try:
     assert "homework" in tables, tables
     assert "homework_submissions" in tables, tables
     assert "homework_reviews" in tables, tables
+
+    # Telegram recurring booking must use the same canonical availability
+    # calculation as server diagnostics. In alternating mode a 90-minute
+    # recurring lesson is offered only in slots common to ODD and EVEN weeks.
+    database.set_setting("teacher_week_mode", "ALTERNATING")
+    database.set_setting("teacher_odd_week_enabled", "1")
+    database.set_setting("teacher_even_week_enabled", "1")
+    database.add_working_hours(6, "10:00", "13:00", week_type="ODD")
+    database.add_working_hours(6, "10:30", "13:30", week_type="EVEN")
+    recurring = database.get_regular_recurring_slots(
+        weekday=6,
+        duration_minutes=90,
+        anchor_date=date(2026, 9, 22),
+        step_minutes=30,
+    )
+    assert recurring == ["10:30", "11:00", "11:30"], recurring
+    database.set_setting("teacher_week_mode", "SAME")
 
     ts = database.now_iso()
     c = database.connect()
