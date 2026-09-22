@@ -34,8 +34,14 @@ def dashboard():
   today_lessons=conn.execute(_lesson_select()+"WHERE l.start_time>=? AND l.start_time<? AND l.lesson_status!='REJECTED' ORDER BY l.start_time",(today,tomorrow)).fetchall()
   week_lessons=conn.execute(_lesson_select()+"WHERE l.start_time>=? AND l.start_time<? AND l.lesson_status!='REJECTED' ORDER BY l.start_time",(week_start,week_end)).fetchall()
   next_lessons=conn.execute(_lesson_select()+"WHERE l.start_time>=? AND l.lesson_status NOT IN ('CANCELLED','LATE_CANCELLED','COMPLETED','REJECTED','SICKNESS','NO_SHOW') ORDER BY l.start_time LIMIT 8",(now_iso,)).fetchall()
-  pending=conn.execute("SELECT s.id submission_id,s.homework_id,s.submitted_at,s.student_comment,h.title,h.subject,u.id user_id,u.name FROM homework_submissions s JOIN homework h ON h.id=s.homework_id JOIN users u ON u.id=s.user_id WHERE s.status='SUBMITTED' ORDER BY s.submitted_at ASC LIMIT 12").fetchall();conn.close()
-  return {'stats':{'students':counters['students'],'lessons_today':counters['lessons_today'],'submissions':counters['submissions'],'unpaid':expected_week,'expected_week':expected_week},'week':{'start':week_start,'end':week_end,'today':today,'timezone':timezone_name,'worked':summary['worked'],'remaining':summary['remaining'],'cancelled':summary['cancelled'],'sickness':summary['sickness'],'planned':summary['planned']},'today_lessons':[_dict(x) for x in today_lessons],'week_lessons':[_dict(x) for x in week_lessons],'next_lessons':[_dict(x) for x in next_lessons],'pending_reviews':[_dict(x) for x in pending]}
+  pending=conn.execute("SELECT s.id submission_id,s.homework_id,s.submitted_at,s.student_comment,h.title,h.subject,u.id user_id,u.name FROM homework_submissions s JOIN homework h ON h.id=s.homework_id JOIN users u ON u.id=s.user_id WHERE s.status='SUBMITTED' ORDER BY s.submitted_at ASC LIMIT 12").fetchall()
+  has_unified=bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='unified_messages' LIMIT 1").fetchone())
+  unread_messages=0;unread_conversations=0
+  if has_unified:
+   unread_messages=int(conn.execute("SELECT COUNT(*) n FROM unified_messages WHERE direction='IN' AND read_at IS NULL").fetchone()['n'] or 0)
+   unread_conversations=int(conn.execute("SELECT COUNT(DISTINCT conversation_id) n FROM unified_messages WHERE direction='IN' AND read_at IS NULL").fetchone()['n'] or 0)
+  conn.close()
+  return {'stats':{'students':counters['students'],'lessons_today':counters['lessons_today'],'submissions':counters['submissions'],'unpaid':expected_week,'expected_week':expected_week,'unread_messages':unread_messages,'unread_conversations':unread_conversations},'week':{'start':week_start,'end':week_end,'today':today,'timezone':timezone_name,'worked':summary['worked'],'remaining':summary['remaining'],'cancelled':summary['cancelled'],'sickness':summary['sickness'],'planned':summary['planned']},'today_lessons':[_dict(x) for x in today_lessons],'week_lessons':[_dict(x) for x in week_lessons],'next_lessons':[_dict(x) for x in next_lessons],'pending_reviews':[_dict(x) for x in pending]}
  return _cached('dashboard',8.0,load)
 def students():
  def load():
