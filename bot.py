@@ -1289,54 +1289,13 @@ def get_regular_free_slots(
     weekday,
     duration_minutes,
 ):
-
-    """Slots suitable for a weekly permanent lesson.
-
-    With parity schedules enabled a weekly permanent lesson must fit both the
-    odd and even working week. Therefore the result is the intersection of the
-    next odd/even occurrences. If one parity week is disabled, a weekly series
-    is not offered from this screen; one-off lessons remain available normally.
-    """
-    duration = timedelta(minutes=int(duration_minutes))
-    step = timedelta(minutes=SLOT_STEP_MINUTES)
-
-    def slots_for_day(day_obj):
-        values = set()
-        for row in database.get_effective_working_hours(day_obj):
-            start_dt = time_to_datetime(day_obj, row["start_time"])
-            end_dt = time_to_datetime(day_obj, row["end_time"])
-            current = start_dt
-            while current + duration <= end_dt:
-                value = current.strftime("%H:%M")
-                if not regular_slot_is_reserved(weekday, value, duration_minutes):
-                    values.add(value)
-                current += step
-        return values
-
-    anchor = datetime.now(TIMEZONE).date()
-    while anchor.weekday() != weekday:
-        anchor += timedelta(days=1)
-
-    mode = str(database.get_setting("teacher_week_mode", "SAME") or "SAME").upper()
-    if mode == "SAME":
-        return sorted(slots_for_day(anchor))
-
-    if not database.teacher_week_enabled("ODD") or not database.teacher_week_enabled("EVEN"):
-        return []
-
-    odd_day = None
-    even_day = None
-    day_obj = anchor
-    for _ in range(4):
-        kind = database.teacher_week_kind(day_obj)
-        if kind == "ODD" and odd_day is None:
-            odd_day = day_obj
-        if kind == "EVEN" and even_day is None:
-            even_day = day_obj
-        day_obj += timedelta(days=7)
-    if odd_day is None or even_day is None:
-        return []
-    return sorted(slots_for_day(odd_day) & slots_for_day(even_day))
+    """Canonical weekly permanent-lesson availability."""
+    return database.get_regular_recurring_slots(
+        weekday=weekday,
+        duration_minutes=duration_minutes,
+        anchor_date=datetime.now(TIMEZONE).date(),
+        step_minutes=SLOT_STEP_MINUTES,
+    )
 
 def regular_period_options():
 
@@ -1464,9 +1423,11 @@ async def show_regular_weekdays(
     keyboard = []
 
     names = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+    slots_by_day = {}
 
     for weekday in range(7):
         slots = get_regular_free_slots(weekday, duration)
+        slots_by_day[weekday] = slots
         if not slots:
             continue
         keyboard.append([
@@ -1475,6 +1436,17 @@ async def show_regular_weekdays(
                 callback_data=f"regular_day|{weekday}",
             )
         ])
+
+    print(
+        "REGULAR_BOOKING_AVAILABILITY:",
+        "user_id=", user["id"],
+        "telegram_id=", query.from_user.id if query.from_user else None,
+        "duration=", duration,
+        "timezone=", TIMEZONE_NAME,
+        "db=", database.current_db_name(),
+        "slots=", {names[k]: len(v) for k, v in slots_by_day.items()},
+        flush=True,
+    )
 
     if not keyboard:
         keyboard.append([
