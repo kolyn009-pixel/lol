@@ -24,7 +24,7 @@ try:
     result=c.execute("PRAGMA integrity_check").fetchone()[0]
     if str(result).lower()!="ok":
         raise SystemExit(f"ERROR: integrity_check={result}")
-    required={"users","bot_settings","regular_schedules","working_hours"}
+    required={"users","bot_settings","lessons","regular_schedules","working_hours","homework"}
     tables={r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     missing=sorted(required-tables)
     if missing:
