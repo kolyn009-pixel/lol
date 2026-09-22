@@ -54,6 +54,9 @@ require("window.AdeliaTeacherDashboardV2" in teacher_core, "legacy teacher dashb
 require("window.AdeliaTeacherDashboardV2=render" in teacher_dashboard, "canonical teacher dashboard export missing")
 require("window.dashboard=render" in teacher_dashboard, "canonical teacher dashboard does not own dashboard entrypoint")
 require("teacher-dashboard-v2" in teacher_dashboard, "polished teacher dashboard markup missing")
+require("data-book-student" in teacher_dashboard, "Today dashboard lost teacher booking action")
+require("/api/teacher/lesson/create" in runtime, "teacher quick booking endpoint missing from runtime")
+require("teacher-book-student" in runtime, "teacher quick booking control missing")
 
 student_app = text(WEB / "app.js")
 student_auth = text(WEB / "auth_flow_v2.js")
@@ -72,6 +75,13 @@ require("chooseStudent" in student_app and "chooseParent" in student_app, "stude
 require("href=\"/teacher/\"" in student_app, "teacher entry link missing from auth gateway")
 require("prefers-reduced-motion:reduce" in student_css, "auth gateway reduced-motion fallback missing")
 require("window.authMode==='gateway'" in student_auth, "auth v2 does not respect role gateway")
+
+manual_booking = text(ROOT / "web_backend" / "teacher_manual_booking.py")
+api_v7 = text(ROOT / "web_backend" / "api_v7.py")
+require("create_admin_lesson" in manual_booking, "teacher manual booking bypasses canonical lesson creation")
+require("sync_lesson" in manual_booking, "teacher manual booking lost integration sync")
+require("mirror_messengers=True" in manual_booking, "teacher manual booking does not mirror notifications")
+require("/api/teacher/lesson/create" in api_v7, "teacher manual booking API route missing")
 
 lesson_link_delivery = text(ROOT / "web_backend" / "lesson_link_delivery.py")
 lesson_join = text(ROOT / "web_backend" / "lesson_join.py")
