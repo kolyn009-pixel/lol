@@ -3598,11 +3598,12 @@ def regular_schedule_slot_conflict(
         WHERE
             weekday = ?
 
-            AND active = 1
-
-            AND status IN (
-                'APPROVED',
-                'PENDING'
+            AND (
+                status = 'PENDING'
+                OR (
+                    active = 1
+                    AND status = 'APPROVED'
+                )
             )
     """
 
