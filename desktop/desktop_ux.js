@@ -7,9 +7,11 @@ const APP_URL = process.env.ADELIA_DESKTOP_URL || 'https://adeliatutor.ru/app/';
 const PREFS_FILE = 'desktop-prefs.json';
 const HOTKEY = 'CommandOrControl+Shift+A';
 let reconnectTimer = null;
-let dashboardState = { nextLesson: null, unreadMessages: 0, activeHomework: 0 };
+let dashboardState = { nextLesson: null, unreadMessages: 0, activeHomework: 0, unpaidAmount: 0 };
 let notifiedLessonId = null;
 let notifiedMessageCount = 0;
+let notifiedHomeworkCount = 0;
+let notifiedUnpaidAmount = 0;
 
 function prefsPath() { return path.join(app.getPath('userData'), PREFS_FILE); }
 function readPrefs() {
@@ -69,6 +71,20 @@ function maybeNotify(previous,state) {
     n.on('click',()=>{showMain();app.emit('adelia-open-route','chat')});n.show();
   }
   if(unread===0)notifiedMessageCount=0;
+  const homework=Math.max(0,Number(state.activeHomework||0)),beforeHomework=Math.max(0,Number(previous.activeHomework||0));
+  if(homework>beforeHomework&&homework>notifiedHomeworkCount){
+    notifiedHomeworkCount=homework;
+    const n=new Notification({title:'ДЗ ждёт проверки',body:homework===1?'Ученик отправил работу на проверку.':`Работ на проверке: ${homework}`});
+    n.on('click',()=>{showMain();app.emit('adelia-open-route','homework')});n.show();
+  }
+  if(homework===0)notifiedHomeworkCount=0;
+  const unpaid=Math.max(0,Number(state.unpaidAmount||0)),beforeUnpaid=Math.max(0,Number(previous.unpaidAmount||0));
+  if(unpaid>beforeUnpaid&&unpaid>notifiedUnpaidAmount){
+    notifiedUnpaidAmount=unpaid;
+    const n=new Notification({title:'Оплата требует внимания',body:`Ожидает оплаты: ${Math.round(unpaid).toLocaleString('ru-RU')} ₽`});
+    n.on('click',()=>{showMain();app.emit('adelia-open-route','finance')});n.show();
+  }
+  if(unpaid===0)notifiedUnpaidAmount=0;
 }
 function updateWindowIndicators(state) {
   const previous={...dashboardState};
