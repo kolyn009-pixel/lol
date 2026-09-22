@@ -13,9 +13,15 @@ import json
 import shutil
 from pathlib import Path
 
-WIN_REQUIRED = ("latest.yml",)
-MAC_REQUIRED = ("latest-mac.yml",)
 ALLOWED_SUFFIXES = {".exe", ".dmg", ".zip", ".yml", ".blockmap"}
+
+
+def update_metadata_name(platform: str, channel: str) -> str:
+    if platform == "win":
+        return "latest.yml" if channel == "stable" else f"{channel}.yml"
+    if platform == "mac":
+        return "latest-mac.yml" if channel == "stable" else f"{channel}-mac.yml"
+    raise ValueError(platform)
 
 
 def sha512(path: Path) -> str:
@@ -80,11 +86,11 @@ def main() -> None:
     if not source.is_dir():
         raise SystemExit("source directory not found")
     if args.platform in {"win", "all"}:
-        find_required(source, WIN_REQUIRED)
+        find_required(source, (update_metadata_name("win", args.channel),))
         if not any(source.glob("*.exe")):
             raise SystemExit("Windows installer missing")
     if args.platform in {"mac", "all"}:
-        find_required(source, MAC_REQUIRED)
+        find_required(source, (update_metadata_name("mac", args.channel),))
         if not any(source.glob("*.zip")):
             raise SystemExit("macOS updater zip missing")
         if not any(source.glob("*.dmg")):
