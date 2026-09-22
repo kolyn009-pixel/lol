@@ -18,7 +18,89 @@
   async function openEntry(btn){if(!state.lessonId)return;btn.disabled=true;btn.textContent='Открываю занятие…';const out=document.querySelector('#entryResult');const desktop=!!window.adeliaDesktop?.desktop;const popup=desktop?null:window.open('about:blank','_blank');try{if(popup)popup.opener=null;const r=await json('/teacher/lesson/open-entry',{method:'POST',body:JSON.stringify({lesson_id:state.lessonId})});out.innerHTML='<div class="notice">✓ Вход открыт. Таймер начнётся после прихода ученика.</div>';if(desktop){if(r.meeting_url)await window.adeliaDesktop.openLessonTool('meeting',r.meeting_url);if(r.board_url)await window.adeliaDesktop.openLessonTool('board',r.board_url)}else if(r.meeting_url){if(popup)popup.location.replace(r.meeting_url);else out.innerHTML+=`<div class="error">Браузер заблокировал новое окно. <a href="${esc(r.meeting_url)}" target="_blank" rel="noopener">Открыть Телемост вручную</a>.</div>`}else if(popup)popup.close();state.lesson={...(state.lesson||{}),meeting_link_sent_at:r.opened_at,meeting_url:r.meeting_url,board_url:r.board_url,started_at:r.started_at};enhance()}catch(e){if(popup)popup.close();btn.disabled=false;btn.textContent='▶ Начать занятие';out.innerHTML=`<div class="error">${esc(e.message)}</div>`}}
   async function confirmStudent(btn){btn.disabled=true;btn.textContent='Фиксирую…';const out=document.querySelector('#entryResult');try{const r=await json('/teacher/lesson/mark-arrived',{method:'POST',body:JSON.stringify({lesson_id:state.lessonId})});state.lesson={...(state.lesson||{}),started_at:r.started_at,lesson_status:'IN_PROGRESS'};stopPoll();if(out)out.innerHTML='<div class="notice">✓ Приход ученика зафиксирован. Фактический отсчёт запущен.</div>';enhance()}catch(e){btn.disabled=false;btn.textContent='✓ Ученик пришёл';if(out)out.innerHTML=`<div class="error">${esc(e.message)}</div>`}}
   async function finishLesson(btn){if(!confirm('Завершить занятие? Доступ к Телемосту через Аделию закроется, а окна урока в desktop-приложении будут закрыты.'))return;btn.disabled=true;btn.textContent='Завершаю…';try{await json('/teacher/lesson/finish',{method:'POST',body:JSON.stringify({lesson_id:state.lessonId,attendance_status:'PRESENT',mode:'NOW'})});if(window.adeliaDesktop?.desktop){try{await window.adeliaDesktop.endLessonWorkspace()}catch{}}state.lesson={...(state.lesson||{}),finished_at:new Date().toISOString(),lesson_status:'COMPLETED'};stopLive();enhance()}catch(e){btn.disabled=false;btn.textContent='⏹ Завершить занятие';const out=document.querySelector('#entryResult');if(out)out.innerHTML=`<div class="error">${esc(e.message)}</div>`}}
-  function enhance(){const actions=document.querySelector('.lesson-actions');if(!actions||!state.lessonId)return;suppressLegacyControls();let block=document.querySelector('#teacherEntryBlock');if(!block){block=document.createElement('section');block.id='teacherEntryBlock';block.className='teacher-entry-block';actions.parentNode.insertBefore(block,actions.nextSibling)}const l=state.lesson||{};const opened=!!l.meeting_link_sent_at;const started=!!l.started_at;const finished=!!l.finished_at||String(l.lesson_status||'').toUpperCase()==='COMPLETED';let main;if(finished)main='<button class="soft opened" disabled>✓ Занятие завершено</button>';else if(started)main='<button class="primary" id="finishLiveLesson">⏹ Завершить занятие</button>';else if(opened)main='<button class="primary" id="confirmStudentJoin">✓ Ученик пришёл</button>';else main='<button class="primary" id="openLessonEntry">▶ Начать занятие</button>';block.innerHTML=`<div class="entry-head"><div><span class="badge">Занятие</span><h3>${finished?'Занятие завершено':started?'Занятие идёт':opened?'Ожидаем ученика':'Начать занятие одним нажатием'}</h3><p>${finished?'Доступ к Телемосту закрыт в Аделии. Доска ученика остаётся доступной постоянно.':started?'Фактический отсчёт уже запущен. Теперь основное действие — завершить занятие.':opened?'Если ученик зайдёт через сайт или приложение, кнопка сама сменится на «Завершить занятие». Если он вошёл через VK, Telegram или прямую ссылку — нажмите «Ученик пришёл».':'Аделия откроет подготовленный Телемост и доску. Сам фактический таймер пока не запустится.'}</p></div>${main}</div><div class="entry-tools">${l.meeting_url?`<button class="soft linkbtn" type="button" id="openMeetingTool" data-url="${esc(l.meeting_url)}">🎥 Телемост</button>`:'<span class="tool-muted">🎥 Телемост будет подготовлен автоматически</span>'}${l.board_url?`<button class="soft linkbtn" type="button" id="openBoardTool" data-url="${esc(l.board_url)}">🖥 МояДоска</button>`:'<span class="tool-muted">🖥 Доска не настроена</span>'}<div id="joinActivity" class="join-activity ${started?'online':''}"><b>${started?'🟢 Ученик пришёл':'Ожидаем ученика'}</b><span>${started?'Фактический отсчёт идёт':'Статус входа появится здесь'}</span></div>${started&&!finished?`<div class="join-activity online"><b>Фактическое время</b><span id="individualFactTimer">${timerText(l.started_at)}</span></div>`:''}</div><div id="entryResult"></div>`;const meetingTool=document.querySelector('#openMeetingTool');if(meetingTool)meetingTool.onclick=()=>window.adeliaDesktop?.desktop?window.adeliaDesktop.openLessonTool('meeting',meetingTool.dataset.url):window.open(meetingTool.dataset.url,'_blank','noopener');const boardTool=document.querySelector('#openBoardTool');if(boardTool)boardTool.onclick=()=>window.adeliaDesktop?.desktop?window.adeliaDesktop.openLessonTool('board',boardTool.dataset.url):window.open(boardTool.dataset.url,'_blank','noopener');const open=document.querySelector('#openLessonEntry');if(open)open.onclick=()=>openEntry(open);const confirmBtn=document.querySelector('#confirmStudentJoin');if(confirmBtn)confirmBtn.onclick=()=>confirmStudent(confirmBtn);const finish=document.querySelector('#finishLiveLesson');if(finish)finish.onclick=()=>finishLesson(finish);if(started&&!finished){stopPoll();startTimer(l.started_at)}else{stopTimer();if(opened&&!finished)startPoll();else stopPoll()}document.dispatchEvent(new CustomEvent('adelia:lesson-live-rendered',{detail:{lessonId:state.lessonId,lesson:{...l}}}))}
+  function enhance(){
+    const actions=document.querySelector('.lesson-actions');
+    if(!actions||!state.lessonId)return;
+    suppressLegacyControls();
+    let block=document.querySelector('#teacherEntryBlock');
+    if(!block){
+      block=document.createElement('section');
+      block.id='teacherEntryBlock';
+      block.className='teacher-entry-block lesson-live-workspace';
+      actions.parentNode.insertBefore(block,actions.nextSibling);
+    }
+    const l=state.lesson||{};
+    const opened=!!l.meeting_link_sent_at;
+    const started=!!l.started_at;
+    const finished=!!l.finished_at||String(l.lesson_status||'').toUpperCase()==='COMPLETED';
+    const statusText=finished?'Завершено':started?'Идёт сейчас':opened?'Ожидаем ученика':'Готово к запуску';
+    const statusClass=finished?'done':started?'live':opened?'waiting':'ready';
+    const timer=started&&!finished?timerText(l.started_at):finished?'—':'00:00:00';
+    let main;
+    if(finished)main='<button class="soft opened" disabled>✓ Занятие завершено</button>';
+    else if(started)main='<button class="danger lesson-finish-primary" id="finishLiveLesson">⏹ Завершить занятие</button>';
+    else if(opened)main='<button class="primary" id="confirmStudentJoin">✓ Ученик пришёл</button>';
+    else main='<button class="primary lesson-start-primary" id="openLessonEntry">▶ Начать занятие</button>';
+
+    block.innerHTML=`
+      <div class="lesson-live-top">
+        <div class="lesson-live-state">
+          <span class="lesson-live-dot ${statusClass}"></span>
+          <div>
+            <small>Статус занятия</small>
+            <b>${statusText}</b>
+          </div>
+        </div>
+        <div class="lesson-live-timer">
+          <small>Фактическое время</small>
+          <b id="individualFactTimer">${timer}</b>
+        </div>
+        <div class="lesson-live-main">${main}</div>
+      </div>
+
+      <div class="lesson-live-tools">
+        <button class="lesson-tool-card ${l.meeting_url?'ready':'muted'}" type="button" id="openMeetingTool" data-url="${esc(l.meeting_url||'')}" ${l.meeting_url?'':'disabled'}>
+          <span class="lesson-tool-icon">🎥</span>
+          <span><b>Телемост</b><small>${l.meeting_url?'Открыть видео':'Подготовится автоматически'}</small></span>
+        </button>
+        <button class="lesson-tool-card ${l.board_url?'ready':'muted'}" type="button" id="openBoardTool" data-url="${esc(l.board_url||'')}" ${l.board_url?'':'disabled'}>
+          <span class="lesson-tool-icon">🖥</span>
+          <span><b>МояДоска</b><small>${l.board_url?'Открыть доску':'Доска не настроена'}</small></span>
+        </button>
+        <div id="joinActivity" class="lesson-live-presence ${started?'online':''}">
+          <span class="lesson-tool-icon">${started?'🟢':'◌'}</span>
+          <span><b>${started?'Ученик пришёл':'Ожидаем ученика'}</b><small>${started?'Фактический отсчёт идёт':'Статус входа появится здесь'}</small></span>
+        </div>
+      </div>
+
+      <div class="lesson-live-secondary">
+        ${l.user_id?'<button class="soft" type="button" id="lessonStudentCard">Карточка ученика</button>':''}
+        ${l.user_id?'<button class="soft" type="button" id="lessonHomework">＋ Задать ДЗ</button>':''}
+        <span class="lesson-live-hint">${finished?'Можно перейти к итогам занятия и прогрессу ученика.':started?'Телемост и доска можно переключать из панели приложения.':opened?'Ссылка ученику уже отправлена. Таймер начнётся после прихода.':'Начало занятия отправит ученику доступ к уроку по доступным каналам.'}</span>
+      </div>
+      <div id="entryResult"></div>`;
+
+    const meetingTool=document.querySelector('#openMeetingTool');
+    if(meetingTool&&!meetingTool.disabled)meetingTool.onclick=()=>window.adeliaDesktop?.desktop?window.adeliaDesktop.openLessonTool('meeting',meetingTool.dataset.url):window.open(meetingTool.dataset.url,'_blank','noopener');
+    const boardTool=document.querySelector('#openBoardTool');
+    if(boardTool&&!boardTool.disabled)boardTool.onclick=()=>window.adeliaDesktop?.desktop?window.adeliaDesktop.openLessonTool('board',boardTool.dataset.url):window.open(boardTool.dataset.url,'_blank','noopener');
+    const studentCard=document.querySelector('#lessonStudentCard');
+    if(studentCard&&l.user_id)studentCard.onclick=()=>window.teacherStudentOpen?.(l.user_id);
+    const homeworkBtn=document.querySelector('#lessonHomework');
+    if(homeworkBtn&&l.user_id)homeworkBtn.onclick=()=>window.newHomework?.(l.user_id,state.lessonId);
+
+    const open=document.querySelector('#openLessonEntry');
+    if(open)open.onclick=()=>openEntry(open);
+    const confirmBtn=document.querySelector('#confirmStudentJoin');
+    if(confirmBtn)confirmBtn.onclick=()=>confirmStudent(confirmBtn);
+    const finish=document.querySelector('#finishLiveLesson');
+    if(finish)finish.onclick=()=>finishLesson(finish);
+
+    if(started&&!finished){stopPoll();startTimer(l.started_at)}
+    else{stopTimer();if(opened&&!finished)startPoll();else stopPoll()}
+
+    document.dispatchEvent(new CustomEvent('adelia:lesson-live-rendered',{detail:{lessonId:state.lessonId,lesson:{...l}}}));
+  }
   document.addEventListener('click',e=>{if(e.target.closest('[data-view],nav button')&&!e.target.closest('[data-lesson]')){state.renderToken++;stopLive();if(!e.target.closest('[data-lesson]')){state.lessonId=null;state.lesson=null}}},true);
   window.addEventListener('beforeunload',stopLive);
   window.AdeliaLessonLive={refresh:reloadLesson,stop:stopLive};
