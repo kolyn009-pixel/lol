@@ -8,6 +8,8 @@ const PREFS_FILE = 'desktop-prefs.json';
 const HOTKEY = 'CommandOrControl+Shift+A';
 let reconnectTimer = null;
 let dashboardState = { nextLesson: null, unreadMessages: 0, activeHomework: 0 };
+let notifiedLessonId = null;
+let notifiedMessageCount = 0;
 
 function prefsPath() { return path.join(app.getPath('userData'), PREFS_FILE); }
 function readPrefs() {
@@ -48,8 +50,30 @@ function badgeIcon(count) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="32"><rect width="100%" height="32" rx="16" fill="#ef4444"/><text x="50%" y="21" text-anchor="middle" font-family="Segoe UI,Arial" font-size="15" font-weight="700" fill="white">${text}</text></svg>`;
   return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
 }
+function maybeNotify(previous,state) {
+  const prefs=defaults();
+  if(!prefs.notificationsEnabled||!Notification.isSupported())return;
+  const lesson=state.nextLesson;
+  if(lesson&&lesson.id&&lesson.start_time){
+    const diff=Math.round((new Date(lesson.start_time).getTime()-Date.now())/60000);
+    if(diff>=0&&diff<=15&&String(notifiedLessonId)!==String(lesson.id)){
+      notifiedLessonId=lesson.id;
+      const n=new Notification({title:'Скоро занятие',body:`${lesson.name||'Ученик'} · ${lesson.subject||'Занятие'} через ${diff} мин`});
+      n.on('click',()=>{showMain();app.emit('adelia-open-route','home')});n.show();
+    }
+  }
+  const unread=Math.max(0,Number(state.unreadMessages||0)),before=Math.max(0,Number(previous.unreadMessages||0));
+  if(unread>before&&unread>notifiedMessageCount){
+    notifiedMessageCount=unread;
+    const n=new Notification({title:'Новое сообщение в Аделии',body:unread===1?'Есть новое сообщение от ученика.':`Непрочитанных сообщений: ${unread}`});
+    n.on('click',()=>{showMain();app.emit('adelia-open-route','chat')});n.show();
+  }
+  if(unread===0)notifiedMessageCount=0;
+}
 function updateWindowIndicators(state) {
+  const previous={...dashboardState};
   dashboardState = { ...dashboardState, ...state };
+  maybeNotify(previous,dashboardState);
   const win = mainWindow();
   if (!win || win.isDestroyed()) return;
   const unread = Math.max(0, Number(dashboardState.unreadMessages || 0));
@@ -93,6 +117,7 @@ function startReconnectLoop() {
 }
 function installIpc() {
   ipcMain.handle('adelia:ux-state', () => ({ preferences: defaults(), dashboard: dashboardState, hotkey: HOTKEY }));
+  ipcMain.handle('adelia:dashboard-state', (_event, state) => { updateWindowIndicators(state && typeof state==='object'?state:{}); return dashboardState; });
   ipcMain.handle('adelia:set-notifications', (_event, value) => {
     const prefs = writePrefs({ ...defaults(), notificationsEnabled: !!value, notificationsChoiceMade: true });
     applyPrefs(prefs); return prefs;
