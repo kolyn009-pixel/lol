@@ -18,3 +18,17 @@ body{overflow-x:hidden}
 .msg-shell{height:calc(100vh - 126px)!important;border-radius:18px!important;overflow:hidden!important}
 .wh-shell{max-width:1460px!important}
 @media(min-width:1500px){.teacher-shell{grid-template-columns:250px minmax(0,1fr)!important}.teacher-shell>main{padding-left:38px!important;padding-right:38px!important}.teacher-shell main>header{margin-left:-38px!important;margin-right:-38px!important;padding-left:38px!important;padding-right:38px!important}}
+
+/* Desktop is already installed: keep the teacher workspace app-native. */
+[data-install-adelia],.v4-install,#adelia-install-bar,.adelia-install-bar{display:none!important}
+.desktop-sidebar-toggle{display:none!important}
+.teacher-shell>aside{overflow:auto!important}
+.teacher-shell>main{max-width:none!important}
+#app{width:100%!important}
+.teacher-dashboard-v2 .dashboard-layout{grid-template-columns:minmax(0,1.55fr) minmax(300px,.7fr)!important}
+.teacher-dashboard-v2 .week-overview{grid-template-columns:repeat(7,minmax(0,1fr))!important}
+.msg-shell{min-height:620px!important}
+.msg-shell .msg-list{min-width:330px!important}
+.library-shell,.formula-shell,.progress-shell,.groups-shell,.health-shell{max-width:none!important}
+.v4-empty-state,.empty{min-height:0!important}
+@media(max-width:1180px){.teacher-dashboard-v2 .dashboard-layout{grid-template-columns:1fr!important}.teacher-dashboard-v2 .week-overview{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
