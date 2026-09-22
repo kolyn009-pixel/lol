@@ -1476,14 +1476,25 @@ async def show_regular_weekdays(
             )
         ])
 
+    if not keyboard:
+        keyboard.append([
+            InlineKeyboardButton("🔄 Проверить свободное время", callback_data="booking_regular")
+        ])
     keyboard.append([
         InlineKeyboardButton("⬅️ Назад", callback_data="booking")
     ])
 
+    empty_note = (
+        "\n\n😔 Сейчас нет свободных слотов для еженедельного занятия такой длительности. "
+        "Можно вернуться назад и выбрать разовое занятие или проверить позже."
+        if len(keyboard) == 2 and keyboard[0][0].callback_data == "booking_regular"
+        else ""
+    )
     await query.edit_message_text(
         "🔁 Постоянное расписание\n\n"
         f"⏱ Длительность занятия: {duration} минут\n\n"
-        "Выбери удобный день недели — я покажу свободное время 👇",
+        "Выбери удобный день недели — я покажу свободное время 👇"
+        + empty_note,
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
