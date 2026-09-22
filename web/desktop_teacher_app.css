@@ -81,3 +81,6 @@ html body .lesson-hero{padding:15px 17px!important;border-radius:17px!important;
 
 /* Desktop post-lesson — compact completion desk */
 html body .post-workspace{max-width:1380px;margin:0 auto!important}html body .post-checklist>div{min-height:52px!important}html body .post-progress-panel{min-height:0!important}html body .post-side .panel{box-shadow:0 5px 18px rgba(58,43,97,.028)!important}html body .post-finishbar{bottom:16px!important}@media(min-width:1280px){html body .post-layout{grid-template-columns:minmax(0,1.78fr) minmax(290px,.5fr)!important}}
+
+/* Desktop Today command center */
+html body .today-command{grid-template-columns:minmax(0,1.55fr) minmax(390px,.65fr)!important;gap:9px!important}html body .today-command-main{padding:14px 16px!important;border-radius:16px!important}html body .today-next h2{font-size:20px!important}html body .today-command-actions{gap:6px!important}html body .today-command-actions button{min-height:88px!important;padding:10px!important;border-radius:14px!important}html body .today-command-actions b{font-size:22px!important}@media(max-width:1250px){html body .today-command{grid-template-columns:1fr!important}html body .today-command-actions button{min-height:72px!important}}
