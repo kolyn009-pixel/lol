@@ -112,6 +112,8 @@ check(files.system.includes('app.dock.setMenu'),'macOS dock actions');
 check(files.system.includes('download-progress')&&files.system.includes('setProgressBar'),'native update progress');
 check(files.ux.includes("HOTKEY = 'CommandOrControl+Shift+A'"),'global Adelia hotkey');
 check(files.ux.includes('setOverlayIcon'),'Windows unread badge');
+check(files.ux.includes("title:'ДЗ ждёт проверки'")&&files.ux.includes("app.emit('adelia-open-route','homework')"),'native homework review notification routes correctly');
+check(files.ux.includes("title:'Оплата требует внимания'")&&files.ux.includes("app.emit('adelia-open-route','finance')"),'native payment attention notification routes correctly');
 check(files.layout.includes("'together','board-focus','mini-video','hide-video'"),'lesson layout modes');
 check(web.lessonUi.includes('setLessonLayout')&&web.lessonUi.includes('toggleLessonVideo')&&web.lessonUi.includes('endLessonWorkspace'),'desktop lesson controller actions');
 check(web.lessonUi.includes('dual-screen')&&web.lessonUi.includes('board-focus')&&web.lessonUi.includes('mini-video'),'desktop lesson controller modes');
