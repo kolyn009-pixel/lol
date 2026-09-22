@@ -1,4 +1,6 @@
-const CACHE='adelia-shell-v11';
+const CACHE='adelia-shell-v12';
+const NETWORK_LIMIT_MS=4500;
+const boundedFetch=request=>Promise.race([boundedFetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const SHELL=[
  '/app/','/app/manifest.webmanifest','/app/assets/icons/adelia-icon.svg',
  '/app/styles.css','/app/stage11_mobile.css','/app/responsive_shell.css','/app/selects.css',
@@ -47,8 +49,8 @@ self.addEventListener('notificationclick',event=>{
 self.addEventListener('fetch',event=>{
  const request=event.request;if(request.method!=='GET')return;
  const url=new URL(request.url);if(url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;
- if(request.mode==='navigate'&&url.pathname.startsWith('/app/')){event.respondWith(fetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put('/app/',response.clone()));return response}).catch(()=>caches.match('/app/')));return}
+ if(request.mode==='navigate'&&url.pathname.startsWith('/app/')){event.respondWith(boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put('/app/',response.clone()));return response}).catch(()=>caches.match('/app/')));return}
  const code=/\.(?:js|css|svg)$/.test(url.pathname)||url.pathname.endsWith('/manifest.webmanifest');
- if(code){event.respondWith(fetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response}).catch(()=>caches.match(request)));return}
- event.respondWith(caches.match(request).then(cached=>cached||fetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response})))
+ if(code){event.respondWith(boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response}).catch(()=>caches.match(request)));return}
+ event.respondWith(caches.match(request).then(cached=>cached||boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response})))
 });
