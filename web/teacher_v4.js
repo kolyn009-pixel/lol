@@ -9,7 +9,7 @@ function boot(){
   const headLeft=header.firstElementChild;if(headLeft&&!headLeft.classList.contains('header-title-wrap')){headLeft.classList.add('header-title-wrap');const menu=document.createElement('button');menu.type='button';menu.className='v4-mobile-menu';menu.setAttribute('aria-label','Открыть меню');menu.textContent='☰';menu.onclick=()=>document.body.classList.toggle('v4-menu-open');headLeft.prepend(menu)}
   const actions=$('.header-actions',header);if(actions&&!$('.v4-status',actions)){
     const s=document.createElement('button');s.type='button';s.className='v4-status';s.innerHTML='<span class="v4-dot"></span><span class="v4-status-text">Проверяю…</span>';s.onclick=()=>document.querySelector('[data-view="health"]')?.click();
-    const i=document.createElement('button');i.type='button';i.className='v4-install';i.textContent='Установить';installButton(i);actions.prepend(s,i);health(s);setInterval(()=>health(s),60000)
+    const i=document.createElement('button');i.type='button';i.className='v4-install';i.textContent='Установить';installButton(i);if(window.adeliaDesktop?.desktop){i.hidden=true;document.querySelectorAll('[data-install-adelia]').forEach(x=>x.hidden=true);actions.prepend(s)}else actions.prepend(s,i);health(s);setInterval(()=>health(s),60000)
   }
   aside.addEventListener('click',e=>{if(e.target.closest('button'))document.body.classList.remove('v4-menu-open')});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('v4-menu-open')});
