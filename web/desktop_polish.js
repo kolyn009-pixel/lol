@@ -72,8 +72,26 @@
       const dash=await dashRes.json(),messages=msgRes.ok?await msgRes.json():{items:[]};
       const next=(dash.next_lessons||[])[0]||null;
       const unread=(messages.items||[]).reduce((sum,x)=>sum+Math.max(0,Number(x.unread||0)),0);
-      await D.updateDashboardState?.({nextLesson:next,unreadMessages:unread,activeHomework:Number(dash.stats?.submissions||0)});
+      await D.updateDashboardState?.({nextLesson:next,unreadMessages:unread,activeHomework:Number(dash.stats?.submissions||0),unpaidAmount:Number(dash.stats?.unpaid||0)});
     }catch(_){}
+  }
+  function notificationCenterHtml(s){
+    const d=s?.dashboard||{},lesson=d.nextLesson||null,unread=Math.max(0,Number(d.unreadMessages||0)),homework=Math.max(0,Number(d.activeHomework||0)),unpaid=Math.max(0,Number(d.unpaidAmount||0));
+    const lessonText=lesson?.start_time?new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'}).format(new Date(lesson.start_time)):'Нет ближайшего занятия';
+    return `<div class="desktop-notification-center"><div class="desktop-notification-head"><div><span>Центр событий</span><h3>Что требует внимания</h3></div><button class="ghost" type="button" data-event-close>×</button></div><button type="button" data-event-route="home"><b>◷ Ближайший урок</b><span>${lesson?String(lesson.name||'Ученик')+' · '+lessonText:'Сегодня всё спокойно'}</span></button><button type="button" data-event-route="chat"><b>✉ Сообщения <i>${unread}</i></b><span>${unread?'Есть непрочитанные сообщения':'Новых сообщений нет'}</span></button><button type="button" data-event-route="homework"><b>✓ ДЗ на проверку <i>${homework}</i></b><span>${homework?'Работы ждут проверки':'Очередь пуста'}</span></button><button type="button" data-event-route="finance"><b>₽ Оплата</b><span>${unpaid?Math.round(unpaid).toLocaleString('ru-RU')+' ₽ ожидает оплаты':'Нет новых проблем с оплатой'}</span></button></div>`;
+  }
+  async function toggleNotificationCenter(){
+    let center=$('#desktopNotificationCenter');
+    if(center){center.remove();return}
+    try{
+      const s=await D.getUxState();center=document.createElement('div');center.id='desktopNotificationCenter';center.innerHTML=notificationCenterHtml(s);body.appendChild(center);
+      center.querySelector('[data-event-close]').onclick=()=>center.remove();
+      center.querySelectorAll('[data-event-route]').forEach(b=>b.onclick=async()=>{await D.openRoute(b.dataset.eventRoute);center.remove()});
+    }catch{toast('Не удалось открыть центр событий','error')}
+  }
+  function ensureEventButton(){
+    const host=document.querySelector('.header-actions');if(!host||host.querySelector('[data-desktop-events]'))return;
+    const b=document.createElement('button');b.type='button';b.className='ghost desktop-events-button';b.dataset.desktopEvents='1';b.innerHTML='🔔 <span>События</span>';b.onclick=toggleNotificationCenter;host.prepend(b);
   }
   function addCounters(){
     D.getUxState().then(s=>{
@@ -83,7 +101,7 @@
       put(chat,unread);put(hw,homework);
     }).catch(()=>{});
   }
-  const observer=new MutationObserver(()=>{polishNavigation();addCounters()});
+  const observer=new MutationObserver(()=>{polishNavigation();ensureEventButton();addCounters()});
   observer.observe(document.body,{childList:true,subtree:true});
-  polishNavigation();addCounters();syncDashboardState();setInterval(addCounters,30000);setInterval(syncDashboardState,60000);
+  polishNavigation();ensureEventButton();addCounters();syncDashboardState();setInterval(addCounters,30000);setInterval(syncDashboardState,60000);
 })();
