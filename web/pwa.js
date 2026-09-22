@@ -4,12 +4,13 @@
   const standalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
   const ios=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;
   const teacherScope=()=>location.pathname.startsWith('/teacher/');
-  const swConfig=()=>teacherScope()?{url:'/teacher/teacher-service-worker.js',scope:'/teacher/'}:{url:'/app/service-worker.js',scope:'/app/'};
+  const SW_VERSION='20260922-mobile-recovery1';
+  const swConfig=()=>teacherScope()?{url:'/teacher/teacher-service-worker.js?v='+SW_VERSION,scope:'/teacher/'}:{url:'/app/service-worker.js?v='+SW_VERSION,scope:'/app/'};
   const notificationSupported=()=>typeof window.Notification!=='undefined'&&typeof Notification.requestPermission==='function';
   const pushSupported=()=>notificationSupported()&&'serviceWorker' in navigator&&'PushManager' in window;
   const permission=()=>notificationSupported()?Notification.permission:'unsupported';
   const DISMISSED_KEY='adelia_notification_prompt_dismissed_v1';
-  const api=async(url,options={})=>{const r=await fetch(url,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})},...options});let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d};
+  const api=async(url,options={})=>{const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),10000);try{const r=await fetch(url,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})},...options,signal:options.signal||ctrl.signal});let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d}catch(err){if(err?.name==='AbortError')throw new Error('NETWORK_TIMEOUT');throw err}finally{clearTimeout(timer)}};
   const b64ToBytes=value=>{const padding='='.repeat((4-value.length%4)%4);const base64=(value+padding).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(base64);return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)))};
 
   async function serviceWorkerReady(){
@@ -17,7 +18,11 @@
     const cfg=swConfig();
     if(swRegistration?.active&&swRegistration.scope.endsWith(cfg.scope))return swRegistration;
     let reg=await navigator.serviceWorker.getRegistration(cfg.scope);
-    if(!reg)reg=await navigator.serviceWorker.register(cfg.url,{scope:cfg.scope});
+    if(!reg||!String(reg.active?.scriptURL||reg.installing?.scriptURL||reg.waiting?.scriptURL||'').includes(SW_VERSION)){
+      reg=await navigator.serviceWorker.register(cfg.url,{scope:cfg.scope,updateViaCache:'none'});
+    }else{
+      try{await reg.update()}catch(_){}
+    }
     swRegistration=reg;
     if(reg.active)return reg;
     const worker=reg.installing||reg.waiting;
@@ -43,6 +48,9 @@
 
   window.AdeliaPWA={isStandalone:standalone,isIOS:ios,canInstall:()=>!!deferredPrompt||(!standalone()&&ios()),notificationPermission:permission,requestNotifications,syncPushSubscription,subscribeFromGesture,testPush,showNotificationPrompt:()=>showNotificationCard(true),async install(){if(standalone())return {status:'installed'};if(!deferredPrompt){if(ios())return {status:'manual',message:'В Safari нажмите «Поделиться», затем «На экран Домой».'};return {status:'unavailable'}}const prompt=deferredPrompt;deferredPrompt=null;await prompt.prompt();const choice=await prompt.userChoice.catch(()=>null);window.dispatchEvent(new CustomEvent('adelia:pwa-state'));return {status:choice?.outcome||'dismissed'}}};
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event});window.addEventListener('appinstalled',()=>{deferredPrompt=null});
-  if('serviceWorker' in navigator){window.addEventListener('load',()=>{const cfg=swConfig();navigator.serviceWorker.register(cfg.url,{scope:cfg.scope}).then(async reg=>{swRegistration=reg;if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});if(Notification.permission==='granted'){try{const result=await syncExistingSubscription();if(result.status==='user_gesture_required')mountPushAction()}catch(err){showPushRecoveryCard(err)}}}).catch(err=>{if(Notification.permission==='granted')showPushRecoveryCard(err)})})}
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{try{if(sessionStorage.getItem('adelia_sw_reloaded_'+SW_VERSION)!=='1'){sessionStorage.setItem('adelia_sw_reloaded_'+SW_VERSION,'1');location.reload()}}catch(_){}});
+    window.addEventListener('load',()=>{serviceWorkerReady().then(async reg=>{swRegistration=reg;if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});try{await reg.update()}catch(_){}if(Notification.permission==='granted'){try{const result=await syncExistingSubscription();if(result.status==='user_gesture_required')mountPushAction()}catch(err){showPushRecoveryCard(err)}}}).catch(err=>{if(Notification.permission==='granted')showPushRecoveryCard(err)})})
+  }
   window.addEventListener('load',()=>setTimeout(()=>showNotificationCard(false),1600));
 })();
