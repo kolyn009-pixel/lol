@@ -3572,6 +3572,112 @@ def student_has_pending_regular_schedule(
     )
 
 
+def get_regular_recurring_slots(
+    weekday,
+    duration_minutes,
+    anchor_date=None,
+    step_minutes=30,
+):
+    """Canonical weekly recurring availability for Telegram/Web flows.
+
+    Uses one SQLite connection for working-hours/settings/conflicts so callers
+    cannot accidentally observe different DB state between parity checks.
+    """
+    weekday = int(weekday)
+    duration_minutes = int(duration_minutes)
+    step_minutes = int(step_minutes)
+    if duration_minutes <= 0 or step_minutes <= 0:
+        return []
+
+    if anchor_date is None:
+        anchor_date = date.today()
+    elif isinstance(anchor_date, datetime):
+        anchor_date = anchor_date.date()
+    elif isinstance(anchor_date, str):
+        anchor_date = date.fromisoformat(anchor_date[:10])
+
+    day = anchor_date
+    while day.weekday() != weekday:
+        day += timedelta(days=1)
+
+    conn = connect()
+    try:
+        mode = str(get_setting("teacher_week_mode", "SAME", conn=conn) or "SAME").upper()
+
+        def busy(start_value):
+            requested_start = datetime.strptime(start_value, "%H:%M")
+            requested_end = requested_start + timedelta(minutes=duration_minutes)
+            rows = conn.execute(
+                """
+                SELECT start_time, duration_minutes
+                FROM regular_schedules
+                WHERE weekday = ?
+                  AND (
+                    status = 'PENDING'
+                    OR (COALESCE(active, 0) = 1 AND status = 'APPROVED')
+                  )
+                """,
+                (weekday,),
+            ).fetchall()
+            for row in rows:
+                existing_start = datetime.strptime(row["start_time"], "%H:%M")
+                existing_end = existing_start + timedelta(
+                    minutes=int(row["duration_minutes"] or 60)
+                )
+                if requested_start < existing_end and existing_start < requested_end:
+                    return True
+            return False
+
+        def slots_for_day(day_obj):
+            values = set()
+            for row in get_effective_working_hours(day_obj, conn=conn):
+                start_dt = datetime.combine(
+                    day_obj,
+                    datetime.strptime(row["start_time"], "%H:%M").time(),
+                )
+                end_dt = datetime.combine(
+                    day_obj,
+                    datetime.strptime(row["end_time"], "%H:%M").time(),
+                )
+                current = start_dt
+                while current + timedelta(minutes=duration_minutes) <= end_dt:
+                    value = current.strftime("%H:%M")
+                    if not busy(value):
+                        values.add(value)
+                    current += timedelta(minutes=step_minutes)
+            return values
+
+        if mode == "SAME":
+            return sorted(slots_for_day(day))
+
+        if not teacher_week_enabled("ODD", conn=conn):
+            return []
+        if not teacher_week_enabled("EVEN", conn=conn):
+            return []
+
+        odd_slots = None
+        even_slots = None
+        current_day = day
+        for _ in range(5):
+            kind = teacher_week_kind(current_day)
+            values = slots_for_day(current_day)
+            if kind == "ODD" and odd_slots is None:
+                odd_slots = values
+            elif kind == "EVEN" and even_slots is None:
+                even_slots = values
+            if odd_slots is not None and even_slots is not None:
+                break
+            current_day += timedelta(days=7)
+
+        if odd_slots is None or even_slots is None:
+            return []
+
+        return sorted(odd_slots & even_slots)
+    finally:
+        conn.close()
+
+
+
 def regular_schedule_slot_conflict(
     weekday,
     start_time,
