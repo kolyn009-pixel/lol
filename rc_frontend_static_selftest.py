@@ -88,6 +88,12 @@ require("NETWORK_LIMIT_MS" in student_sw and "boundedFetch" in student_sw, "stud
 require("Promise.race([fetch(request)" in student_sw and "Promise.race([boundedFetch(request)" not in student_sw, "student service worker boundedFetch is recursive")
 require("AbortController" in student_boot, "student authenticated boot network wait is unbounded")
 require("AbortController" in student_auth and "NETWORK_TIMEOUT" in student_auth, "student auth network wait is unbounded")
+student_pwa = text(WEB / "pwa.js")
+parent_pwa = text(WEB / "parent" / "pwa.js")
+require("SW_VERSION" in student_pwa and "updateViaCache:'none'" in student_pwa and "controllerchange" in student_pwa, "student stale PWA recovery missing")
+require("SW_VERSION" in parent_pwa and "updateViaCache:'none'" in parent_pwa and "controllerchange" in parent_pwa, "parent stale PWA recovery missing")
+require("20260922-mobile-recovery1" in student_html, "student mobile recovery assets are not cache-busted")
+require("20260922-mobile-recovery1" in parent_html, "parent mobile recovery assets are not cache-busted")
 
 manual_booking = text(ROOT / "web_backend" / "teacher_manual_booking.py")
 api_v7 = text(ROOT / "web_backend" / "api_v7.py")
