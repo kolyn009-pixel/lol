@@ -33,3 +33,5 @@
   .teacher-dashboard-v2 .dashboard-lesson-card>.teacher-quick-actions button{flex:1 1 calc(50% - 5px)}
 }
 
+
+.dashboard-head-actions{display:flex;align-items:center;gap:9px}.dashboard-head-actions .soft{min-height:34px;padding:7px 11px;border-radius:10px;font-size:11px}@media(max-width:760px){.dashboard-head-actions .soft{display:none}}
