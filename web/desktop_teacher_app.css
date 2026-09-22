@@ -50,3 +50,28 @@ html body .teacher-quick-actions{gap:5px!important}
 html body .teacher-quick-actions button{min-height:32px!important;padding:6px 9px!important;font-size:11px!important}
 html body .teacher-booking-card{border-radius:20px!important;box-shadow:0 30px 100px rgba(31,22,55,.22)!important}
 @media(max-width:1180px){html body .header-actions{justify-content:flex-start!important}}
+
+
+/* Desktop Today — information-first workspace */
+html body .teacher-dashboard-v2{gap:14px!important}
+html body .teacher-dashboard-v2 .week-overview{grid-template-columns:repeat(5,minmax(120px,1fr))!important;gap:8px!important;overflow-x:auto!important;padding-bottom:2px!important}
+html body .teacher-dashboard-v2 .week-metric{min-width:120px!important;min-height:70px!important;padding:12px 13px!important;border-radius:14px!important;box-shadow:0 4px 16px rgba(58,43,97,.025)!important}
+html body .teacher-dashboard-v2 .week-metric b{font-size:23px!important}
+html body .teacher-dashboard-v2 .week-metric span{font-size:10px!important}
+html body .teacher-dashboard-v2 .dashboard-layout{grid-template-columns:minmax(0,1.72fr) minmax(270px,.58fr)!important;gap:12px!important}
+html body .teacher-dashboard-v2 .dashboard-main,html body .teacher-dashboard-v2 .dashboard-side{gap:12px!important}
+html body .teacher-dashboard-v2 .dashboard-panel{padding:15px!important;border-radius:17px!important;box-shadow:0 5px 20px rgba(58,43,97,.028)!important}
+html body .teacher-dashboard-v2 .dashboard-panel-head{margin-bottom:11px!important;align-items:center!important}
+html body .teacher-dashboard-v2 .dashboard-panel-head h2{font-size:16px!important;letter-spacing:-.015em!important}
+html body .teacher-dashboard-v2 .dashboard-panel-head p{font-size:10px!important}
+html body .teacher-dashboard-v2 .dashboard-lesson-card.row{grid-template-columns:auto minmax(170px,1fr) minmax(270px,auto)!important;padding:10px 11px!important;border-radius:13px!important;gap:8px 11px!important}
+html body .teacher-dashboard-v2 .dashboard-lesson-main>b{font-size:13px!important}
+html body .teacher-dashboard-v2 .dashboard-lesson-main>span:first-of-type{font-size:11px!important}
+html body .teacher-dashboard-v2 .dashboard-side{position:sticky!important;top:96px!important}
+html body .teacher-dashboard-v2 .week-day{border-radius:13px!important}
+html body .teacher-dashboard-v2 .week-day-head{padding:9px 11px!important}
+html body .teacher-dashboard-v2 .week-lesson{padding:8px 11px!important}
+html body .teacher-dashboard-v2 .today-history-card{padding:9px 10px!important;border-radius:12px!important}
+html body .teacher-dashboard-v2 .dashboard-empty{padding:18px 10px!important}
+@media(max-width:1280px){html body .teacher-dashboard-v2 .dashboard-layout{grid-template-columns:1fr!important}html body .teacher-dashboard-v2 .dashboard-side{position:static!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}html body .teacher-dashboard-v2 .dashboard-lesson-card.row{grid-template-columns:auto minmax(140px,1fr)!important}}
+@media(max-width:900px){html body .teacher-dashboard-v2 .dashboard-side{grid-template-columns:1fr!important}}
