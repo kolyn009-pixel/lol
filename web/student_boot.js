@@ -10,7 +10,8 @@ function load(src){return new Promise(resolve=>{const s=document.createElement('
 async function boot(){
  if(started)return;
  try{
-  const r=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store'});
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),8000);
+  let r;try{r=await fetch('/api/auth/me',{credentials:'same-origin',cache:'no-store',signal:ctrl.signal})}finally{clearTimeout(timer)}
   const d=await r.json().catch(()=>({}));
   if(!d.authenticated||d.session?.role!=='student')return;
   started=true;
