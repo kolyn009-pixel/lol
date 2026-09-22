@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('adeliaDesktop', Object.freeze({
   setCloseToTray: value => ipcRenderer.invoke('adelia:set-close-to-tray', !!value),
   getUxState: () => ipcRenderer.invoke('adelia:ux-state'),
   setNotifications: value => ipcRenderer.invoke('adelia:set-notifications', !!value),
+  updateDashboardState: state => ipcRenderer.invoke('adelia:dashboard-state', state || {}),
   setAutostart: value => ipcRenderer.invoke('adelia:set-autostart', !!value),
   setHotkey: value => ipcRenderer.invoke('adelia:set-hotkey', !!value),
   showMain: () => ipcRenderer.invoke('adelia:show-main'),
