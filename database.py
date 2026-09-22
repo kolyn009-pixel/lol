@@ -18,9 +18,15 @@ BASE_DIR = os.path.dirname(
     os.path.abspath(__file__)
 )
 
-DB_NAME = os.path.join(
+DEFAULT_DB_NAME = os.path.join(
     BASE_DIR,
     "tutor.db"
+)
+
+DB_NAME = os.path.abspath(
+    os.path.expanduser(
+        os.environ.get("ADELIA_DB_PATH", DEFAULT_DB_NAME)
+    )
 )
 
 TEST_DATA_DIR = os.environ.get(
