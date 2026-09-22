@@ -1,6 +1,6 @@
 const CACHE='adelia-shell-v12';
 const NETWORK_LIMIT_MS=4500;
-const boundedFetch=request=>Promise.race([boundedFetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
+const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const SHELL=[
  '/app/','/app/manifest.webmanifest','/app/assets/icons/adelia-icon.svg',
  '/app/styles.css','/app/stage11_mobile.css','/app/responsive_shell.css','/app/selects.css',
