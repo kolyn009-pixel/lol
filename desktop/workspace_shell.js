@@ -23,7 +23,7 @@ function isMain(win){
   try{const u=new URL(win.webContents.getURL());return u.origin===APP_ORIGIN}catch(_){return false}
 }
 function role(win){
-  try{const u=new URL(win.webContents.getURL());if(u.pathname.startsWith('/teacher'))return'teacher';if(u.pathname.startsWith('/app/parent'))return'parent';return'student'}catch(_){return'student'}
+  try{const u=new URL(win.webContents.getURL());if(u.pathname.startsWith('/teacher')||u.pathname==='/app/teacher.html')return'teacher';if(u.pathname.startsWith('/app/parent'))return'parent';return'student'}catch(_){return'student'}
 }
 function studentUrl(view){
   const u=new URL('/app/',APP_ORIGIN);
