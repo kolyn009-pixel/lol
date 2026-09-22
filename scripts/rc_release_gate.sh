@@ -47,6 +47,37 @@ fi
 echo "PYTHON=$PYTHON"
 
 echo
+echo "===== 2B. ISOLATE DATABASE ENVIRONMENT ====="
+unset ADELIA_DB_PATH || true
+export TUTORBOT_TEST_DATA_DIR="$WORKTREE/.rc-test-data"
+export TUTORBOT_TEST_DB="$WORKTREE/.rc-test-data/tutor_test.db"
+mkdir -p "$TUTORBOT_TEST_DATA_DIR"
+echo "ADELIA_DB_PATH=UNSET"
+echo "TUTORBOT_TEST_DB=$TUTORBOT_TEST_DB"
+
+echo
+echo "===== 2C. DATABASE PATH CONTRACT ====="
+cd "$WORKTREE"
+"$PYTHON" - <<'PY'
+import os
+os.environ.pop("ADELIA_DB_PATH", None)
+import database
+expected = os.path.abspath(os.path.join(os.getcwd(), "tutor.db"))
+assert database.DB_NAME == expected, (database.DB_NAME, expected)
+assert database.current_db_name() == expected
+print("DEFAULT_DB_PATH_CONTRACT=OK", database.DB_NAME)
+PY
+ADELIA_DB_PATH="$WORKTREE/.rc-explicit-prod.db" "$PYTHON" - <<'PY'
+import os
+import database
+expected = os.path.abspath(os.environ["ADELIA_DB_PATH"])
+assert database.DB_NAME == expected, (database.DB_NAME, expected)
+assert database.current_db_name() == expected
+print("EXPLICIT_DB_PATH_CONTRACT=OK", database.DB_NAME)
+PY
+rm -f "$WORKTREE/.rc-explicit-prod.db" "$WORKTREE/.rc-explicit-prod.db-wal" "$WORKTREE/.rc-explicit-prod.db-shm"
+
+echo
 echo "===== 3. COMPILE RELEASE SOURCE ====="
 cd "$WORKTREE"
 "$PYTHON" -m compileall -q   core final_features handlers integrations scripts vk_adapter web_backend database.py
