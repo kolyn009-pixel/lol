@@ -14,12 +14,7 @@
     setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),220)},2600);
   }
 
-  const sidebarToggle=document.createElement('button');
-  sidebarToggle.type='button';sidebarToggle.className='desktop-sidebar-toggle';sidebarToggle.setAttribute('aria-label','Свернуть боковое меню');sidebarToggle.innerHTML='‹';
-  body.appendChild(sidebarToggle);
-  const compact=localStorage.getItem('adelia_desktop_sidebar')==='compact';
-  body.classList.toggle('desktop-compact',compact);sidebarToggle.innerHTML=compact?'›':'‹';
-  sidebarToggle.onclick=()=>{const next=!body.classList.contains('desktop-compact');body.classList.toggle('desktop-compact',next);sidebarToggle.innerHTML=next?'›':'‹';localStorage.setItem('adelia_desktop_sidebar',next?'compact':'full')};
+  body.classList.remove('desktop-compact');localStorage.removeItem('adelia_desktop_sidebar');
 
   const toolbar=document.createElement('section');
   toolbar.className='lesson-toolbar';toolbar.id='lessonToolbar';toolbar.hidden=true;
@@ -40,7 +35,7 @@
   setInterval(pollLayout,1200);setTimeout(pollLayout,700);
 
   const settings=document.createElement('div');settings.className='desktop-modal-backdrop';settings.id='desktopSettingsModal';settings.hidden=true;
-  settings.innerHTML=`<section class="desktop-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="desktopSettingsTitle"><header><div><span>Windows-приложение</span><h2 id="desktopSettingsTitle">Настройки Аделии</h2></div><button id="desktopSettingsClose" aria-label="Закрыть">×</button></header><div class="desktop-setting-list"><label><div><b>Уведомления Windows</b><span>Напоминания о занятиях и важные события</span></div><input type="checkbox" id="settingNotifications"></label><label><div><b>Запуск вместе с Windows</b><span>Аделия будет готова ещё до начала занятия</span></div><input type="checkbox" id="settingAutostart"></label><label><div><b>Горячая клавиша</b><span>Ctrl + Shift + A — быстро открыть Аделию</span></div><input type="checkbox" id="settingHotkey"></label><label><div><b>Сворачивать в трей</b><span>Крестик скрывает окно, но оставляет Аделию рядом</span></div><input type="checkbox" id="settingTray"></label></div><div class="desktop-shortcuts"><b>Во время занятия</b><span><kbd>Ctrl Shift B</kbd> Фокус на доске</span><span><kbd>Ctrl Shift V</kbd> Скрыть / вернуть Telemost</span><span><kbd>Ctrl Shift L</kbd> Обычная раскладка</span></div></section>`;
+  settings.innerHTML=`<section class="desktop-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="desktopSettingsTitle"><header><div><span>Приложение Аделия</span><h2 id="desktopSettingsTitle">Настройки Аделии</h2></div><button id="desktopSettingsClose" aria-label="Закрыть">×</button></header><div class="desktop-setting-list"><label><div><b>Уведомления Аделии</b><span>Напоминания о занятиях и важные события</span></div><input type="checkbox" id="settingNotifications"></label><label><div><b>Запуск вместе с системой</b><span>Аделия будет готова ещё до начала занятия</span></div><input type="checkbox" id="settingAutostart"></label><label><div><b>Горячая клавиша</b><span>Ctrl + Shift + A — быстро открыть Аделию</span></div><input type="checkbox" id="settingHotkey"></label><label><div><b>Сворачивать в трей</b><span>Крестик скрывает окно, но оставляет Аделию рядом</span></div><input type="checkbox" id="settingTray"></label></div><div class="desktop-shortcuts"><b>Во время занятия</b><span><kbd>Ctrl Shift B</kbd> Фокус на доске</span><span><kbd>Ctrl Shift V</kbd> Скрыть / вернуть Telemost</span><span><kbd>Ctrl Shift L</kbd> Обычная раскладка</span></div></section>`;
   body.appendChild(settings);
 
   async function openSettings(){
