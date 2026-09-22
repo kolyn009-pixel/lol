@@ -43,6 +43,15 @@ class Stage10Mixin:
             if path=='/api/teacher/messages':
                 unread=str(q.get('unread',['0'])[0]).lower() in {'1','true','yes'}
                 return self._json(200,{'items':_conversation_items(q.get('limit',[100])[0],unread)})
+            if path=='/api/teacher/messages/student':
+                uid=int(q.get('user_id',['0'])[0])
+                conn=connect()
+                user=conn.execute("SELECT id,name,active FROM users WHERE id=? LIMIT 1",(uid,)).fetchone()
+                conn.close()
+                if not user or not int(user['active'] or 0):return self._json(404,{'error':'student_not_found'})
+                conv=um.conversation(uid,'STUDENT',None)
+                channels=_channel_map([uid]).get(uid,{'telegram':False,'vk':False})
+                return self._json(200,{'conversation':{'id':int(conv['id']),'student_id':uid,'name':user['name'],'channels':channels,'unread':0,'last_body':''}})
             if path=='/api/teacher/messages/history':
                 cid=int(q.get('conversation_id',['0'])[0])
                 return self._json(200,{'items':list(reversed(um.history(cid,q.get('limit',[100])[0])))})
