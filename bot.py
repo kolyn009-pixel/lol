@@ -1448,9 +1448,13 @@ async def show_regular_weekdays(
         flush=True,
     )
 
-    if not keyboard:
+    no_regular_slots = not keyboard
+    if no_regular_slots:
         keyboard.append([
-            InlineKeyboardButton("🔄 Проверить свободное время", callback_data="booking_regular")
+            InlineKeyboardButton("1️⃣ Выбрать разовое занятие", callback_data="booking_single")
+        ])
+        keyboard.append([
+            InlineKeyboardButton("🔄 Проверить постоянные слоты", callback_data="booking_regular")
         ])
     keyboard.append([
         InlineKeyboardButton("⬅️ Назад", callback_data="booking")
@@ -1458,8 +1462,8 @@ async def show_regular_weekdays(
 
     empty_note = (
         "\n\n😔 Сейчас нет свободных слотов для еженедельного занятия такой длительности. "
-        "Можно вернуться назад и выбрать разовое занятие или проверить позже."
-        if len(keyboard) == 2 and keyboard[0][0].callback_data == "booking_regular"
+        "Но разовое занятие можно выбрать прямо сейчас."
+        if no_regular_slots
         else ""
     )
     await query.edit_message_text(
@@ -6872,6 +6876,9 @@ async def student_buttons(
             or data == "booking"
             or data.startswith("booking_program|")
             or data == "booking_single"
+            or data.startswith("booking_duration|")
+            or data == "request_confirm"
+            or data.startswith("single_draft")
             or data == "booking_regular"
             or data.startswith("regular_day|")
             or data.startswith("regular_time|")
@@ -7132,6 +7139,16 @@ async def student_buttons(
 
     if data == "booking_single":
 
+        print(
+            "SINGLE_BOOKING_FLOW:",
+            "step=entry",
+            "user_id=", user["id"],
+            "actor_tid=", query.from_user.id if query.from_user else None,
+            "parent_mode=", parent_mode,
+            "db=", database.current_db_name(),
+            flush=True,
+        )
+
         pending = database.get_pending_booking(
             user["id"]
         )
@@ -7170,6 +7187,14 @@ async def student_buttons(
         rate = int(database.get_program_rate_info(program["id"])["effective_rate"])
         # Баланс проверим после выбора конкретного слота.
         context.user_data["booking_duration"] = duration
+        print(
+            "SINGLE_BOOKING_FLOW:",
+            "step=duration",
+            "user_id=", user["id"],
+            "duration=", duration,
+            "program_id=", program["id"],
+            flush=True,
+        )
         await show_dates(query, user, mode="normal")
         return
 
@@ -7907,11 +7932,15 @@ async def student_buttons(
 
         else:
 
-            price_info = (
-                payments
-                .get_price_per_lesson(
-                    user
-                )
+            program = selected_program(context, user)
+            base_duration = (
+                program_duration(program)
+                if program is not None
+                else payments.get_lesson_duration(user)
+            )
+            selected_duration = int(
+                context.user_data.get("booking_duration")
+                or base_duration
             )
 
             text = (
@@ -7924,9 +7953,9 @@ async def student_buttons(
                 f"{start_dt.strftime('%H:%M')}\n"
 
                 f"⏱ "
-                f"{price_info['duration']} минут\n\n"
+                f"{selected_duration} минут\n\n"
 
-                "После подтверждения преподавателем я зарезервирую нужное количество минут с баланса."
+                "После выбора способа оплаты я сохраню эту разовую запись и отправлю её преподавателю."
             )
 
         await query.edit_message_text(
