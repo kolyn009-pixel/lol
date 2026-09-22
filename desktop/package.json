@@ -39,6 +39,7 @@
       "desktop_ux.js",
       "lesson_layout.js",
       "role_startup.js",
+      "workspace_shell.js",
       "bundled_ui.js",
       "bundled_ui_manifest.js",
       "role_assets/**/*",
