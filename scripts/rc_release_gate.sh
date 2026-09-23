@@ -120,7 +120,7 @@ echo
 echo "===== 5. DAY-OFF ISOLATED DB SELFTEST ====="
 "$PYTHON" rc_day_off_selftest.py
 
-echo
+echo\necho "===== 5A. OPERATIONAL DAY-CLOSE / PAYMENT SELFTEST ====="\n"$PYTHON" rc_operational_selftest.py\n\necho
 echo "===== 5B. CALENDAR LEGACY SCHEMA SELFTEST ====="
 "$PYTHON" rc_calendar_legacy_selftest.py
 
