@@ -29,7 +29,11 @@ function reconnect(win) {
     if (!isMain(win)) return clearRetry(win);
     if (await online()) {
       clearRetry(win);
-      win.loadURL(APP_URL).catch(() => {});
+      try {
+        await require('./role_startup').restoreAuthenticatedRole();
+      } catch (_) {
+        win.loadFile(path.join(__dirname, 'start.html')).catch(() => {});
+      }
     }
   }, 5000);
   retryTimers.set(win, timer);
