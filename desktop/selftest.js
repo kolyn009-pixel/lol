@@ -6,7 +6,7 @@ const readRepo=p=>fs.readFileSync(path.join(repo,p),'utf8');
 const publishScript=readRepo('scripts/desktop_update_publish.sh'),rollbackScript=readRepo('scripts/desktop_update_rollback.sh'),releaseManager=readRepo('scripts/desktop_release_manager.sh'),releaseSetRollback=readRepo('scripts/desktop_release_set_rollback.sh'),nginxUpdates=read('nginx-desktop-updates.conf');
 const pkg=JSON.parse(read('package.json'));
 const files={
-  bootstrap:read('bootstrap.js'),main:read('main.js'),preload:read('preload.js'),workspace:read('lesson_workspace.js'),
+  bootstrap:read('bootstrap.js'),main:read('main.js'),preload:read('preload.js'),workspace:read('lesson_workspace.js'),workspaceShell:read('workspace_shell.js'),bundledUi:read('bundled_ui.js'),
   ux:read('desktop_ux.js'),layout:read('lesson_layout.js'),role:read('role_startup.js'),system:read('system_polish.js'),
   network:read('network_ux.js'),diagnostics:read('diagnostics.js'),report:read('report.js'),reportPreload:read('report_preload.js'),reportHtml:read('report.html'),deviceCheck:read('device_check.js'),deviceCheckPreload:read('device_check_preload.js'),deviceCheckHtml:read('device_check.html'),about:read('about.js'),aboutPreload:read('about_preload.js'),aboutHtml:read('about.html'),iconSync:read('generate_assets.js'),startJs:read('start.js'),startHtml:read('start.html'),startCss:read('start.css'),offline:read('offline.html')
 };
@@ -95,7 +95,7 @@ check(files.bootstrap.includes("require('./role_startup').install()"),'role choo
 check(files.role.includes("loadFile(path.join(__dirname,'start.html'))"),'role chooser loads packaged start screen');
 check(files.role.includes("'/api/auth/teacher/code'"),'teacher code login wired');
 check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
-check(files.workspace.includes("u.pathname.startsWith('/teacher')")&&files.workspace.includes("u.pathname==='/app/teacher.html'")&&read('bundled_ui.js').includes("pathname.startsWith('/teacher')")&&read('bundled_ui.js').includes("pathname==='/app/teacher.html'"),'canonical teacher routes remain desktop teacher role');
+check(files.workspaceShell.includes("u.pathname.startsWith('/teacher')")&&files.workspaceShell.includes("u.pathname==='/app/teacher.html'")&&files.bundledUi.includes("pathname.startsWith('/teacher')")&&files.bundledUi.includes("pathname==='/app/teacher.html'"),'canonical teacher routes remain desktop teacher role');
 check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("role==='teacher'")&&files.role.includes("role==='parent'")&&files.role.includes("role==='student'"),'authenticated desktop role is restored');
 check(files.startJs.includes('teacherLogin')&&files.startJs.includes('openStudentLogin')&&files.startJs.includes('openParentCabinet'),'role actions wired');
 check(files.startJs.includes("FIRST_RUN_KEY='adelia.desktop.welcome.v1'")&&files.startJs.includes('welcomeContinue'),'first-run welcome is one-time');
