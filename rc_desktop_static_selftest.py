@@ -157,6 +157,9 @@ require("data-desktop-start" in teacher_dashboard and "/teacher/lesson/open-entr
 require("data-desktop-message" in teacher_dashboard and "/teacher/message" in teacher_dashboard, "Today desktop quick message uses canonical teacher messaging")
 require("data-desktop-reschedule" in teacher_dashboard and "/teacher/lesson/reschedule" in teacher_dashboard, "Today desktop reschedule uses canonical lesson action")
 require("data-desktop-paid" in teacher_dashboard and "/teacher/finance/lesson/paid" in teacher_dashboard, "Today desktop paid action uses canonical payment lifecycle")
+require("function desktopModal" in teacher_dashboard and "data-today-message" in teacher_dashboard and "data-today-reschedule" in teacher_dashboard, "Today desktop actions use in-app dialogs")
+require("prompt(" not in teacher_dashboard, "Today desktop action center has no browser prompts")
+require("today-desktop-modal" in teacher_dashboard_css and "desktop-teacher-v2" in teacher_dashboard_css, "Today dialogs are desktop scoped")
 require("desktop-teacher-v2" in teacher_dashboard_css and "desktop-lesson-tool" in teacher_dashboard_css, "Today desktop action styling isolated")
 
 require("/app/student_clean.css" in student, "student clean shell linked")
