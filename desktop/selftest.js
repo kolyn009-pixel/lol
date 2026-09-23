@@ -11,7 +11,7 @@ const files={
   network:read('network_ux.js'),diagnostics:read('diagnostics.js'),report:read('report.js'),reportPreload:read('report_preload.js'),reportHtml:read('report.html'),deviceCheck:read('device_check.js'),deviceCheckPreload:read('device_check_preload.js'),deviceCheckHtml:read('device_check.html'),about:read('about.js'),aboutPreload:read('about_preload.js'),aboutHtml:read('about.html'),iconSync:read('generate_assets.js'),startJs:read('start.js'),startHtml:read('start.html'),startCss:read('start.css'),offline:read('offline.html')
 };
 const web={
-  student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js'),
+  app:readRepo('web/app.js'),student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js'),
   individual:readRepo('web/teacher_lesson_flow.js'),group:readRepo('web/teacher_group_live12.js'),event:readRepo('web/teacher_event_live13.js'),
   telemostSettings:readRepo('web/teacher_telemost_settings.js'),lessonUi:readRepo('web/desktop_lesson_workspace.js'),lessonUiCss:readRepo('web/desktop_lesson_workspace.css'),prelessonUi:readRepo('web/desktop_prelesson.js'),prelessonCss:readRepo('web/desktop_prelesson.css'),desktopManifest:read('bundled_ui_manifest.js'),parentManifest:readRepo('web/parent/manifest.webmanifest')
 };
