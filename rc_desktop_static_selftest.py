@@ -42,6 +42,9 @@ individual = read(WEB / "teacher_lesson_flow.js")
 group = read(WEB / "teacher_group_live12.js")
 event = read(WEB / "teacher_event_live13.js")
 telemost_settings = read(WEB / "teacher_telemost_settings.js")
+teacher_dashboard = read(WEB / "teacher_dashboard_week.js")
+teacher_dashboard_css = read(WEB / "teacher_dashboard_week.css")
+teacher_portal = read(ROOT / "web_backend" / "teacher_portal.py")
 parent_manifest_text = read(WEB / "parent" / "manifest.webmanifest")
 parent_manifest = json.loads(parent_manifest_text)
 
@@ -146,6 +149,11 @@ require("Доступ открыт — ждём первого ученика" i
 require("Доступ открыт — ждём первого ученика" in event and "Фактический таймер ещё не запущен" in event, "event factual start separation")
 for name, source in (("individual",individual),("group",group),("event",event),("telemost_settings",telemost_settings)):
     require("MutationObserver" not in source, f"no persistent MutationObserver in {name}")
+
+require("u.board_url" in teacher_portal, "teacher dashboard exposes canonical student board URL")
+require("data-desktop-tool=\"meeting\"" in teacher_dashboard and "data-desktop-tool=\"board\"" in teacher_dashboard, "Today desktop lesson tools wired")
+require("openLessonTool(kind,url)" in teacher_dashboard, "Today desktop tools use existing Electron lesson workspace")
+require("desktop-teacher-v2" in teacher_dashboard_css and "desktop-lesson-tool" in teacher_dashboard_css, "Today desktop action styling isolated")
 
 require("/app/student_clean.css" in student, "student clean shell linked")
 require("/app/teacher_clean.css" in teacher and "/app/teacher_clean7.css" in teacher, "teacher clean shell linked")
