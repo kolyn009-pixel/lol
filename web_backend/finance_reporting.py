@@ -1,6 +1,7 @@
 """Read-only Stage 8 finance reporting over existing TutorBot money tables."""
 from __future__ import annotations
 from datetime import datetime, timedelta
+import database
 from database import connect
 
 PAID={'PAID','CONFIRMED','APPROVED'}
@@ -75,6 +76,23 @@ def dashboard(start=None,end=None,period=None):
     recent=[dict(r) for r in conn.execute("""SELECT p.id,p.user_id,u.name,p.study_goal,p.subject,p.lessons_count,p.price_per_lesson,p.total_amount,p.status,p.promo_code,p.promo_discount_amount,p.created_at,p.confirmed_at FROM payments p JOIN users u ON u.id=p.user_id WHERE COALESCE(p.confirmed_at,p.created_at)>=? AND COALESCE(p.confirmed_at,p.created_at)<? AND COALESCE(p.total_amount,0)>0 ORDER BY COALESCE(p.confirmed_at,p.created_at) DESC,p.id DESC LIMIT 100""",(start,end)).fetchall()]
     conn.close()
     return {'period':{'key':period or 'custom','start':start,'end':end},'paid':{'count':int(paid['c'] or 0),'amount':int(paid['s'] or 0)},'waiting':{'count':int(waiting['c'] or 0),'amount':int(waiting['s'] or 0)},'lessons':{'completed':int(lessons['c'] or 0),'value':int(lessons['s'] or 0)},'prepaid_balance':{'lessons_left':int(balances['lessons_left'] or 0),'nominal_left':int(balances['nominal_left'] or 0)},'completed_lessons':completed,'recent_payments':recent}
+
+
+
+def mark_lesson_paid(lesson_id,amount=None):
+    lesson=database.get_lesson(int(lesson_id))
+    if lesson is None:raise ValueError('lesson_not_found')
+    if str(lesson['lesson_status'] or '').upper() in {'CANCELLED','REJECTED'}:raise ValueError('lesson_not_payable')
+    status=str(lesson['payment_status'] or '').upper()
+    if status in {'PAID','FREE','RESERVED_BALANCE','TRANSFERRED'}:
+        return {'status':'already_paid','lesson_id':int(lesson_id),'payment_status':status,'payment_id':lesson['payment_id']}
+    existing=database.get_payment_for_lesson(int(lesson_id))
+    if existing is not None:
+        database.approve_payment(int(existing['id']))
+        updated=database.get_lesson(int(lesson_id))
+        return {'status':'ok','lesson_id':int(lesson_id),'payment_status':updated['payment_status'],'payment_id':int(existing['id'])}
+    payment_id,package_id=database.confirm_manual_lesson_payment(int(lesson_id),None if amount in (None,'') else int(amount))
+    return {'status':'ok','lesson_id':int(lesson_id),'payment_status':'PAID','payment_id':int(payment_id),'package_id':int(package_id)}
 
 
 def student_finance(user_id):
