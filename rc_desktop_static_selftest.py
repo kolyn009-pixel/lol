@@ -153,6 +153,10 @@ for name, source in (("individual",individual),("group",group),("event",event),(
 require("u.board_url" in teacher_portal, "teacher dashboard exposes canonical student board URL")
 require("data-desktop-tool=\"meeting\"" in teacher_dashboard and "data-desktop-tool=\"board\"" in teacher_dashboard, "Today desktop lesson tools wired")
 require("openLessonTool(kind,url)" in teacher_dashboard, "Today desktop tools use existing Electron lesson workspace")
+require("data-desktop-start" in teacher_dashboard and "/teacher/lesson/open-entry" in teacher_dashboard, "Today desktop direct start uses canonical open-entry")
+require("data-desktop-message" in teacher_dashboard and "/teacher/message" in teacher_dashboard, "Today desktop quick message uses canonical teacher messaging")
+require("data-desktop-reschedule" in teacher_dashboard and "/teacher/lesson/reschedule" in teacher_dashboard, "Today desktop reschedule uses canonical lesson action")
+require("data-desktop-paid" in teacher_dashboard and "/teacher/finance/lesson/paid" in teacher_dashboard, "Today desktop paid action uses canonical payment lifecycle")
 require("desktop-teacher-v2" in teacher_dashboard_css and "desktop-lesson-tool" in teacher_dashboard_css, "Today desktop action styling isolated")
 
 require("/app/student_clean.css" in student, "student clean shell linked")
