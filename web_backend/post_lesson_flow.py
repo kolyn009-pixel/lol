@@ -68,7 +68,9 @@ def complete_review(lesson_id, marks, actor="WEB_TEACHER"):
         return saved
     normalized = post_lesson.draft_marks(lesson_id)
     if not normalized:
-        return {"status": "marks_required"}
+        available = list(post_lesson.topics_for_student(int(lesson["user_id"]), lesson_id))
+        if available:
+            return {"status": "marks_required"}
     review_id = post_lesson.save_review(
         lesson_id,
         int(lesson["user_id"]),
