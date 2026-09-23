@@ -150,3 +150,46 @@ html.adelia-desktop-teacher body .health-grid{gap:8px!important}
 html.adelia-desktop-teacher body .health-card{min-height:66px!important;padding:10px 12px!important}
 html.adelia-desktop-teacher body .tb-grid{gap:10px!important}
 html.adelia-desktop-teacher body .tb-card{padding:10px 12px!important;margin-bottom:8px!important}
+
+
+/* Desktop teacher contrast system — readable everywhere, independent of web theme. */
+html.adelia-desktop-teacher body #app{
+  --adelia-desk-text:#211d2a;
+  --adelia-desk-muted:#6f6878;
+  --adelia-desk-hero:#242943;
+  --adelia-desk-hero-2:#343966;
+  color:var(--adelia-desk-text)!important;
+}
+html.adelia-desktop-teacher body #app :is(.panel,.row,.card,.v4-empty-state,.health-card,.health-panel,.health-google,.tb-card,.finance-overview-toolbar,.dashboard-panel){
+  color:var(--adelia-desk-text)!important;
+}
+html.adelia-desktop-teacher body #app :is(.panel,.row,.card,.v4-empty-state,.health-card,.health-panel,.health-google,.tb-card,.finance-overview-toolbar,.dashboard-panel) :is(h1,h2,h3,h4,b,strong){
+  color:#211d2a!important;
+}
+html.adelia-desktop-teacher body #app :is(.panel,.row,.card,.v4-empty-state,.health-card,.health-panel,.health-google,.tb-card,.finance-overview-toolbar,.dashboard-panel) :is(p,small,.muted,.sub,.meta){
+  color:#6f6878!important;
+}
+html.adelia-desktop-teacher body #app :is(.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero){
+  background:linear-gradient(135deg,var(--adelia-desk-hero),var(--adelia-desk-hero-2))!important;
+  color:#fff!important;
+  border-color:rgba(255,255,255,.08)!important;
+}
+html.adelia-desktop-teacher body #app :is(.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero) :is(h1,h2,h3,h4,b,strong){
+  color:#fff!important;
+  text-shadow:none!important;
+  opacity:1!important;
+}
+html.adelia-desktop-teacher body #app :is(.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero) :is(p,span,small,.muted,.sub,.meta){
+  color:rgba(255,255,255,.82)!important;
+  opacity:1!important;
+}
+html.adelia-desktop-teacher body #app :is(.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero) :is(.v4-kicker,.health-kicker,.badge){
+  color:#d9d4ff!important;
+  opacity:1!important;
+}
+html.adelia-desktop-teacher body #app button,
+html.adelia-desktop-teacher body #app input,
+html.adelia-desktop-teacher body #app select,
+html.adelia-desktop-teacher body #app textarea{
+  opacity:1!important;
+}
