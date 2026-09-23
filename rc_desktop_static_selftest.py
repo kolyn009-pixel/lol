@@ -159,6 +159,8 @@ require("data-desktop-reschedule" in teacher_dashboard and "/teacher/lesson/resc
 require("data-desktop-paid" in teacher_dashboard and "/teacher/finance/lesson/paid" in teacher_dashboard, "Today desktop paid action uses canonical payment lifecycle")
 require("function desktopModal" in teacher_dashboard and "data-today-message" in teacher_dashboard and "data-today-reschedule" in teacher_dashboard, "Today desktop actions use in-app dialogs")
 require("prompt(" not in teacher_dashboard, "Today desktop action center has no browser prompts")
+require("confirm(" not in teacher_dashboard and "alert(" not in teacher_dashboard, "Today desktop action center has no browser confirm or alert dialogs")
+require("showTodayToast" in teacher_dashboard and "today-desktop-toast" in teacher_dashboard_css, "Today desktop actions use in-app feedback")
 require("today-desktop-modal" in teacher_dashboard_css and "desktop-teacher-v2" in teacher_dashboard_css, "Today dialogs are desktop scoped")
 require("today-next-actions" in teacher_dashboard and "today-next-actions" in teacher_dashboard_css, "nearest lesson has desktop action center")
 require("next.meeting_url" in teacher_dashboard and "next.board_url" in teacher_dashboard, "nearest lesson exposes existing Telemost and board tools")
