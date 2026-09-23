@@ -100,3 +100,53 @@ html body .finance-head>div>span.badge{margin-bottom:3px!important;font-size:8px
 html body .health-grid{gap:7px!important;margin-bottom:9px!important}html body .health-card{padding:10px 12px!important;min-height:68px!important;border-radius:14px!important}html body .health-card strong{font-size:19px!important}html body .health-google,html body .health-panel{padding:12px 14px!important;border-radius:14px!important}
 html body .tb-grid{gap:10px!important}html body .tb-grid>section>h2{font-size:17px!important;margin:0 0 3px!important}html body .tb-grid>section>.muted{font-size:10px!important;margin:0 0 9px!important}html body .tb-card{padding:11px 12px!important;margin-bottom:8px!important;border-radius:14px!important}html body .tb-card h3{font-size:14px!important;margin:4px 0!important}html body .tb-card p{font-size:10px!important;margin:5px 0!important}html body .tb-meta,html body .tb-state{font-size:9px!important}html body .tb-actions{margin-top:8px!important;gap:5px!important}html body .tb-actions button{padding:6px 9px!important;font-size:9px!important}html body .tb-form{gap:6px!important;margin-top:7px!important}html body .tb-form input,html body .tb-form select{padding:7px 9px!important;font-size:10px!important}
 html body .msg-shell{height:calc(100vh - 108px)!important;min-height:540px!important}html body .msg-thread-head{min-height:50px!important;padding:9px 12px!important}html body .msg-history{padding:11px 13px!important}html body .msg-compose textarea{min-height:50px!important}
+
+
+/* Desktop marker pass — these rules only activate inside the Electron teacher workspace. */
+html.adelia-desktop-teacher body .v4-page-head,
+html.adelia-desktop-teacher body .finance-head:not(.compact),
+html.adelia-desktop-teacher body .health-hero{
+  padding:10px 13px!important;
+  min-height:0!important;
+  margin:0 0 10px!important;
+  border-radius:14px!important;
+}
+html.adelia-desktop-teacher body .v4-page-head h1,
+html.adelia-desktop-teacher body .v4-page-head h2,
+html.adelia-desktop-teacher body .finance-head h1,
+html.adelia-desktop-teacher body .finance-head h2,
+html.adelia-desktop-teacher body .health-hero h1,
+html.adelia-desktop-teacher body .health-hero h2{
+  font-size:18px!important;
+  line-height:1.15!important;
+  margin:2px 0 3px!important;
+}
+html.adelia-desktop-teacher body .v4-page-head p,
+html.adelia-desktop-teacher body .finance-head p,
+html.adelia-desktop-teacher body .health-hero p{
+  font-size:10px!important;
+  line-height:1.35!important;
+  margin:2px 0!important;
+}
+html.adelia-desktop-teacher body .v4-group-grid:has(.v4-empty-state){display:block!important}
+html.adelia-desktop-teacher body .v4-empty-state{
+  width:min(100%,520px)!important;
+  min-height:0!important;
+  padding:18px!important;
+  margin:0!important;
+  text-align:left!important;
+}
+html.adelia-desktop-teacher body .v4-empty-state .primary{
+  width:auto!important;
+  min-width:180px!important;
+  max-width:280px!important;
+  min-height:34px!important;
+  padding:7px 13px!important;
+}
+html.adelia-desktop-teacher body .finance-tabs,
+html.adelia-desktop-teacher body .payments-tabs{margin:0 0 9px!important}
+html.adelia-desktop-teacher body .finance-overview-toolbar{padding:10px 12px!important}
+html.adelia-desktop-teacher body .health-grid{gap:8px!important}
+html.adelia-desktop-teacher body .health-card{min-height:66px!important;padding:10px 12px!important}
+html.adelia-desktop-teacher body .tb-grid{gap:10px!important}
+html.adelia-desktop-teacher body .tb-card{padding:10px 12px!important;margin-bottom:8px!important}
