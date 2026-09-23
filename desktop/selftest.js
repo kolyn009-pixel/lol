@@ -110,6 +110,8 @@ check(readRepo('web/desktop_teacher_app.css').includes('html.adelia-desktop-teac
 check(web.desktopManifest.includes('desktop_teacher_density.js'),'teacher density runtime bundled only for teacher desktop');
 check(readRepo('web/desktop_teacher_density.js').includes('data-adelia-desktop-density')||readRepo('web/desktop_teacher_density.js').includes('adeliaDesktopDensity'),'teacher density runtime leaves diagnostic marker');
 check(readRepo('web/desktop_teacher_density.js').includes('MutationObserver')&&readRepo('web/desktop_teacher_density.js').includes("setProperty(prop,val,'important')"),'teacher density runtime survives SPA rerenders');
+check(readRepo('web/desktop_teacher_app.css').includes('Desktop teacher contrast system')&&readRepo('web/desktop_teacher_app.css').includes("color:#fff!important")&&readRepo('web/desktop_teacher_app.css').includes("color:#211d2a!important"),'teacher desktop contrast system covers dark heroes and light work cards');
+check(readRepo('web/desktop_teacher_density.js').includes("linear-gradient(135deg,#242943,#343966)")&&readRepo('web/desktop_teacher_density.js').includes("rgba(255,255,255,.82)")&&readRepo('web/desktop_teacher_density.js').includes("#211d2a"),'teacher desktop runtime reapplies readable contrast after rerenders');
 
 check(files.startCss.includes('prefers-reduced-motion'),'start screen respects reduced motion');
 check(files.offline.includes('Нет подключения')&&files.offline.includes('Аделия продолжит проверять соединение')&&files.offline.includes('Проверить подключение'),'branded offline screen');
