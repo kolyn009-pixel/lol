@@ -145,7 +145,11 @@ echo "===== 7B. DESKTOP STATIC SELFTEST ====="
 "$PYTHON" rc_desktop_static_selftest.py
 
 echo
-echo "===== 7C. DESKTOP NODE SELFTEST ====="
+echo "===== 7C. POST-LESSON LIFECYCLE SELFTEST ====="
+"$PYTHON" rc_post_lesson_lifecycle_selftest.py
+
+echo
+echo "===== 7D. DESKTOP NODE SELFTEST ====="
 if command -v node >/dev/null 2>&1; then
   if [ -f desktop/selftest.js ]; then
     node desktop/selftest.js
