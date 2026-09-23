@@ -135,6 +135,7 @@ check(web.group.includes("if(status==='STARTED')return['Доступ откры�
 check(web.event.includes("e.status==='IN_PROGRESS'?'Доступ открыт — ждём первого ученика'")&&web.event.includes('Фактический таймер ещё не запущен'),'event UI separates access from factual timer');
 for(const [name,source] of Object.entries({individual:web.individual,group:web.group,event:web.event,telemost_settings:web.telemostSettings}))check(!source.includes('MutationObserver'),`no persistent MutationObserver in ${name}`);
 
+check(web.app.includes('startupHomework')&&web.app.includes('bootStudentRoute')&&web.app.includes('afterStudentLogin'),'student homework deep links survive auth and boot routing');
 check(web.student.includes('/app/student_clean.css'),'student clean shell linked');
 check(web.teacher.includes('/app/teacher_clean.css')&&web.teacher.includes('/app/teacher_clean7.css'),'teacher clean7 shell linked');
 check(web.parent.includes('/app/parent/parent_clean.css'),'parent clean shell linked');
