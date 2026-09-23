@@ -46,3 +46,7 @@ jobs:
         run: python rc_day_off_selftest.py
       - name: Unified isolated release selftest
         run: python rc_release_selftest.py
+      - name: Post-lesson lifecycle static selftest
+        run: python rc_post_lesson_lifecycle_selftest.py
+      - name: Desktop static selftest
+        run: python rc_desktop_static_selftest.py
