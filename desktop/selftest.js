@@ -105,6 +105,9 @@ check(files.startJs.includes('проверить камеру и звук')&&fil
 check(files.startHtml.includes('./build/icon.png')&&files.startHtml.includes('start.js')&&files.startHtml.includes('start.css'),'branded start assets linked');
 check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start screen styles present');
 check(pkg.build.files.includes('bundled_ui_manifest.js'),'desktop bundled UI manifest packaged');
+check(files.bundledUi.includes("catch(()=>false)")&&files.bundledUi.includes("adelia-desktop-")&&files.bundledUi.includes("did-navigate-in-page")&&files.bundledUi.includes("setTimeout(run,900)"),'desktop bundled UI injection retries and marks role only after load');
+check(readRepo('web/desktop_teacher_app.css').includes('html.adelia-desktop-teacher')&&readRepo('web/desktop_teacher_app.css').includes('width:min(100%,520px)'), 'teacher desktop compact workspaces are marker-scoped');
+
 check(files.startCss.includes('prefers-reduced-motion'),'start screen respects reduced motion');
 check(files.offline.includes('Нет подключения')&&files.offline.includes('Аделия продолжит проверять соединение')&&files.offline.includes('Проверить подключение'),'branded offline screen');
 check(files.network.includes("loadFile(offlineFile())")&&files.network.includes('setInterval'),'offline reconnect loop');
