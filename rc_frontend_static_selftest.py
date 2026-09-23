@@ -136,6 +136,16 @@ require("_normalize_regular_edits" in schedule_backend, "teacher region change d
 require("_apply_regular_edits" in schedule_backend, "teacher region change does not apply explicit regular schedule edits")
 require("_convert_regular_rows_for_timezone" not in schedule_backend, "teacher region change still auto-rebases regular schedules")
 
+finance_ui = text(WEB / "teacher_finance.js")
+finance_api = text(ROOT / "web_backend" / "stage8_api.py")
+finance_reporting = text(ROOT / "web_backend" / "finance_reporting.py")
+require("✓ Занятие оплачено" in finance_ui and "/teacher/finance/lesson/paid" in finance_ui, "teacher mark-paid control missing")
+require("/api/teacher/finance/lesson/paid" in finance_api, "teacher mark-paid API route missing")
+require("def mark_lesson_paid" in finance_reporting and "confirm_manual_lesson_payment" in finance_reporting, "teacher mark-paid action bypasses canonical payment lifecycle")
+require("_closed_by_exception" in trial_slots, "public trial slots ignore day-close exceptions")
+onboarding_slots = text(ROOT / "web_backend" / "onboarding_schedule_options.py")
+require("_closed_by_exception" in onboarding_slots, "onboarding slots ignore day-close exceptions")
+
 for required in (
     "bootstrap.js", "main.js", "preload.js", "lesson_workspace.js",
     "desktop_ux.js", "lesson_layout.js", "role_startup.js",
