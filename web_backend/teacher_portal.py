@@ -23,7 +23,7 @@ def _teacher_now():
 def _week_bounds(now):
  monday=now.date()-timedelta(days=now.weekday());start=datetime.combine(monday,datetime.min.time());end=start+timedelta(days=7);return start.isoformat(timespec='seconds'),end.isoformat(timespec='seconds')
 def _lesson_select():
- return "SELECT l.id,l.start_time,l.end_time,l.subject,l.study_goal,l.lesson_status,l.payment_status,l.price,l.attendance_intent_status,l.attendance_intent_at,l.meeting_url,l.meeting_link_sent_at,u.id user_id,u.name,u.grade,pw.risk_notified_at payment_risk_notified_at,pw.teacher_wait_confirmed_at payment_wait_confirmed_at FROM lessons l JOIN users u ON u.id=l.user_id LEFT JOIN lesson_payment_wait_overrides pw ON pw.lesson_id=l.id "
+ return "SELECT l.id,l.start_time,l.end_time,l.subject,l.study_goal,l.lesson_status,l.payment_status,l.price,l.attendance_intent_status,l.attendance_intent_at,l.meeting_url,l.meeting_link_sent_at,u.id user_id,u.name,u.grade,u.board_url,pw.risk_notified_at payment_risk_notified_at,pw.teacher_wait_confirmed_at payment_wait_confirmed_at FROM lessons l JOIN users u ON u.id=l.user_id LEFT JOIN lesson_payment_wait_overrides pw ON pw.lesson_id=l.id "
 def dashboard():
  def load():
   from web_backend import lesson_join
