@@ -61,3 +61,6 @@
 .desktop-teacher-v2 .today-desktop-modal-actions button{min-width:94px;min-height:35px;border-radius:10px}
 .desktop-teacher-v2 .today-desktop-modal-state{padding:0 20px 14px;font-size:11px}
 .desktop-teacher-v2 .today-desktop-modal-state .error{color:#9d4545}.desktop-teacher-v2 .today-desktop-modal-state .notice{color:#34704a}
+
+.desktop-teacher-v2 .teacher-dashboard-v2 .today-next-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:7px}
+.desktop-teacher-v2 .teacher-dashboard-v2 .today-next-actions button{min-height:31px;padding:6px 10px;border-radius:9px;font-size:11px}
