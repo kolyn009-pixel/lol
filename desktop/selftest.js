@@ -95,7 +95,7 @@ check(files.bootstrap.includes("require('./role_startup').install()"),'role choo
 check(files.role.includes("loadFile(path.join(__dirname,'start.html'))"),'role chooser loads packaged start screen');
 check(files.role.includes("'/api/auth/teacher/code'"),'teacher code login wired');
 check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
-check(files.workspace.includes("u.pathname==='/app/teacher.html'")&&read('bundled_ui.js').includes("pathname==='/app/teacher.html'"),'canonical teacher redirect remains desktop teacher role');
+check(files.workspace.includes("u.pathname.startsWith('/teacher')")&&files.workspace.includes("u.pathname==='/app/teacher.html'")&&read('bundled_ui.js').includes("pathname.startsWith('/teacher')")&&read('bundled_ui.js').includes("pathname==='/app/teacher.html'"),'canonical teacher routes remain desktop teacher role');
 check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("role==='teacher'")&&files.role.includes("role==='parent'")&&files.role.includes("role==='student'"),'authenticated desktop role is restored');
 check(files.startJs.includes('teacherLogin')&&files.startJs.includes('openStudentLogin')&&files.startJs.includes('openParentCabinet'),'role actions wired');
 check(files.startJs.includes("FIRST_RUN_KEY='adelia.desktop.welcome.v1'")&&files.startJs.includes('welcomeContinue'),'first-run welcome is one-time');
