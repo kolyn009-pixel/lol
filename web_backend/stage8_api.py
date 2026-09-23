@@ -2,7 +2,7 @@
 from __future__ import annotations
 from web_backend.finance_pricing import list_prices,set_price,list_overrides,list_packages,save_package,history
 from web_backend.finance_price_sync import set_override,delete_override,quote,package_quote
-from web_backend.finance_reporting import dashboard,student_finance,calendar_analytics
+from web_backend.finance_reporting import dashboard,student_finance,calendar_analytics,mark_lesson_paid
 from web_backend.finance_receipts import list_receipts,summary as receipt_summary,review as review_receipt
 from web_backend import teacher_invoices
 
@@ -35,6 +35,7 @@ class Stage8Mixin:
         if body is None:return self._json(400,{'error':'invalid_json'})
         try:
             if path=='/api/teacher/finance/invoice':return self._json(200,teacher_invoices.issue(body.get('lesson_id')))
+            if path=='/api/teacher/finance/lesson/paid':return self._json(200,mark_lesson_paid(body.get('lesson_id'),body.get('amount')))
             if path=='/api/teacher/finance/receipt/review':return self._json(200,review_receipt(body.get('payment_id'),body.get('action')))
             if path=='/api/teacher/finance/price':return self._json(200,set_price(body.get('tariff_key'),body.get('amount'),body.get('title'),body.get('subject'),body.get('education_type'),body.get('study_goal'),body.get('duration_minutes',60),body.get('active',True)))
             if path=='/api/teacher/finance/override':return self._json(200,set_override(body.get('user_id'),body.get('tariff_key'),body.get('amount'),body.get('note'),body.get('active',True)))
