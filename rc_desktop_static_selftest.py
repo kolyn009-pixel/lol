@@ -166,7 +166,7 @@ require("confirm(" not in teacher_dashboard and "alert(" not in teacher_dashboar
 require("showTodayToast" in teacher_dashboard and "today-desktop-toast" in teacher_dashboard_css, "Today desktop actions use in-app feedback")
 require("data-desktop-finish" in teacher_dashboard and "/teacher/lesson/finish" in teacher_dashboard, "Today live lesson uses canonical finish lifecycle")
 require("endLessonWorkspace()" in teacher_dashboard, "Today finish closes desktop lesson workspace")
-require("postLesson" in teacher_dashboard and "data-live-start" in teacher_dashboard, "Today finish hands off to post-lesson and live timer")
+require("typeof window.lesson==='function')window.lesson(id)" in teacher_dashboard and "data-live-start" in teacher_dashboard, "Today finish reopens canonical lesson/post-lesson route and live timer")
 require("dashboard-lesson-card.is-live" in teacher_dashboard_css, "Today live lesson has desktop visual state")
 require("l.started_at" in teacher_portal and "l.finished_at" in teacher_portal, "teacher dashboard exposes live lesson timing")
 require("today-desktop-modal" in teacher_dashboard_css and "desktop-teacher-v2" in teacher_dashboard_css, "Today dialogs are desktop scoped")
