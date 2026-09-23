@@ -107,6 +107,9 @@ check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start
 check(pkg.build.files.includes('bundled_ui_manifest.js'),'desktop bundled UI manifest packaged');
 check(files.bundledUi.includes("catch(()=>false)")&&files.bundledUi.includes("adelia-desktop-")&&files.bundledUi.includes("did-navigate-in-page")&&files.bundledUi.includes("setTimeout(run,900)"),'desktop bundled UI injection retries and marks role only after load');
 check(readRepo('web/desktop_teacher_app.css').includes('html.adelia-desktop-teacher')&&readRepo('web/desktop_teacher_app.css').includes('width:min(100%,520px)'), 'teacher desktop compact workspaces are marker-scoped');
+check(web.desktopManifest.includes('desktop_teacher_density.js'),'teacher density runtime bundled only for teacher desktop');
+check(readRepo('web/desktop_teacher_density.js').includes('data-adelia-desktop-density')||readRepo('web/desktop_teacher_density.js').includes('adeliaDesktopDensity'),'teacher density runtime leaves diagnostic marker');
+check(readRepo('web/desktop_teacher_density.js').includes('MutationObserver')&&readRepo('web/desktop_teacher_density.js').includes("setProperty(prop,val,'important')"),'teacher density runtime survives SPA rerenders');
 
 check(files.startCss.includes('prefers-reduced-motion'),'start screen respects reduced motion');
 check(files.offline.includes('Нет подключения')&&files.offline.includes('Аделия продолжит проверять соединение')&&files.offline.includes('Проверить подключение'),'branded offline screen');
