@@ -39,6 +39,21 @@ def _recurring_busy(weekday,start_min,end_min):
         c.close()
 
 
+def _closed_by_exception(day,start_min,end_min):
+    for raw in database.get_schedule_exceptions(day.isoformat()):
+        row=dict(raw)
+        if str(row.get('exception_type') or '').upper()!='CLOSED':
+            continue
+        if not row.get('start_time') and not row.get('end_time'):
+            return True
+        if not row.get('start_time') or not row.get('end_time'):
+            continue
+        cs=_minutes(row['start_time']);ce=_minutes(row['end_time'])
+        if start_min<ce and cs<end_min:
+            return True
+    return False
+
+
 def feed(token):
     if str(database.get_setting('teacher_schedule_booking_paused','0') or '0').lower() in {'1','true','on','yes'}:
         state=student_onboarding.status_payload(token)
@@ -58,7 +73,7 @@ def feed(token):
         for hours in database.get_effective_working_hours(day):
             ws=_minutes(hours['start_time']);we=_minutes(hours['end_time']);cur=ws
             while cur+DURATION_MINUTES<=we:
-                if not _recurring_busy(weekday,cur,cur+DURATION_MINUTES):
+                if not _closed_by_exception(day,cur,cur+DURATION_MINUTES) and not _recurring_busy(weekday,cur,cur+DURATION_MINUTES):
                     h,m=divmod(cur,60)
                     teacher_dt=datetime(day.year,day.month,day.day,h,m,tzinfo=teacher_tz)
                     local_dt=teacher_dt.astimezone(client_tz)
