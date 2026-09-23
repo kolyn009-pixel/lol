@@ -13,10 +13,15 @@ function apply(){
     el.querySelectorAll('p,span,small,.muted,.sub,.meta').forEach(x=>{S(x,'color','rgba(255,255,255,.82)');S(x,'opacity','1')});
     el.querySelectorAll('.v4-kicker,.health-kicker,.badge').forEach(x=>{S(x,'color','#d9d4ff');S(x,'opacity','1')});
   });
-  document.querySelectorAll('.panel,.row,.card,.v4-empty-state,.health-card,.health-panel,.health-google,.tb-card,.finance-overview-toolbar,.dashboard-panel').forEach(el=>{
+  document.querySelectorAll('.panel,.row,.card,.v4-empty-state,.health-card:not(.health-card-primary),.health-panel,.health-google,.tb-card,.finance-overview-toolbar,.dashboard-panel').forEach(el=>{
     S(el,'color','#211d2a');
     el.querySelectorAll('h1,h2,h3,h4,b,strong').forEach(x=>S(x,'color','#211d2a'));
     el.querySelectorAll('p,small,.muted,.sub,.meta').forEach(x=>S(x,'color','#6f6878'));
+  });
+  document.querySelectorAll('.health-card-primary,.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero').forEach(el=>{
+    S(el,'color','#fff');
+    el.querySelectorAll('h1,h2,h3,h4,b,strong').forEach(x=>{S(x,'color','#fff');S(x,'opacity','1')});
+    el.querySelectorAll('p,span,small,.muted,.sub,.meta').forEach(x=>{S(x,'color','rgba(255,255,255,.84)');S(x,'opacity','1')});
   });
 
   document.querySelectorAll('.v4-page-head,.finance-head:not(.compact),.health-hero').forEach(el=>{
