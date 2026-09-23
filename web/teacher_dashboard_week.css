@@ -64,3 +64,8 @@
 
 .desktop-teacher-v2 .teacher-dashboard-v2 .today-next-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:7px}
 .desktop-teacher-v2 .teacher-dashboard-v2 .today-next-actions button{min-height:31px;padding:6px 10px;border-radius:9px;font-size:11px}
+
+.desktop-teacher-v2 .today-modal-confirm-copy{margin:0;color:#51495d;font-size:13px;line-height:1.55}
+.desktop-teacher-v2 .today-desktop-toast{position:fixed;right:22px;bottom:22px;z-index:12500;max-width:380px;padding:11px 14px;border:1px solid #d9e8dc;border-radius:12px;background:#f6fff8;color:#326342;box-shadow:0 14px 42px rgba(39,31,53,.18);font-size:12px;font-weight:700;opacity:0;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease}
+.desktop-teacher-v2 .today-desktop-toast.error{border-color:#ecd9d9;background:#fff8f8;color:#8b4242}
+.desktop-teacher-v2 .today-desktop-toast.show{opacity:1;transform:translateY(0)}
