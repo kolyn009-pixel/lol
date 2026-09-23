@@ -11,20 +11,30 @@ function roleFor(pathname){
   return null;
 }
 async function inject(win){
- if(!win||win.isDestroyed())return;
- let u;try{u=new URL(win.webContents.getURL())}catch{return}
+ if(!win||win.isDestroyed())return false;
+ let u;try{u=new URL(win.webContents.getURL())}catch{return false}
  const origin=new URL(process.env.ADELIA_DESKTOP_URL||'https://adeliatutor.ru/app/').origin;
- if(u.origin!==origin)return;
- const role=roleFor(u.pathname);if(!role||!manifest[role])return;
+ if(u.origin!==origin)return false;
+ const role=roleFor(u.pathname);if(!role||!manifest[role])return false;
  const marker='__adeliaBundledUi_'+role;
- const done=await win.webContents.executeJavaScript(`Boolean(window.${marker})`,true).catch(()=>true);
- if(done)return;
- await win.webContents.executeJavaScript(`window.${marker}=true`,true);
+ const done=await win.webContents.executeJavaScript(`Boolean(window.${marker})`,true).catch(()=>false);
+ if(done)return true;
+ await win.webContents.executeJavaScript(`document.documentElement.classList.add('adelia-desktop','adelia-desktop-${role}');document.body&&document.body.classList.add('adelia-desktop','adelia-desktop-${role}')`,true);
  for(const name of manifest[role].css)await win.webContents.insertCSS(source(name));
  for(const name of manifest[role].js)await win.webContents.executeJavaScript(source(name),true);
+ await win.webContents.executeJavaScript(`window.${marker}=true;window.dispatchEvent(new CustomEvent('adelia:desktop-ui-ready',{detail:{role:'${role}'}}))`,true);
+ return true;
+}
+function scheduleInject(win){
+ const run=()=>inject(win).catch(e=>{console.warn('[desktop-ui]',e.message);return false});
+ run().then(ok=>{if(!ok&&!win.isDestroyed())setTimeout(run,250)});
+ if(!win.isDestroyed())setTimeout(run,900);
 }
 function install(){
  if(installed)return;installed=true;
- app.on('browser-window-created',(_e,win)=>win.webContents.on('did-finish-load',()=>inject(win).catch(e=>console.warn('[desktop-ui]',e.message))));
+ app.on('browser-window-created',(_e,win)=>{
+   win.webContents.on('did-finish-load',()=>scheduleInject(win));
+   win.webContents.on('did-navigate-in-page',()=>scheduleInject(win));
+ });
 }
 module.exports={install};
