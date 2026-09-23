@@ -70,6 +70,20 @@ def _working_spans(day, rows, tz):
     return spans
 
 
+def _closed_by_exception(conn, day, start_dt, end_dt):
+    rows=conn.execute("""SELECT start_time,end_time FROM schedule_exceptions WHERE date=? AND exception_type='CLOSED'""",(day.isoformat(),)).fetchall()
+    for row in rows:
+        if not row['start_time'] and not row['end_time']:
+            return True
+        if not row['start_time'] or not row['end_time']:
+            continue
+        closed_start=_working_dt(day,row['start_time'],start_dt.tzinfo)
+        closed_end=_working_dt(day,row['end_time'],start_dt.tzinfo)
+        if start_dt < closed_end and end_dt > closed_start:
+            return True
+    return False
+
+
 def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
     if str(database.get_setting('teacher_schedule_booking_paused','0') or '0').lower() in {'1','true','on','yes'}:
         return {'timezone': str(timezone_name or 'Europe/Moscow'), 'teacher_timezone': str(database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara'), 'duration_minutes': int(duration_minutes or DEFAULT_DURATION), 'items': [], 'booking_paused': True}
@@ -96,7 +110,7 @@ def feed(timezone_name, days=14, duration_minutes=DEFAULT_DURATION):
                     finish = cur + timedelta(minutes=duration)
                     teacher_start = cur.replace(tzinfo=None)
                     teacher_end = finish.replace(tzinfo=None)
-                    if cur > now_teacher + timedelta(minutes=30) and availability_guard.is_available_from_snapshot(
+                    if cur > now_teacher + timedelta(minutes=30) and not _closed_by_exception(conn, day, cur, finish) and availability_guard.is_available_from_snapshot(
                         teacher_start, teacher_end, snapshot
                     ):
                         local_start = cur.astimezone(client_tz)
