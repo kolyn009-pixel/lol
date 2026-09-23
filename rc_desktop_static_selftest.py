@@ -160,6 +160,8 @@ require("data-desktop-paid" in teacher_dashboard and "/teacher/finance/lesson/pa
 require("function desktopModal" in teacher_dashboard and "data-today-message" in teacher_dashboard and "data-today-reschedule" in teacher_dashboard, "Today desktop actions use in-app dialogs")
 require("prompt(" not in teacher_dashboard, "Today desktop action center has no browser prompts")
 require("today-desktop-modal" in teacher_dashboard_css and "desktop-teacher-v2" in teacher_dashboard_css, "Today dialogs are desktop scoped")
+require("today-next-actions" in teacher_dashboard and "today-next-actions" in teacher_dashboard_css, "nearest lesson has desktop action center")
+require("next.meeting_url" in teacher_dashboard and "next.board_url" in teacher_dashboard, "nearest lesson exposes existing Telemost and board tools")
 require("desktop-teacher-v2" in teacher_dashboard_css and "desktop-lesson-tool" in teacher_dashboard_css, "Today desktop action styling isolated")
 
 require("/app/student_clean.css" in student, "student clean shell linked")
