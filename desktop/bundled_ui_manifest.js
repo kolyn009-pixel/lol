@@ -6,7 +6,7 @@ module.exports={
   },
   teacher:{
     css:['teacher_v4.css','teacher_v5.css','desktop_teacher_app.css','desktop_lesson_workspace.css'],
-    js:['teacher_v4.js','teacher_groups.js','teacher_v5_runtime.js','desktop_lesson_workspace.js']
+    js:['teacher_v4.js','teacher_groups.js','teacher_v5_runtime.js','desktop_lesson_workspace.js','desktop_teacher_density.js']
   },
   parent:{
     css:['parent/app.css','desktop_parent_app.css'],
