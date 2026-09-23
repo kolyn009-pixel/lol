@@ -97,6 +97,8 @@ check(files.role.includes("'/api/auth/teacher/code'"),'teacher code login wired'
 check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
 check(files.workspaceShell.includes("u.pathname.startsWith('/teacher')")&&files.workspaceShell.includes("u.pathname==='/app/teacher.html'")&&files.bundledUi.includes("pathname.startsWith('/teacher')")&&files.bundledUi.includes("pathname==='/app/teacher.html'"),'canonical teacher routes remain desktop teacher role');
 check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("role==='teacher'")&&files.role.includes("role==='parent'")&&files.role.includes("role==='student'"),'authenticated desktop role is restored');
+check(files.main.includes("createWindow(startupDeep ? parseDeepLink(startupDeep).target : null)")&&files.main.includes("if (!startupDeep) await restoreMainRole()")&&files.main.includes("win.loadFile(path.join(__dirname,'start.html'))"),'desktop startup is role-gated before remote cabinet load');
+check(files.network.includes("require('./role_startup').restoreAuthenticatedRole()")&&!files.network.includes("win.loadURL(APP_URL).catch"),'desktop reconnect restores authenticated role instead of forcing student cabinet');
 check(files.startJs.includes('teacherLogin')&&files.startJs.includes('openStudentLogin')&&files.startJs.includes('openParentCabinet'),'role actions wired');
 check(files.startJs.includes("FIRST_RUN_KEY='adelia.desktop.welcome.v1'")&&files.startJs.includes('welcomeContinue'),'first-run welcome is one-time');
 check(files.startJs.includes('проверить камеру и звук')&&files.startJs.includes('технический отчёт'),'first-run explains lesson readiness and support');
