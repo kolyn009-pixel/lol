@@ -90,13 +90,17 @@ function parseDeepLink(raw) {
   return { route, id, target: routeUrl(route, id) };
 }
 function deepLinkFromArgv(argv) { return (argv || []).find(x => typeof x === 'string' && x.toLowerCase().startsWith(`${PROTOCOL}://`)); }
-function showMain(target = APP_URL) {
+function restoreMainRole() {
+  try { return require('./role_startup').restoreAuthenticatedRole(); } catch (_) { return Promise.resolve(false); }
+}
+function showMain(target = null) {
   if (!mainWindow || mainWindow.isDestroyed()) createWindow(target);
   else {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
     if (target && trustedApp(target) && mainWindow.webContents.getURL() !== target) mainWindow.loadURL(target);
+    else if (!target) restoreMainRole().catch(() => {});
   }
 }
 function handleDeepLink(raw) { const link = parseDeepLink(raw); if (!link) return false; showMain(link.target); return true; }
@@ -259,7 +263,7 @@ function setupAutoUpdates() {
   const check=()=>{if(updateBusy||lessonWindows.size>0)return;autoUpdater.checkForUpdates().catch(()=>{});}; setTimeout(check,15000); updateTimer=setInterval(check,UPDATE_CHECK_MS);
 }
 
-function createWindow(initialUrl = APP_URL) {
+function createWindow(initialUrl = null) {
   const restored=savedMainBounds();
   const win=new BrowserWindow({width:restored?.width||1280,height:restored?.height||820,...(restored?{x:restored.x,y:restored.y}:{}),minWidth:900,minHeight:620,show:false,backgroundColor:'#ffffff',title:'Аделия',webPreferences:{preload:path.join(__dirname,'preload.js'),partition:'persist:adelia',contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,backgroundThrottling:true}}); mainWindow=win;
   win.webContents.setWindowOpenHandler(({url})=>{if(trustedApp(url)){win.loadURL(url);return{action:'deny'};}if(trustedChild(url)){openMeetingWindow(url);return{action:'deny'};}if(trustedBoard(url)){openBoardWindow(url);return{action:'deny'};}openExternalSafe(url);return{action:'deny'};});
@@ -271,7 +275,8 @@ function createWindow(initialUrl = APP_URL) {
   win.on('resize',queueBoundsSave);win.on('move',queueBoundsSave);
   win.on('close',event=>{ rememberMainBounds(win); if (!isQuitting && prefsWithDefaults().closeToTray) { event.preventDefault(); win.hide(); } });
   win.on('closed',()=>{closeLessonWindows();if(mainWindow===win)mainWindow=null;});
-  win.loadURL(trustedApp(initialUrl) ? initialUrl : APP_URL);
+  if (initialUrl && trustedApp(initialUrl)) win.loadURL(initialUrl);
+  else win.loadFile(path.join(__dirname,'start.html'));
   return win;
 }
 
@@ -281,7 +286,7 @@ if (!gotSingleInstanceLock) {
 } else {
   app.on('second-instance', (_event, argv) => {
     const deep = deepLinkFromArgv(argv);
-    if (deep) handleDeepLink(deep); else showMain(APP_URL);
+    if (deep) handleDeepLink(deep); else showMain();
   });
   app.on('open-url', (event, url) => { event.preventDefault(); handleDeepLink(url); });
 
@@ -323,10 +328,11 @@ if (!gotSingleInstanceLock) {
 
     createTray();
     const startupDeep = deepLinkFromArgv(process.argv);
-    createWindow(startupDeep ? parseDeepLink(startupDeep).target : APP_URL);
+    createWindow(startupDeep ? parseDeepLink(startupDeep).target : null);
+    if (!startupDeep) await restoreMainRole();
     await maybeOfferAutostart();
     setupAutoUpdates();
-    app.on('activate',()=>showMain(APP_URL));
+    app.on('activate',()=>showMain());
   });
 }
 
