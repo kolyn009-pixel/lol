@@ -97,12 +97,12 @@ for name in (
 ):
     require(name in packaged, f"packaged {name}")
 
-require("brand=path.join(__dirname,'..','brand','adelia_icon')" in icon_sync and "['adelia-icon-512.png','icon.png']" in icon_sync, "desktop canonical icon source")
+require("brand=path.join(__dirname,'..','brand','adelia_icon')" in icon_sync and "source=path.join(brand,'adelia-icon-512.png')" in icon_sync, "desktop canonical icon source")
 require("https.get" not in icon_sync and "ADELIA_DESKTOP_ICON_URL" not in icon_sync, "desktop icon source cannot fall back to stale server artwork")
-require("roundedRect" not in icon_sync, "desktop icon is not generated artwork")
-require("adelia-icon-macos.icns" in icon_sync and "adelia-icon-windows.ico" in icon_sync, "native platform icon assets synced")
+require("artworkBounds" in icon_sync and "nativeIcon" in icon_sync and "out.data[di+3]=255" in icon_sync, "desktop native icon crops artwork onto transparent canvas")
+require("png2icons.createICNS" in icon_sync and "png2icons.createICO" in icon_sync, "native platform icon assets generated")
 bundled_ui = read(DESKTOP / "bundled_ui.js")
-require("logo.dataset.adeliaDesktopBrand='canonical'" in bundled_ui and "path.join(__dirname,'build','icon.png')" in bundled_ui and "data:image/png;base64" in bundled_ui, "teacher desktop shell uses packaged canonical logo")
+require("logo.dataset.adeliaDesktopBrand='canonical'" in bundled_ui and "path.join(__dirname,'build','icon-macos.png')" in bundled_ui and "data:image/png;base64" in bundled_ui, "teacher desktop shell uses packaged transparent native logo")
 require("https://adeliatutor.ru/app/" in main, "desktop opens Adelia origin")
 require("contextIsolation:true" in main or "contextIsolation: true" in main, "context isolation")
 require("nodeIntegration:false" in main or "nodeIntegration: false" in main, "node integration disabled")
