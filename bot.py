@@ -4331,21 +4331,10 @@ async def lesson_reminder_job(
         )
     )
 
-    start_dt = (
-        datetime.fromisoformat(
-            lesson[
-                "start_time"
-            ]
-        )
-    )
-
-    if start_dt.tzinfo is None:
-
-        start_dt = (
-            start_dt.replace(
-                tzinfo=TIMEZONE
-            )
-        )
+    # Lesson timestamps belong to the canonical schedule timezone. Runtime
+    # timezone only controls when bot jobs execute, never what a lesson means.
+    from core.lesson_time import schedule_datetime
+    start_dt = schedule_datetime(lesson["start_time"])
 
     period_names = {
         "LESSON_24H": "через сутки",
