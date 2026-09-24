@@ -59,7 +59,10 @@
       "preload.js",
       "package.json",
       "verify_icon.js",
-      "build/icon.png"
+      "build/icon.png",
+      "build/icon.icns",
+      "build/icon.ico",
+      "build/icon-macos.png"
     ],
     "directories": {
       "output": "dist",
@@ -85,7 +88,7 @@
         "nsis"
       ],
       "requestedExecutionLevel": "asInvoker",
-      "icon": "build/icon.png"
+      "icon": "build/icon.ico"
     },
     "mac": {
       "target": [
@@ -93,7 +96,7 @@
         "zip"
       ],
       "category": "public.app-category.education",
-      "icon": "build/icon.png",
+      "icon": "build/icon.icns",
       "identity": null,
       "extendInfo": {
         "NSCameraUsageDescription": "Аделии нужен доступ к камере для проверки перед онлайн-занятием.",
@@ -128,9 +131,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Аделия",
-      "installerIcon": "build/icon.png",
-      "uninstallerIcon": "build/icon.png",
-      "installerHeaderIcon": "build/icon.png",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
       "differentialPackage": true
