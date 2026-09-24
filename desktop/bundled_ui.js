@@ -23,7 +23,7 @@ async function inject(win){
  for(const name of manifest[role].css)await win.webContents.insertCSS(source(name));
  for(const name of manifest[role].js)await win.webContents.executeJavaScript(source(name),true);
  if(role==='teacher'){
- const brandIcon=fs.readFileSync(path.join(__dirname,'build','icon.png')).toString('base64');
+ const brandIcon=fs.readFileSync(path.join(__dirname,'build','icon-macos.png')).toString('base64');
  await win.webContents.executeJavaScript(`
    (function(){
      const logo=document.querySelector('aside .brand img');
