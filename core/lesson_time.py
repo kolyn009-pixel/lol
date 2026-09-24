@@ -9,13 +9,16 @@ import database
 def lesson_timezone() -> ZoneInfo:
     """Return the timezone used by lesson schedule timestamps."""
     try:
-        name = database.get_setting("bot_timezone", "Europe/Samara")
+        # Scheduled lesson wall-clock values are stored in the canonical
+        # schedule timezone. Keep this separate from the bot/runtime timezone:
+        # changing where the bot process runs must never shift a lesson.
+        name = database.get_setting("schedule_timezone", "Europe/Moscow")
     except Exception:
-        name = "Europe/Samara"
+        name = "Europe/Moscow"
     try:
-        return ZoneInfo(str(name or "Europe/Samara"))
+        return ZoneInfo(str(name or "Europe/Moscow"))
     except Exception:
-        return ZoneInfo("Europe/Samara")
+        return ZoneInfo("Europe/Moscow")
 
 
 def schedule_datetime(raw) -> datetime:
