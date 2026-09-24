@@ -76,6 +76,9 @@ require(bool(protocols) and "adelia" in (protocols[0].get("schemes") or []), "ad
 require("nsis" in ((build.get("win") or {}).get("target") or []), "Windows NSIS target")
 mac_targets = (build.get("mac") or {}).get("target") or []
 require("dmg" in mac_targets and "zip" in mac_targets, "macOS DMG + ZIP targets")
+require((build.get("mac") or {}).get("icon") == "build/icon.icns", "macOS package uses native ICNS")
+require((build.get("win") or {}).get("icon") == "build/icon.ico", "Windows package uses native ICO")
+require((build.get("nsis") or {}).get("installerIcon") == "build/icon.ico", "Windows installer uses native ICO")
 scripts = pkg.get("scripts") or {}
 require(scripts.get("sync:icon") == "node generate_assets.js", "canonical icon sync script")
 require("npm run sync:icon" in scripts.get("selftest", ""), "selftest syncs canonical icon")
@@ -90,13 +93,16 @@ for name in (
     "bootstrap.js","system_polish.js","network_ux.js","offline.html",
     "lesson_workspace.js","desktop_ux.js","lesson_layout.js","role_startup.js",
     "start.html","start.css","start.js","main.js","preload.js","package.json",
-    "build/icon.png",
+    "build/icon.png","build/icon.icns","build/icon.ico","build/icon-macos.png",
 ):
     require(name in packaged, f"packaged {name}")
 
 require("'brand', 'adelia_icon', 'adelia-icon-512.png'" in icon_sync, "desktop canonical icon source")
 require("https.get" not in icon_sync and "ADELIA_DESKTOP_ICON_URL" not in icon_sync, "desktop icon source cannot fall back to stale server artwork")
 require("roundedRect" not in icon_sync, "desktop icon is not generated artwork")
+require("adelia-icon-macos.icns" in icon_sync and "adelia-icon-windows.ico" in icon_sync, "native platform icon assets synced")
+bundled_ui = read(DESKTOP / "bundled_ui.js")
+require("data.adeliaDesktopBrand='canonical'" in bundled_ui and "build','icon.png" in bundled_ui, "teacher desktop shell uses packaged canonical logo")
 require("https://adeliatutor.ru/app/" in main, "desktop opens Adelia origin")
 require("contextIsolation:true" in main or "contextIsolation: true" in main, "context isolation")
 require("nodeIntegration:false" in main or "nodeIntegration: false" in main, "node integration disabled")
