@@ -199,3 +199,59 @@ html.adelia-desktop-teacher body #app textarea{
 html.adelia-desktop-teacher body #app .health-grid-v2 .health-card.health-card-primary{background:linear-gradient(135deg,#252a48,#353b68)!important;border-color:#343a63!important;color:#fff!important}
 html.adelia-desktop-teacher body #app .health-grid-v2 .health-card.health-card-primary :is(span,strong,b,h1,h2,h3,h4){color:#fff!important;opacity:1!important;text-shadow:none!important}
 html.adelia-desktop-teacher body #app .health-grid-v2 .health-card.health-card-primary :is(small,p,.muted,.sub,.meta){color:rgba(255,255,255,.78)!important;opacity:1!important}
+
+
+/* Adelia Desktop teacher — unified lavender workspace visual system */
+html.adelia-desktop-teacher body{
+  --ad-bg:#f6f5fb;--ad-card:#fff;--ad-soft:#faf9ff;--ad-line:#ebe8f5;
+  --ad-text:#15132b;--ad-muted:#716c8b;--ad-purple:#6847f5;--ad-purple2:#7b5cff;
+  background:var(--ad-bg)!important;color:var(--ad-text)!important;
+}
+html.adelia-desktop-teacher body .teacher-shell{grid-template-columns:224px minmax(0,1fr)!important;background:var(--ad-bg)!important}
+html.adelia-desktop-teacher body .teacher-shell>aside{background:linear-gradient(180deg,#fbfaff 0%,#f7f5ff 100%)!important;border-right:1px solid var(--ad-line)!important;padding:20px 14px!important}
+html.adelia-desktop-teacher body .teacher-shell>aside nav{gap:5px!important}
+html.adelia-desktop-teacher body .teacher-shell>aside nav button,
+html.adelia-desktop-teacher body .teacher-more summary{min-height:44px!important;border-radius:13px!important;color:#292442!important;font-size:13px!important}
+html.adelia-desktop-teacher body .teacher-shell>aside nav button.active{background:#eee9ff!important;color:#623df2!important;box-shadow:none!important}
+html.adelia-desktop-teacher body .teacher-shell>main{padding:0 20px 32px!important}
+html.adelia-desktop-teacher body .teacher-shell main>header{min-height:68px!important;margin:0 -20px 14px!important;padding:12px 20px!important;background:rgba(250,249,255,.94)!important;border-bottom:1px solid var(--ad-line)!important}
+html.adelia-desktop-teacher body .teacher-shell main>header h1{font-size:27px!important;line-height:1.05!important;color:var(--ad-text)!important}
+html.adelia-desktop-teacher body .header-actions button{border-radius:12px!important;min-height:38px!important}
+html.adelia-desktop-teacher body .teacher-book-student,
+html.adelia-desktop-teacher body button.primary{background:linear-gradient(135deg,var(--ad-purple),#5732f0)!important;border-color:transparent!important;color:#fff!important;box-shadow:0 8px 20px rgba(104,71,245,.18)!important}
+
+/* Cards and controls: same visual language as approved mockup. */
+html.adelia-desktop-teacher body #app :is(.panel,.row,.card,.dashboard-panel,.tb-card,.health-card,.health-panel,.health-google,.finance-overview-toolbar,.v4-empty-state){
+  background:var(--ad-card)!important;border:1px solid var(--ad-line)!important;border-radius:16px!important;box-shadow:0 5px 18px rgba(49,38,91,.035)!important;
+}
+html.adelia-desktop-teacher body #app :is(input,select,textarea){background:#fff!important;border:1px solid #dfdbed!important;border-radius:12px!important;color:var(--ad-text)!important}
+html.adelia-desktop-teacher body #app :is(button,.btn){border-radius:11px!important}
+
+/* Lesson workspace — status/action center first, supporting tools below. */
+html.adelia-desktop-teacher body #app .lesson-hero{
+  background:#fff!important;color:var(--ad-text)!important;border:1px solid var(--ad-line)!important;
+  border-radius:17px!important;padding:16px 18px!important;box-shadow:0 5px 18px rgba(49,38,91,.035)!important;
+}
+html.adelia-desktop-teacher body #app .lesson-hero :is(h1,h2,h3,h4,b,strong){color:var(--ad-text)!important}
+html.adelia-desktop-teacher body #app .lesson-hero :is(p,span,small,.muted,.sub,.meta){color:var(--ad-muted)!important}
+html.adelia-desktop-teacher body #app .lesson-actions{display:grid!important;grid-template-columns:minmax(180px,1.2fr) repeat(2,minmax(150px,1fr))!important;gap:8px!important}
+html.adelia-desktop-teacher body #app .lesson-actions button{min-height:46px!important}
+html.adelia-desktop-teacher body #app .lesson-grid{grid-template-columns:minmax(0,1.45fr) minmax(300px,.75fr)!important;gap:12px!important}
+html.adelia-desktop-teacher body #app .lesson-grid .panel{padding:15px!important}
+html.adelia-desktop-teacher body #app #lessonComment{min-height:118px!important}
+html.adelia-desktop-teacher body #app .lesson-live-tools{gap:10px!important}
+@media(max-width:1120px){html.adelia-desktop-teacher body #app .lesson-grid{grid-template-columns:1fr!important}}
+
+/* Messages — permanent two-pane desktop messenger. */
+html.adelia-desktop-teacher body #app .msg-shell{
+  display:grid!important;grid-template-columns:minmax(300px,360px) minmax(0,1fr)!important;
+  height:calc(100vh - 96px)!important;min-height:600px!important;background:#fff!important;
+  border:1px solid var(--ad-line)!important;border-radius:18px!important;box-shadow:0 8px 28px rgba(49,38,91,.05)!important;
+}
+html.adelia-desktop-teacher body #app .msg-list{min-width:0!important;background:#fbfaff!important;border-right:1px solid var(--ad-line)!important}
+html.adelia-desktop-teacher body #app .msg-thread-head{min-height:64px!important;padding:11px 14px!important;background:#fff!important;border-bottom:1px solid var(--ad-line)!important}
+html.adelia-desktop-teacher body #app .msg-history{padding:16px!important;background:linear-gradient(180deg,#fff,#fbfaff)!important}
+html.adelia-desktop-teacher body #app .msg-compose{padding:11px 13px!important;background:#fff!important;border-top:1px solid var(--ad-line)!important}
+html.adelia-desktop-teacher body #app .msg-compose textarea{min-height:48px!important;max-height:120px!important}
+html.adelia-desktop-teacher body #app .msg-list :is(.active,[aria-selected="true"]){background:#eee9ff!important}
+@media(max-width:980px){html.adelia-desktop-teacher body #app .msg-shell{grid-template-columns:300px minmax(0,1fr)!important}}
