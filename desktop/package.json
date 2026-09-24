@@ -19,7 +19,9 @@
   },
   "devDependencies": {
     "electron": "38.0.0",
-    "electron-builder": "26.0.12"
+    "electron-builder": "26.0.12",
+    "pngjs": "7.0.0",
+    "png2icons": "2.0.1"
   },
   "build": {
     "appId": "ru.adeliatutor.desktop",
