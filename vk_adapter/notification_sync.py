@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import database
 from core import effective_pricing, payment_reminder_routing
+from core.lesson_time import schedule_datetime
 
 SUBJECT_NAMES = {"PHYSICS": "Физика", "CHEMISTRY": "Химия"}
 
@@ -95,11 +96,7 @@ def _due(start_dt, offset, now, grace_minutes=15):
 
 def _lesson_text(user, lesson, reminder_type):
     subject = SUBJECT_NAMES.get(str(lesson["subject"] or "").upper(), str(lesson["subject"] or "Занятие"))
-    start = datetime.fromisoformat(str(lesson["start_time"]))
-    if start.tzinfo is None:
-        start = start.replace(tzinfo=_tz())
-    else:
-        start = start.astimezone(_tz())
+    start = schedule_datetime(lesson["start_time"])
     intros = {
         "LESSON_24H": "💜 Небольшое напоминание\n\nЗавтра у тебя занятие.",
         "LESSON_2H": "⏰ До занятия осталось 2 часа.",
@@ -169,11 +166,7 @@ def tick(send_func):
         if not peer:
             continue
         try:
-            start = datetime.fromisoformat(str(lesson["start_time"]))
-            if start.tzinfo is None:
-                start = start.replace(tzinfo=_tz())
-            else:
-                start = start.astimezone(_tz())
+            start = schedule_datetime(lesson["start_time"])
         except Exception:
             continue
 
