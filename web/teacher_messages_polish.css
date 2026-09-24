@@ -1,3 +1,114 @@
 .msg-shell{grid-template-columns:minmax(270px,340px) minmax(0,1fr);height:calc(100vh - 132px);min-height:600px;border-radius:22px;border:1px solid #ece8f5;box-shadow:0 10px 34px rgba(58,43,97,.04);background:#fff}.msg-sidebar{background:#fbfafe}.msg-list-head,.msg-thread-head{padding:14px 16px;background:#fff}.msg-list-head{position:sticky;top:0;z-index:2}.msg-list-head b,.msg-thread-head b{font-size:14px;color:#342e40}.msg-list-head small,.msg-thread-head small{font-size:10px}.msg-conversations{padding:6px}.msg-person{border:1px solid transparent;border-radius:13px;margin:4px 0;padding:10px 11px;grid-template-columns:36px minmax(0,1fr) auto;gap:9px}.msg-person:hover{background:#f6f3ff}.msg-person.active{background:#efe9ff;border-color:#ded3fb}.msg-avatar{width:36px;height:36px;font-size:12px;background:linear-gradient(145deg,#f0eaff,#e8defe)}.msg-person-main b{font-size:12px;color:#332d3d}.msg-person-main small{font-size:10px}.msg-person-main em{font-size:9px}.msg-person i{font-size:9px;padding:3px 6px}.msg-thread{background:#faf9fc}.msg-thread-head{min-height:58px}.msg-history{padding:16px 18px;gap:8px;background:linear-gradient(180deg,#fbfafc,#f8f6fb)}.msg-bubble{max-width:min(72%,650px);padding:10px 12px;border-radius:15px;font-size:12px;line-height:1.45;box-shadow:0 4px 14px rgba(58,43,97,.025)}.msg-bubble.out{background:#eee8ff;border-color:#ded3fb}.msg-bubble footer{font-size:8px;margin-top:6px}.msg-delivery{font-size:8px;border-radius:5px}.msg-compose{padding:11px 13px;gap:7px}.msg-compose textarea{min-height:64px;border-radius:12px;border-color:#e4deed;background:#fff;box-shadow:none}.msg-compose textarea:focus{outline:2px solid rgba(104,71,245,.12);border-color:#b7a7ee}.msg-compose-foot{gap:12px}.msg-channels{gap:10px;font-size:10px}.msg-channels label{padding:5px 7px;border:1px solid #ece8f5;border-radius:9px;background:#fbfafc}.msg-compose-foot .primary{min-height:38px;border-radius:11px;padding:0 15px}.msg-empty{padding:24px}.msg-empty b{font-size:18px}.msg-empty span,.msg-empty small{font-size:11px}.msg-thread .ghost,.msg-list-head .ghost{border-radius:10px}.msg-thread-head>button{min-height:34px}@media(max-width:900px){.msg-shell{grid-template-columns:300px minmax(0,1fr)}}@media(max-width:760px){.msg-shell{grid-template-columns:1fr;height:auto;min-height:0;border-radius:18px}.msg-sidebar{max-height:260px;border-right:0;border-bottom:1px solid #ece8f5}.msg-thread{min-height:520px}.msg-bubble{max-width:86%}.msg-history{padding:12px}.msg-list-head{position:static}}@media(max-width:520px){.msg-shell{border-radius:15px}.msg-sidebar{max-height:230px}.msg-person{padding:9px}.msg-thread{min-height:480px}.msg-thread-head{padding:11px 12px}.msg-history{padding:9px}.msg-bubble{max-width:90%;font-size:11px}.msg-compose{padding:9px}.msg-compose-foot{align-items:stretch}.msg-channels{width:100%}.msg-compose-foot .primary{width:100%}}
 /* Desktop messenger workspace */
 .msg-list-head>div{display:grid;gap:2px}.msg-list-head>div small{font-size:9px;color:#928a9b}.msg-list-head .ghost.active{background:#eee9ff;border-color:#d8cdf8;color:#6847c6}.msg-search{padding:8px 10px;border-bottom:1px solid #eeeaf4;background:#fff}.msg-search input{box-sizing:border-box;width:100%;height:36px;padding:0 11px;border:1px solid #e3deeb;border-radius:10px;background:#faf9fc;font:inherit;font-size:10px;outline:none}.msg-search input:focus{border-color:#b9aaea;background:#fff;box-shadow:0 0 0 3px rgba(104,71,245,.07)}.msg-thread-head{min-height:62px}.msg-thread-person{display:flex!important;align-items:center;gap:9px}.msg-thread-person>div{display:grid;gap:2px}.msg-thread-person .msg-avatar{width:34px;height:34px;font-size:11px}.msg-thread-actions{display:flex!important;align-items:center;justify-content:flex-end;gap:6px}.msg-thread-actions .ghost{min-height:32px;padding:0 9px;font-size:9px}.msg-history{scrollbar-gutter:stable}.msg-compose{box-shadow:0 -8px 24px rgba(48,36,70,.025)}.msg-file-pick{min-height:30px!important;padding:0 9px!important}.msg-bubble .msg-extra{min-height:25px!important;padding:0 7px!important;font-size:8px!important}@media(max-width:980px){.msg-thread-head{align-items:flex-start;flex-direction:column}.msg-thread-actions{width:100%;justify-content:flex-start}}@media(max-width:800px){.msg-search{position:sticky;top:0;z-index:2}.msg-thread-actions{display:grid!important;grid-template-columns:repeat(3,1fr)}.msg-thread-actions .ghost{width:100%}}
+
+
+/* Adelia desktop messenger 2026 */
+html.adelia-desktop-teacher body .msg-shell{
+  grid-template-columns:360px minmax(0,1fr)!important;
+  height:calc(100vh - 112px)!important;
+  min-height:620px!important;
+  border:1px solid #e8e3ef!important;
+  border-radius:20px!important;
+  background:#fff!important;
+  box-shadow:0 14px 40px rgba(51,40,77,.055)!important;
+}
+html.adelia-desktop-teacher body .msg-sidebar{
+  background:#fbfafe!important;
+  border-right:1px solid #ebe6f1!important;
+}
+html.adelia-desktop-teacher body .msg-list-head{
+  padding:18px 18px 10px!important;
+  border-bottom:0!important;
+  background:#fbfafe!important;
+}
+html.adelia-desktop-teacher body .msg-list-head b{font-size:18px!important;letter-spacing:-.02em!important}
+html.adelia-desktop-teacher body .msg-list-head small{font-size:10px!important;color:#8d8597!important}
+html.adelia-desktop-teacher body .msg-filterbar{
+  display:flex!important;gap:6px!important;padding:0 14px 10px!important;background:#fbfafe!important;
+}
+html.adelia-desktop-teacher body .msg-filterbar button{
+  min-height:30px!important;padding:0 10px!important;border:1px solid #e8e2ef!important;border-radius:999px!important;
+  background:#fff!important;color:#756c80!important;font:inherit!important;font-size:10px!important;font-weight:750!important;cursor:pointer!important;
+}
+html.adelia-desktop-teacher body .msg-filterbar button.active{background:#ede7ff!important;border-color:#d9cffb!important;color:#6241d6!important}
+html.adelia-desktop-teacher body .msg-filterbar button i{
+  display:inline-grid!important;place-items:center!important;min-width:18px!important;height:18px!important;margin-left:4px!important;
+  padding:0 4px!important;border-radius:999px!important;background:#6847f5!important;color:#fff!important;font-style:normal!important;font-size:9px!important;
+}
+html.adelia-desktop-teacher body .msg-search{padding:0 14px 12px!important;border-bottom:1px solid #eee9f3!important;background:#fbfafe!important}
+html.adelia-desktop-teacher body .msg-search input{
+  height:38px!important;border-radius:12px!important;background:#fff!important;border-color:#e5dfeb!important;padding:0 12px!important;font-size:11px!important;
+}
+html.adelia-desktop-teacher body .msg-conversations{padding:7px 8px 12px!important}
+html.adelia-desktop-teacher body .msg-person{
+  margin:2px 0!important;padding:10px 10px!important;border:1px solid transparent!important;border-radius:14px!important;
+  grid-template-columns:38px minmax(0,1fr) auto!important;gap:10px!important;background:transparent!important;
+}
+html.adelia-desktop-teacher body .msg-person:hover{background:#f5f2fb!important}
+html.adelia-desktop-teacher body .msg-person.active{background:#eee9ff!important;border-color:#ddd3fb!important}
+html.adelia-desktop-teacher body .msg-avatar{
+  width:38px!important;height:38px!important;border-radius:12px!important;
+  background:linear-gradient(145deg,#7657f6,#5f3fd9)!important;color:#fff!important;box-shadow:0 5px 14px rgba(104,71,245,.16)!important;
+}
+html.adelia-desktop-teacher body .msg-person-main{gap:2px!important}
+html.adelia-desktop-teacher body .msg-person-main b{font-size:12px!important;color:#302a38!important}
+html.adelia-desktop-teacher body .msg-person-main small{font-size:10px!important;color:#7f7788!important;line-height:1.25!important}
+html.adelia-desktop-teacher body .msg-person-main em{font-size:8px!important;color:#9b91a6!important;letter-spacing:.02em!important}
+html.adelia-desktop-teacher body .msg-person-side{
+  min-width:38px!important;display:flex!important;flex-direction:column!important;align-items:flex-end!important;gap:7px!important;padding-top:1px!important;
+}
+html.adelia-desktop-teacher body .msg-person-side time{font-size:8px!important;color:#a39aaa!important;white-space:nowrap!important}
+html.adelia-desktop-teacher body .msg-person-side i{
+  display:grid!important;place-items:center!important;min-width:19px!important;height:19px!important;padding:0 5px!important;border-radius:999px!important;
+  background:#6847f5!important;color:#fff!important;font-style:normal!important;font-size:9px!important;font-weight:800!important;
+}
+html.adelia-desktop-teacher body .msg-thread{background:#f8f7fa!important}
+html.adelia-desktop-teacher body .msg-thread-head{
+  min-height:66px!important;padding:10px 14px!important;background:rgba(255,255,255,.94)!important;border-bottom:1px solid #ece7f1!important;
+  backdrop-filter:blur(16px)!important;
+}
+html.adelia-desktop-teacher body .msg-thread-person .msg-avatar{width:36px!important;height:36px!important;border-radius:11px!important}
+html.adelia-desktop-teacher body .msg-thread-person b{font-size:13px!important}
+html.adelia-desktop-teacher body .msg-thread-person small{font-size:9px!important;color:#92899d!important}
+html.adelia-desktop-teacher body .msg-thread-actions .ghost{
+  min-height:31px!important;padding:0 9px!important;border-radius:9px!important;background:#fff!important;border-color:#e7e1ec!important;font-size:9px!important;
+}
+html.adelia-desktop-teacher body .msg-history{
+  padding:20px 22px!important;gap:9px!important;background:
+  radial-gradient(circle at 20% 10%,rgba(104,71,245,.035),transparent 30%),
+  linear-gradient(180deg,#faf9fc,#f7f5fa)!important;
+}
+html.adelia-desktop-teacher body .msg-bubble{
+  max-width:min(68%,620px)!important;padding:10px 12px!important;border-radius:16px 16px 16px 5px!important;
+  background:#fff!important;border:1px solid #ebe5f0!important;box-shadow:0 5px 18px rgba(48,37,68,.035)!important;
+  font-size:11px!important;line-height:1.45!important;
+}
+html.adelia-desktop-teacher body .msg-bubble.out{
+  align-self:flex-end!important;background:#ebe5ff!important;border-color:#d9cffb!important;border-radius:16px 16px 5px 16px!important;
+}
+html.adelia-desktop-teacher body .msg-bubble footer{font-size:8px!important;color:#91889a!important}
+html.adelia-desktop-teacher body .msg-delivery{font-size:8px!important;padding:2px 5px!important}
+html.adelia-desktop-teacher body .msg-compose{
+  padding:11px 13px 13px!important;background:#fff!important;border-top:1px solid #eae5ef!important;box-shadow:0 -10px 28px rgba(45,34,66,.035)!important;
+}
+html.adelia-desktop-teacher body .msg-compose textarea{
+  min-height:58px!important;max-height:150px!important;border-radius:13px!important;background:#fbfafc!important;border-color:#dfd8e7!important;
+  padding:11px 12px!important;font-size:11px!important;resize:none!important;
+}
+html.adelia-desktop-teacher body .msg-compose textarea:focus{background:#fff!important;border-color:#a995ea!important;box-shadow:0 0 0 3px rgba(104,71,245,.07)!important}
+html.adelia-desktop-teacher body .msg-compose-foot>small{font-size:8px!important;color:#92899c!important;max-width:320px!important}
+html.adelia-desktop-teacher body .msg-send-actions button{min-height:32px!important;border-radius:9px!important;font-size:9px!important;padding:0 10px!important}
+html.adelia-desktop-teacher body .msg-empty{
+  place-content:center!important;justify-items:center!important;padding:30px!important;color:#9a91a3!important;
+}
+html.adelia-desktop-teacher body .msg-empty:before{
+  content:'✉'!important;display:grid!important;place-items:center!important;width:54px!important;height:54px!important;margin-bottom:6px!important;
+  border-radius:16px!important;background:#eee9ff!important;color:#6847f5!important;font-size:22px!important;
+}
+html.adelia-desktop-teacher body .msg-empty b{font-size:17px!important;color:#3b3444!important}
+html.adelia-desktop-teacher body .msg-empty span{font-size:10px!important;max-width:280px!important;line-height:1.45!important}
+@media(max-width:1050px){
+  html.adelia-desktop-teacher body .msg-shell{grid-template-columns:310px minmax(0,1fr)!important}
+  html.adelia-desktop-teacher body .msg-bubble{max-width:78%!important}
+}
