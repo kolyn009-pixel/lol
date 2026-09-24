@@ -4,6 +4,7 @@ from pathlib import Path
 
 import database
 from core import user_timezone
+from core.lesson_time import schedule_datetime
 
 fd, path = tempfile.mkstemp(prefix='adelia_tz_', suffix='.db')
 os.close(fd)
@@ -41,6 +42,17 @@ try:
     row = database.connect().execute('SELECT start_time FROM lessons WHERE user_id=?',(uid,)).fetchone()
     frozen = datetime.fromisoformat(row['start_time'])
     assert frozen.utcoffset().total_seconds() == 3*3600
+
+    # Regression: one lesson must keep the same instant across Telegram/VK/morning
+    # even when the bot runtime timezone differs from the schedule timezone.
+    database.set_setting('schedule_timezone','Europe/Moscow')
+    database.set_setting('bot_timezone','Europe/Samara')
+    database.set_user_timezone(2002, 1, 'Europe/Samara', True)
+    canonical = schedule_datetime('2026-09-24T18:00:00')
+    assert canonical.strftime('%H:%M %z') == '18:00 +0300'
+    student_local = canonical.astimezone(user_timezone.user_tz(2002, 'Europe/Moscow'))
+    assert student_local.strftime('%H:%M %z') == '19:00 +0400'
+    assert student_local.timestamp() == canonical.timestamp()
 
     # UI and migration features must physically exist in the build.
     root = Path(__file__).parent
