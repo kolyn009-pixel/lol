@@ -18,3 +18,19 @@ body{background:radial-gradient(circle at 7% 5%,rgba(126,91,245,.16),transparent
 
 /* First-run welcome */
 .welcome{width:100%;max-width:440px;margin:auto}.welcome-mark{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:#f0ebff;color:#6847f5;font-size:22px;font-weight:900;margin-bottom:16px}.welcome .eyebrow{color:#6847f5}.welcome h2{margin:8px 0 6px;font-size:31px;letter-spacing:-.045em}.welcome>p{margin:0 0 18px;color:#817a88;font-size:11px}.welcome-points{display:grid;gap:8px}.welcome-points>div{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;padding:12px;border:1px solid #e8e3ed;border-radius:14px;background:#fff}.welcome-points>div>b{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#f4f0ff;color:#6847f5;font-size:8px}.welcome-points span{display:grid;gap:3px}.welcome-points strong{font-size:10px}.welcome-points small{color:#88818f;font-size:8px;line-height:1.45}.welcome .primary{margin-top:14px}
+
+/* Startup contrast and proportion fix */
+.intro h1{color:#fff!important;text-shadow:0 2px 18px rgba(0,0,0,.18)}
+.intro h1 em{color:#d8ccff!important}
+.intro .eyebrow{color:#ddd4ff!important}
+.intro .lead{color:#eeeaf7!important}
+.intro .mini-features span{color:#fff!important;background:rgba(255,255,255,.10)!important;border-color:rgba(255,255,255,.18)!important}
+.intro .desktop-note b{color:#fff!important}
+.intro .desktop-note span{color:#ded8e9!important}
+@media(min-width:821px){
+  .shell{width:min(1080px,calc(100vw - 56px))}
+  .card{min-height:560px;grid-template-columns:minmax(0,1.02fr) minmax(390px,.98fr)}
+  .intro{padding:48px 44px}
+  .intro h1{font-size:clamp(42px,4.1vw,58px);line-height:1.02}
+  .screen{padding:42px}
+}
