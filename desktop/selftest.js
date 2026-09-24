@@ -31,6 +31,9 @@ check(pkg.build.publish?.[0]?.url==='https://adeliatutor.ru/desktop-updates/beta
 check(pkg.build.protocols?.[0]?.schemes?.includes('adelia'),'adelia deep-link protocol registered');
 check(pkg.build.win?.target?.includes('nsis'),'Windows NSIS target');
 check(pkg.build.mac?.target?.includes('dmg')&&pkg.build.mac?.target?.includes('zip'),'macOS DMG + ZIP targets');
+check(pkg.build.mac?.icon==='build/icon.icns','macOS package uses native ICNS');
+check(pkg.build.win?.icon==='build/icon.ico','Windows package uses native ICO');
+check(pkg.build.nsis?.installerIcon==='build/icon.ico'&&pkg.build.nsis?.uninstallerIcon==='build/icon.ico','Windows installer uses native ICO');
 check(pkg.scripts?.['sync:icon']==='node generate_assets.js','canonical icon sync script');
 check(pkg.scripts?.selftest?.includes('npm run sync:icon'),'selftest syncs canonical icon');
 check(pkg.scripts?.['dist:win']?.includes('npm run sync:icon'),'Windows build syncs canonical icon');
@@ -44,6 +47,8 @@ for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html'
 check(files.iconSync.includes("'brand', 'adelia_icon', 'adelia-icon-512.png'"),'desktop uses repository canonical brand icon');
 check(!files.iconSync.includes('https.get')&&!files.iconSync.includes('ADELIA_DESKTOP_ICON_URL'),'desktop icon sync is offline and cannot fall back to stale server artwork');
 check(!files.iconSync.includes('roundedRect'),'desktop icon is not generated artwork');
+check(files.iconSync.includes('adelia-icon-macos.icns')&&files.iconSync.includes('adelia-icon-windows.ico'),'native platform icon assets synced');
+check(files.bundledUi.includes("data.adeliaDesktopBrand='canonical'")&&files.bundledUi.includes("build','icon.png"),'teacher desktop shell uses packaged canonical logo');
 
 check(files.main.includes('https://adeliatutor.ru/app/'),'desktop opens Adelia origin');
 check(/contextIsolation\s*:\s*true/.test(files.main),'context isolation');
