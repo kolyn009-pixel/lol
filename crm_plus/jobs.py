@@ -7,6 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import Forbidden
 from core import admin_roles
 from core import user_timezone
+from core.lesson_time import schedule_datetime, lesson_timezone
 import database
 from . import service, messenger
 
@@ -102,19 +103,20 @@ async def student_day_brief_job(context, force=False):
         grouped.setdefault(int(row['user_id']), []).append(row)
 
     target = database.get_setting('student_day_brief_time','08:00') or '08:00'
-    teacher_zone = database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara'
+    schedule_zone = str(getattr(lesson_timezone(), 'key', None) or 'Europe/Moscow')
 
     for uid, candidate_lessons in grouped.items():
         first = candidate_lessons[0]
         tid = int(first['telegram_id'])
-        tz = user_timezone.user_tz(tid, teacher_zone)
+        tz = user_timezone.user_tz(tid, schedule_zone)
         local_now = datetime.now(tz)
         if not force and local_now.strftime('%H:%M') != target:
             continue
         day = local_now.date().isoformat()
         lessons = []
         for lesson in candidate_lessons:
-            local_start = user_timezone.convert_for_user(lesson['start_time'], tid, teacher_zone)
+            canonical_start = schedule_datetime(lesson['start_time'])
+            local_start = canonical_start.astimezone(tz)
             if local_start and local_start.date().isoformat() == day:
                 lessons.append((lesson, local_start))
         if not lessons:
@@ -128,7 +130,7 @@ async def student_day_brief_job(context, force=False):
             '',
             f"Доброе утро, {first['name']}!",
             'Сегодня у тебя ' + ('занятие.' if len(lessons) == 1 else f'занятий: {len(lessons)}.'),
-            f"🌍 Время: {user_timezone.user_label(tid, teacher_zone)}",
+            f"🌍 Время: {user_timezone.user_label(tid, schedule_zone)}",
             '',
         ]
         for lesson, local_start in lessons:
