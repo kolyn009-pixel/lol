@@ -94,7 +94,8 @@ for name in (
 ):
     require(name in packaged, f"packaged {name}")
 
-require("https://adeliatutor.ru/assets/icons/adelia-icon-512.png" in icon_sync, "desktop canonical icon source")
+require("'brand', 'adelia_icon', 'adelia-icon-512.png'" in icon_sync, "desktop canonical icon source")
+require("https.get" not in icon_sync and "ADELIA_DESKTOP_ICON_URL" not in icon_sync, "desktop icon source cannot fall back to stale server artwork")
 require("roundedRect" not in icon_sync, "desktop icon is not generated artwork")
 require("https://adeliatutor.ru/app/" in main, "desktop opens Adelia origin")
 require("contextIsolation:true" in main or "contextIsolation: true" in main, "context isolation")
@@ -191,9 +192,11 @@ require(
 )
 require(str(parent_manifest.get("name") or "").startswith("Аделия"), "parent PWA branded Adelia")
 icons = parent_manifest.get("icons") or []
-require(any(x.get("src") == "/adelia-favicon-32.png" and x.get("sizes") == "32x32" for x in icons), "parent canonical 32 icon")
-require(any(x.get("src") == "/adelia-apple-touch-icon-180.png" and x.get("sizes") == "180x180" for x in icons), "parent canonical 180 icon")
-require("192x192" not in parent_manifest_text and "512x512" not in parent_manifest_text, "parent manifest does not fake icon sizes")
+require(any(x.get("src") == "/assets/icons/adelia-icon-192.png" and x.get("sizes") == "192x192" for x in icons), "parent canonical 192 icon")
+require(any(x.get("src") == "/assets/icons/adelia-icon-512.png" and x.get("sizes") == "512x512" for x in icons), "parent canonical 512 icon")
+require("/assets/icons/adelia-icon-32.png" in student and "/assets/icons/adelia-icon-180.png" in student, "student canonical browser icons")
+require("/assets/icons/adelia-icon-32.png" in teacher and "/assets/icons/adelia-icon-180.png" in teacher, "teacher canonical browser icons")
+require("/assets/icons/adelia-icon-32.png" in parent and "/assets/icons/adelia-icon-180.png" in parent, "parent canonical browser icons")
 
 if errors:
     for error in errors:
