@@ -34,3 +34,8 @@ body{background:radial-gradient(circle at 7% 5%,rgba(126,91,245,.16),transparent
   .intro h1{font-size:clamp(42px,4.1vw,58px);line-height:1.02}
   .screen{padding:42px}
 }
+
+/* Adelia startup readability 2026 */
+.intro h1>span{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important}
+.intro h1 em{color:#d8ccff!important;-webkit-text-fill-color:#d8ccff!important;opacity:1!important}
+.intro{isolation:isolate}.intro:before,.intro:after{z-index:0;pointer-events:none}.intro>*{z-index:1}
