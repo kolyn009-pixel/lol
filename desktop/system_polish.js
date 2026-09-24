@@ -81,7 +81,7 @@ function install() {
   app.whenReady().then(() => {
     installPlatformActions();
     if (process.platform === 'darwin' && app.dock) {
-      const icon = path.join(__dirname, 'build', 'icon.png');
+      const icon = path.join(__dirname, 'build', 'icon-macos.png');
       try { app.dock.setIcon(icon); } catch (_) {}
     }
   }).catch(() => {});
