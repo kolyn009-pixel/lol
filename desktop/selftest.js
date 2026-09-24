@@ -44,11 +44,11 @@ check(pkg.build.nsis?.deleteAppDataOnUninstall===false,'Windows uninstall preser
 check(pkg.build.nsis?.runAfterFinish===true&&pkg.build.nsis?.differentialPackage===true,'Windows installer update-friendly behavior');
 check(pkg.build.dmg?.contents?.some(x=>x.path==='/Applications'),'macOS drag-to-Applications installer');
 for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html','lesson_workspace.js','workspace_shell.js','bundled_ui.js','diagnostics.js','report_preload.js','report.html','report.css','report.js','device_check_preload.js','device_check.html','device_check.css','device_check.js','about_preload.js','about.html','about.css','about.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
-check(files.iconSync.includes("brand=path.join(__dirname,'..','brand','adelia_icon')")&&files.iconSync.includes("['adelia-icon-512.png','icon.png']"),'desktop uses repository canonical brand icon');
+check(files.iconSync.includes("brand=path.join(__dirname,'..','brand','adelia_icon')")&&files.iconSync.includes("source=path.join(brand,'adelia-icon-512.png')"),'desktop uses repository canonical brand icon');
 check(!files.iconSync.includes('https.get')&&!files.iconSync.includes('ADELIA_DESKTOP_ICON_URL'),'desktop icon sync is offline and cannot fall back to stale server artwork');
-check(!files.iconSync.includes('roundedRect'),'desktop icon is not generated artwork');
-check(files.iconSync.includes('adelia-icon-macos.icns')&&files.iconSync.includes('adelia-icon-windows.ico'),'native platform icon assets synced');
-check(files.bundledUi.includes("logo.dataset.adeliaDesktopBrand='canonical'")&&files.bundledUi.includes("path.join(__dirname,'build','icon.png')")&&files.bundledUi.includes('data:image/png;base64'),'teacher desktop shell uses packaged canonical logo');
+check(files.iconSync.includes('artworkBounds')&&files.iconSync.includes('nativeIcon')&&files.iconSync.includes('out.data[di+3]=255'),'desktop native icon crops artwork and keeps transparent outer canvas');
+check(files.iconSync.includes('png2icons.createICNS')&&files.iconSync.includes('png2icons.createICO'),'native platform icon assets generated');
+check(files.bundledUi.includes("logo.dataset.adeliaDesktopBrand='canonical'")&&files.bundledUi.includes("path.join(__dirname,'build','icon-macos.png')")&&files.bundledUi.includes('data:image/png;base64'),'teacher desktop shell uses packaged transparent native logo');
 
 check(files.main.includes('https://adeliatutor.ru/app/'),'desktop opens Adelia origin');
 check(/contextIsolation\s*:\s*true/.test(files.main),'context isolation');
