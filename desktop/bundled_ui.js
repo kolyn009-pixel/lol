@@ -22,6 +22,27 @@ async function inject(win){
  await win.webContents.executeJavaScript(`document.documentElement.classList.add('adelia-desktop','adelia-desktop-${role}');document.body&&document.body.classList.add('adelia-desktop','adelia-desktop-${role}')`,true);
  for(const name of manifest[role].css)await win.webContents.insertCSS(source(name));
  for(const name of manifest[role].js)await win.webContents.executeJavaScript(source(name),true);
+ if(role==='teacher')await win.webContents.executeJavaScript(`
+   if(!window.__adeliaDesktopTeacherRouteGuard){
+     window.__adeliaDesktopTeacherRouteGuard=true;
+     window.addEventListener('click',function(event){
+       const button=event.target&&event.target.closest&&event.target.closest('[data-view]');
+       if(!button)return;
+       const view=button.dataset.view;
+       const render=view==='groups'?window.teacherGroups:view==='health'?window.teacherHealth:null;
+       if(typeof render!=='function')return;
+       event.preventDefault();
+       event.stopImmediatePropagation();
+       document.querySelectorAll('aside nav button[data-view]').forEach(function(item){item.classList.toggle('active',item.dataset.view===view)});
+       document.body.classList.remove('menu-open','v4-menu-open');
+       Promise.resolve(render()).catch(function(error){
+         const app=document.querySelector('#app');
+         if(app)app.innerHTML='<section class="error">Раздел не загрузился. Обновите страницу и попробуйте ещё раз.</section>';
+         console.warn('[desktop-route]',error&&error.message||error);
+       });
+     },true);
+   }
+ `,true);
  await win.webContents.executeJavaScript(`window.${marker}=true;window.dispatchEvent(new CustomEvent('adelia:desktop-ui-ready',{detail:{role:'${role}'}}))`,true);
  return true;
 }
