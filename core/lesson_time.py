@@ -9,13 +9,13 @@ import database
 def lesson_timezone() -> ZoneInfo:
     """Return the timezone used by lesson schedule timestamps."""
     try:
-        name = database.get_setting("bot_timezone", "Europe/Moscow")
+        name = database.get_setting("bot_timezone", "Europe/Samara")
     except Exception:
-        name = "Europe/Moscow"
+        name = "Europe/Samara"
     try:
-        return ZoneInfo(str(name or "Europe/Moscow"))
+        return ZoneInfo(str(name or "Europe/Samara"))
     except Exception:
-        return ZoneInfo("Europe/Moscow")
+        return ZoneInfo("Europe/Samara")
 
 
 def schedule_datetime(raw) -> datetime:
