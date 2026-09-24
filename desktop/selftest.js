@@ -153,9 +153,9 @@ check(web.parent.includes('/app/parent/parent_clean.css'),'parent clean shell li
 check(web.landing.includes('Adelia-latest-windows-x64.exe')&&readRepo('web/landing.html').includes('Adelia-latest-macos-arm64.dmg')&&readRepo('web/landing.html').includes('Adelia-latest-macos-x64.dmg'),'stable desktop download aliases linked');
 const parentManifest=JSON.parse(web.parentManifest);
 check(parentManifest.name.startsWith('Аделия'),'parent PWA branded Adelia');
-check(parentManifest.icons?.some(x=>x.src==='/adelia-favicon-32.png'&&x.sizes==='32x32'),'parent canonical 32 icon');
-check(parentManifest.icons?.some(x=>x.src==='/adelia-apple-touch-icon-180.png'&&x.sizes==='180x180'),'parent canonical 180 icon');
-check(!web.parentManifest.includes('192x192')&&!web.parentManifest.includes('512x512'),'parent manifest does not fake icon sizes');
+check(parentManifest.icons?.some(x=>x.src==='/assets/icons/adelia-icon-192.png'&&x.sizes==='192x192'),'parent canonical 192 icon');
+check(parentManifest.icons?.some(x=>x.src==='/assets/icons/adelia-icon-512.png'&&x.sizes==='512x512'),'parent canonical 512 icon');
+check(parentManifest.icons?.some(x=>x.src==='/assets/icons/adelia-icon-512.png'&&x.sizes==='512x512'&&x.purpose==='maskable'),'parent canonical maskable icon');
 
 if(failed)process.exit(1);
 console.log('Desktop release selftest passed.');
