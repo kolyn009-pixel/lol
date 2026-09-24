@@ -22,6 +22,19 @@ async function inject(win){
  await win.webContents.executeJavaScript(`document.documentElement.classList.add('adelia-desktop','adelia-desktop-${role}');document.body&&document.body.classList.add('adelia-desktop','adelia-desktop-${role}')`,true);
  for(const name of manifest[role].css)await win.webContents.insertCSS(source(name));
  for(const name of manifest[role].js)await win.webContents.executeJavaScript(source(name),true);
+ if(role==='teacher'){
+ const brandIcon=fs.readFileSync(path.join(__dirname,'build','icon.png')).toString('base64');
+ await win.webContents.executeJavaScript(`
+   (function(){
+     const logo=document.querySelector('aside .brand img');
+     if(logo){
+       logo.src='data:image/png;base64,${brandIcon}';
+       logo.removeAttribute('srcset');
+       logo.dataset.adeliaDesktopBrand='canonical';
+     }
+   })();
+ `,true);
+ }
  if(role==='teacher')await win.webContents.executeJavaScript(`
    if(!window.__adeliaDesktopTeacherRouteGuard){
      window.__adeliaDesktopTeacherRouteGuard=true;
