@@ -41,7 +41,8 @@ check(pkg.build.nsis?.deleteAppDataOnUninstall===false,'Windows uninstall preser
 check(pkg.build.nsis?.runAfterFinish===true&&pkg.build.nsis?.differentialPackage===true,'Windows installer update-friendly behavior');
 check(pkg.build.dmg?.contents?.some(x=>x.path==='/Applications'),'macOS drag-to-Applications installer');
 for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html','lesson_workspace.js','workspace_shell.js','bundled_ui.js','diagnostics.js','report_preload.js','report.html','report.css','report.js','device_check_preload.js','device_check.html','device_check.css','device_check.js','about_preload.js','about.html','about.css','about.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
-check(files.iconSync.includes('https://adeliatutor.ru/assets/icons/adelia-icon-512.png'),'desktop uses canonical server icon');
+check(files.iconSync.includes("'brand', 'adelia_icon', 'adelia-icon-512.png'"),'desktop uses repository canonical brand icon');
+check(!files.iconSync.includes('https.get')&&!files.iconSync.includes('ADELIA_DESKTOP_ICON_URL'),'desktop icon sync is offline and cannot fall back to stale server artwork');
 check(!files.iconSync.includes('roundedRect'),'desktop icon is not generated artwork');
 
 check(files.main.includes('https://adeliatutor.ru/app/'),'desktop opens Adelia origin');
