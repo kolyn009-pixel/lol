@@ -17,13 +17,13 @@ def manifest(path,start,scope):
     if m.get('display')!='standalone': raise AssertionError(f"{path}: display must be standalone")
     if str(m.get('theme_color','')).lower()!='#6847f5': raise AssertionError(f"{path}: wrong theme color")
     icons=m.get('icons') or []
-    canonical={'/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'}
+    canonical={'/assets/icons/adelia-icon-192.png','/assets/icons/adelia-icon-512.png'}
     sources={str(x.get('src','')).split('?',1)[0] for x in icons}
     if not (sources & canonical): raise AssertionError(f"{path}: canonical Adelia icon missing")
     for icon in icons:
         src=str(icon.get('src','')).split('?',1)[0]
-        if src=='/adelia-favicon-32.png' and str(icon.get('sizes',''))!='32x32': raise AssertionError(f"{path}: favicon size metadata must be 32x32")
-        if src=='/adelia-apple-touch-icon-180.png' and str(icon.get('sizes',''))!='180x180': raise AssertionError(f"{path}: apple icon size metadata must be 180x180")
+        if src=='/assets/icons/adelia-icon-192.png' and str(icon.get('sizes',''))!='192x192': raise AssertionError(f"{path}: 192 icon metadata must be 192x192")
+        if src=='/assets/icons/adelia-icon-512.png' and str(icon.get('sizes',''))!='512x512': raise AssertionError(f"{path}: 512 icon metadata must be 512x512")
 
 teacher=read('web/teacher.html')
 student=read('web/index.html')
@@ -36,12 +36,18 @@ desktop_preload=read('desktop/preload.js')
 desktop_role=read('desktop/role_startup.js')
 desktop_pkg=read('desktop/package.json')
 desktop_manifest=read('desktop/bundled_ui_manifest.js')
+student_sw=read('web/service-worker.js')
+teacher_sw=read('web/teacher-service-worker.js')
+pwa=read('web/pwa.js')
+teacher_dashboard=read('web/teacher_dashboard_week.js')
+finance_reporting=read('web_backend/finance_reporting.py')
+minute_balance=read('core/minute_balance.py')
 
 need(teacher,[
     '/app/teacher_clean.css','/app/teacher_clean_sections.css','/app/teacher_clean7.css',
     '/app/teacher_clean_runtime.js','/app/teacher_clean_router.js','/app/teacher_groups.js',
     'data-view="groups"','data-view="messages"','data-view="health"',
-    '/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'
+    '/assets/icons/adelia-icon-32.png','/assets/icons/adelia-icon-180.png'
 ],'teacher')
 need(student,[
     '/app/student_clean.css','/app/install_runtime.js','data-tab="home"','data-tab="schedule"',
@@ -59,7 +65,7 @@ need(parent_pwa,[
     'navigator.serviceWorker.register(SW,{scope:SCOPE})',
     'beforeinstallprompt'
 ],'parent pwa')
-need(parent_sw,["BASE='/app/parent/'","adelia-parent-v3",'notificationclick','push'],'parent service worker')
+need(parent_sw,["BASE='/app/parent/'","adelia-parent-v6",'notificationclick','push','adelia-icon-180.png'],'parent service worker')
 
 manifest('web/manifest.webmanifest','/app/','/app/')
 manifest('web/teacher-manifest.webmanifest','/teacher/','/teacher/')
@@ -71,9 +77,18 @@ need(desktop_preload,['openParentCabinet','adelia:parent-cabinet'],'desktop prel
 need(desktop_role,["APP_ORIGIN+'/app/parent/'","adelia:parent-cabinet"],'desktop role runtime')
 need(desktop_pkg,['verify_icon.js','bundled_ui_manifest.js','build/icon.png'],'desktop package')
 need(desktop_manifest,['student:','teacher:','parent:','teacher_v5.css','parent/app.css'],'desktop bundled UI')
+need(student_sw,['adelia-shell-v14',"url.pathname==='/app/teacher.html'",'notificationclick','adelia-icon-180.png'],'student service worker')
+need(teacher_sw,['adelia-teacher-shell-v4','notificationclick','adelia-icon-180.png'],'teacher service worker')
+need(pwa,['desktop_uses_native_notifications',"location.pathname==='/app/teacher.html'",'/api/push/subscribe'],'PWA notification routing')
+need(teacher_dashboard,['updateDashboardState','setInterval(()=>fetchDash().then(syncDesktopState)','unreadMessages','activeHomework','unpaidAmount'],'desktop notification state')
+need(finance_reporting,['_lesson_earned_expr','reserved_paid_minutes','funding_kind'],'non-cash finance reporting')
+need(minute_balance,['admin_adjust_minutes','Positive minutes are non-cash bonus/adjustment minutes',"source_type='BONUS'"],'manual bonus accounting')
 
 if 'generate_assets.js &&' in desktop_pkg:
     raise AssertionError('desktop build still auto-generates branding icon')
+for legacy in ('/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png','adelia-icon.svg'):
+    if legacy in teacher or legacy in student or legacy in parent:
+        raise AssertionError(f'legacy icon reference remains: {legacy}')
 
 for path in ['web/teacher_v5_runtime.js','web/parent/parent_v5.js']:
     if 'new MutationObserver' in read(path):

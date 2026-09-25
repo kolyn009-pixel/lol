@@ -39,6 +39,8 @@ mods=[
  'web_backend.student_regular_booking',
  'web_backend.atomic_student_booking',
  'web_backend.api_v6',
+ 'web_backend.finance_reporting',
+ 'core.minute_balance',
 ]
 for name in mods:
     __import__(name)
@@ -65,6 +67,8 @@ for f in \
   web_backend/teacher_schedule_settings.py \
   web_backend/student_self_service.py \
   core/payment_wait_control.py \
+  core/minute_balance.py \
+  web_backend/finance_reporting.py \
   final_features/slot_change.py \
   scripts/recover_ivan_regular_schedules.py \
   desktop/package.json \
@@ -147,12 +151,28 @@ checks={
  'web_backend/student_self_service.py':['teacher_day_off_state.is_marked'],
  'web_backend/teacher_schedule_settings.py':['teacher_day_off_state.mark_lessons'],
  'core/payment_wait_control.py':['BEGIN IMMEDIATE','already_confirmed'],
+ 'core/minute_balance.py':['admin_adjust_minutes','Positive minutes are non-cash bonus/adjustment minutes',"source_type='BONUS'"],
+ 'web_backend/finance_reporting.py':['_lesson_earned_expr','reserved_paid_minutes','funding_kind'],
+ 'web/pwa.js':['desktop_uses_native_notifications',"/api/push/subscribe","location.pathname==='/app/teacher.html'"],
+ 'web/teacher_dashboard_week.js':['updateDashboardState','setInterval(()=>fetchDash().then(syncDesktopState)','unreadMessages','activeHomework','unpaidAmount'],
 }
 for path,markers in checks.items():
     text=Path(path).read_text(encoding='utf-8')
     for marker in markers:
         assert marker in text,(path,marker)
     print('MARKERS_OK',path)
+PY
+
+echo "=== 10. PAYMENT THROUGH SCHEDULE END REVIEW ==="
+"$PYTHON" - <<'PY'
+from pathlib import Path
+booking=Path('web_backend/student_regular_booking.py').read_text(encoding='utf-8')
+db=Path('database.py').read_text(encoding='utf-8')
+assert 'end_date' in booking and 'requested_end' in booking
+assert 'request_group' in booking
+assert 'count_regular_schedule_dates' in db
+print('SCHEDULE_END_PAYMENT_SOURCE=PASS')
+print('RULE: future parent payment offer must use the student-selected regular_schedules.end_date and canonical package discounts.')
 PY
 
 echo "=== RESULT ==="
