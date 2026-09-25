@@ -52,11 +52,11 @@ need(teacher,[
 need(student,[
     '/app/student_clean.css','/app/install_runtime.js','data-tab="home"','data-tab="schedule"',
     'data-tab="homework"','data-tab="messages"','data-tab="profile"',
-    '/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'
+    '/assets/icons/adelia-icon-32.png','/assets/icons/adelia-icon-180.png'
 ],'student')
 need(parent,[
     '/app/parent/parent_clean.css','/app/parent/parent_v5.js','/app/parent/pwa.js',
-    '/adelia-favicon-32.png','/adelia-apple-touch-icon-180.png'
+    '/assets/icons/adelia-icon-32.png','/assets/icons/adelia-icon-180.png'
 ],'parent')
 need(parent_pwa,[
     "BASE='/app/parent/'",
