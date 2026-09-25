@@ -242,37 +242,10 @@ PAYMENT_STATUS_NAMES = {
 # ============================================================
 
 def get_calendar_service():
-
-    if not os.path.exists(
-        TOKEN_FILE
-    ):
-
-        raise FileNotFoundError(
-            "Не найден token.json"
-        )
-
-    creds = (
-        Credentials
-        .from_authorized_user_file(
-            TOKEN_FILE,
-            SCOPES
-        )
-    )
-
-    if (
-        creds.expired
-        and creds.refresh_token
-    ):
-
-        creds.refresh(
-            Request()
-        )
-
-    return build(
-        "calendar",
-        "v3",
-        credentials=creds
-    )
+    # Canonical integration owns Google credentials.  In production its token
+    # lives beside ADELIA_DB_PATH, outside immutable release directories.
+    from integrations.google_calendar import calendar_service
+    return calendar_service()
 
 
 # ============================================================
