@@ -3,8 +3,8 @@
   let swRegistration=null;
   const standalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
   const ios=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;
-  const teacherScope=()=>location.pathname.startsWith('/teacher/');
-  const SW_VERSION='20260925-pwa2';
+  const teacherScope=()=>location.pathname.startsWith('/teacher/')||location.pathname==='/app/teacher.html';
+  const SW_VERSION='20260925-pwa3';
   const swConfig=()=>teacherScope()?{url:'/teacher/teacher-service-worker.js?v='+SW_VERSION,scope:'/teacher/'}:{url:'/app/service-worker.js?v='+SW_VERSION,scope:'/app/'};
   const notificationSupported=()=>typeof window.Notification!=='undefined'&&typeof Notification.requestPermission==='function';
   const pushSupported=()=>notificationSupported()&&'serviceWorker' in navigator&&'PushManager' in window;

@@ -1,4 +1,4 @@
-const CACHE='adelia-shell-v13';
+const CACHE='adelia-shell-v14';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const SHELL=[
@@ -48,7 +48,7 @@ self.addEventListener('notificationclick',event=>{
 });
 self.addEventListener('fetch',event=>{
  const request=event.request;if(request.method!=='GET')return;
- const url=new URL(request.url);if(url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;
+ const url=new URL(request.url);if(url.origin!==self.location.origin||url.pathname.startsWith('/api/')||url.pathname==='/app/teacher.html')return;
  if(request.mode==='navigate'&&url.pathname.startsWith('/app/')){event.respondWith(boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put('/app/',response.clone()));return response}).catch(()=>caches.match('/app/')));return}
  const code=/\.(?:js|css|svg|png)$/.test(url.pathname)||url.pathname.endsWith('/manifest.webmanifest');
  if(code){event.respondWith(boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response}).catch(()=>caches.match(request)));return}

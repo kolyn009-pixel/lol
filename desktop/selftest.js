@@ -13,12 +13,12 @@ const files={
 const web={
   app:readRepo('web/app.js'),student:readRepo('web/index.html'),teacher:readRepo('web/teacher.html'),parent:readRepo('web/parent/index.html'),landing:readRepo('web/landing.js'),
   individual:readRepo('web/teacher_lesson_flow.js'),group:readRepo('web/teacher_group_live12.js'),event:readRepo('web/teacher_event_live13.js'),
-  telemostSettings:readRepo('web/teacher_telemost_settings.js'),lessonUi:readRepo('web/desktop_lesson_workspace.js'),lessonUiCss:readRepo('web/desktop_lesson_workspace.css'),prelessonUi:readRepo('web/desktop_prelesson.js'),prelessonCss:readRepo('web/desktop_prelesson.css'),desktopManifest:read('bundled_ui_manifest.js'),parentManifest:readRepo('web/parent/manifest.webmanifest')
+  telemostSettings:readRepo('web/teacher_telemost_settings.js'),teacherDashboard:readRepo('web/teacher_dashboard_week.js'),pwa:readRepo('web/pwa.js'),studentSw:readRepo('web/service-worker.js'),lessonUi:readRepo('web/desktop_lesson_workspace.js'),lessonUiCss:readRepo('web/desktop_lesson_workspace.css'),prelessonUi:readRepo('web/desktop_prelesson.js'),prelessonCss:readRepo('web/desktop_prelesson.css'),desktopManifest:read('bundled_ui_manifest.js'),parentManifest:readRepo('web/parent/manifest.webmanifest')
 };
 let failed=false;
 function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed=true}
 function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
-for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,diagnostics:files.diagnostics,report:files.report,report_preload:files.reportPreload,device_check:files.deviceCheck,device_check_preload:files.deviceCheckPreload,about:files.about,about_preload:files.aboutPreload,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings}))parseJs(`${n}.js`,s);
+for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,diagnostics:files.diagnostics,report:files.report,report_preload:files.reportPreload,device_check:files.deviceCheck,device_check_preload:files.deviceCheckPreload,about:files.about,about_preload:files.aboutPreload,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings,teacher_dashboard_week:web.teacherDashboard,pwa:web.pwa,student_service_worker:web.studentSw}))parseJs(`${n}.js`,s);
 
 check(pkg.version==='0.3.0-beta.1','desktop beta package version');
 check(pkg.main==='bootstrap.js','desktop bootstrap entry');
@@ -102,6 +102,9 @@ check(files.role.includes("loadFile(path.join(__dirname,'start.html'))"),'role c
 check(files.role.includes("'/api/auth/teacher/code'"),'teacher code login wired');
 check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
 check(files.role.includes("APP_ORIGIN+'/app/teacher.html'"),'desktop teacher opens canonical document without redirect');
+check(web.pwa.includes("location.pathname==='/app/teacher.html'"),'PWA runtime recognizes canonical teacher document');
+check(web.studentSw.includes("url.pathname==='/app/teacher.html'"),'student service worker never intercepts canonical teacher document');
+check(web.teacher.includes('teacherBootRetry'),'teacher boot watchdog prevents endless loading state');
 check(files.workspaceShell.includes("u.pathname.startsWith('/teacher')")&&files.workspaceShell.includes("u.pathname==='/app/teacher.html'")&&files.bundledUi.includes("pathname.startsWith('/teacher')")&&files.bundledUi.includes("pathname==='/app/teacher.html'"),'canonical teacher routes remain desktop teacher role');
 check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("role==='teacher'")&&files.role.includes("role==='parent'")&&files.role.includes("role==='student'"),'authenticated desktop role is restored');
 check(files.main.includes("createWindow(startupDeep ? parseDeepLink(startupDeep).target : null)")&&files.main.includes("if (!startupDeep) await restoreMainRole()")&&files.main.includes("win.loadFile(path.join(__dirname,'start.html'))"),'desktop startup is role-gated before remote cabinet load');
