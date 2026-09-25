@@ -61,8 +61,9 @@ need(parent,[
 need(parent_pwa,[
     "BASE='/app/parent/'",
     "SCOPE='/app/parent/'",
-    "SW=BASE+'service-worker.js'",
-    'navigator.serviceWorker.register(SW,{scope:SCOPE})',
+    "SW=BASE+'service-worker.js?v='+SW_VERSION",
+    "navigator.serviceWorker.register(SW,{scope:SCOPE,updateViaCache:'none'})",
+    'controllerchange',
     'beforeinstallprompt'
 ],'parent pwa')
 need(parent_sw,["BASE='/app/parent/'","adelia-parent-v6",'notificationclick','push','adelia-icon-180.png'],'parent service worker')
