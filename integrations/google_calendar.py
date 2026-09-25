@@ -19,8 +19,18 @@ import database
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 BASE_DIR = Path(__file__).resolve().parents[1]
-TOKEN_PATH = Path(os.getenv("GOOGLE_CALENDAR_TOKEN_FILE", str(BASE_DIR / "token.json")))
-CREDENTIALS_PATH = Path(os.getenv("GOOGLE_CALENDAR_CREDENTIALS_FILE", str(BASE_DIR / "credentials.json")))
+
+def _runtime_secret_path(env_name: str, filename: str) -> Path:
+    explicit = str(os.getenv(env_name, "") or "").strip()
+    if explicit:
+        return Path(explicit)
+    db_path = str(os.getenv("ADELIA_DB_PATH", "") or "").strip()
+    if db_path:
+        return Path(db_path).expanduser().resolve().parent / filename
+    return BASE_DIR / filename
+
+TOKEN_PATH = _runtime_secret_path("GOOGLE_CALENDAR_TOKEN_FILE", "token.json")
+CREDENTIALS_PATH = _runtime_secret_path("GOOGLE_CALENDAR_CREDENTIALS_FILE", "credentials.json")
 CALENDAR_ID = os.getenv("GOOGLE_CALENDAR_ID", "primary")
 
 
@@ -110,6 +120,10 @@ def _service():
     except ImportError as exc:
         raise RuntimeError("google_calendar_dependencies_missing") from exc
     return build("calendar", "v3", credentials=_load_credentials(), cache_discovery=False)
+
+def calendar_service():
+    """Public canonical Google Calendar service for legacy read-only callers."""
+    return _service()
 
 
 def _lesson(lesson_id):
