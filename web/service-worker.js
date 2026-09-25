@@ -7,8 +7,8 @@ const SHELL=[
  '/app/student_chat.css','/app/student_homework_plus.css','/app/formulas.css','/app/student_booking_ui.css',
  '/app/pwa.js','/app/app.js','/app/auth_flow_v2.js','/app/app_shell_plus.js','/app/responsive_shell.js','/app/student_boot.js','/app/student_booking_ui.js'
 ];
-const ICON='/adelia-apple-touch-icon-180.png';
-const BADGE='/adelia-favicon-32.png';
+const ICON='/assets/icons/adelia-icon-180.png?v=20260925-brand3';
+const BADGE='/assets/icons/adelia-icon-32.png?v=20260925-brand3';
 const TYPE_META={
  invoice:{emoji:'💳',title:'Новый счёт'},
  payment:{emoji:'✅',title:'Оплата подтверждена'},
