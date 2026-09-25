@@ -36,4 +36,5 @@ document.querySelectorAll('[data-view="dashboard"]').forEach(b=>b.addEventListen
 setTimeout(ensureCanonical,40);
 setTimeout(ensureCanonical,250);
 setTimeout(ensureCanonical,900);
+if(window.adeliaDesktop?.desktop)setInterval(()=>fetchDash().then(syncDesktopState).catch(()=>{}),60000);
 })();
