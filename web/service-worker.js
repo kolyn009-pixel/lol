@@ -1,8 +1,8 @@
-const CACHE='adelia-shell-v12';
+const CACHE='adelia-shell-v13';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const SHELL=[
- '/app/','/app/manifest.webmanifest','/app/assets/icons/adelia-icon.svg',
+ '/app/','/app/manifest.webmanifest','/assets/icons/adelia-icon-32.png?v=20260925-brand3','/assets/icons/adelia-icon-180.png?v=20260925-brand3','/assets/icons/adelia-icon-192.png?v=20260925-brand3','/assets/icons/adelia-icon-512.png?v=20260925-brand3',
  '/app/styles.css','/app/stage11_mobile.css','/app/responsive_shell.css','/app/selects.css',
  '/app/student_chat.css','/app/student_homework_plus.css','/app/formulas.css','/app/student_booking_ui.css',
  '/app/pwa.js','/app/app.js','/app/auth_flow_v2.js','/app/app_shell_plus.js','/app/responsive_shell.js','/app/student_boot.js','/app/student_booking_ui.js'
@@ -50,7 +50,7 @@ self.addEventListener('fetch',event=>{
  const request=event.request;if(request.method!=='GET')return;
  const url=new URL(request.url);if(url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;
  if(request.mode==='navigate'&&url.pathname.startsWith('/app/')){event.respondWith(boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put('/app/',response.clone()));return response}).catch(()=>caches.match('/app/')));return}
- const code=/\.(?:js|css|svg)$/.test(url.pathname)||url.pathname.endsWith('/manifest.webmanifest');
+ const code=/\.(?:js|css|svg|png)$/.test(url.pathname)||url.pathname.endsWith('/manifest.webmanifest');
  if(code){event.respondWith(boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response}).catch(()=>caches.match(request)));return}
  event.respondWith(caches.match(request).then(cached=>cached||boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response})))
 });

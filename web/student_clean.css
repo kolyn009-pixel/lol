@@ -32,3 +32,9 @@
  .student-hw-head{padding:16px!important;border-radius:18px!important}.student-hw-head h2{font-size:21px!important}.student-solve-task{padding:14px!important;border-radius:16px!important}
  .student-submit-hw{bottom:76px!important;width:100%!important}
 }
+
+/* Browser/PWA shell split: browser navigation belongs under the header; only installed PWA floats at the bottom. */
+html.adelia-browser .bottom-nav{position:sticky!important;top:76px!important;left:auto!important;bottom:auto!important;transform:none!important;width:min(calc(100% - 24px),1120px)!important;margin:10px auto 0!important;z-index:35!important;border-radius:16px!important;box-shadow:0 8px 24px rgba(28,30,40,.08)!important}
+html.adelia-browser .content{padding-bottom:42px!important}
+html.adelia-browser .nav-item{min-height:44px!important}
+@media(max-width:560px){html.adelia-browser .bottom-nav{top:65px!important;width:calc(100% - 16px)!important;margin-top:8px!important;padding:4px!important;border-radius:15px!important}html.adelia-browser .content{padding-bottom:34px!important}}
