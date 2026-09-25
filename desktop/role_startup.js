@@ -20,7 +20,7 @@ async function openStudent(mode){const win=mainWindow();if(!win)return false;if(
 async function openParent(){const win=mainWindow();if(!win)return false;await win.loadURL(APP_ORIGIN+'/app/parent/');return true}
 async function apiJson(route,opt={}){try{const s=session.fromPartition('persist:adelia');const r=await s.fetch(APP_ORIGIN+route,{credentials:'include',headers:{'Content-Type':'application/json','Origin':APP_ORIGIN,...(opt.headers||{})},...opt});const j=await r.json().catch(()=>({}));if(!r.ok)return{ok:false,status:r.status,error:j.error||'request_failed',data:j};return{ok:true,status:r.status,data:j}}catch{return{ok:false,status:0,error:'network_error',data:{}}}}
 async function teacherLogin(code){const clean=String(code||'').replace(/\D/g,'');if(clean.length!==6)return{ok:false,error:'invalid'};const r=await apiJson('/api/auth/teacher/code',{method:'POST',body:JSON.stringify({code:clean})});return r.ok?{ok:true}:{ok:false,error:r.error}}
-async function openTeacher(){const win=mainWindow();if(!win)return false;await win.loadURL(APP_ORIGIN+'/teacher/');return true}
+async function openTeacher(){const win=mainWindow();if(!win)return false;await win.loadURL(APP_ORIGIN+'/app/teacher.html');return true}
 async function restoreAuthenticatedRole(){
   const auth=await sessionState();
   if(!auth)return showChooser();

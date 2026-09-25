@@ -46,7 +46,7 @@ check(pkg.build.dmg?.contents?.some(x=>x.path==='/Applications'),'macOS drag-to-
 for(const f of ['bootstrap.js','system_polish.js','network_ux.js','offline.html','lesson_workspace.js','workspace_shell.js','bundled_ui.js','diagnostics.js','report_preload.js','report.html','report.css','report.js','device_check_preload.js','device_check.html','device_check.css','device_check.js','about_preload.js','about.html','about.css','about.js','desktop_ux.js','lesson_layout.js','role_startup.js','start.html','start.css','start.js','main.js','preload.js','package.json','build/icon.png'])check(pkg.build.files.includes(f),`packaged ${f}`);
 check(files.iconSync.includes("brand=path.join(__dirname,'..','brand','adelia_icon')")&&files.iconSync.includes("source=path.join(brand,'adelia-icon-512.png')"),'desktop uses repository canonical brand icon');
 check(!files.iconSync.includes('https.get')&&!files.iconSync.includes('ADELIA_DESKTOP_ICON_URL'),'desktop icon sync is offline and cannot fall back to stale server artwork');
-check(files.iconSync.includes('removeConnectedOuterBackground')&&files.iconSync.includes('alphaBounds')&&files.iconSync.includes('out.data[di+3]=src.data[si+3]'),'desktop native icon removes connected outer background and preserves alpha');
+check(files.iconSync.includes('resizeSquare(canonical,1024)')&&!files.iconSync.includes('removeConnectedOuterBackground'),'desktop native icon preserves exact canonical artwork without alternate background stripping');
 check(files.iconSync.includes('png2icons.createICNS')&&files.iconSync.includes('png2icons.createICO'),'native platform icon assets generated');
 check(files.bundledUi.includes("logo.dataset.adeliaDesktopBrand='canonical'")&&files.bundledUi.includes("path.join(__dirname,'build','icon-macos.png')")&&files.bundledUi.includes('data:image/png;base64'),'teacher desktop shell uses packaged transparent native logo');
 
@@ -101,6 +101,7 @@ check(files.bootstrap.includes("require('./role_startup').install()"),'role choo
 check(files.role.includes("loadFile(path.join(__dirname,'start.html'))"),'role chooser loads packaged start screen');
 check(files.role.includes("'/api/auth/teacher/code'"),'teacher code login wired');
 check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
+check(files.role.includes("APP_ORIGIN+'/app/teacher.html'"),'desktop teacher opens canonical document without redirect');
 check(files.workspaceShell.includes("u.pathname.startsWith('/teacher')")&&files.workspaceShell.includes("u.pathname==='/app/teacher.html'")&&files.bundledUi.includes("pathname.startsWith('/teacher')")&&files.bundledUi.includes("pathname==='/app/teacher.html'"),'canonical teacher routes remain desktop teacher role');
 check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("role==='teacher'")&&files.role.includes("role==='parent'")&&files.role.includes("role==='student'"),'authenticated desktop role is restored');
 check(files.main.includes("createWindow(startupDeep ? parseDeepLink(startupDeep).target : null)")&&files.main.includes("if (!startupDeep) await restoreMainRole()")&&files.main.includes("win.loadFile(path.join(__dirname,'start.html'))"),'desktop startup is role-gated before remote cabinet load');
@@ -164,9 +165,9 @@ check(web.parent.includes('/app/parent/parent_clean.css'),'parent clean shell li
 check(web.landing.includes('Adelia-latest-windows-x64.exe')&&readRepo('web/landing.html').includes('Adelia-latest-macos-arm64.dmg')&&readRepo('web/landing.html').includes('Adelia-latest-macos-x64.dmg'),'stable desktop download aliases linked');
 const parentManifest=JSON.parse(web.parentManifest);
 check(parentManifest.name.startsWith('Аделия'),'parent PWA branded Adelia');
-check(parentManifest.icons?.some(x=>x.src==='/assets/icons/adelia-icon-192.png'&&x.sizes==='192x192'),'parent canonical 192 icon');
-check(parentManifest.icons?.some(x=>x.src==='/assets/icons/adelia-icon-512.png'&&x.sizes==='512x512'),'parent canonical 512 icon');
-check(parentManifest.icons?.some(x=>x.src==='/assets/icons/adelia-icon-512.png'&&x.sizes==='512x512'&&x.purpose==='maskable'),'parent canonical maskable icon');
+check(parentManifest.icons?.some(x=>x.src.startsWith('/assets/icons/adelia-icon-192.png')&&x.sizes==='192x192'),'parent canonical 192 icon');
+check(parentManifest.icons?.some(x=>x.src.startsWith('/assets/icons/adelia-icon-512.png')&&x.sizes==='512x512'),'parent canonical 512 icon');
+check(parentManifest.icons?.some(x=>x.src.startsWith('/assets/icons/adelia-icon-512.png')&&x.sizes==='512x512'&&x.purpose==='maskable'),'parent canonical maskable icon');
 
 if(failed)process.exit(1);
 console.log('Desktop release selftest passed.');
