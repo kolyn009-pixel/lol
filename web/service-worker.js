@@ -1,14 +1,14 @@
-const CACHE='adelia-shell-v14';
+const CACHE='adelia-shell-v15';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const SHELL=[
- '/app/','/app/manifest.webmanifest','/assets/icons/adelia-icon-32.png?v=20260925-brand3','/assets/icons/adelia-icon-180.png?v=20260925-brand3','/assets/icons/adelia-icon-192.png?v=20260925-brand3','/assets/icons/adelia-icon-512.png?v=20260925-brand3',
+ '/app/','/app/manifest.webmanifest','/app/assets/icons/adelia-icon-32.png?v=20260925-brand4','/app/assets/icons/adelia-icon-180.png?v=20260925-brand4','/app/assets/icons/adelia-icon-192.png?v=20260925-brand4','/app/assets/icons/adelia-icon-512.png?v=20260925-brand4',
  '/app/styles.css','/app/stage11_mobile.css','/app/responsive_shell.css','/app/selects.css',
  '/app/student_chat.css','/app/student_homework_plus.css','/app/formulas.css','/app/student_booking_ui.css',
  '/app/pwa.js','/app/app.js','/app/auth_flow_v2.js','/app/app_shell_plus.js','/app/responsive_shell.js','/app/student_boot.js','/app/student_booking_ui.js'
 ];
-const ICON='/assets/icons/adelia-icon-180.png?v=20260925-brand3';
-const BADGE='/assets/icons/adelia-icon-32.png?v=20260925-brand3';
+const ICON='/app/assets/icons/adelia-icon-180.png?v=20260925-brand4';
+const BADGE='/app/assets/icons/adelia-icon-32.png?v=20260925-brand4';
 const TYPE_META={
  invoice:{emoji:'💳',title:'Новый счёт'},
  payment:{emoji:'✅',title:'Оплата подтверждена'},
