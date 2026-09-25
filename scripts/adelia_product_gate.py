@@ -17,13 +17,13 @@ def manifest(path,start,scope):
     if m.get('display')!='standalone': raise AssertionError(f"{path}: display must be standalone")
     if str(m.get('theme_color','')).lower()!='#6847f5': raise AssertionError(f"{path}: wrong theme color")
     icons=m.get('icons') or []
-    canonical={'/assets/icons/adelia-icon-192.png','/assets/icons/adelia-icon-512.png'}
+    canonical={'/app/assets/icons/adelia-icon-192.png','/app/assets/icons/adelia-icon-512.png'}
     sources={str(x.get('src','')).split('?',1)[0] for x in icons}
     if not (sources & canonical): raise AssertionError(f"{path}: canonical Adelia icon missing")
     for icon in icons:
         src=str(icon.get('src','')).split('?',1)[0]
-        if src=='/assets/icons/adelia-icon-192.png' and str(icon.get('sizes',''))!='192x192': raise AssertionError(f"{path}: 192 icon metadata must be 192x192")
-        if src=='/assets/icons/adelia-icon-512.png' and str(icon.get('sizes',''))!='512x512': raise AssertionError(f"{path}: 512 icon metadata must be 512x512")
+        if src=='/app/assets/icons/adelia-icon-192.png' and str(icon.get('sizes',''))!='192x192': raise AssertionError(f"{path}: 192 icon metadata must be 192x192")
+        if src=='/app/assets/icons/adelia-icon-512.png' and str(icon.get('sizes',''))!='512x512': raise AssertionError(f"{path}: 512 icon metadata must be 512x512")
 
 teacher=read('web/teacher.html')
 student=read('web/index.html')
@@ -47,16 +47,16 @@ need(teacher,[
     '/app/teacher_clean.css','/app/teacher_clean_sections.css','/app/teacher_clean7.css',
     '/app/teacher_clean_runtime.js','/app/teacher_clean_router.js','/app/teacher_groups.js',
     'data-view="groups"','data-view="messages"','data-view="health"',
-    '/assets/icons/adelia-icon-32.png','/assets/icons/adelia-icon-180.png'
+    '/app/assets/icons/adelia-icon-32.png','/app/assets/icons/adelia-icon-180.png'
 ],'teacher')
 need(student,[
     '/app/student_clean.css','/app/install_runtime.js','data-tab="home"','data-tab="schedule"',
     'data-tab="homework"','data-tab="messages"','data-tab="profile"',
-    '/assets/icons/adelia-icon-32.png','/assets/icons/adelia-icon-180.png'
+    '/app/assets/icons/adelia-icon-32.png','/app/assets/icons/adelia-icon-180.png'
 ],'student')
 need(parent,[
     '/app/parent/parent_clean.css','/app/parent/parent_v5.js','/app/parent/pwa.js',
-    '/assets/icons/adelia-icon-32.png','/assets/icons/adelia-icon-180.png'
+    '/app/assets/icons/adelia-icon-32.png','/app/assets/icons/adelia-icon-180.png'
 ],'parent')
 need(parent_pwa,[
     "BASE='/app/parent/'",
@@ -66,7 +66,7 @@ need(parent_pwa,[
     'controllerchange',
     'beforeinstallprompt'
 ],'parent pwa')
-need(parent_sw,["BASE='/app/parent/'","adelia-parent-v6",'notificationclick','push','adelia-icon-180.png'],'parent service worker')
+need(parent_sw,["BASE='/app/parent/'","adelia-parent-v7",'notificationclick','push','adelia-icon-180.png'],'parent service worker')
 
 manifest('web/manifest.webmanifest','/app/','/app/')
 manifest('web/teacher-manifest.webmanifest','/teacher/','/teacher/')
@@ -78,8 +78,8 @@ need(desktop_preload,['openParentCabinet','adelia:parent-cabinet'],'desktop prel
 need(desktop_role,["APP_ORIGIN+'/app/parent/'","adelia:parent-cabinet"],'desktop role runtime')
 need(desktop_pkg,['verify_icon.js','bundled_ui_manifest.js','build/icon.png'],'desktop package')
 need(desktop_manifest,['student:','teacher:','parent:','teacher_v5.css','parent/app.css'],'desktop bundled UI')
-need(student_sw,['adelia-shell-v14',"url.pathname==='/app/teacher.html'",'notificationclick','adelia-icon-180.png'],'student service worker')
-need(teacher_sw,['adelia-teacher-shell-v4','notificationclick','adelia-icon-180.png'],'teacher service worker')
+need(student_sw,['adelia-shell-v15',"url.pathname==='/app/teacher.html'",'notificationclick','adelia-icon-180.png'],'student service worker')
+need(teacher_sw,['adelia-teacher-shell-v5','notificationclick','adelia-icon-180.png'],'teacher service worker')
 need(pwa,['desktop_uses_native_notifications',"location.pathname==='/app/teacher.html'",'/api/push/subscribe'],'PWA notification routing')
 need(teacher_dashboard,['updateDashboardState','setInterval(()=>fetchDash().then(syncDesktopState)','unreadMessages','activeHomework','unpaidAmount'],'desktop notification state')
 need(finance_reporting,['_lesson_earned_expr','reserved_paid_minutes','funding_kind'],'non-cash finance reporting')
