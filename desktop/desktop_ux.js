@@ -52,6 +52,7 @@ function badgeIcon(count) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="32"><rect width="100%" height="32" rx="16" fill="#ef4444"/><text x="50%" y="21" text-anchor="middle" font-family="Segoe UI,Arial" font-size="15" font-weight="700" fill="white">${text}</text></svg>`;
   return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
 }
+function subjectName(value){const x=String(value||'').toUpperCase();return x==='PHYSICS'?'Физика':x==='CHEMISTRY'?'Химия':x==='MATH'?'Математика':String(value||'Занятие')}
 function maybeNotify(previous,state) {
   const prefs=defaults();
   if(!prefs.notificationsEnabled||!Notification.isSupported())return;
@@ -60,7 +61,7 @@ function maybeNotify(previous,state) {
     const diff=Math.round((new Date(lesson.start_time).getTime()-Date.now())/60000);
     if(diff>=0&&diff<=15&&String(notifiedLessonId)!==String(lesson.id)){
       notifiedLessonId=lesson.id;
-      const n=new Notification({title:'Скоро занятие',body:`${lesson.name||'Ученик'} · ${lesson.subject||'Занятие'} через ${diff} мин`});
+      const n=new Notification({title:'Скоро занятие',body:`${lesson.name||'Ученик'} · ${subjectName(lesson.subject)} через ${diff} мин`});
       n.on('click',()=>{showMain();app.emit('adelia-open-route','home')});n.show();
     }
   }
@@ -99,7 +100,7 @@ function updateWindowIndicators(state) {
   const lesson = dashboardState.nextLesson;
   if (lesson && lesson.start_time) {
     const diff = Math.round((new Date(lesson.start_time).getTime() - Date.now()) / 60000);
-    if (diff >= 0 && diff <= 30) win.setTitle(`Аделия · ${lesson.subject || 'Занятие'} через ${diff} мин`);
+    if (diff >= 0 && diff <= 30) win.setTitle(`Аделия · ${subjectName(lesson.subject)} через ${diff} мин`);
     else win.setTitle('Аделия');
   } else win.setTitle('Аделия');
 }

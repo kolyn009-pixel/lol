@@ -2,12 +2,13 @@
   let deferredPrompt=null;
   let swRegistration=null;
   const standalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+  const desktop=()=>!!window.adeliaDesktop?.desktop;
   const ios=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;
   const teacherScope=()=>location.pathname.startsWith('/teacher/')||location.pathname==='/app/teacher.html';
   const SW_VERSION='20260925-pwa3';
   const swConfig=()=>teacherScope()?{url:'/teacher/teacher-service-worker.js?v='+SW_VERSION,scope:'/teacher/'}:{url:'/app/service-worker.js?v='+SW_VERSION,scope:'/app/'};
   const notificationSupported=()=>typeof window.Notification!=='undefined'&&typeof Notification.requestPermission==='function';
-  const pushSupported=()=>notificationSupported()&&'serviceWorker' in navigator&&'PushManager' in window;
+  const pushSupported=()=>!desktop()&&notificationSupported()&&'serviceWorker' in navigator&&'PushManager' in window;
   const permission=()=>notificationSupported()?Notification.permission:'unsupported';
   const DISMISSED_KEY='adelia_notification_prompt_dismissed_v1';
   function syncShellMode(){
@@ -20,6 +21,7 @@
   const b64ToBytes=value=>{const padding='='.repeat((4-value.length%4)%4);const base64=(value+padding).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(base64);return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)))};
 
   async function serviceWorkerReady(){
+    if(desktop())throw new Error('desktop_uses_native_notifications');
     if(!('serviceWorker' in navigator))throw new Error('service_worker_unsupported');
     const cfg=swConfig();
     if(swRegistration?.active&&swRegistration.scope.endsWith(cfg.scope))return swRegistration;
@@ -50,7 +52,7 @@
   function renderNotificationCard(copy,{force=false,error=''}={}){removeNotificationCard();if(!force&&dismissed())return;injectNotificationStyles();const root=document.createElement('section');root.id='adeliaNotificationCard';root.className='adelia-notify-card';const safe=String(error||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));root.innerHTML=`<h3>🔔 ${copy.title}</h3><p>${copy.text}</p>${safe?`<div class="adelia-notify-error">${safe}</div>`:''}<div class="adelia-notify-actions"><button type="button" class="adelia-notify-enable">${copy.action}</button><button type="button" class="adelia-notify-later">Позже</button></div><small class="adelia-notify-note">${copy.note||''}</small>`;root.querySelector('.adelia-notify-later').onclick=()=>{markDismissed();removeNotificationCard()};root.querySelector('.adelia-notify-enable').onclick=async()=>{const btn=root.querySelector('.adelia-notify-enable');btn.disabled=true;const before=btn.textContent;btn.textContent='Подключаю…';try{if(copy.mode==='install'){const result=await window.AdeliaPWA.install();if(result?.message)alert(result.message);return}if(Notification.permission==='default'){const p=await Notification.requestPermission();if(p!=='granted'){if(p==='denied'){markDismissed();removeNotificationCard()}return}}const result=await subscribeFromGesture();if(result.status==='subscribed')removeNotificationCard()}catch(err){showPushRecoveryCard(err)}finally{if(document.body.contains(btn)){btn.disabled=false;btn.textContent=before}}};document.body.appendChild(root)}
   function showPushRecoveryCard(err){const msg=String(err&&err.message||err||'Не удалось зарегистрировать устройство.');renderNotificationCard({title:'Уведомления разрешены, но устройство ещё не подключено',text:'Нажмите кнопку ещё раз для регистрации push.',action:'Подключить уведомления',mode:'retry',note:'Разрешение iOS уже сохранено.'},{force:true,error:msg})}
   async function requestNotifications(){if(ios()&&!standalone())return {status:'install_required'};if(!notificationSupported())return {status:'unsupported'};try{let result=Notification.permission;if(result==='default')result=await Notification.requestPermission();if(result==='granted')return subscribeFromGesture();if(result==='denied'){markDismissed();removeNotificationCard();removePushAction()}return {status:result}}catch(err){showPushRecoveryCard(err);return {status:'error',error:String(err&&err.message||err)}}}
-  function showNotificationCard(force=false){if(document.getElementById('adeliaNotificationCard'))return;if(!force&&dismissed())return;if(!notificationSupported()&&!(ios()&&!standalone()))return;if(notificationSupported()&&Notification.permission==='granted'){syncExistingSubscription().then(result=>{if(result.status==='user_gesture_required')mountPushAction()}).catch(showPushRecoveryCard);return}if(notificationSupported()&&Notification.permission==='denied')return;renderNotificationCard(notificationCopy(),{force})}
+  function showNotificationCard(force=false){if(desktop())return;if(document.getElementById('adeliaNotificationCard'))return;if(!force&&dismissed())return;if(!notificationSupported()&&!(ios()&&!standalone()))return;if(notificationSupported()&&Notification.permission==='granted'){syncExistingSubscription().then(result=>{if(result.status==='user_gesture_required')mountPushAction()}).catch(showPushRecoveryCard);return}if(notificationSupported()&&Notification.permission==='denied')return;renderNotificationCard(notificationCopy(),{force})}
 
   window.AdeliaPWA={isStandalone:standalone,isIOS:ios,canInstall:()=>!!deferredPrompt||(!standalone()&&ios()),notificationPermission:permission,requestNotifications,syncPushSubscription,subscribeFromGesture,testPush,showNotificationPrompt:()=>showNotificationCard(true),async install(){if(standalone())return {status:'installed'};if(!deferredPrompt){if(ios())return {status:'manual',message:'В Safari нажмите «Поделиться», затем «На экран Домой».'};return {status:'unavailable'}}const prompt=deferredPrompt;deferredPrompt=null;await prompt.prompt();const choice=await prompt.userChoice.catch(()=>null);window.dispatchEvent(new CustomEvent('adelia:pwa-state'));return {status:choice?.outcome||'dismissed'}}};
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event});
@@ -58,9 +60,9 @@
   const displayMode=window.matchMedia('(display-mode: standalone)');
   if(displayMode?.addEventListener)displayMode.addEventListener('change',syncShellMode);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',syncShellMode,{once:true});else syncShellMode();
-  if('serviceWorker' in navigator){
+  if('serviceWorker' in navigator&&!desktop()){
     navigator.serviceWorker.addEventListener('controllerchange',()=>{try{if(sessionStorage.getItem('adelia_sw_reloaded_'+SW_VERSION)!=='1'){sessionStorage.setItem('adelia_sw_reloaded_'+SW_VERSION,'1');location.reload()}}catch(_){}});
     window.addEventListener('load',()=>{serviceWorkerReady().then(async reg=>{swRegistration=reg;if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});try{await reg.update()}catch(_){}if(Notification.permission==='granted'){try{const result=await syncExistingSubscription();if(result.status==='user_gesture_required')mountPushAction()}catch(err){showPushRecoveryCard(err)}}}).catch(err=>{if(Notification.permission==='granted')showPushRecoveryCard(err)})})
   }
-  window.addEventListener('load',()=>setTimeout(()=>showNotificationCard(false),1600));
+  if(!desktop())window.addEventListener('load',()=>setTimeout(()=>showNotificationCard(false),1600));
 })();

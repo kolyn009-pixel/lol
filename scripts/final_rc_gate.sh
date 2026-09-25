@@ -48,6 +48,9 @@ PY
 echo "=== 5. PRODUCT/PWA/DESKTOP STATIC GATE ==="
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP/rc" "$PYTHON" scripts/adelia_product_gate.py
 
+echo "=== 5A. PUSH NOTIFICATION SELFTEST ==="
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP/rc" "$PYTHON" scripts/push_notification_selftest.py
+
 echo "=== 6. REQUIRED RELEASE ASSETS ==="
 for f in \
   web/teacher.html \
@@ -56,6 +59,7 @@ for f in \
   web/service-worker.js \
   web/teacher-service-worker.js \
   web/parent/service-worker.js \
+  scripts/push_notification_selftest.py \
   web_backend/teacher_lesson_actions.py \
   web_backend/teacher_day_off_state.py \
   web_backend/teacher_schedule_settings.py \

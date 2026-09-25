@@ -265,7 +265,7 @@ function setupAutoUpdates() {
 
 function createWindow(initialUrl = null) {
   const restored=savedMainBounds();
-  const win=new BrowserWindow({width:restored?.width||1280,height:restored?.height||820,...(restored?{x:restored.x,y:restored.y}:{}),minWidth:900,minHeight:620,show:false,backgroundColor:'#ffffff',title:'Аделия',webPreferences:{preload:path.join(__dirname,'preload.js'),partition:'persist:adelia',contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,backgroundThrottling:true}}); mainWindow=win;
+  const win=new BrowserWindow({width:restored?.width||1280,height:restored?.height||820,...(restored?{x:restored.x,y:restored.y}:{}),minWidth:900,minHeight:620,show:false,backgroundColor:'#ffffff',title:'Аделия',webPreferences:{preload:path.join(__dirname,'preload.js'),partition:'persist:adelia',contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,backgroundThrottling:false}}); mainWindow=win;
   win.webContents.setWindowOpenHandler(({url})=>{if(trustedApp(url)){win.loadURL(url);return{action:'deny'};}if(trustedChild(url)){openMeetingWindow(url);return{action:'deny'};}if(trustedBoard(url)){openBoardWindow(url);return{action:'deny'};}openExternalSafe(url);return{action:'deny'};});
   win.webContents.on('will-navigate',(event,url)=>{if(!trustedApp(url)){event.preventDefault();if(trustedChild(url))openMeetingWindow(url);else if(trustedBoard(url))openBoardWindow(url);else openExternalSafe(url);}});
   win.webContents.on('did-fail-load',(_e,code,_desc,validatedURL,isMainFrame)=>{if(isMainFrame&&code!==-3&&trustedApp(validatedURL||APP_URL))win.loadURL(offlinePage());});
