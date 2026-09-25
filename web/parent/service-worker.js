@@ -1,10 +1,10 @@
-const CACHE='adelia-parent-v6';
+const CACHE='adelia-parent-v7';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const BASE='/app/parent/';
-const SHELL=[BASE,BASE+'app.js',BASE+'pwa.js',BASE+'parent_v5.js',BASE+'parent_clean.css',BASE+'parent_v5.css',BASE+'manifest.webmanifest','/assets/icons/adelia-icon-32.png?v=20260925-brand3','/assets/icons/adelia-icon-180.png?v=20260925-brand3','/assets/icons/adelia-icon-192.png?v=20260925-brand3','/assets/icons/adelia-icon-512.png?v=20260925-brand3'];
-const ICON='/assets/icons/adelia-icon-180.png?v=20260925-brand3';
-const BADGE='/assets/icons/adelia-icon-32.png?v=20260925-brand3';
+const SHELL=[BASE,BASE+'app.js',BASE+'pwa.js',BASE+'parent_v5.js',BASE+'parent_clean.css',BASE+'parent_v5.css',BASE+'manifest.webmanifest','/app/assets/icons/adelia-icon-32.png?v=20260925-brand4','/app/assets/icons/adelia-icon-180.png?v=20260925-brand4','/app/assets/icons/adelia-icon-192.png?v=20260925-brand4','/app/assets/icons/adelia-icon-512.png?v=20260925-brand4'];
+const ICON='/app/assets/icons/adelia-icon-180.png?v=20260925-brand4';
+const BADGE='/app/assets/icons/adelia-icon-32.png?v=20260925-brand4';
 const TYPE_META={invoice:{emoji:'💳',title:'Новый счёт'},payment:{emoji:'✅',title:'Оплата подтверждена'},receipt:{emoji:'🧾',title:'Оплата'},lesson:{emoji:'🎓',title:'Занятие ребёнка'},lesson_start:{emoji:'🎥',title:'Занятие начинается'},schedule:{emoji:'🗓️',title:'Расписание изменилось'},homework:{emoji:'📚',title:'Домашнее задание'},homework_review:{emoji:'✍️',title:'Работа проверена'},message:{emoji:'💬',title:'Новое сообщение'},reminder:{emoji:'⏰',title:'Напоминание'},test:{emoji:'💜',title:'Аделия работает'}};
 function view(payload){const data=payload&&typeof payload.data==='object'&&payload.data?payload.data:{};const type=String(data.type||'').toLowerCase();const meta=TYPE_META[type];let title=String(payload?.title||meta?.title||'Аделия Родителям').trim();if(meta&&!/^[\p{Extended_Pictographic}]/u.test(title))title=`${meta.emoji} ${title}`;return{title,body:String(payload?.body||''),url:String(payload?.url||BASE),tag:String(payload?.tag||`adelia-parent-${type||'notice'}`),data}}
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>Promise.all(SHELL.map(u=>c.add(u).catch(()=>null)))).then(()=>self.skipWaiting())));
