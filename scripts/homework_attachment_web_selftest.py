@@ -82,6 +82,51 @@ def main():
         finally:
             conn.close()
 
+        # VK teacher flow: remote VK bytes must be persisted before any later delivery/read.
+        old_bytes = attachment_bridge._bytes_request
+        vk_fetches = []
+        def fake_vk_fetch(url, timeout=90):
+            vk_fetches.append((url, timeout))
+            return b"%PDF-from-vk-db-first"
+        attachment_bridge._bytes_request = fake_vk_fetch
+        try:
+            vk_ids = ha.save_vk_descriptors(
+                10,
+                [{
+                    "kind": "document",
+                    "filename": "vk-homework.pdf",
+                    "content_type": "application/pdf",
+                    "vk_key": "doc1_2",
+                    "url": "https://vk.test/homework.pdf",
+                }],
+            )
+        finally:
+            attachment_bridge._bytes_request = old_bytes
+        assert len(vk_ids) == 1, vk_ids
+        assert vk_fetches == [("https://vk.test/homework.pdf", 90)], vk_fetches
+        vk_aid = int(vk_ids[0])
+
+        conn = database.connect()
+        try:
+            vk_row = conn.execute(
+                "SELECT content_blob,content_size,content_sha256,vk_url FROM homework_attachments WHERE id=?",
+                (vk_aid,),
+            ).fetchone()
+            assert bytes(vk_row["content_blob"]) == b"%PDF-from-vk-db-first", vk_row
+            assert int(vk_row["content_size"]) == len(b"%PDF-from-vk-db-first"), vk_row
+            assert len(str(vk_row["content_sha256"])) == 64, vk_row
+        finally:
+            conn.close()
+
+        # Once persisted, web read must not call VK again.
+        attachment_bridge._bytes_request = forbidden_remote
+        try:
+            vk_student = ha.read_for_web(vk_aid, student_user_id=101)
+            assert vk_student["content"] == b"%PDF-from-vk-db-first"
+        finally:
+            attachment_bridge._bytes_request = old_bytes
+
+        print("HOMEWORK_ATTACHMENT_VK_DB_FIRST=PASS")
         print("HOMEWORK_ATTACHMENT_WEB_SELFTEST=PASS")
     finally:
         try:
