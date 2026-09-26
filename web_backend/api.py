@@ -3,6 +3,8 @@ import cgi
 import json
 import os
 import time
+import re
+from urllib.parse import quote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from web_backend.parent_linking import find_student_by_username, link_parent_to_student_by_username
@@ -22,6 +24,7 @@ from web_backend.student_homework import list_homework as student_homework_list,
 from web_backend.pdf_workflow import upload_collection as pdf_upload_collection, get_review as pdf_get_review, edit_review_item as pdf_edit_item, set_review_item as pdf_set_item, publish_review as pdf_publish_review
 from web_backend.pdf_storage import MAX_PDF_BYTES
 from web_backend.web_sessions import SESSION_TTL, create_session, read_session, revoke_session
+from homework_attachments import read_for_web
 
 HOST=os.getenv('ADELIA_WEB_HOST','127.0.0.1');PORT=int(os.getenv('ADELIA_WEB_PORT','8765'))
 _attempts={}
@@ -42,6 +45,11 @@ class Handler(BaseHTTPRequestHandler):
   if cookie:self.send_header('Set-Cookie',f'adelia_session={cookie}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={SESSION_TTL}')
   elif clear_cookie:self.send_header('Set-Cookie','adelia_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0')
   self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
+ def _file(self,payload):
+  data=payload['content'];name=str(payload.get('filename') or 'document').replace('\\','_').replace('/','_').replace('"','_').replace('\\r',' ').replace('\\n',' ')
+  ctype=str(payload.get('mime_type') or 'application/octet-stream').split(';',1)[0]
+  self.send_response(200);self.send_header('Content-Type',ctype);self.send_header('Cache-Control','private, no-store');self.send_header('X-Content-Type-Options','nosniff')
+  self.send_header('Content-Disposition',f"inline; filename*=UTF-8''{quote(name)}");self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
  def _body(self):
   try:return json.loads(self.rfile.read(min(int(self.headers.get('Content-Length','0')),65536)) or b'{}')
   except:return None
@@ -66,6 +74,15 @@ class Handler(BaseHTTPRequestHandler):
    if path=='/api/health':return self._json(200,{'ok':True,'service':'adelia-web'})
    if path=='/api/public/prices':return self._json(200,{'items':get_public_price_catalog()})
    if path=='/api/public/reviews':return self._json(200,{'items':list_public_reviews(12)})
+   if path=='/api/homework/attachment':
+    a=self._auth()
+    if not a:return self._json(401,{'error':'unauthorized'})
+    aid=int(q.get('id',['0'])[0])
+    try:
+     item=read_for_web(aid,student_user_id=a['id'] if a['role']=='student' else None,teacher=a['role']=='teacher')
+    except PermissionError:return self._json(403,{'error':'forbidden'})
+    except FileNotFoundError:return self._json(404,{'error':'attachment_not_found'})
+    return self._file(item)
    if path=='/api/auth/me':
     a=self._auth();return self._json(200,{'authenticated':bool(a),'session':a if a else None})
    if path.startswith('/api/student/'):
