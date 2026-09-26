@@ -230,6 +230,81 @@ def list_for_homework(homework_id: int):
         conn.close()
 
 
+def web_descriptors(homework_id: int):
+    """Safe attachment metadata for web clients; transport ids stay server-side."""
+    rows = list_for_homework(int(homework_id))
+    out = []
+    for row in rows:
+        item = dict(row)
+        aid = int(item["id"])
+        kind = _normalize_kind(item.get("kind") or item.get("file_type"))
+        filename = item.get("filename") or item.get("file_name") or (
+            "image.jpg" if kind == "photo" else "document"
+        )
+        out.append(
+            {
+                "id": aid,
+                "kind": kind,
+                "filename": filename,
+                "mime_type": item.get("mime_type") or (
+                    "image/jpeg" if kind == "photo" else "application/octet-stream"
+                ),
+                "caption": item.get("caption") or "",
+                "url": f"/api/homework/attachment?id={aid}",
+            }
+        )
+    return out
+
+
+def read_for_web(attachment_id: int, *, student_user_id=None, teacher=False):
+    """Return authorized attachment bytes for the web portal."""
+    initialize()
+    conn = database.connect()
+    try:
+        row = conn.execute(
+            """
+            SELECT a.*, h.user_id
+              FROM homework_attachments a
+              JOIN homework h ON h.id=a.homework_id
+             WHERE a.id=?
+            """,
+            (int(attachment_id),),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise FileNotFoundError("homework_attachment_not_found")
+    item = dict(row)
+    if not teacher:
+        if student_user_id is None or int(item["user_id"]) != int(student_user_id):
+            raise PermissionError("homework_attachment_forbidden")
+
+    from vk_adapter import attachment_bridge as bridge
+
+    content = None
+    if item.get("telegram_file_id"):
+        content = bridge.telegram_file_bytes(item["telegram_file_id"])
+    elif item.get("vk_url"):
+        content = bridge._bytes_request(item["vk_url"], timeout=90)
+    if not content:
+        raise FileNotFoundError("homework_attachment_unavailable")
+
+    kind = _normalize_kind(item.get("kind") or item.get("file_type"))
+    filename = item.get("filename") or item.get("file_name") or (
+        "image.jpg" if kind == "photo" else "document"
+    )
+    mime_type = item.get("mime_type") or (
+        "image/jpeg" if kind == "photo" else "application/octet-stream"
+    )
+    return {
+        "content": content,
+        "filename": filename,
+        "mime_type": mime_type,
+        "kind": kind,
+        "homework_id": int(item["homework_id"]),
+    }
+
+
 def count_for_homework(homework_id: int):
     initialize()
     conn = database.connect()
