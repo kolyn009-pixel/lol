@@ -41,6 +41,10 @@ mods=[
  'web_backend.api_v6',
  'web_backend.finance_reporting',
  'core.minute_balance',
+ 'homework_attachments',
+ 'web_backend.student_homework',
+ 'web_backend.homework_center',
+ 'web_backend.api_v7',
 ]
 for name in mods:
     __import__(name)
@@ -53,6 +57,9 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP/rc" "$PYTHON" scripts/adelia_product_
 echo "=== 5A. PUSH NOTIFICATION SELFTEST ==="
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP/rc" "$PYTHON" scripts/push_notification_selftest.py
 
+echo "=== 5B. HOMEWORK FILE WEB SELFTEST ==="
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$TMP/rc" "$PYTHON" scripts/homework_attachment_web_selftest.py
+
 echo "=== 6. REQUIRED RELEASE ASSETS ==="
 for f in \
   web/teacher.html \
@@ -62,6 +69,10 @@ for f in \
   web/teacher-service-worker.js \
   web/parent/service-worker.js \
   scripts/push_notification_selftest.py \
+  scripts/homework_attachment_web_selftest.py \
+  homework_attachments.py \
+  web/student_homework_plus.js \
+  web/teacher_homework_detail_plus.js \
   web_backend/teacher_lesson_actions.py \
   web_backend/teacher_day_off_state.py \
   web_backend/teacher_schedule_settings.py \
@@ -155,6 +166,10 @@ checks={
  'web_backend/finance_reporting.py':['_lesson_earned_expr','reserved_paid_minutes','funding_kind'],
  'web/pwa.js':['desktop_uses_native_notifications',"/api/push/subscribe","location.pathname==='/app/teacher.html'"],
  'web/teacher_dashboard_week.js':['updateDashboardState','setInterval(()=>fetchDash().then(syncDesktopState)','unreadMessages','activeHomework','unpaidAmount'],
+ 'web/student_homework_plus.js':['Файлы задания','attachmentsBlock','student-hw-file'],
+ 'web/teacher_homework_detail_plus.js':['p.attachments||d.attachments','Файл задания'],
+ 'web_backend/student_homework.py':['web_descriptors','attachment_count'],
+ 'web_backend/api.py':["/api/homework/attachment",'read_for_web','Content-Disposition'],
 }
 for path,markers in checks.items():
     text=Path(path).read_text(encoding='utf-8')
