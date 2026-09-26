@@ -32,6 +32,7 @@ def main():
             mime_type="application/pdf",
             telegram_file_id="TEST_TELEGRAM_FILE",
             source_channel="TELEGRAM",
+            content=b"%PDF-db-first-homework",
         )
 
         items = ha.web_descriptors(10)
@@ -44,11 +45,16 @@ def main():
 
         from vk_adapter import attachment_bridge
 
-        old = attachment_bridge.telegram_file_bytes
-        attachment_bridge.telegram_file_bytes = lambda file_id: b"%PDF-test-homework"
+        def forbidden_remote(*args, **kwargs):
+            raise AssertionError("homework read attempted remote transport instead of SQLite")
+
+        old_tg = attachment_bridge.telegram_file_bytes
+        old_bytes = attachment_bridge._bytes_request
+        attachment_bridge.telegram_file_bytes = forbidden_remote
+        attachment_bridge._bytes_request = forbidden_remote
         try:
             student = ha.read_for_web(aid, student_user_id=101)
-            assert student["content"] == b"%PDF-test-homework"
+            assert student["content"] == b"%PDF-db-first-homework"
             assert student["mime_type"] == "application/pdf"
 
             try:
@@ -59,9 +65,22 @@ def main():
                 raise AssertionError("foreign student could read homework attachment")
 
             teacher = ha.read_for_web(aid, teacher=True)
-            assert teacher["content"] == b"%PDF-test-homework"
+            assert teacher["content"] == b"%PDF-db-first-homework"
         finally:
-            attachment_bridge.telegram_file_bytes = old
+            attachment_bridge.telegram_file_bytes = old_tg
+            attachment_bridge._bytes_request = old_bytes
+
+        conn = database.connect()
+        try:
+            row = conn.execute(
+                "SELECT content_blob,content_size,content_sha256 FROM homework_attachments WHERE id=?",
+                (aid,),
+            ).fetchone()
+            assert bytes(row["content_blob"]) == b"%PDF-db-first-homework", row
+            assert int(row["content_size"]) == len(b"%PDF-db-first-homework"), row
+            assert len(str(row["content_sha256"])) == 64, row
+        finally:
+            conn.close()
 
         print("HOMEWORK_ATTACHMENT_WEB_SELFTEST=PASS")
     finally:
