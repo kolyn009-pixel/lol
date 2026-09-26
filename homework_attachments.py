@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from typing import Iterable
@@ -28,6 +29,10 @@ def initialize():
                 vk_attachment_key TEXT,
                 vk_url TEXT,
                 source_channel TEXT,
+                content_blob BLOB,
+                content_size INTEGER,
+                content_sha256 TEXT,
+                content_stored_at TEXT,
                 created_at TEXT,
                 updated_at TEXT
             )
@@ -56,6 +61,10 @@ def initialize():
             "vk_attachment_key": "TEXT",
             "vk_url": "TEXT",
             "source_channel": "TEXT",
+            "content_blob": "BLOB",
+            "content_size": "INTEGER",
+            "content_sha256": "TEXT",
+            "content_stored_at": "TEXT",
             "created_at": "TEXT",
             "updated_at": "TEXT",
         }
@@ -124,6 +133,59 @@ def _normalize_kind(value):
     return "photo" if value in {"photo", "image", "picture"} else "document"
 
 
+def _content_meta(content):
+    data = bytes(content or b"")
+    if not data:
+        raise ValueError("homework_attachment_empty")
+    return data, len(data), hashlib.sha256(data).hexdigest()
+
+
+def _source_bytes(*, telegram_file_id=None, vk_url=None, content=None):
+    if content is not None:
+        return bytes(content)
+    from vk_adapter import attachment_bridge as bridge
+    if telegram_file_id:
+        return bridge.telegram_file_bytes(telegram_file_id)
+    if vk_url:
+        return bridge._bytes_request(vk_url, timeout=90)
+    raise ValueError("homework_attachment_content_required")
+
+
+def _store_content(attachment_id, content):
+    data, size, digest = _content_meta(content)
+    conn = database.connect()
+    try:
+        conn.execute(
+            """
+            UPDATE homework_attachments
+               SET content_blob=?,
+                   content_size=?,
+                   content_sha256=?,
+                   content_stored_at=?,
+                   updated_at=?
+             WHERE id=?
+            """,
+            (data, size, digest, _now(), _now(), int(attachment_id)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return data
+
+
+def _ensure_content_blob(item):
+    data = item.get("content_blob") if isinstance(item, dict) else item["content_blob"]
+    if data:
+        return bytes(data)
+    # Compatibility migration for legacy rows: fetch once, persist, then all
+    # subsequent reads/sends use SQLite as the source of truth.
+    content = _source_bytes(
+        telegram_file_id=(item.get("telegram_file_id") if isinstance(item, dict) else item["telegram_file_id"]),
+        vk_url=(item.get("vk_url") if isinstance(item, dict) else item["vk_url"]),
+    )
+    return _store_content(int(item["id"]), content)
+
+
 def save_reference(
     homework_id: int,
     *,
@@ -134,9 +196,17 @@ def save_reference(
     vk_attachment_key: str | None = None,
     vk_url: str | None = None,
     source_channel: str | None = None,
+    file_unique_id: str | None = None,
+    content: bytes | bytearray | memoryview | None = None,
 ):
     initialize()
     now = _now()
+    data = _source_bytes(
+        telegram_file_id=telegram_file_id,
+        vk_url=vk_url,
+        content=content,
+    )
+    data, content_size, content_sha256 = _content_meta(data)
     conn = database.connect()
     try:
         existing = conn.execute(
@@ -166,6 +236,11 @@ def save_reference(
                     vk_attachment_key=COALESCE(?,vk_attachment_key),
                     vk_url=COALESCE(?,vk_url),
                     source_channel=COALESCE(?,source_channel),
+                    file_unique_id=COALESCE(?,file_unique_id),
+                    content_blob=?,
+                    content_size=?,
+                    content_sha256=?,
+                    content_stored_at=?,
                     updated_at=?
                 WHERE id=?
                 """,
@@ -175,6 +250,11 @@ def save_reference(
                     vk_attachment_key,
                     vk_url,
                     source_channel,
+                    file_unique_id,
+                    data,
+                    content_size,
+                    content_sha256,
+                    now,
                     now,
                     int(existing["id"]),
                 ),
@@ -191,8 +271,10 @@ def save_reference(
                 mime_type,
                 telegram_file_id,file_id,
                 vk_attachment_key,vk_url,
-                source_channel,created_at,updated_at
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                source_channel,file_unique_id,
+                content_blob,content_size,content_sha256,content_stored_at,
+                created_at,updated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 int(homework_id),
@@ -206,6 +288,11 @@ def save_reference(
                 vk_attachment_key,
                 vk_url,
                 source_channel,
+                file_unique_id,
+                data,
+                content_size,
+                content_sha256,
+                now,
                 now,
                 now,
             ),
@@ -250,6 +337,7 @@ def web_descriptors(homework_id: int):
                     "image/jpeg" if kind == "photo" else "application/octet-stream"
                 ),
                 "caption": item.get("caption") or "",
+                "size_bytes": int(item.get("content_size") or 0),
                 "url": f"/api/homework/attachment?id={aid}",
             }
         )
@@ -279,15 +367,10 @@ def read_for_web(attachment_id: int, *, student_user_id=None, teacher=False):
         if student_user_id is None or int(item["user_id"]) != int(student_user_id):
             raise PermissionError("homework_attachment_forbidden")
 
-    from vk_adapter import attachment_bridge as bridge
-
-    content = None
-    if item.get("telegram_file_id"):
-        content = bridge.telegram_file_bytes(item["telegram_file_id"])
-    elif item.get("vk_url"):
-        content = bridge._bytes_request(item["vk_url"], timeout=90)
-    if not content:
-        raise FileNotFoundError("homework_attachment_unavailable")
+    try:
+        content = _ensure_content_blob(item)
+    except (ValueError, RuntimeError, OSError) as exc:
+        raise FileNotFoundError("homework_attachment_unavailable") from exc
 
     kind = _normalize_kind(item.get("kind") or item.get("file_type"))
     filename = item.get("filename") or item.get("file_name") or (
@@ -332,6 +415,7 @@ def save_vk_descriptors(homework_id: int, descriptors: Iterable[dict]):
                 vk_attachment_key=item.get("vk_key"),
                 vk_url=item.get("url"),
                 source_channel="VK",
+                content=_source_bytes(vk_url=item.get("url")),
             )
         )
     return ids
@@ -378,88 +462,40 @@ def _extract_tg_file_id(result: dict, kind: str):
 def _telegram_send_remote(chat_id: int, item, caption=""):
     from vk_adapter import attachment_bridge as bridge
 
-    file_id = item["telegram_file_id"]
-    method = "sendPhoto" if item["kind"] == "photo" else "sendDocument"
-    field = "photo" if item["kind"] == "photo" else "document"
-    if not bridge.BOT_TOKEN:
-        return False
-
     try:
-        if file_id:
-            result = bridge._json_request(
-                f"https://api.telegram.org/bot{bridge.BOT_TOKEN}/{method}",
-                {
-                    "chat_id": int(chat_id),
-                    field: str(file_id),
-                    "caption": str(caption or "")[:1000],
-                },
+        data = _ensure_content_blob(dict(item))
+        return bool(
+            bridge.telegram_send_bytes(
+                int(chat_id),
+                data,
+                item["filename"] or ("image.jpg" if item["kind"] == "photo" else "document"),
+                caption,
+                item["kind"] == "photo",
+                item["mime_type"],
             )
-            return bool(result.get("ok"))
-
-        if item["vk_url"]:
-            content = bridge._bytes_request(item["vk_url"], timeout=90)
-            ctype = item["mime_type"] or "image/jpeg" if item["kind"] == "photo" else "application/octet-stream"
-            body, form_type = bridge._multipart(
-                {"chat_id": int(chat_id), "caption": str(caption or "")[:1000]},
-                [(field, item["filename"] or ("image.jpg" if item["kind"] == "photo" else "document"), content, ctype)],
-            )
-            result = bridge._json_request(
-                f"https://api.telegram.org/bot{bridge.BOT_TOKEN}/{method}",
-                body,
-                {"Content-Type": form_type},
-                timeout=90,
-            )
-            if result.get("ok"):
-                new_id = _extract_tg_file_id(result, item["kind"])
-                if new_id:
-                    set_telegram_file_id(int(item["id"]), new_id)
-                return True
+        )
     except Exception as exc:
         print("HOMEWORK ATTACHMENT TG SEND ERROR:", repr(exc))
-    return False
+        return False
 
 
 def _vk_send_remote(peer_id: int, item, caption=""):
     from vk_adapter import attachment_bridge as bridge
 
     try:
-        if item["vk_attachment_key"]:
-            bridge._vk_api(
-                "messages.send",
-                peer_id=int(peer_id),
-                random_id=__import__("random").randint(1, 2_000_000_000),
-                message=str(caption or ""),
-                attachment=str(item["vk_attachment_key"]),
-            )
-            return True
-
-        if item["telegram_file_id"]:
-            content = bridge.telegram_file_bytes(item["telegram_file_id"])
-            key = (
-                bridge._vk_upload_photo(peer_id, content, item["filename"] or "image.jpg", item["mime_type"] or "image/jpeg")
-                if item["kind"] == "photo"
-                else bridge._vk_upload_document(peer_id, content, item["filename"] or "document", item["mime_type"])
-            )
-            bridge._vk_api(
-                "messages.send",
-                peer_id=int(peer_id),
-                random_id=__import__("random").randint(1, 2_000_000_000),
-                message=str(caption or ""),
-                attachment=key,
-            )
-            conn = database.connect()
-            try:
-                conn.execute(
-                    "UPDATE homework_attachments SET vk_attachment_key=?,updated_at=? WHERE id=?",
-                    (key, _now(), int(item["id"])),
-                )
-                conn.commit()
-            finally:
-                conn.close()
-            return True
+        data = _ensure_content_blob(dict(item))
+        sent = bridge.vk_send_bytes(
+            int(peer_id),
+            data,
+            item["filename"] or ("image.jpg" if item["kind"] == "photo" else "document"),
+            caption,
+            item["kind"] == "photo",
+            item["mime_type"],
+        )
+        return bool(sent)
     except Exception as exc:
         print("HOMEWORK ATTACHMENT VK SEND ERROR:", repr(exc))
-    return False
+        return False
 
 
 def resend_to_student(homework_id: int, caption=""):
@@ -555,85 +591,19 @@ def add_attachment(
     filename=None,
     mime_type=None,
     source_channel="TELEGRAM",
+    content=None,
 ):
-    """
-    Canonical lightweight attachment writer.
-
-    Stores only Telegram/VK identifiers and metadata.
-    Binary file contents are never stored in SQLite.
-    """
-    import database
-
-    conn = database.connect()
-
-    try:
-        columns = {
-            row["name"]
-            for row in conn.execute(
-                "PRAGMA table_info(homework_attachments)"
-            ).fetchall()
-        }
-
-        now = database.now_iso()
-
-        values = {
-            "homework_id": int(homework_id),
-
-            # New + legacy-compatible Telegram ids.
-            "file_id": file_id,
-            "telegram_file_id": file_id,
-            "file_unique_id": file_unique_id,
-
-            # New + legacy-compatible type/name.
-            "kind": kind,
-            "file_type": kind,
-            "filename": filename,
-            "file_name": filename,
-
-            "mime_type": mime_type,
-
-            # Cross-platform source metadata.
-            "source_channel": source_channel,
-            "source_platform": source_channel,
-
-            "created_at": now,
-            "updated_at": now,
-        }
-
-        keys = [
-            key
-            for key, value in values.items()
-            if key in columns
-            and value is not None
-        ]
-
-        if "homework_id" not in keys:
-            raise RuntimeError(
-                "homework_attachments.homework_id column missing"
-            )
-
-        sql = (
-            "INSERT INTO homework_attachments ("
-            + ",".join(keys)
-            + ") VALUES ("
-            + ",".join("?" for _ in keys)
-            + ")"
-        )
-
-        cursor = conn.execute(
-            sql,
-            tuple(
-                values[key]
-                for key in keys
-            ),
-        )
-
-        conn.commit()
-
-        return int(cursor.lastrowid)
-
-    finally:
-        conn.close()
+    """Canonical homework file writer: persist bytes in SQLite first."""
+    return save_reference(
+        int(homework_id),
+        kind=kind,
+        filename=filename,
+        mime_type=mime_type,
+        telegram_file_id=file_id,
+        file_unique_id=file_unique_id,
+        source_channel=source_channel,
+        content=content,
+    )
 
 
 def _ensure_pdf_page_cache():
