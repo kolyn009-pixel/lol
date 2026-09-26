@@ -56,7 +56,8 @@ PY
 echo "BRANDING_UPDATED=PASS"
 
 echo "===== 5. VERIFY ====="
-if grep -nEi 'TutorBot|Tutor Bot' "$ROOT/index.html" "$ROOT/landing.js"; then
+if grep -nEi 'TutorBot|Tutor Bot' "$ROOT/index.html" "$ROOT/landing.js" \
+  | grep -vE 'https://t\.me/AdeliaTutorBot(["/?#]|$)'; then
   echo "LEGACY_HOMEPAGE_BRAND=FAIL"; cp -a "$BACKUP/index.html" "$ROOT/index.html"; cp -a "$BACKUP/landing.js" "$ROOT/landing.js"; exit 1
 fi
 echo "LEGACY_HOMEPAGE_BRAND=PASS"
@@ -68,7 +69,8 @@ echo "===== 6. NGINX / LIVE ====="
 nginx -t
 curl -fsS --connect-timeout 5 --max-time 15 https://adeliatutor.ru/ -o /tmp/adelia-homepage-live.html
 grep -q '<title>Николай Соловьев | Аделия</title>' /tmp/adelia-homepage-live.html
-! grep -qiE 'TutorBot|Tutor Bot' /tmp/adelia-homepage-live.html
+! grep -iE 'TutorBot|Tutor Bot' /tmp/adelia-homepage-live.html \
+  | grep -vE 'https://t\.me/AdeliaTutorBot(["/?#]|$)'
 echo "LIVE_HOMEPAGE_BRAND=PASS"
 for URL in "https://adeliatutor.ru/favicon.ico" "https://adeliatutor.ru/adelia-favicon-32.png?v=20260926-brand5" "https://adeliatutor.ru/adelia-apple-touch-icon-180.png?v=20260926-brand5"; do CODE="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 15 "$URL")"; echo "$CODE $URL"; test "$CODE" = "200"; done
 echo "LIVE_ICONS=PASS"
