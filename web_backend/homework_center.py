@@ -1,4 +1,5 @@
 """Teacher homework center: one feed for manual, interactive and external homework."""
+from homework_attachments import web_descriptors
 from database import connect, now_iso
 from web_backend.library import ensure_tables as ensure_library_tables
 from web_backend.assessment import ensure_tables as ensure_assessment_tables, student_homework_payload
@@ -63,11 +64,11 @@ def detail(homework_id):
     conn.close()
     preview=student_homework_payload(hid,int(h['user_id']))
     if preview:
-        preview=dict(preview);preview['homework']={k:v for k,v in dict(preview['homework']).items() if k not in {'source_reference'}}
+        preview=dict(preview);preview['homework']={k:v for k,v in dict(preview['homework']).items() if k not in {'source_reference'}};preview['attachments']=web_descriptors(hid)
     by_attempt={}
     for r in responses:
         by_attempt.setdefault(int(r['attempt_number'] or 1),[]).append(dict(r))
-    return {'homework':dict(h),'submissions':[dict(x) for x in subs],'reviews':[dict(x) for x in reviews],'tasks':[dict(x) for x in tasks],'materials':[dict(x) for x in mats],'auto_results':[dict(x) for x in autos],'auto_result':dict(autos[0]) if autos else None,'responses_by_attempt':by_attempt,'external':dict(ext) if ext else None,'student_preview':preview}
+    return {'homework':dict(h),'submissions':[dict(x) for x in subs],'reviews':[dict(x) for x in reviews],'tasks':[dict(x) for x in tasks],'materials':[dict(x) for x in mats],'attachments':web_descriptors(hid),'auto_results':[dict(x) for x in autos],'auto_result':dict(autos[0]) if autos else None,'responses_by_attempt':by_attempt,'external':dict(ext) if ext else None,'student_preview':preview}
 
 
 def update_homework(homework_id,title=None,description=None,deadline=None,status=None):
