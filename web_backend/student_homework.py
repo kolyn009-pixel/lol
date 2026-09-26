@@ -7,6 +7,7 @@ from database import connect
 from web_backend.assessment import student_homework_payload, submit_structured
 from web_backend.external_homework import get_external_link, mark_opened, set_student_status
 from web_backend.homework_status import payload as status_payload
+from homework_attachments import web_descriptors
 
 
 def list_homework(user_id,limit=100):
@@ -18,8 +19,9 @@ def list_homework(user_id,limit=100):
             payload=student_homework_payload(item['id'],user_id)
             item['interactive_task_count']=len(payload['tasks']) if payload else 0
             item['material_count']=len(payload['materials']) if payload else 0
+            item['attachment_count']=len(web_descriptors(item['id']))
         except Exception:
-            item['interactive_task_count']=0;item['material_count']=0
+            item['interactive_task_count']=0;item['material_count']=0;item['attachment_count']=0
         out.append(item)
     return out
 
@@ -29,6 +31,7 @@ def detail(homework_id,user_id):
     if not payload:return None
     payload['homework']['status_ui']=status_payload(payload['homework'].get('status'))
     payload['external']=get_external_link(homework_id)
+    payload['attachments']=web_descriptors(homework_id)
     return payload
 
 
