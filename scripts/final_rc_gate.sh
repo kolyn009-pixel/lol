@@ -170,6 +170,7 @@ checks={
  'web/teacher_homework_detail_plus.js':['p.attachments||d.attachments','Файл задания'],
  'web_backend/student_homework.py':['web_descriptors','attachment_count'],
  'web_backend/api.py':["/api/homework/attachment",'read_for_web','Content-Disposition'],
+ 'homework_attachments.py':['content_blob BLOB','content_sha256','_ensure_content_blob','Canonical homework file writer: persist bytes in SQLite first.'],
 }
 for path,markers in checks.items():
     text=Path(path).read_text(encoding='utf-8')
