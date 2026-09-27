@@ -33,4 +33,24 @@ assert.equal(time.formatLesson(lesson, format), '19:00');
 assert.equal(time.setTimezone({ zone: 'Not/AZone', label: 'Ошибка', selected: true }), false);
 assert.equal(time.formatLesson(lesson, format), '19:00');
 assert.equal(time.lessonDate(lesson).toISOString(), '2026-09-27T16:00:00.000Z');
+
+const workspace = { exports: {} };
+vm.runInNewContext(
+  fs.readFileSync(path.join(__dirname, 'lesson_workspace.js'), 'utf8'),
+  {
+    module: workspace,
+    require: name => {
+      if (name !== 'electron') throw new Error('unexpected import: ' + name);
+      return { app: {}, BrowserWindow: {}, Notification: {} };
+    },
+    Date, Intl, URL, Set, process, setTimeout, setInterval
+  }
+);
+const normalized = workspace.exports.normalizeLesson(
+  { id: 1, start_time: '2026-09-27T20:00:00', start_at: lesson.start_at },
+  { zone: 'Europe/Samara', label: 'Самара' }
+);
+assert.equal(normalized.start.toISOString(), '2026-09-27T16:00:00.000Z');
+assert.equal(workspace.exports.formatTime(normalized.start, normalized.timezone), '20:00');
+assert.equal(workspace.exports.formatTime(normalized.start, { zone: 'Europe/Moscow' }), '19:00');
 console.log('STUDENT_DESKTOP_TIMEZONE=PASS');
