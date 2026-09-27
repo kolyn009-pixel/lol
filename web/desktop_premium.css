@@ -1,0 +1,99 @@
+/* Packaged Electron UI only. Loaded last for each role by bundled_ui_manifest.js. */
+html.adelia-desktop{
+  --premium-ink:#211d30;
+  --premium-muted:#625b70;
+  --premium-line:#e6e1ed;
+  --premium-surface:#fff;
+  --premium-canvas:#f7f5fa;
+  --premium-accent:#6547d4;
+  --premium-focus:rgba(101,71,212,.28);
+}
+html.adelia-desktop body{
+  background:var(--premium-canvas)!important;
+  color:var(--premium-ink)!important;
+  -webkit-font-smoothing:antialiased;
+}
+html.adelia-desktop :is(button,a,input,select,textarea,summary):focus-visible{
+  outline:3px solid var(--premium-focus)!important;
+  outline-offset:2px!important;
+}
+html.adelia-desktop :is(button,input,select,textarea){
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+html.adelia-desktop :is(button,input,select,textarea):disabled{
+  cursor:not-allowed!important;
+}
+
+/* Navigation reads as a quiet, native sidebar with one clear active state. */
+html.adelia-desktop :is(.teacher-shell>aside,.bottom-nav){
+  background:#fcfbfe!important;
+  border-right:1px solid var(--premium-line)!important;
+  box-shadow:none!important;
+}
+html.adelia-desktop :is(.teacher-shell>aside nav button,.bottom-nav .nav-item){
+  min-height:44px!important;
+  border-radius:12px!important;
+  transition:background-color .16s ease,color .16s ease,box-shadow .16s ease!important;
+}
+html.adelia-desktop :is(.teacher-shell>aside nav button,.bottom-nav .nav-item):hover{
+  transform:none!important;
+  background:#f2eefb!important;
+}
+html.adelia-desktop :is(.teacher-shell>aside nav button.active,.bottom-nav .nav-item.active){
+  background:#ece6fb!important;
+  color:#5234b5!important;
+  box-shadow:inset 3px 0 0 var(--premium-accent)!important;
+}
+html.adelia-desktop .bottom-nav .nav-item small,
+html.adelia-desktop .teacher-shell>aside nav button{
+  font-size:13px!important;
+  line-height:1.3!important;
+}
+html.adelia-desktop .bottom-nav .nav-item.active small,
+html.adelia-desktop .teacher-shell>aside nav button.active{
+  color:#5234b5!important;
+}
+
+/* A restrained canvas and readable working surfaces. */
+html.adelia-desktop :is(.teacher-shell main>header,.topbar,.parent-header){
+  background:rgba(250,249,252,.96)!important;
+  border-bottom:1px solid var(--premium-line)!important;
+  backdrop-filter:blur(16px);
+}
+html.adelia-desktop :is(.teacher-shell main>header h1,.topbar h1,.parent-header h1,#pageTitle){
+  font-size:clamp(24px,2vw,30px)!important;
+  line-height:1.16!important;
+  letter-spacing:-.035em!important;
+}
+html.adelia-desktop :is(.dashboard-panel,.dashboard-lesson-card,.week-metric,.action-card,.desktop-status-card,.summary-card,.lesson-card,.payment-card,.progress-card,.attendance-card,.child-card,.notice-card){
+  border:1px solid var(--premium-line)!important;
+  border-radius:16px!important;
+  box-shadow:0 3px 15px rgba(38,28,61,.045)!important;
+}
+html.adelia-desktop :is(.dashboard-panel,.week-metric,.action-card,.desktop-status-card,.summary-card,.payment-card,.progress-card,.attendance-card,.child-card,.notice-card){
+  background:var(--premium-surface)!important;
+}
+html.adelia-desktop :is(.dashboard-panel-head h2,.section h2,.dashboard-lesson-main>b,.action-card b){
+  font-size:15px!important;
+  line-height:1.3!important;
+}
+html.adelia-desktop :is(.dashboard-panel-head p,.dashboard-lesson-main>span,.action-card small,.desktop-status-card span,.student-v2-nav-copy small){
+  font-size:12px!important;
+  line-height:1.45!important;
+  color:var(--premium-muted)!important;
+}
+html.adelia-desktop :is(.teacher-quick-actions button,.header-actions button,.student-v2-top-actions button,.today-command-actions button){
+  min-height:38px!important;
+  font-size:12px!important;
+  line-height:1.2!important;
+}
+html.adelia-desktop :is(input,select,textarea){
+  border-radius:11px;
+}
+@media (prefers-reduced-motion:reduce){
+  html.adelia-desktop *,html.adelia-desktop *::before,html.adelia-desktop *::after{
+    scroll-behavior:auto!important;
+    animation-duration:.01ms!important;
+    transition-duration:.01ms!important;
+  }
+}
