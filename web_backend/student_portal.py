@@ -38,24 +38,35 @@ def _student_timezone(user, conn):
     """Resolve an authenticated student's saved region, never the device timezone."""
     telegram_id = user["telegram_id"] if "telegram_id" in user.keys() else None
     pref = get_user_timezone(telegram_id) if telegram_id else None
+    chosen = []
     if pref and int(pref["configured"] or 0):
         offset = int(pref["msk_offset"] or 0)
         zone = _valid_zone(pref["zone_name"]) or _valid_zone(fixed_zone_name_from_msk_offset(offset))
         if zone:
-            return {"zone": zone, "label": _ZONE_LABELS.get(zone, f"МСК {offset:+d}" if offset else "Москва"), "selected": True}
+            chosen.append((str(pref["updated_at"] or ""), {
+                "zone": zone,
+                "label": _ZONE_LABELS.get(zone, f"МСК {offset:+d}" if offset else "Москва"),
+                "selected": True,
+            }))
     exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='student_onboarding_sessions'"
     ).fetchone()
     if exists:
         row = conn.execute(
-            """SELECT region, timezone FROM student_onboarding_sessions
+            """SELECT region, timezone, completed_at, updated_at FROM student_onboarding_sessions
                WHERE linked_user_id=? AND timezone IS NOT NULL AND timezone!=''
-               ORDER BY completed_at DESC, id DESC LIMIT 1""",
+               ORDER BY updated_at DESC, id DESC LIMIT 1""",
             (int(user["id"]),),
         ).fetchone()
         zone = _valid_zone(row["timezone"]) if row else None
         if zone:
-            return {"zone": zone, "label": str(row["region"] or _ZONE_LABELS.get(zone) or zone).strip()[:80], "selected": True}
+            chosen.append((str(row["updated_at"] or row["completed_at"] or ""), {
+                "zone": zone,
+                "label": str(row["region"] or _ZONE_LABELS.get(zone) or zone).strip()[:80],
+                "selected": True,
+            }))
+    if chosen:
+        return max(chosen, key=lambda item: item[0])[1]
     return {"zone": "Europe/Moscow", "label": "Москва", "selected": False}
 
 
