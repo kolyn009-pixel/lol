@@ -8,7 +8,8 @@ const manifest = require('./bundled_ui_manifest');
 assert.equal(manifest.student.js[0], 'student_time.js');
 assert.equal(manifest.student.css.at(-1), 'desktop_premium.css');
 
-const window = { adeliaDesktop: { desktop: true } };
+const events = [], writes = [];
+const window = { adeliaDesktop: { desktop: true }, dispatchEvent: event => events.push(event.type) };
 const document = {
   querySelector: () => null,
   addEventListener: () => {},
@@ -16,7 +17,12 @@ const document = {
 };
 vm.runInNewContext(
   fs.readFileSync(path.join(__dirname, '..', 'web', 'student_time.js'), 'utf8'),
-  { window, document, Date, Intl, fetch: () => Promise.reject(new Error('offline')), setInterval: () => 0 }
+  { window, document, Date, Intl, Event: class { constructor(type) { this.type = type; } },
+    fetch: (url, options) => {
+      if (options?.method !== 'POST') return Promise.reject(new Error('offline'));
+      writes.push({ url, options });
+      return Promise.resolve({ ok: true, json: async () => ({ timezone: { zone: 'Europe/Istanbul', label: 'Стамбул', selected: true } }) });
+    }, setInterval: () => 0 }
 );
 const time = window.StudentTime;
 const lesson = {
@@ -53,4 +59,11 @@ const normalized = workspace.exports.normalizeLesson(
 assert.equal(normalized.start.toISOString(), '2026-09-27T16:00:00.000Z');
 assert.equal(workspace.exports.formatTime(normalized.start, normalized.timezone), '20:00');
 assert.equal(workspace.exports.formatTime(normalized.start, { zone: 'Europe/Moscow' }), '19:00');
-console.log('STUDENT_DESKTOP_TIMEZONE=PASS');
+time.saveTimezone('Europe/Istanbul').then(() => {
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].url, '/api/student/timezone');
+  assert.equal(JSON.parse(writes[0].options.body).zone, 'Europe/Istanbul');
+  assert.equal(time.preference.zone, 'Europe/Istanbul');
+  assert.deepEqual(events, ['adelia:student-timezone-changed']);
+  console.log('STUDENT_DESKTOP_TIMEZONE=PASS');
+}).catch(error => { console.error(error); process.exitCode = 1; });
