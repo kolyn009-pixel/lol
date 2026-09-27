@@ -6,7 +6,7 @@ can render quickly on mobile connections.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from time import monotonic
 from threading import Lock
@@ -22,6 +22,11 @@ _ZONE_LABELS = {
     "Asia/Omsk": "Омск",
     "Asia/Krasnoyarsk": "Красноярск",
     "Asia/Irkutsk": "Иркутск",
+    "Europe/Istanbul": "Стамбул",
+    "Asia/Dubai": "Дубай",
+    "Asia/Tbilisi": "Тбилиси",
+    "Europe/Berlin": "Берлин",
+    "Asia/Bangkok": "Бангкок",
 }
 
 
@@ -48,6 +53,21 @@ def _student_timezone(user, conn):
                 "label": _ZONE_LABELS.get(zone, f"МСК {offset:+d}" if offset else "Москва"),
                 "selected": True,
             }))
+    desktop_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='student_desktop_timezones'"
+    ).fetchone()
+    if desktop_exists:
+        desktop = conn.execute(
+            "SELECT zone_name, label, updated_at FROM student_desktop_timezones WHERE user_id=?",
+            (int(user["id"]),),
+        ).fetchone()
+        zone = _valid_zone(desktop["zone_name"]) if desktop else None
+        if zone:
+            chosen.append((str(desktop["updated_at"] or ""), {
+                "zone": zone,
+                "label": str(desktop["label"] or _ZONE_LABELS.get(zone) or zone).strip()[:80],
+                "selected": True,
+            }))
     exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='student_onboarding_sessions'"
     ).fetchone()
@@ -68,6 +88,37 @@ def _student_timezone(user, conn):
     if chosen:
         return max(chosen, key=lambda item: item[0])[1]
     return {"zone": "Europe/Moscow", "label": "Москва", "selected": False}
+
+
+def set_student_timezone(user_id, zone_name):
+    """Save a student's explicit desktop choice; never infer it from an IP address."""
+    uid = int(user_id)
+    user = get_user(uid)
+    if not user or not user["active"]:
+        raise PermissionError("student_not_found")
+    raw = str(zone_name or "").strip()
+    if len(raw) > 80 or not _valid_zone(raw):
+        raise ValueError("invalid_timezone")
+    label = _ZONE_LABELS.get(raw) or raw.rsplit("/", 1)[-1].replace("_", " ")
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+    conn = connect()
+    try:
+        conn.execute("""CREATE TABLE IF NOT EXISTS student_desktop_timezones (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            zone_name TEXT NOT NULL,
+            label TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )""")
+        conn.execute("""INSERT INTO student_desktop_timezones(user_id,zone_name,label,updated_at)
+            VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+            zone_name=excluded.zone_name,label=excluded.label,updated_at=excluded.updated_at""",
+            (uid, raw, label, now))
+        conn.commit()
+    finally:
+        conn.close()
+    with _CACHE_LOCK:
+        _CACHE.pop(("dashboard", uid), None)
+    return {"timezone": {"zone": raw, "label": label, "selected": True}}
 
 
 def _lesson_instant(item):
