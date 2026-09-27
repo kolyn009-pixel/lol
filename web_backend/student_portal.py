@@ -7,10 +7,67 @@ can render quickly on mobile connections.
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from time import monotonic
 from threading import Lock
 
-from database import connect, get_user
+from database import connect, get_user, get_user_timezone
+from core.lesson_time import schedule_datetime
+from core.user_timezone import fixed_zone_name_from_msk_offset
+
+_ZONE_LABELS = {
+    "Europe/Moscow": "Москва",
+    "Europe/Samara": "Самара",
+    "Asia/Yekaterinburg": "Екатеринбург",
+    "Asia/Omsk": "Омск",
+    "Asia/Krasnoyarsk": "Красноярск",
+    "Asia/Irkutsk": "Иркутск",
+}
+
+
+def _valid_zone(name):
+    try:
+        value = str(name or "")
+        ZoneInfo(value)
+        return value
+    except Exception:
+        return None
+
+
+def _student_timezone(user, conn):
+    """Resolve an authenticated student's saved region, never the device timezone."""
+    telegram_id = user["telegram_id"] if "telegram_id" in user.keys() else None
+    pref = get_user_timezone(telegram_id) if telegram_id else None
+    if pref and int(pref["configured"] or 0):
+        offset = int(pref["msk_offset"] or 0)
+        zone = _valid_zone(pref["zone_name"]) or _valid_zone(fixed_zone_name_from_msk_offset(offset))
+        if zone:
+            return {"zone": zone, "label": _ZONE_LABELS.get(zone, f"МСК {offset:+d}" if offset else "Москва"), "selected": True}
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='student_onboarding_sessions'"
+    ).fetchone()
+    if exists:
+        row = conn.execute(
+            """SELECT region, timezone FROM student_onboarding_sessions
+               WHERE linked_user_id=? AND timezone IS NOT NULL AND timezone!=''
+               ORDER BY completed_at DESC, id DESC LIMIT 1""",
+            (int(user["id"]),),
+        ).fetchone()
+        zone = _valid_zone(row["timezone"]) if row else None
+        if zone:
+            return {"zone": zone, "label": str(row["region"] or _ZONE_LABELS.get(zone) or zone).strip()[:80], "selected": True}
+    return {"zone": "Europe/Moscow", "label": "Москва", "selected": False}
+
+
+def _lesson_instant(item):
+    for field in ("start_time", "end_time"):
+        if item.get(field):
+            try:
+                item[field.replace("_time", "_at")] = schedule_datetime(item[field]).isoformat()
+            except (TypeError, ValueError):
+                pass
+    return item
+
 
 _CACHE = {}
 _CACHE_LOCK = Lock()
@@ -88,8 +145,9 @@ def dashboard(user_id):
             """,
             (uid,),
         ).fetchone()
+        timezone = _student_timezone(user, conn)
         conn.close()
-        lesson = _dict(next_lesson)
+        lesson = _lesson_instant(_dict(next_lesson)) if next_lesson else None
         if lesson:
             lesson["ui_state"] = _lesson_state(lesson)
         return {
@@ -102,6 +160,7 @@ def dashboard(user_id):
                 "extra_minutes_balance": int(user["extra_minutes_balance"] or 0),
                 "bonus_lessons_earned": int(user["bonus_lessons_earned"] or 0),
                 "board_url": user["board_url"],
+                "timezone": timezone,
             },
             "next_lesson": lesson,
             "active_homework": int(active_hw or 0),
@@ -133,7 +192,7 @@ def schedule(user_id, limit=40):
     conn.close()
     items = []
     for row in rows:
-        item = dict(row)
+        item = _lesson_instant(dict(row))
         item["ui_state"] = _lesson_state(item)
         items.append(item)
     return items
