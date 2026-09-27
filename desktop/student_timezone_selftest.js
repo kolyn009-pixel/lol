@@ -9,7 +9,7 @@ assert.equal(manifest.student.js[0], 'student_time.js');
 assert.equal(manifest.student.css.at(-1), 'desktop_premium.css');
 
 const events = [], writes = [];
-const window = { adeliaDesktop: { desktop: true }, dispatchEvent: event => events.push(event.type) };
+const window = { adeliaDesktop: { desktop: true }, addEventListener: () => {}, dispatchEvent: event => events.push(event.type) };
 const document = {
   querySelector: () => null,
   addEventListener: () => {},
