@@ -1,6 +1,6 @@
 (()=>{'use strict';
 let deferred=null,registration=null;
-const BASE='/app/parent/',SCOPE='/app/parent/',SW_VERSION='20260925-pwa3',SW=BASE+'service-worker.js?v='+SW_VERSION,DISMISSED='adelia_parent_push_dismissed_v1';
+const BASE='/app/parent/',SCOPE='/app/parent/',SW_VERSION='20260927-pwa4',SW=BASE+'service-worker.js?v='+SW_VERSION,DISMISSED='adelia_parent_push_dismissed_v1';
 const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 const ios=()=>/iPhone|iPad|iPod/i.test(navigator.userAgent);
 const supported=()=>typeof Notification!=='undefined'&&'serviceWorker'in navigator&&'PushManager'in window;
