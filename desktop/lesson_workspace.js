@@ -13,8 +13,9 @@ function isStudentCabinetUrl(raw) {
   try {
     const u = new URL(raw);
     if (u.origin !== APP_ORIGIN) return false;
-    if (!u.pathname.startsWith('/app/')) return false;
-    if (u.pathname.startsWith('/app/parent/')) return false;
+  if (!u.pathname.startsWith('/app/')) return false;
+  if (u.pathname.startsWith('/app/parent/')) return false;
+  if (u.pathname === '/app/teacher.html') return false;
     return true;
   } catch (_) { return false; }
 }
@@ -35,9 +36,9 @@ function showLesson(id) {
   win.focus();
   win.loadURL(lessonTarget(id));
 }
-function normalizeLesson(raw) {
-  if (!raw || !raw.start_time) return null;
-  const start = new Date(raw.start_time);
+function normalizeLesson(raw, timezone) {
+  if (!raw || !(raw.start_at || raw.start_time)) return null;
+  const start = new Date(raw.start_at || raw.start_time);
   if (Number.isNaN(start.getTime())) return null;
   return {
     id: raw.id,
@@ -45,19 +46,27 @@ function normalizeLesson(raw) {
     start,
     duration: Number(raw.duration_minutes || 60),
     started: !!raw.started_at,
+    timezone: timezone && typeof timezone.zone === 'string' ? timezone : null,
   };
 }
 function subjectName(value) {
   return ({ PHYSICS: 'Физика', CHEMISTRY: 'Химия' })[String(value || '').toUpperCase()] || value || 'Занятие';
 }
-function formatTime(date) {
-  return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(date);
+function formatTime(date, timezone) {
+  const zone = timezone && timezone.zone;
+  try {
+    return new Intl.DateTimeFormat('ru-RU', {
+      hour: '2-digit', minute: '2-digit',
+      ...(zone ? { timeZone: zone } : {})
+    }).format(date);
+  } catch (_) { return '—'; }
 }
 function publicLesson(lesson) {
   return lesson ? {
     id: lesson.id,
     subject: subjectName(lesson.subject),
     start_time: lesson.start.toISOString(),
+    timezone: lesson.timezone,
     duration_minutes: lesson.duration,
     started: lesson.started,
   } : null;
@@ -69,7 +78,7 @@ function notifyLesson(lesson, minutes) {
   if (sent.has(key)) return;
   sent.add(key);
   const title = minutes <= 0 ? '💜 Занятие начинается' : `💜 Через ${minutes} минут занятие`;
-  const body = `${subjectName(lesson.subject)} · ${formatTime(lesson.start)}\nНажмите, чтобы открыть Аделию.`;
+  const body = `${subjectName(lesson.subject)} · ${formatTime(lesson.start, lesson.timezone)}${lesson.timezone?.label ? ' · ' + lesson.timezone.label : ''}\nНажмите, чтобы открыть Аделию.`;
   const n = new Notification({ title, body, silent: false, timeoutType: 'default' });
   n.on('click', () => showLesson(lesson.id));
   n.show();
@@ -89,7 +98,7 @@ async function poll() {
     lastLesson = null;
     return;
   }
-  const lesson = normalizeLesson(data.next_lesson);
+  const lesson = normalizeLesson(data.next_lesson, data.student?.timezone);
   lastLesson = lesson;
   app.emit('adelia-dashboard-state', {
     nextLesson: publicLesson(lesson),
@@ -112,4 +121,4 @@ function install() {
   app.on('before-quit', () => { if (timer) clearInterval(timer); });
 }
 function getLastLesson() { return publicLesson(lastLesson); }
-module.exports = { install, getLastLesson, showLesson, poll, isStudentCabinetUrl };
+module.exports = { install, getLastLesson, showLesson, poll, isStudentCabinetUrl, normalizeLesson, formatTime };
