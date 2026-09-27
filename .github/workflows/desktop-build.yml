@@ -2,6 +2,13 @@ name: Desktop beta build
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [release/adelia-unified-rc]
+    paths:
+      - 'desktop/**'
+      - 'scripts/desktop_release_manager.sh'
+      - 'rc_desktop_static_selftest.py'
+      - '.github/workflows/desktop-build.yml'
 
 permissions:
   contents: read
