@@ -36,4 +36,12 @@ with patch.object(clock, 'connect', return_value=conn), patch.object(clock, 'get
         pass
     else:
         raise AssertionError('invalid timezone accepted')
+    sample = {'week': {'timezone': 'Europe/Samara'},
+              'today_lessons': [{'start_time': '2026-09-27T20:00:00', 'end_time': '2026-09-27T21:00:00'}],
+              'week_lessons': [], 'next_lessons': []}
+    with patch.dict(sys.modules, {'web_backend.teacher_portal': types.SimpleNamespace(dashboard=lambda: sample)}):
+        enriched = clock.dashboard_with_instants()
+    assert enriched['today_lessons'][0]['start_at'] == '2026-09-27T20:00:00+04:00'
+    assert enriched['today_lessons'][0]['end_at'] == '2026-09-27T21:00:00+04:00'
+    assert 'start_at' not in sample['today_lessons'][0]
 print('TEACHER_DISPLAY_TIMEZONE_BACKEND=PASS')
