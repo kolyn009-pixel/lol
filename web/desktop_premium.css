@@ -90,6 +90,38 @@ html.adelia-desktop :is(.teacher-quick-actions button,.header-actions button,.st
 html.adelia-desktop :is(input,select,textarea){
   border-radius:11px;
 }
+html.adelia-desktop-student .student-local-clock{
+  display:grid;
+  gap:2px;
+  min-width:142px;
+  margin-left:auto;
+  margin-right:14px;
+  padding:7px 12px;
+  border:1px solid var(--premium-line);
+  border-radius:13px;
+  background:#fff;
+  color:var(--premium-ink);
+  white-space:nowrap;
+  box-shadow:0 2px 10px rgba(38,28,61,.035);
+}
+html.adelia-desktop-student .student-local-clock-face{
+  font-size:19px;
+  font-weight:800;
+  font-variant-numeric:tabular-nums;
+  line-height:1.1;
+  letter-spacing:-.025em;
+}
+html.adelia-desktop-student .student-local-clock-zone{
+  font-size:10px;
+  line-height:1.25;
+  color:var(--premium-muted);
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+@media(max-width:1180px){
+  html.adelia-desktop-student .student-v2-top-actions{display:none!important}
+  html.adelia-desktop-student .student-local-clock{min-width:115px;margin-right:8px}
+}
 @media (prefers-reduced-motion:reduce){
   html.adelia-desktop *,html.adelia-desktop *::before,html.adelia-desktop *::after{
     scroll-behavior:auto!important;
