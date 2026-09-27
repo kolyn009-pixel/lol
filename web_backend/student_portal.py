@@ -12,7 +12,7 @@ from time import monotonic
 from threading import Lock
 
 from database import connect, get_user, get_user_timezone
-from core.lesson_time import schedule_datetime
+from core.lesson_time import lesson_timezone, schedule_datetime
 from core.user_timezone import fixed_zone_name_from_msk_offset
 
 _ZONE_LABELS = {
@@ -119,7 +119,7 @@ def dashboard(user_id):
         if not user or not user["active"]:
             return None
         conn = connect()
-        now = datetime.now().isoformat(timespec="seconds")
+        now = datetime.now(lesson_timezone()).replace(tzinfo=None).isoformat(timespec="seconds")
         next_lesson = conn.execute(
             """
             SELECT id,start_time,end_time,duration_minutes,subject,study_goal,
