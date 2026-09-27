@@ -7,7 +7,7 @@
   "scripts": {
     "sync:icon": "node generate_assets.js",
     "start": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron .",
-    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js",
+    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js && node student_timezone_selftest.js",
     "dist": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder",
     "dist:win": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis --x64",
     "dist:mac": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip",
