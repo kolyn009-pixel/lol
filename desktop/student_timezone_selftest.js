@@ -3,6 +3,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const manifest = require('./bundled_ui_manifest');
+
+assert.equal(manifest.student.js[0], 'student_time.js');
+assert.equal(manifest.student.css.at(-1), 'desktop_premium.css');
 
 const window = { adeliaDesktop: { desktop: true } };
 const document = {
