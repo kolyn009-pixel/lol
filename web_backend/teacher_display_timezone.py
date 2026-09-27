@@ -58,3 +58,24 @@ def set_preference(admin_id, zone):
     finally:
         conn.close()
     return {'timezone': {'zone': name, 'selected': True, 'schedule_zone': _base_zone()}}
+
+
+def dashboard_with_instants():
+    """Add explicit instants without mutating the cached teacher dashboard."""
+    from web_backend.teacher_portal import dashboard
+
+    result = dashboard()
+    base = str(result.get('week', {}).get('timezone') or _base_zone())
+    tz = ZoneInfo(base)
+
+    def lesson(row):
+        item = dict(row)
+        for field in ('start_time', 'end_time'):
+            raw = item.get(field)
+            if raw:
+                parsed = datetime.fromisoformat(raw)
+                item[field.replace('_time', '_at')] = (parsed if parsed.tzinfo else parsed.replace(tzinfo=tz)).isoformat()
+        return item
+
+    return {**result, **{key: [lesson(row) for row in result.get(key, [])]
+                       for key in ('today_lessons', 'week_lessons', 'next_lessons')}}
