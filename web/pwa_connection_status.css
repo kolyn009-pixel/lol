@@ -1,0 +1,4 @@
+.adelia-connection-status{position:fixed;z-index:2147483000;left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:580px;margin:0 auto;padding:12px 14px;border:1px solid #d9c9ef;border-radius:16px;background:#fff;color:#2b2440;box-shadow:0 14px 48px #26134436;font:600 13px/1.4 system-ui,sans-serif}
+.adelia-connection-status[hidden]{display:none}
+.adelia-connection-status button{flex:none;min-height:40px;padding:0 12px;border:0;border-radius:10px;background:#6847f5;color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer}
+@media(max-width:600px){.adelia-connection-status{font-size:12px}}
