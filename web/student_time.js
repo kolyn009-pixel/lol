@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  if (!window.adeliaDesktop?.desktop || window.StudentTime) return;
+  if (window.StudentTime) return;
 
   let preference = null;
   let loading = null;
@@ -183,8 +183,8 @@
   }
 
   window.StudentTime = { load, setTimezone, saveTimezone, lessonDate, formatDate, formatLesson, get preference() { return preference; } };
-  mountClock();
-  load().catch(updateClock);
+  if (window.adeliaDesktop?.desktop) { mountClock(); load().catch(updateClock); }
+  window.addEventListener('adelia:student-authenticated', () => { mountClock(); load(true).catch(updateClock); });
   setInterval(() => { updateClock(); load().catch(() => {}); }, 60 * 1000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) { updateClock(); load().catch(() => {}); }
