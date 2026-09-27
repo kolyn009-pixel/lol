@@ -102,7 +102,7 @@ for name in (
 
 require("brand=path.join(__dirname,'..','brand','adelia_icon')" in icon_sync and "source=path.join(brand,'adelia-icon-512.png')" in icon_sync, "desktop canonical icon source")
 require("https.get" not in icon_sync and "ADELIA_DESKTOP_ICON_URL" not in icon_sync, "desktop icon source cannot fall back to stale server artwork")
-require("removeConnectedOuterBackground" in icon_sync and "alphaBounds" in icon_sync and "out.data[di+3]=src.data[si+3]" in icon_sync, "desktop native icon removes connected outer background and preserves alpha")
+require("resizeSquare(canonical,1024)" in icon_sync and "removeConnectedOuterBackground" not in icon_sync, "desktop native icon uses the exact canonical artwork")
 require("png2icons.createICNS" in icon_sync and "png2icons.createICO" in icon_sync, "native platform icon assets generated")
 require(".health-card.health-card-primary" in desktop_teacher_css and "color:#fff!important" in desktop_teacher_css, "desktop health primary card keeps light typography")
 require("msg-filterbar" in teacher_messages_js and "msg-person-side" in teacher_messages_js and "listTime" in teacher_messages_js, "desktop messenger redesigned conversation list")
