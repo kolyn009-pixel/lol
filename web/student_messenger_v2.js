@@ -44,7 +44,7 @@ function stop(){if(timer){clearInterval(timer);timer=null}}
 function mount(){
   stop();const list=document.querySelector('#studentChatHistory');if(!list)return;
   list.scrollTop=list.scrollHeight;
-  const form=document.querySelector('#studentChatForm');if(form)form.addEventListener('submit',send);
+  const form=document.querySelector('#studentChatForm');if(form){form.addEventListener('submit',send);if(window.adeliaDesktop?.desktop){form.addEventListener('dragover',event=>{event.preventDefault();form.classList.add('drag-over')});form.addEventListener('dragleave',()=>form.classList.remove('drag-over'));form.addEventListener('drop',event=>{event.preventDefault();form.classList.remove('drag-over');const dropped=event.dataTransfer?.files?.[0],input=form.querySelector('#studentChatFile');if(!dropped||!input)return;const transfer=new DataTransfer();transfer.items.add(dropped);input.files=transfer.files;input.dispatchEvent(new Event('change'))})}}
   const file=document.querySelector('#studentChatFile');if(file)file.addEventListener('change',()=>{const name=document.querySelector('#studentChatFileName');if(name)name.textContent=file.files?.[0]?.name||''});
   const input=document.querySelector('#studentChatText');if(input)input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(120,input.scrollHeight)+'px'});
   timer=setInterval(()=>{if(!document.hidden)refresh()},8000);badge();
