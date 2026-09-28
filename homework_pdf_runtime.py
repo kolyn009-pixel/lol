@@ -467,6 +467,14 @@ def _remove_source(
 
 
 def _download_source(row):
+    # The persisted attachment is the source of truth for repeat requests.
+    stored = row["content_blob"] if "content_blob" in row.keys() else None
+    if stored:
+        data = bytes(stored)
+        if len(data) > MAX_PDF_BYTES:
+            raise RuntimeError("PDF слишком большой для локального просмотра.")
+        return data
+
     from vk_adapter import (
         attachment_bridge as bridge
     )
