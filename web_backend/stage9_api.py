@@ -5,7 +5,7 @@ from web_backend.parent_auth import consume_parent_login_code
 from web_backend.web_sessions import SESSION_TTL,create_session
 from web_backend.payment_hub import parent_hub,parent_pay_nearest,parent_create_package,parent_quote_package,parent_attach_receipt,parent_claim_payment
 from web_backend import api as v1
-from web_backend import parent_messages, message_media
+from web_backend import parent_messages, message_media, payment_qr
 
 class Stage9Mixin:
     def _parent(self):
@@ -18,6 +18,8 @@ class Stage9Mixin:
         if not auth:return self._json(401,{'error':'unauthorized'})
         pid=int(auth['id'])
         try:
+            if path=='/api/parent/finance/qr/status':return self._json(200,payment_qr.status())
+            if path=='/api/parent/finance/qr/image':return payment_qr.send_png(self)
             if path=='/api/parent/messages/students':return self._json(200,parent_messages.students(pid))
             if path=='/api/parent/messages':
                 return self._json(200,parent_messages.thread(pid,int(q.get('student_id',['0'])[0]),q.get('limit',[100])[0]))
