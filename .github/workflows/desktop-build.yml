@@ -14,6 +14,11 @@ on:
       - 'handlers/homework_v6.py'
       - 'handlers/homework_file_delivery.py'
       - 'scripts/telegram_homework_file_selftest.py'
+      - 'web/student_messenger_v2.js'
+      - 'web/student_boot.js'
+      - 'web/app.js'
+      - 'web/teacher_messages_stage10.js'
+      - 'scripts/student_messenger_selftest.js'
       - '.github/workflows/desktop-build.yml'
 
 permissions:
@@ -43,6 +48,10 @@ jobs:
         run: python scripts/vk_homework_ingest_selftest.py
       - name: Check Telegram homework file requests
         run: python scripts/telegram_homework_file_selftest.py
+      - name: Check in-app messenger
+        run: |
+          node scripts/student_messenger_selftest.js
+          node --check web/teacher_messages_stage10.js
       - name: Verify runner and desktop source
         shell: bash
         run: |
