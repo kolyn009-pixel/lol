@@ -1,6 +1,6 @@
 """Private parent–teacher conversations, one per linked child."""
 from database import connect, now_iso
-from web_backend import unified_messaging as um
+from web_backend import unified_messaging as um, message_media
 from web_backend.parent_portal import _assert_link, linked_students
 
 MAX_TEXT = 4000
@@ -18,14 +18,25 @@ def thread(parent_id, student_id, limit=100):
     return {'conversation_id': int(conv['id']), 'items': messages}
 
 
-def send(parent_id, student_id, text):
+def _attachment(parent_id, student_id, attachment):
+    if not attachment:return None
+    if not isinstance(attachment,dict):raise ValueError('invalid_attachment')
+    meta=message_media.metadata(attachment.get('token'))
+    if not meta or str(meta.get('participant_type')).upper()!='PARENT' or int(meta.get('participant_id') or 0)!=int(parent_id) or int(meta.get('student_id') or 0)!=int(student_id):
+        raise ValueError('invalid_attachment')
+    return {key:meta[key] for key in ('token','student_id','participant_type','participant_id','kind','name','mime','size','url')}
+
+
+def send(parent_id, student_id, text, attachment=None):
     conv = _conversation(parent_id, student_id)
     body = str(text or '').strip()
-    if not body or len(body) > MAX_TEXT:
+    media=_attachment(parent_id,student_id,attachment)
+    if (not body and not media) or len(body) > MAX_TEXT:
         raise ValueError('invalid_message')
     mid = um.record_message(int(student_id), 'IN', body,
                             participant_type='PARENT', participant_id=int(parent_id),
-                            sender_type='PARENT', sender_id=int(parent_id), origin_channel='WEB')
+                            sender_type='PARENT', sender_id=int(parent_id), origin_channel='WEB',
+                            content_type=media['kind'].upper() if media else 'TEXT', attachment=media)
     try:
         from web_backend import push_events
         push_events.teachers('💬 Сообщение родителя', 'Родитель написал в Аделии.',
@@ -54,7 +65,7 @@ def students(parent_id):
     return {'items': [{'id': row['id'], 'name': row['name']} for row in linked_students(parent_id)]}
 
 
-def send_teacher_to_parent(conversation_id, text, teacher_id):
+def parent_target(conversation_id):
     um.ensure_tables()
     conn = connect()
     try:
@@ -69,17 +80,24 @@ def send_teacher_to_parent(conversation_id, text, teacher_id):
         conn.close()
     if not row:
         raise ValueError('parent_conversation_not_found')
+    return {'student_id':int(row['student_id']),'parent_id':int(row['participant_id'])}
+
+
+def send_teacher_to_parent(conversation_id, text, teacher_id, attachment=None):
+    target=parent_target(conversation_id)
     body = str(text or '').strip()
-    if not body or len(body) > MAX_TEXT:
+    media=_attachment(target['parent_id'],target['student_id'],attachment)
+    if (not body and not media) or len(body) > MAX_TEXT:
         raise ValueError('invalid_message')
-    mid = um.record_message(int(row['student_id']), 'OUT', body,
-                            participant_type='PARENT', participant_id=int(row['participant_id']),
-                            sender_type='TEACHER', sender_id=teacher_id, origin_channel='WEB')
+    mid = um.record_message(target['student_id'], 'OUT', body,
+                            participant_type='PARENT', participant_id=target['parent_id'],
+                            sender_type='TEACHER', sender_id=teacher_id, origin_channel='WEB',
+                            content_type=media['kind'].upper() if media else 'TEXT', attachment=media)
     try:
         from web_backend import web_push
-        web_push.send('parent', int(row['participant_id']), '💬 Сообщение преподавателя',
+        web_push.send('parent', target['parent_id'], '💬 Сообщение преподавателя',
                       'В Аделии есть новый ответ.', '/app/parent/',
-                      f'parent-reply-{mid}', {'type': 'message', 'student_id': int(row['student_id'])})
+                      f'parent-reply-{mid}', {'type': 'message', 'student_id': target['student_id']})
     except Exception as exc:
         print('[parent-messages] parent push:', type(exc).__name__, flush=True)
     return {'status': 'ok', 'message_id': mid, 'delivery_status': 'SENT'}
