@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import sqlite3
 import sys
 import types
@@ -36,6 +37,7 @@ parent_portal._assert_link = assert_link
 parent_portal.linked_students = lambda pid: [dict(r) for r in db.execute("SELECT u.id,u.name FROM users u JOIN parent_student_links l ON l.student_id=u.id WHERE l.parent_id=?",(pid,))]
 sys.modules['web_backend.parent_portal'] = parent_portal
 media=types.ModuleType('web_backend.message_media')
+media.read=lambda token: (media.metadata(token),b'data') if media.metadata(token) else (_ for _ in ()).throw(FileNotFoundError())
 media.metadata=lambda token: {'token':token,'student_id':1,'participant_type':'PARENT','participant_id':10,'kind':'document','name':'file.pdf','mime':'application/pdf','size':4,'url':'/api/message-media/'+token} if token=='parent10' else None
 sys.modules['web_backend.message_media']=media
 pushes=[]
@@ -74,7 +76,27 @@ assert pm.mark_parent_read(10,1)['status']=='ok'
 assert um.conversations()[0]['name']=='Мама'
 assert um.conversations()[0]['student_name']=='Первый ученик'
 assert um.conversation(1,'STUDENT',None)['id'] != inbound['conversation_id']
+delivery=types.ModuleType('web_backend.message_delivery')
+delivery.send_teacher_reply=lambda *args: None
+delivery.send_existing_message_channels=lambda *args: None
+sys.modules['web_backend.message_delivery']=delivery
+read_sync=types.ModuleType('web_backend.message_read_sync')
+read_sync.mark_conversation_read=lambda *args: None
+sys.modules['web_backend.message_read_sync']=read_sync
+stage=load('web_backend.stage10_api','web_backend/stage10_api.py')
+class Handler(stage.Stage10Mixin):
+    def __init__(self,role,entity): self.auth={'role':role,'id':entity};self.wfile=io.BytesIO()
+    def _auth(self): return self.auth
+    def _json(self,status,data): return status,data
+    def send_response(self,*args): pass
+    def send_header(self,*args): pass
+    def end_headers(self): pass
+for role,entity,allowed in [('student',1,False),('parent',11,False),('parent',10,True),('teacher',42,True)]:
+    h=Handler(role,entity)
+    result=h.stage10_get('/api/message-media/parent10',{})
+    assert (h.wfile.getvalue()==b'data')==allowed,(role,entity,result)
 db.execute('DELETE FROM parent_student_links WHERE parent_id=10 AND student_id=1')
+assert Handler('parent',10).stage10_get('/api/message-media/parent10',{})[0]==403
 try: pm.send_teacher_to_parent(inbound['conversation_id'],'После отвязки',42)
 except ValueError: pass
 else: raise AssertionError('unlinked parent received teacher reply')
