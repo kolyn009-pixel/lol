@@ -8,6 +8,7 @@ import base64,os,re,secrets
 from pathlib import Path
 import database,payments
 from core import minute_balance,event_center
+from web_backend.invoice_pricing import individual_lesson_quote
 RECEIPT_ROOT=Path(os.environ.get('ADELIA_WEB_RECEIPT_DIR','/opt/tutorbot/data/web_receipts'));MAX_RECEIPT_BYTES=8*1024*1024
 _ALLOWED={'image/jpeg':('.jpg','PHOTO'),'image/png':('.png','PHOTO'),'application/pdf':('.pdf','DOCUMENT')}
 def _user(user_id):
@@ -51,7 +52,21 @@ def create_lesson_payment(user_id,lesson_id,promo_code=None):
  if promo:
   validation=database.validate_promo_code(promo,int(user_id))
   if not validation['valid']:raise ValueError(validation['reason'])
- existing=database.get_payment_for_lesson(int(lesson_id));payment_id=int(existing['id']) if existing else int(database.create_lesson_payment(int(lesson_id),promo_code=promo));return {'status':'ok','payment':_safe_payment(database.get_payment(payment_id)),'payment_method':payments.payment_method_text(),'lesson_start':lesson['start_time']}
+ existing=database.get_payment_for_lesson(int(lesson_id))
+ if existing:
+  payment_id=int(existing['id'])
+ else:
+  individual=individual_lesson_quote(lesson)
+  if individual:
+   duration=int(individual['duration_minutes'])
+   payment_id=int(database.create_payment(
+    user_id=int(user_id),study_goal=lesson['study_goal'],subject=lesson['subject'],
+    lessons_count=1,price_per_lesson=int(individual['amount']),promo_code=promo,
+    lesson_id=int(lesson_id),minutes_total=duration,base_duration_minutes=duration,
+    hourly_rate=round(int(individual['amount'])*60/max(duration,1))))
+  else:
+   payment_id=int(database.create_lesson_payment(int(lesson_id),promo_code=promo))
+ return {'status':'ok','payment':_safe_payment(database.get_payment(payment_id)),'payment_method':payments.payment_method_text(),'lesson_start':lesson['start_time']}
 def history(user_id,limit=30):return [_safe_payment(row) for row in database.get_user_payments(int(user_id),max(1,min(int(limit),100))) if str(row['payment_type'] or '').upper()!='BONUS']
 def attach_receipt(user_id,payment_id,filename,mime_type,content_b64):
  payment=_payment_owned(user_id,payment_id)
