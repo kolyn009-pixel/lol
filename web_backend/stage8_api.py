@@ -4,13 +4,15 @@ from web_backend.finance_pricing import list_prices,set_price,list_overrides,lis
 from web_backend.finance_price_sync import set_override,delete_override,quote,package_quote
 from web_backend.finance_reporting import dashboard,student_finance,calendar_analytics,mark_lesson_paid
 from web_backend.finance_receipts import list_receipts,summary as receipt_summary,review as review_receipt
-from web_backend import teacher_invoices
+from web_backend import teacher_invoices, payment_qr
 
 class Stage8Mixin:
     def stage8_get(self,path,q):
         if not path.startswith('/api/teacher/finance/'):return False
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:
+            if path=='/api/teacher/finance/payment-qr/status':return self._json(200,payment_qr.status())
+            if path=='/api/teacher/finance/payment-qr/image':return payment_qr.send_png(self)
             if path=='/api/teacher/finance/dashboard':return self._json(200,dashboard(q.get('start',[None])[0],q.get('end',[None])[0],q.get('period',[None])[0]))
             if path=='/api/teacher/finance/calendar-analytics':return self._json(200,calendar_analytics())
             if path=='/api/teacher/finance/receipts':return self._json(200,{'summary':receipt_summary(),'items':list_receipts(q.get('status',['WAITING'])[0],q.get('limit',[100])[0])})
@@ -31,9 +33,11 @@ class Stage8Mixin:
     def stage8_post(self,path):
         if not path.startswith('/api/teacher/finance/'):return False
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
+        if path=='/api/teacher/finance/payment-qr' and not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
         body=self._body()
         if body is None:return self._json(400,{'error':'invalid_json'})
         try:
+            if path=='/api/teacher/finance/payment-qr':return self._json(200,payment_qr.save_png(body.get('content_b64')))
             if path=='/api/teacher/finance/invoice':return self._json(200,teacher_invoices.issue(body.get('lesson_id')))
             if path=='/api/teacher/finance/lesson/paid':return self._json(200,mark_lesson_paid(body.get('lesson_id'),body.get('amount')))
             if path=='/api/teacher/finance/receipt/review':return self._json(200,review_receipt(body.get('payment_id'),body.get('action')))
