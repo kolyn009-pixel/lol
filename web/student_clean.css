@@ -42,3 +42,5 @@ html.adelia-browser .nav-item{min-height:44px!important}
 /* Keep the five primary destinations legible on narrow PWA screens. */
 .bottom-nav .nav-item:focus-visible{outline:2px solid #6847f5!important;outline-offset:2px!important}
 @media(max-width:360px){.bottom-nav .nav-item small{font-size:10px!important}}
+
+.student-offline-note{margin:0 0 16px;padding:12px 14px;border:1px solid #e9ddad;border-radius:14px;background:#fff9e5;color:#554a2b;font-size:13px;line-height:1.4}
