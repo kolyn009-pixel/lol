@@ -5,8 +5,12 @@ import ast
 import asyncio
 from pathlib import Path
 from types import SimpleNamespace
+import sys
+import types
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 rows = [
     {"id": 1, "title": "Текущее", "status": "ASSIGNED"},
     {"id": 2, "title": "Прошедшее", "status": "COMPLETED"},
@@ -70,6 +74,23 @@ def vk():
     assert "homework" in commands
 
 
+def vk_archive_route():
+    sent = []
+    fake = types.ModuleType("vk_adapter.homework_v6")
+    fake.menu = lambda app, peer, uid, archive=False: sent.append((peer, uid, archive))
+    scope = {"__package__": "vk_adapter"}
+    route = function("vk_adapter/runtime_homework_hook.py", "intercept", scope)
+    app = SimpleNamespace(
+        _extract_command=lambda message: "homework_archive",
+        teacher_service=SimpleNamespace(is_teacher=lambda sender: False),
+        service=SimpleNamespace(linked_user=lambda sender: {"id": 5}),
+    )
+    with patch.dict(sys.modules, {"vk_adapter.homework_v6": fake}):
+        assert route(app, {"from_id": 42, "peer_id": 42})
+    assert sent == [(42, 5, True)], sent
+
+
 telegram()
 vk()
+vk_archive_route()
 print("HOMEWORK_ARCHIVE=PASS")
