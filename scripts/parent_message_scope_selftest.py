@@ -35,6 +35,9 @@ def assert_link(pid, uid):
 parent_portal._assert_link = assert_link
 parent_portal.linked_students = lambda pid: [dict(r) for r in db.execute("SELECT u.id,u.name FROM users u JOIN parent_student_links l ON l.student_id=u.id WHERE l.parent_id=?",(pid,))]
 sys.modules['web_backend.parent_portal'] = parent_portal
+media=types.ModuleType('web_backend.message_media')
+media.metadata=lambda token: {'token':token,'student_id':1,'participant_type':'PARENT','participant_id':10,'kind':'document','name':'file.pdf','mime':'application/pdf','size':4,'url':'/api/message-media/'+token} if token=='parent10' else None
+sys.modules['web_backend.message_media']=media
 pushes=[]
 web_push=types.ModuleType('web_backend.web_push')
 web_push.send=lambda role, entity_id, *args: pushes.append((role, entity_id)) or {'sent':1}
@@ -54,14 +57,19 @@ assert pm.students(10)['items']==[{'id':1,'name':'Первый ученик'}]
 inbound=pm.send(10,1,'Привет')
 assert pm.thread(10,1)['items'][0]['body']=='Привет'
 assert pm.thread(11,1)['items']==[]
+attached=pm.send(10,1,'',{'token':'parent10'})
+assert pm.thread(10,1)['items'][-1]['attachment']['token']=='parent10'
+try: pm.send(11,1,'Чужой файл',{'token':'parent10'})
+except ValueError: pass
+else: raise AssertionError('cross-parent media accepted')
 for action in (lambda:pm.thread(10,2),lambda:pm.send(10,2,'Запрет'),lambda:pm.mark_parent_read(10,2)):
     try: action()
     except PermissionError: pass
     else: raise AssertionError('unlinked parent accessed student')
 reply=pm.send_teacher_to_parent(inbound['conversation_id'],'Здравствуйте',42)
-assert [m['body'] for m in pm.thread(10,1)['items']]==['Привет','Здравствуйте']
+assert [m['body'] for m in pm.thread(10,1)['items']]==['Привет','','Здравствуйте']
 assert pm.thread(11,1)['items']==[]
-assert pushes==[('teacher', None),('parent', 10)]
+assert pushes==[('teacher', None),('teacher', None),('parent', 10)]
 assert pm.mark_parent_read(10,1)['status']=='ok'
 assert um.conversations()[0]['name']=='Мама'
 assert um.conversations()[0]['student_name']=='Первый ученик'
