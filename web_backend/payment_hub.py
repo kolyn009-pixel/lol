@@ -129,3 +129,8 @@ def parent_quote_package(parent_id,student_id,selection_key,lessons_count,promo_
 def parent_attach_receipt(parent_id,student_id,payment_id,filename,mime_type,content_b64):
     uid=_linked(parent_id,student_id)
     return student_finance.attach_receipt(uid,int(payment_id),filename,mime_type,content_b64)
+
+
+def parent_claim_payment(parent_id,student_id,payment_id):
+    uid=_linked(parent_id,student_id)
+    return student_finance.claim_payment(uid,int(payment_id))
