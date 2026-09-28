@@ -5,6 +5,7 @@ from web_backend.parent_auth import consume_parent_login_code
 from web_backend.web_sessions import SESSION_TTL,create_session
 from web_backend.payment_hub import parent_hub,parent_pay_nearest,parent_create_package,parent_quote_package,parent_attach_receipt
 from web_backend import api as v1
+from web_backend import parent_messages
 
 class Stage9Mixin:
     def _parent(self):
@@ -17,6 +18,9 @@ class Stage9Mixin:
         if not auth:return self._json(401,{'error':'unauthorized'})
         pid=int(auth['id'])
         try:
+            if path=='/api/parent/messages/students':return self._json(200,parent_messages.students(pid))
+            if path=='/api/parent/messages':
+                return self._json(200,parent_messages.thread(pid,int(q.get('student_id',['0'])[0]),q.get('limit',[100])[0]))
             if path=='/api/parent/dashboard':
                 item=dashboard(pid);return self._json(200,item) if item else self._json(404,{'error':'parent_not_found'})
             if path=='/api/parent/student':
@@ -42,6 +46,19 @@ class Stage9Mixin:
             if result.get('status')!='ok':return self._json(401,{'error':result.get('status','invalid_code')})
             entity=result['parent'];token=create_session('parent',int(entity['id']),SESSION_TTL)
             return self._json(200,{'ok':True,'parent':entity},token)
+        if path in {'/api/parent/messages/send','/api/parent/messages/read'}:
+            auth=self._parent()
+            if not auth:return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if not isinstance(body,dict):return self._json(400,{'error':'invalid_json'})
+            try:
+                pid=int(auth['id']);uid=int(body.get('student_id') or 0)
+                result=(parent_messages.send(pid,uid,body.get('text')) if path.endswith('/send')
+                        else parent_messages.mark_parent_read(pid,uid))
+                return self._json(200,result)
+            except PermissionError:return self._json(404,{'error':'student_not_found'})
+            except (TypeError,ValueError) as exc:return self._json(400,{'error':str(exc) or 'invalid_request'})
+            except Exception as exc:print('[web-api] parent messages POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if not path.startswith('/api/parent/finance/'):return False
         auth=self._parent()
         if not auth:return self._json(401,{'error':'unauthorized'})
