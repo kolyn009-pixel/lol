@@ -22,7 +22,7 @@ async function refresh(force=false){
     grid.innerHTML=card('messages','Новые диалоги',value(messages,x=>(x.items||[]).length),'Открыть переписку')
       +card('payments','Переводы на проверке',value(receipts,x=>x.summary?.waiting),'Сверить в Сбере и решить')
       +card('reviews','Работы на проверке',value(dash,()=>d.pending_reviews?.length),'Открыть очередь ДЗ')
-      +card('requests','Заявки и переносы',value(requests,x=>count(x.counts?.trial)+count(x.counts?.lesson)+count(x.counts?.schedule_groups??x.counts?.schedule)),'Открыть заявки');
+      +card('requests','Заявки на занятия',value(requests,x=>count(x.counts?.trial)+count(x.counts?.lesson)+count(x.counts?.schedule_groups??x.counts?.schedule)),'Открыть заявки');
     section.querySelector('#attentionFreshness').textContent=[dash,messages,receipts,requests].every(x=>x.status==='fulfilled')?'Обновлено сейчас':'Часть данных недоступна';
     last=Date.now();
   }finally{loading=false}
