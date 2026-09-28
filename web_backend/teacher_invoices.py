@@ -38,7 +38,8 @@ def _lesson_price(row):
 
 
 def _notify_invoice(user_id,lesson_id,result,row):
-    amount=int(result.get('total_amount') or result.get('amount') or _lesson_price(row) or 0)
+    payment=result.get('payment') or {}
+    amount=int(payment.get('total_amount') or result.get('total_amount') or result.get('amount') or _lesson_price(row) or 0)
     subject={'PHYSICS':'Физика','CHEMISTRY':'Химия'}.get(str(row['subject'] or '').upper(),str(row['subject'] or 'занятие'))
     try:
         start=datetime.fromisoformat(str(row['start_time']))
