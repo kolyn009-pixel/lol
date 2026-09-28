@@ -9,7 +9,7 @@ module.exports={
     js:['teacher_time.js','teacher_v4.js','teacher_students_clean8.js','teacher_groups.js','teacher_health.js','teacher_v5_runtime.js','teacher_messages_stage10.js','teacher_lesson_context.js','teacher_post_lesson.js','desktop_lesson_workspace.js','desktop_teacher_density.js']
   },
   parent:{
-    css:['parent/app.css','parent/parent_clean.css','parent/parent_v5.css','desktop_parent_app.css','desktop_premium.css'],
-    js:['parent/app.js','parent/parent_v5.js']
+    css:['parent/app.css','parent/parent_clean.css','parent/parent_v5.css','parent/messenger.css','desktop_parent_app.css','desktop_premium.css'],
+    js:['parent/app.js','parent/messenger.js','parent/parent_v5.js']
   }
 };
