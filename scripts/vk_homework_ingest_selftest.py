@@ -81,6 +81,25 @@ class IngestTest(unittest.TestCase):
         self.assertFalse(any(x[0] == "create" for x in self.calls))
         self.assertIn(42, self.app._PENDING)
 
+    def test_failed_save_cancels_created_homework(self):
+        db, store = self.modules["database"], self.modules["homework_attachments"]
+        class Connection:
+            def execute(_, sql, args):
+                self.calls.append(("sql", sql, args))
+            def commit(_):
+                self.calls.append(("commit",))
+            def close(_):
+                pass
+        db.connect = lambda: Connection()
+        store.save_reference = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full"))
+        with patch.object(self.ingest, "_download", return_value=b"%PDF-1.7 body"):
+            handled, ok = self.ingest.handle_teacher_assignment(
+                self.app, 42, 42, 7, "Задачи", [self.file])
+        self.assertEqual((handled, ok), (True, False))
+        self.assertTrue(any("status='CANCELLED'" in x[1] for x in self.calls if x[0] == "sql"))
+        self.assertFalse(any(x[0] == "deliver" for x in self.calls))
+        self.assertIn(42, self.app._PENDING)
+
     def test_rejects_untrusted_download_host(self):
         with self.assertRaises(ValueError):
             self.ingest._valid_url("https://userapi.com.evil.example/private")
