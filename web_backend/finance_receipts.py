@@ -114,7 +114,7 @@ def _notify_review(payment_row,approved):
     try:
         from web_backend import push_events
         uid=int(payment_row['user_id']);amount=int(payment_row['total_amount'] or 0);money=f'{amount:,} ₽'.replace(',',' ')
-        if approved:title='✅ Оплата подтверждена';body=f'{money} · чек принят. Баланс и статус оплаты обновлены.'
-        else:title='⚠️ Чек нужно отправить повторно';body=f'{money} · чек отклонён. Откройте Аделию и прикрепите корректный чек.'
+        if approved:title='✅ Оплата подтверждена';body=f'{money} · перевод подтверждён. Баланс и статус оплаты обновлены.'
+        else:title='⚠️ Оплата не подтверждена';body=f'{money} · проверьте перевод и при необходимости сообщите об оплате повторно.'
         push_events.student_and_parents(uid,title,body,'/app/','/app/parent/',f'payment-review-{int(payment_row["id"])}',{'type':'payment_review','payment_id':int(payment_row['id']),'approved':bool(approved)})
     except Exception as exc:print('[web-api] payment review push error:',type(exc).__name__,repr(exc),flush=True)
