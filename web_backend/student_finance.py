@@ -74,6 +74,6 @@ def attach_receipt(user_id,payment_id,filename,mime_type,content_b64):
    receipt_cloud_archive.enqueue(int(receipt_id))
   except Exception:pass
  user=_user(user_id)
- try:event_center.push('PAYMENT_RECEIPT',f"Новый чек: {user['name']}",f"Платёж #{int(payment_id)} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'ACTION','payment',int(payment_id),f'payment_receipt:{int(payment_id)}')
+ try:event_center.push('PAYMENT_RECEIPT',f"Подтверждение перевода: {user['name']}",f"Платёж #{int(payment_id)} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'ACTION','payment',int(payment_id),f'payment_receipt:{int(payment_id)}')
  except Exception:pass
  return {'status':'ok','payment_id':int(payment_id),'receipt_id':int(receipt_id) if receipt_id is not None else None,'filename':safe_name,'archive_status':'PENDING' if receipt_id is not None else 'UNTRACKED'}
