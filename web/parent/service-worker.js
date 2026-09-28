@@ -1,4 +1,4 @@
-const CACHE='adelia-parent-v9';
+const CACHE='adelia-parent-v10';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const BASE='/app/parent/';
