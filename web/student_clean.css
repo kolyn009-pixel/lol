@@ -22,7 +22,7 @@
  .soft,.ghost,.btn-secondary{min-height:41px!important;border-radius:13px!important}
  .bottom-nav{width:calc(100% - 14px)!important;bottom:max(7px,env(safe-area-inset-bottom))!important;padding:5px!important;border-radius:18px!important;background:rgba(255,255,255,.96)!important;box-shadow:0 12px 34px rgba(28,26,43,.14)!important}
  .nav-item{min-height:50px!important;padding:6px 2px!important;border-radius:13px!important}
- .nav-item span{font-size:18px!important}.nav-item small{font-size:8px!important;margin-top:3px!important}
+ .nav-item span{font-size:18px!important}.nav-item small{font-size:11px!important;line-height:1.15!important;margin-top:3px!important}
  .nav-item.active{background:#f0ecff!important;color:#6847f5!important}
  .empty,.empty-state{padding:22px 15px!important;border-radius:15px!important}
  .student-chat-card{height:calc(100dvh - 158px)!important;min-height:430px!important;border-radius:18px!important}
@@ -38,3 +38,7 @@ html.adelia-browser .bottom-nav{position:sticky!important;top:76px!important;lef
 html.adelia-browser .content{padding-bottom:42px!important}
 html.adelia-browser .nav-item{min-height:44px!important}
 @media(max-width:560px){html.adelia-browser .bottom-nav{top:65px!important;width:calc(100% - 16px)!important;margin-top:8px!important;padding:4px!important;border-radius:15px!important}html.adelia-browser .content{padding-bottom:34px!important}}
+
+/* Keep the five primary destinations legible on narrow PWA screens. */
+.bottom-nav .nav-item:focus-visible{outline:2px solid #6847f5!important;outline-offset:2px!important}
+@media(max-width:360px){.bottom-nav .nav-item small{font-size:10px!important}}
