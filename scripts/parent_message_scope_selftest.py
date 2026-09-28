@@ -35,6 +35,13 @@ def assert_link(pid, uid):
 parent_portal._assert_link = assert_link
 parent_portal.linked_students = lambda pid: [dict(r) for r in db.execute("SELECT u.id,u.name FROM users u JOIN parent_student_links l ON l.student_id=u.id WHERE l.parent_id=?",(pid,))]
 sys.modules['web_backend.parent_portal'] = parent_portal
+pushes=[]
+web_push=types.ModuleType('web_backend.web_push')
+web_push.send=lambda role, entity_id, *args: pushes.append((role, entity_id)) or {'sent':1}
+sys.modules['web_backend.web_push']=web_push
+push_events=types.ModuleType('web_backend.push_events')
+push_events.teachers=lambda *args: pushes.append(('teacher', None)) or {'sent':1}
+sys.modules['web_backend.push_events']=push_events
 def load(name,path):
     spec=importlib.util.spec_from_file_location(name,path)
     module=importlib.util.module_from_spec(spec)
@@ -54,6 +61,7 @@ for action in (lambda:pm.thread(10,2),lambda:pm.send(10,2,'Запрет'),lambda
 reply=pm.send_teacher_to_parent(inbound['conversation_id'],'Здравствуйте',42)
 assert [m['body'] for m in pm.thread(10,1)['items']]==['Привет','Здравствуйте']
 assert pm.thread(11,1)['items']==[]
+assert pushes==[('teacher', None),('parent', 10)]
 assert pm.mark_parent_read(10,1)['status']=='ok'
 assert um.conversations()[0]['name']=='Мама'
 assert um.conversations()[0]['student_name']=='Первый ученик'
