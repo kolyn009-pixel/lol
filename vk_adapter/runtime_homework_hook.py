@@ -15,6 +15,11 @@ def intercept(app, message):
         app._PENDING.pop(teacher_vk_id, None)
         app.send(peer_id, 'Хорошо, задание не создано.', True, 'teacher')
         return True
+    if command:
+        # A navigation button is not homework text. Let the regular router
+        # select another student or screen without creating an assignment.
+        app._PENDING.pop(teacher_vk_id, None)
+        return False
     homework_ingest.handle_teacher_assignment(
         app, peer_id, teacher_vk_id, int(pending[1]),
         str((message or {}).get('text') or '').strip(), (message or {}).get('attachments') or [],
