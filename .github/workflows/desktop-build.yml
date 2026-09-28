@@ -24,6 +24,8 @@ on:
       - 'web_backend/stage10_api.py'
       - 'web_backend/unified_messaging.py'
       - 'web_backend/message_delivery.py'
+      - 'web_backend/message_media.py'
+      - 'web_backend/unified_messages.py'
       - 'scripts/parent_message_scope_selftest.py'
       - 'scripts/student_messenger_selftest.js'
       - 'scripts/homework_archive_selftest.py'
