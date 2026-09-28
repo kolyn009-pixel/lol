@@ -5,6 +5,20 @@ from . import homework_ingest
 
 
 def intercept(app, message):
+    # The student archive uses the same owner-checked homework viewer.
+    command = app._extract_command(message)
+    if command == 'homework_archive':
+        sender = int((message or {}).get('from_id') or 0)
+        if sender <= 0 or app.teacher_service.is_teacher(sender):
+            return False
+        user = app.service.linked_user(sender)
+        if not user:
+            return False
+        from . import homework_v6
+        peer = int((message or {}).get('peer_id') or sender)
+        homework_v6.menu(app, peer, int(user['id']), archive=True)
+        return True
+
     teacher_vk_id = int((message or {}).get('from_id') or 0)
     pending = app._PENDING.get(teacher_vk_id)
     if not teacher_vk_id or not pending or pending[0] != 't_hw' or not app.teacher_service.is_teacher(teacher_vk_id):
