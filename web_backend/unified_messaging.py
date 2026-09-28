@@ -87,7 +87,7 @@ def import_legacy(limit=5000):
 
 def conversations(limit=100,only_unread=False):
     ensure_tables();import_legacy();conn=connect();where="HAVING unread>0" if only_unread else ''
-    rows=conn.execute(f"""SELECT c.id,c.student_id,u.name,c.participant_type,c.participant_id,c.status,c.updated_at,MAX(m.created_at) last_at,SUM(CASE WHEN m.direction='IN' AND m.read_at IS NULL THEN 1 ELSE 0 END) unread,(SELECT body FROM unified_messages x WHERE x.conversation_id=c.id ORDER BY x.id DESC LIMIT 1) last_body FROM unified_conversations c JOIN users u ON u.id=c.student_id LEFT JOIN unified_messages m ON m.conversation_id=c.id GROUP BY c.id {where} ORDER BY datetime(COALESCE(last_at,c.updated_at)) DESC LIMIT ?""",(max(1,min(int(limit),500)),)).fetchall();conn.close();return [dict(r) for r in rows]
+    rows=conn.execute(f"""SELECT c.id,c.student_id,CASE WHEN c.participant_type='PARENT' THEN COALESCE(p.name,'Родитель') ELSE u.name END name,c.participant_type,c.participant_id,c.status,c.updated_at,MAX(m.created_at) last_at,SUM(CASE WHEN m.direction='IN' AND m.read_at IS NULL THEN 1 ELSE 0 END) unread,(SELECT body FROM unified_messages x WHERE x.conversation_id=c.id ORDER BY x.id DESC LIMIT 1) last_body FROM unified_conversations c JOIN users u ON u.id=c.student_id LEFT JOIN parent_accounts p ON p.id=c.participant_id AND c.participant_type='PARENT' LEFT JOIN unified_messages m ON m.conversation_id=c.id GROUP BY c.id {where} ORDER BY datetime(COALESCE(last_at,c.updated_at)) DESC LIMIT ?""",(max(1,min(int(limit),500)),)).fetchall();conn.close();return [dict(r) for r in rows]
 
 
 def history(conversation_id,limit=100,after_id=None,include_deliveries=False):
