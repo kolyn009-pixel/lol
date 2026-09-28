@@ -4,7 +4,7 @@ from database import connect
 from web_backend import unified_messaging as um
 from web_backend.message_delivery import send_teacher_reply,send_existing_message_channels
 from web_backend.message_read_sync import mark_conversation_read
-from web_backend import message_media
+from web_backend import message_media,parent_messages
 
 
 def _channel_map(user_ids):
@@ -91,7 +91,11 @@ class Stage10Mixin:
             if path=='/api/teacher/messages/send':
                 tid=teacher.get('id') if hasattr(teacher,'get') else None
                 # Normal Send is Adelia-only. External channels require the explicit action below.
-                result=send_teacher_reply(int(body.get('user_id')),body.get('text'),[],tid,body.get('attachment'))
+                if body.get('conversation_id') is not None:
+                    if body.get('attachment'):raise ValueError('parent_attachments_unavailable')
+                    result=parent_messages.send_teacher_to_parent(int(body['conversation_id']),body.get('text'),tid)
+                else:
+                    result=send_teacher_reply(int(body.get('user_id')),body.get('text'),[],tid,body.get('attachment'))
                 return self._json(200,result)
             if path=='/api/teacher/messages/send-external':
                 result=send_existing_message_channels(int(body.get('message_id')),body.get('channels'))
