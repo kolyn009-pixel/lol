@@ -1,5 +1,7 @@
 import importlib.util
 import io
+import os
+import tempfile
 import sqlite3
 import sys
 import types
@@ -36,10 +38,6 @@ def assert_link(pid, uid):
 parent_portal._assert_link = assert_link
 parent_portal.linked_students = lambda pid: [dict(r) for r in db.execute("SELECT u.id,u.name FROM users u JOIN parent_student_links l ON l.student_id=u.id WHERE l.parent_id=?",(pid,))]
 sys.modules['web_backend.parent_portal'] = parent_portal
-media=types.ModuleType('web_backend.message_media')
-media.read=lambda token: (media.metadata(token),b'data') if media.metadata(token) else (_ for _ in ()).throw(FileNotFoundError())
-media.metadata=lambda token: {'token':token,'student_id':1,'participant_type':'PARENT','participant_id':10,'kind':'document','name':'file.pdf','mime':'application/pdf','size':4,'url':'/api/message-media/'+token} if token=='parent10' else None
-sys.modules['web_backend.message_media']=media
 pushes=[]
 web_push=types.ModuleType('web_backend.web_push')
 web_push.send=lambda role, entity_id, *args: pushes.append((role, entity_id)) or {'sent':1}
@@ -54,14 +52,19 @@ def load(name,path):
     spec.loader.exec_module(module)
     return module
 um=load('web_backend.unified_messaging','web_backend/unified_messaging.py')
+tmp=tempfile.TemporaryDirectory()
+os.environ['ADELIA_MESSAGE_MEDIA_DIR']=tmp.name
+media=load('web_backend.message_media','web_backend/message_media.py')
+attachment=media.store_bytes(1,b'data','file.pdf','application/pdf','document',origin='WEB',participant_type='PARENT',participant_id=10)
+token=attachment['token']
 pm=load('web_backend.parent_messages','web_backend/parent_messages.py')
 assert pm.students(10)['items']==[{'id':1,'name':'Первый ученик'}]
 inbound=pm.send(10,1,'Привет')
 assert pm.thread(10,1)['items'][0]['body']=='Привет'
 assert pm.thread(11,1)['items']==[]
-attached=pm.send(10,1,'',{'token':'parent10'})
-assert pm.thread(10,1)['items'][-1]['attachment']['token']=='parent10'
-try: pm.send(11,1,'Чужой файл',{'token':'parent10'})
+attached=pm.send(10,1,'',{'token':token})
+assert pm.thread(10,1)['items'][-1]['attachment']['token']==token
+try: pm.send(11,1,'Чужой файл',{'token':token})
 except ValueError: pass
 else: raise AssertionError('cross-parent media accepted')
 for action in (lambda:pm.thread(10,2),lambda:pm.send(10,2,'Запрет'),lambda:pm.mark_parent_read(10,2)):
@@ -93,12 +96,13 @@ class Handler(stage.Stage10Mixin):
     def end_headers(self): pass
 for role,entity,allowed in [('student',1,False),('parent',11,False),('parent',10,True),('teacher',42,True)]:
     h=Handler(role,entity)
-    result=h.stage10_get('/api/message-media/parent10',{})
+    result=h.stage10_get('/api/message-media/'+token,{})
     assert (h.wfile.getvalue()==b'data')==allowed,(role,entity,result)
 db.execute('DELETE FROM parent_student_links WHERE parent_id=10 AND student_id=1')
-assert Handler('parent',10).stage10_get('/api/message-media/parent10',{})[0]==403
+assert Handler('parent',10).stage10_get('/api/message-media/'+token,{})[0]==403
 try: pm.send_teacher_to_parent(inbound['conversation_id'],'После отвязки',42)
 except ValueError: pass
 else: raise AssertionError('unlinked parent received teacher reply')
+tmp.cleanup()
 print('PARENT_MESSAGE_SCOPE=PASS')
 
