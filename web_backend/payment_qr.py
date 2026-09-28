@@ -26,6 +26,10 @@ def save_png(content_b64):
         raw = base64.b64decode(encoded, validate=True)
     except (ValueError, binascii.Error):
         raise ValueError('invalid_qr_data') from None
+    return save_png_bytes(raw)
+
+
+def save_png_bytes(raw):
     if len(raw) < 33 or len(raw) > MAX_BYTES or not raw.startswith(PNG_MAGIC) or raw[12:16] != b'IHDR':
         raise ValueError('invalid_qr_png')
     width, height = struct.unpack('>II', raw[16:24])
