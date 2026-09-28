@@ -41,7 +41,8 @@ function navigate(win,view){
   const r=role(win);
   if(r==='teacher')return activateTeacherView(win,view);
   if(r==='parent'){
-    if(view==='dashboard'||view==='payments')win.loadURL(APP_ORIGIN+'/app/parent/').catch(()=>{});
+    if(view!=='dashboard')return false;
+    win.loadURL(APP_ORIGIN+'/app/parent/').catch(()=>{});
     return true;
   }
   const map={dashboard:'',schedule:'schedule',students:'',homework:'homework',messages:'chat',payments:'finance'};
@@ -50,6 +51,7 @@ function navigate(win,view){
 }
 function commandTemplate(win){
   const r=role(win);
+  if(r==='parent')return [{label:'Кабинет родителя',accelerator:'CmdOrCtrl+1',click:()=>navigate(win,'dashboard')}];
   const common=[
     ['Сегодня','dashboard','CmdOrCtrl+1'],['Расписание','schedule','CmdOrCtrl+2'],
     ...(r==='teacher'?[['Ученики','students','CmdOrCtrl+3']]:[]),
@@ -75,7 +77,7 @@ function attach(win){
     if((input.control||input.meta)&&!input.alt&&!input.shift&&String(input.key||'').toLowerCase()==='k'){
       event.preventDefault();showWorkspaceMenu(win);return;
     }
-    const view=shortcutView(input);if(view){event.preventDefault();navigate(win,view)}
+    const view=shortcutView(input);if(view&&navigate(win,view))event.preventDefault()
   });
   win.on('ready-to-show',()=>{
     if(!isMain(win))return;
