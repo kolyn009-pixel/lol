@@ -8,6 +8,9 @@ on:
       - 'desktop/**'
       - 'scripts/desktop_release_manager.sh'
       - 'rc_desktop_static_selftest.py'
+      - 'vk_adapter/**'
+      - 'homework_pdf_runtime.py'
+      - 'scripts/vk_homework_ingest_selftest.py'
       - '.github/workflows/desktop-build.yml'
 
 permissions:
@@ -29,6 +32,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check VK homework file persistence
+        run: python scripts/vk_homework_ingest_selftest.py
       - name: Verify runner and desktop source
         shell: bash
         run: |
