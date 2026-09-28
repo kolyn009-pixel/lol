@@ -103,6 +103,33 @@ class FileDeliveryTest(unittest.TestCase):
             asyncio.run(scope["callback"](types.SimpleNamespace(callback_query=q), object()))
         self.assertIn("личном чате", q.answers[0])
 
+    def test_callback_sends_authorized_file(self):
+        tree = ast.parse((ROOT / "handlers/homework_v6.py").read_text(encoding="utf-8"))
+        fn = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
+                  and node.name == "callback")
+        class Stop(Exception):
+            pass
+        calls = []
+        async def send(bot, chat_id, hid, aid):
+            calls.append((chat_id, hid, aid))
+        scope = {
+            "ApplicationHandlerStop": Stop,
+            "_owns": lambda tid, hid: tid == 42 and hid == 3,
+            "FILES": types.SimpleNamespace(send=send),
+        }
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), "<callback>", "exec"), scope)
+        class Query:
+            data = "hw6_file|3|9"
+            from_user = types.SimpleNamespace(id=42)
+            message = types.SimpleNamespace(chat_id=42)
+            async def answer(self, *args, **kwargs):
+                pass
+        with self.assertRaises(Stop):
+            asyncio.run(scope["callback"](
+                types.SimpleNamespace(callback_query=Query()),
+                types.SimpleNamespace(bot=object())))
+        self.assertEqual(calls, [(42, 3, 9)])
+
 
 if __name__ == "__main__":
     unittest.main()
