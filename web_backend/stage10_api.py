@@ -32,8 +32,13 @@ class Stage10Mixin:
             try:
                 meta,data=message_media.read(token)
                 role=str(auth.get('role') or '')
-                if role=='student' and int(auth.get('id') or 0)!=int(meta.get('student_id') or 0):return self._json(403,{'error':'forbidden'})
-                if role not in {'student','teacher'}:return self._json(403,{'error':'forbidden'})
+                participant=str(meta.get('participant_type') or 'STUDENT').upper()
+                if role=='student' and (participant!='STUDENT' or int(auth.get('id') or 0)!=int(meta.get('student_id') or 0)):return self._json(403,{'error':'forbidden'})
+                if role=='parent':
+                    if participant!='PARENT' or int(auth.get('id') or 0)!=int(meta.get('participant_id') or 0):return self._json(403,{'error':'forbidden'})
+                    try:parent_messages._conversation(int(auth['id']),int(meta['student_id']))
+                    except PermissionError:return self._json(403,{'error':'forbidden'})
+                if role not in {'student','teacher','parent'}:return self._json(403,{'error':'forbidden'})
                 self.send_response(200);self.send_header('Content-Type',str(meta.get('mime') or 'application/octet-stream'));self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','private, max-age=86400');self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(data);return
             except (ValueError,FileNotFoundError):return self._json(404,{'error':'media_not_found'})
             except Exception as exc:print('[stage10] message media GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
@@ -77,12 +82,14 @@ class Stage10Mixin:
                 form=self._multipart()
                 item=form['file'] if form is not None and 'file' in form else None
                 if item is None or not getattr(item,'filename',None):raise ValueError('file_required')
-                uid=int(form.getfirst('user_id','0'))
+                cid=form.getfirst('conversation_id',None)
+                target=parent_messages.parent_target(int(cid)) if cid else None
+                uid=target['student_id'] if target else int(form.getfirst('user_id','0'))
                 data=item.file.read(message_media.MAX_BYTES+1)
                 if len(data)>message_media.MAX_BYTES:raise ValueError('media_too_large')
                 mime=getattr(item,'type',None) or 'application/octet-stream'
                 kind='photo' if str(mime).lower().startswith('image/') else 'document'
-                return self._json(200,{'attachment':message_media.store_bytes(uid,data,item.filename,mime,kind,origin='WEB')})
+                return self._json(200,{'attachment':message_media.store_bytes(uid,data,item.filename,mime,kind,origin='WEB',participant_type='PARENT' if target else 'STUDENT',participant_id=target['parent_id'] if target else None)})
             except ValueError as exc:return self._json(413 if str(exc)=='media_too_large' else 400,{'error':str(exc),'max_bytes':message_media.MAX_BYTES})
             except Exception as exc:print('[stage10] teacher media upload error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         body=self._body()
@@ -92,8 +99,7 @@ class Stage10Mixin:
                 tid=teacher.get('id') if hasattr(teacher,'get') else None
                 # Normal Send is Adelia-only. External channels require the explicit action below.
                 if body.get('conversation_id') is not None:
-                    if body.get('attachment'):raise ValueError('parent_attachments_unavailable')
-                    result=parent_messages.send_teacher_to_parent(int(body['conversation_id']),body.get('text'),tid)
+                    result=parent_messages.send_teacher_to_parent(int(body['conversation_id']),body.get('text'),tid,body.get('attachment'))
                 else:
                     result=send_teacher_reply(int(body.get('user_id')),body.get('text'),[],tid,body.get('attachment'))
                 return self._json(200,result)
