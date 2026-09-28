@@ -217,68 +217,24 @@ def _rows(
     ]
 
 
-def menu(
-    app,
-    peer,
-    uid,
-):
-    rows = (
-        database
-        .get_student_homework(
-            int(uid),
-            active_only=True,
-        )
-    )
-
-    if not rows:
-        _send(
-            app,
-            peer,
-            "📝 Активных домашних "
-            "заданий нет.",
-            [[
-                _button(
-                    app,
-                    "🏠 Главная",
-                    "home",
-                )
-            ]],
-        )
-
-        return
-
+def menu(app, peer, uid, archive=False):
+    rows = database.get_student_homework(int(uid), active_only=not archive)
+    if archive:
+        rows = [
+            row for row in rows
+            if str(row["status"] or "").upper() not in
+            {"ASSIGNED", "UNDER_REVIEW", "REVISION", "CANCELLED"}
+        ]
     kb = []
-
     for hw in rows[:20]:
-        title = (
-            hw["title"]
-            or f"ДЗ #{hw['id']}"
-        )
-
-        kb.append([
-            _button(
-                app,
-                f"📝 {title}"[:38],
-                f"vkhw|{hw['id']}",
-                "primary",
-            )
-        ])
-
-    kb.append([
-        _button(
-            app,
-            "🏠 Главная",
-            "home",
-        )
-    ])
-
-    _send(
-        app,
-        peer,
-        "📝 ДОМАШНИЕ ЗАДАНИЯ\n\n"
-        "Выбери задание:",
-        kb,
-    )
+        title = hw["title"] or f"ДЗ #{hw['id']}"
+        kb.append([_button(app, f"📎 {title}"[:38], f"vkhw|{hw['id']}", "primary")])
+    kb.append([_button(app, "📝 Активные ДЗ" if archive else "📚 Архив ДЗ",
+                       "homework" if archive else "homework_archive")])
+    kb.append([_button(app, "🏠 Главная", "home")])
+    label = "📚 АРХИВ ДЗ" if archive else "📝 ДОМАШНИЕ ЗАДАНИЯ"
+    detail = "Выбери задание, чтобы снова получить файл:" if rows else "Заданий пока нет."
+    _send(app, peer, label + "\n\n" + detail, kb)
 
 
 def _vk_preview(
