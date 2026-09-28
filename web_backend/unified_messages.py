@@ -69,5 +69,6 @@ def conversation(user_id,limit=100,after_id=None):
 def inbox(limit=100):
  ensure_tables();items=[]
  for c in um.conversations(limit):
+  if c.get('participant_type')!='STUDENT':continue
   rows=um.history(c['id'],1,include_deliveries=True);last=_compat(rows[0],True) if rows else {'id':None,'text':'','created_at':c.get('updated_at'),'direction':None,'source_channel':None,'deliveries':[]};last.update({'name':c.get('name'),'user_id':c.get('student_id'),'unread':int(c.get('unread') or 0),'conversation_id':c.get('id')});items.append(last)
  return items
