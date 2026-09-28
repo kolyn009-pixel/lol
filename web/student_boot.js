@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const modules=[
- 'student_chat.js','student_homework_plus.js','student_formulas.js','student_self_service.js',
+ 'student_messenger_v2.js','student_homework_plus.js','student_formulas.js','student_self_service.js',
  'student_vacation.js','student_cascade.js','student_booking.js','student_finance.js',
  'student_finance_live.js','student_events.js','student_group_space.js'
 ];
