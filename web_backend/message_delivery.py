@@ -105,10 +105,10 @@ def send_existing_message_channels(message_id,channels):
     if not requested:raise ValueError('channels_required')
     um.ensure_tables();conn=database.connect()
     try:
-        row=conn.execute("SELECT id,student_id,direction,sender_type,body,attachment_json FROM unified_messages WHERE id=? LIMIT 1",(mid,)).fetchone()
+        row=conn.execute("SELECT id,student_id,direction,sender_type,participant_type,body,attachment_json FROM unified_messages WHERE id=? LIMIT 1",(mid,)).fetchone()
     finally:conn.close()
     if not row:raise ValueError('message_not_found')
-    if str(row['direction']).upper()!='OUT' or str(row['sender_type']).upper()!='TEACHER':raise ValueError('message_not_teacher_outbound')
+    if str(row['direction']).upper()!='OUT' or str(row['sender_type']).upper()!='TEACHER' or str(row['participant_type']).upper()!='STUDENT':raise ValueError('message_not_student_outbound')
     import json
     try:attachment=json.loads(row['attachment_json'] or 'null')
     except Exception:attachment=None
