@@ -18,6 +18,13 @@ on:
       - 'web/student_boot.js'
       - 'web/app.js'
       - 'web/teacher_messages_stage10.js'
+      - 'web/parent/**'
+      - 'web_backend/parent_messages.py'
+      - 'web_backend/stage9_api.py'
+      - 'web_backend/stage10_api.py'
+      - 'web_backend/unified_messaging.py'
+      - 'web_backend/message_delivery.py'
+      - 'scripts/parent_message_scope_selftest.py'
       - 'scripts/student_messenger_selftest.js'
       - 'scripts/homework_archive_selftest.py'
       - 'scripts/student_offline_selftest.js'
@@ -56,6 +63,8 @@ jobs:
           node scripts/student_messenger_selftest.js
           node scripts/student_offline_selftest.js
           python scripts/homework_archive_selftest.py
+          python scripts/parent_message_scope_selftest.py
+          node --check web/parent/messenger.js
           node --check web/teacher_messages_stage10.js
       - name: Verify runner and desktop source
         shell: bash
