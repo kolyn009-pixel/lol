@@ -26,6 +26,13 @@ def send(parent_id, student_id, text):
     mid = um.record_message(int(student_id), 'IN', body,
                             participant_type='PARENT', participant_id=int(parent_id),
                             sender_type='PARENT', sender_id=int(parent_id), origin_channel='WEB')
+    try:
+        from web_backend import push_events
+        push_events.teachers('💬 Сообщение родителя', 'Родитель написал в Аделии.',
+                             '/teacher/', f'parent-message-{mid}',
+                             {'type': 'message', 'conversation_id': int(conv['id'])})
+    except Exception as exc:
+        print('[parent-messages] teacher push:', type(exc).__name__, flush=True)
     return {'status': 'ok', 'conversation_id': int(conv['id']), 'message_id': mid}
 
 
@@ -68,4 +75,11 @@ def send_teacher_to_parent(conversation_id, text, teacher_id):
     mid = um.record_message(int(row['student_id']), 'OUT', body,
                             participant_type='PARENT', participant_id=int(row['participant_id']),
                             sender_type='TEACHER', sender_id=teacher_id, origin_channel='WEB')
+    try:
+        from web_backend import web_push
+        web_push.send('parent', int(row['participant_id']), '💬 Сообщение преподавателя',
+                      'В Аделии есть новый ответ.', '/app/parent/',
+                      f'parent-reply-{mid}', {'type': 'message', 'student_id': int(row['student_id'])})
+    except Exception as exc:
+        print('[parent-messages] parent push:', type(exc).__name__, flush=True)
     return {'status': 'ok', 'message_id': mid, 'delivery_status': 'SENT'}
