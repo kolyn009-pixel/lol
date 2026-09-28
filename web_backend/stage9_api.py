@@ -78,6 +78,7 @@ class Stage9Mixin:
             except (TypeError,ValueError) as exc:return self._json(400,{'error':str(exc) or 'invalid_request'})
             except Exception as exc:print('[web-api] parent messages POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if not path.startswith('/api/parent/finance/'):return False
+        if path=='/api/parent/finance/claim' and not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
         auth=self._parent()
         if not auth:return self._json(401,{'error':'unauthorized'})
         body=self._body()
