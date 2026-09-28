@@ -77,3 +77,32 @@ def attach_receipt(user_id,payment_id,filename,mime_type,content_b64):
  try:event_center.push('PAYMENT_RECEIPT',f"Подтверждение перевода: {user['name']}",f"Платёж #{int(payment_id)} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'ACTION','payment',int(payment_id),f'payment_receipt:{int(payment_id)}')
  except Exception:pass
  return {'status':'ok','payment_id':int(payment_id),'receipt_id':int(receipt_id) if receipt_id is not None else None,'filename':safe_name,'archive_status':'PENDING' if receipt_id is not None else 'UNTRACKED'}
+
+
+def claim_payment(user_id,payment_id):
+ """Record a payer's claim; never credit a payment before teacher review."""
+ uid=int(user_id);pid=int(payment_id)
+ conn=database.connect()
+ try:
+  conn.execute('BEGIN IMMEDIATE')
+  payment=conn.execute('SELECT id,user_id,status,total_amount FROM payments WHERE id=?',(pid,)).fetchone()
+  if not payment or int(payment['user_id'])!=uid:raise PermissionError('payment_not_found')
+  state=str(payment['status'] or '').upper()
+  if state=='PAID':raise ValueError('payment_already_paid')
+  if state not in {'WAITING','PENDING','RECEIPT_SENT','REJECTED'}:raise ValueError('payment_not_claimable')
+  pending=conn.execute("SELECT id,source_platform FROM receipts WHERE payment_id=? AND status='WAITING' ORDER BY id DESC LIMIT 1",(pid,)).fetchone()
+  if pending:
+   conn.rollback()
+   return {'status':'pending_review','payment_id':pid,'receipt_id':int(pending['id']),'already_sent':True}
+  now=database.now_iso()
+  cur=conn.execute("""INSERT INTO receipts
+   (payment_id,user_id,telegram_file_id,source_platform,file_type,status,created_at)
+   VALUES (?,?,?,'WEB_PAYMENT_CLAIM','CLAIM','WAITING',?)""",(pid,uid,'payment-claim:'+str(pid),now))
+  rid=int(cur.lastrowid)
+  conn.execute("UPDATE payments SET status='RECEIPT_SENT' WHERE id=?",(pid,))
+  conn.commit()
+ finally:conn.close()
+ user=_user(uid)
+ try:event_center.push('PAYMENT_RECEIPT',f"Заявление об оплате: {user['name']}",f"Платёж #{pid} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'ACTION','payment',pid,f'payment_claim:{pid}:{rid}')
+ except Exception:pass
+ return {'status':'pending_review','payment_id':pid,'receipt_id':rid,'already_sent':False}
