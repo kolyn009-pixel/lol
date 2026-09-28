@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib
+import ast
 from pathlib import Path
 import sys
 import types
@@ -85,6 +86,28 @@ class IngestTest(unittest.TestCase):
             self.ingest._valid_url("https://userapi.com.evil.example/private")
         with self.assertRaises(ValueError):
             self.ingest._valid_url("http://example.userapi.com/file")
+
+    def test_navigation_does_not_create_assignment(self):
+        from vk_adapter import runtime_homework_hook
+        router = types.SimpleNamespace(
+            _PENDING={42: ("t_hw", 7)},
+            teacher_service=types.SimpleNamespace(is_teacher=lambda vk_id: True),
+            _extract_command=lambda msg: "t_hw_user|8",
+            send=lambda *args: self.fail("unexpected confirmation"),
+        )
+        self.assertFalse(runtime_homework_hook.intercept(
+            router, {"from_id": 42, "peer_id": 42, "text": "Выбрать другого"}))
+        self.assertNotIn(42, router._PENDING)
+
+    def test_pdf_source_prefers_persisted_blob(self):
+        tree = ast.parse((Path(__file__).resolve().parents[1] /
+                          "homework_pdf_runtime.py").read_text(encoding="utf-8"))
+        fn = next(node for node in tree.body
+                  if isinstance(node, ast.FunctionDef) and node.name == "_download_source")
+        scope = {"MAX_PDF_BYTES": 20 * 1024 * 1024}
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), "<pdf source>", "exec"), scope)
+        row = {"content_blob": b"%PDF-1.4 stored"}
+        self.assertEqual(scope["_download_source"](row), b"%PDF-1.4 stored")
 
 
 if __name__ == "__main__":
