@@ -105,4 +105,8 @@ def claim_payment(user_id,payment_id):
  user=_user(uid)
  try:event_center.push('PAYMENT_RECEIPT',f"Заявление об оплате: {user['name']}",f"Платёж #{pid} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'ACTION','payment',pid,f'payment_claim:{pid}:{rid}')
  except Exception:pass
+ try:
+  from web_backend import push_events
+  push_events.teachers('💳 Родитель сообщил об оплате',f"{user['name']} · платёж #{pid} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'/teacher/','payment-claim-'+str(pid),{'type':'payment_claim','payment_id':pid})
+ except Exception:pass
  return {'status':'pending_review','payment_id':pid,'receipt_id':rid,'already_sent':False}
