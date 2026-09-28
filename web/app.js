@@ -10,14 +10,25 @@ const startupParams=new URLSearchParams(location.search);
 const startupHomework=/^\d+$/.test(startupParams.get('homework')||'')?Number(startupParams.get('homework')):null;
 async function afterStudentLogin(){window.dispatchEvent(new CustomEvent('adelia:student-authenticated'));if(startupHomework){$('#pageTitle').textContent='Домашка';document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.tab==='homework'));await openHomework(startupHomework);return}await render('home')}
 
+const OFFLINE_PATHS=new Set(['/student/schedule?limit=60','/student/homework']);
+function offlineKey(path){return 'adelia:offline:'+String(auth?.id||'')+':'+path}
+function clearOffline(){try{for(const key of Object.keys(sessionStorage))if(key.startsWith('adelia:offline:'))sessionStorage.removeItem(key);sessionStorage.removeItem('adelia:offline-owner')}catch{}}
+function offlineBanner(data){return data?'<p class="student-offline-note" role="status">Нет сети · показана сохранённая копия от '+new Date(data).toLocaleString('ru-RU')+'. Действия требуют подключения.</p>':''}
+
 async function api(path,opt={}){
   const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),12000);
   try{
     const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt,signal:opt.signal||ctrl.signal});
     const j=await r.json().catch(()=>({}));
     if(!r.ok){const e=new Error(j.error||'Ошибка');e.status=r.status;throw e}
+    if(OFFLINE_PATHS.has(path)&&!opt.method&&auth?.role==='student')try{sessionStorage.setItem(offlineKey(path),JSON.stringify({at:Date.now(),data:j}))}catch{}
     return j;
-  }catch(e){if(e?.name==='AbortError'){const x=new Error('NETWORK_TIMEOUT');x.status=0;throw x}throw e}
+  }catch(e){
+    if(e?.name==='AbortError'){const x=new Error('NETWORK_TIMEOUT');x.status=0;e=x}
+    if(e?.status==null&&e instanceof TypeError)e.status=0;
+    if(e?.status===0&&OFFLINE_PATHS.has(path)&&auth?.role==='student')try{const saved=JSON.parse(sessionStorage.getItem(offlineKey(path))||'null');if(saved?.data)return {...saved.data,_offline_at:saved.at}}catch{}
+    throw e;
+  }
   finally{clearTimeout(timer)}
 }
 function fmtDate(v){if(!v)return '—';const d=new Date(v);return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(d)}
@@ -38,7 +49,7 @@ function authCard(){
 }
 
 async function ensureAuth(){
-  try{const d=await api('/auth/me');auth=d.session||null}catch{auth=null}
+  try{const d=await api('/auth/me');const next=d.session||null;try{const owner=sessionStorage.getItem('adelia:offline-owner');if(!next||owner&&owner!==String(next.id))clearOffline();if(next?.role==='student')sessionStorage.setItem('adelia:offline-owner',String(next.id))}catch{}auth=next}catch(e){if(e.status!==0||auth?.role!=='student')auth=null}
   if(auth?.role==='teacher'){location.href='/teacher/';return false}
   return !!(auth&&auth.role==='student');
 }
@@ -59,7 +70,7 @@ async function schedule(){
   const upcoming=items.filter(x=>lessonDate(x).getTime()>=now&&!['cancelled','completed'].includes(x.ui_state)).sort((a,b)=>lessonDate(a)-lessonDate(b));
   const past=items.filter(x=>!upcoming.includes(x)).slice(0,20);
   const card=x=>`<article class="list-card lesson-card state-${esc(x.ui_state)}" data-lesson="${x.id}"><div class="date-badge"><b>${new Intl.DateTimeFormat('ru-RU',{day:'numeric',...(window.StudentTime?.preference?{timeZone:window.StudentTime.preference.zone}:{})}).format(lessonDate(x))}</b><span>${new Intl.DateTimeFormat('ru-RU',{month:'short',...(window.StudentTime?.preference?{timeZone:window.StudentTime.preference.zone}:{})}).format(lessonDate(x))}</span></div><div class="list-copy"><b>${esc(subjectName(x.subject))}${x.study_goal?' · '+esc(goalName(x.study_goal)):''}</b><span>${lessonTime(lessonStamp(x))}–${lessonTime(lessonStamp(x,'end'))} · ${x.duration_minutes||60} мин</span><small>${esc(lessonStatus(x.lesson_status))} · ${esc(payStatus(x.payment_status))}</small></div><button class="mini-btn">Открыть</button></article>`;
-  return `<div class="segmented"><button class="active" data-schedule-tab="future">Предстоящие</button><button data-schedule-tab="past">Прошедшие</button></div><section class="section schedule-pane" id="futurePane"><h3>Ближайшие занятия</h3>${upcoming.map(card).join('')||'<div class="empty">Предстоящих занятий пока нет.</div>'}</section><section class="section schedule-pane hidden" id="pastPane"><h3>История</h3>${past.map(card).join('')||'<div class="empty">История занятий пока пуста.</div>'}</section>`;
+  return `${offlineBanner(d._offline_at)}<div class="segmented"><button class="active" data-schedule-tab="future">Предстоящие</button><button data-schedule-tab="past">Прошедшие</button></div><section class="section schedule-pane" id="futurePane"><h3>Ближайшие занятия</h3>${upcoming.map(card).join('')||'<div class="empty">Предстоящих занятий пока нет.</div>'}</section><section class="section schedule-pane hidden" id="pastPane"><h3>История</h3>${past.map(card).join('')||'<div class="empty">История занятий пока пуста.</div>'}</section>`;
 }
 
 async function payments(){
@@ -79,7 +90,7 @@ async function profile(){
 }
 
 async function homework(){
-  try{const d=await api('/student/homework');return `<section class="stat-row"><div><b>${d.items.filter(x=>!['CHECKED','COMPLETED'].includes(x.status)).length}</b><span>активных</span></div><div><b>${d.items.filter(x=>['CHECKED','COMPLETED'].includes(x.status)).length}</b><span>выполнено</span></div></section><section class="section"><h3>Мои задания</h3>${d.items.map(x=>`<article class="task-card ${['CHECKED','COMPLETED'].includes(x.status)?'done':''}"><span class="status">${x.external?(x.external.provider==='RESHU_EGE'?'Решу ЕГЭ':x.external.provider==='RESHU_OGE'?'Решу ОГЭ':'Внешний вариант'):x.interactive_task_count?'Интерактивное ДЗ':esc(x.status||'ДЗ')}</span><h3>${esc(x.title||'Домашнее задание')}</h3><p>${esc(x.description||'')}${x.interactive_task_count?` · ${x.interactive_task_count} заданий`:''}</p><button class="form-primary" data-hw="${x.id}">Открыть</button></article>`).join('')||'<div class="empty">Новых заданий нет ✨</div>'}</section>`}catch(e){return '<div class="form-error">Не удалось загрузить домашние задания.</div>'}
+  try{const d=await api('/student/homework');return `${offlineBanner(d._offline_at)}<section class="stat-row"><div><b>${d.items.filter(x=>!['CHECKED','COMPLETED'].includes(x.status)).length}</b><span>активных</span></div><div><b>${d.items.filter(x=>['CHECKED','COMPLETED'].includes(x.status)).length}</b><span>выполнено</span></div></section><section class="section"><h3>Мои задания</h3>${d.items.map(x=>`<article class="task-card ${['CHECKED','COMPLETED'].includes(x.status)?'done':''}"><span class="status">${x.external?(x.external.provider==='RESHU_EGE'?'Решу ЕГЭ':x.external.provider==='RESHU_OGE'?'Решу ОГЭ':'Внешний вариант'):x.interactive_task_count?'Интерактивное ДЗ':esc(x.status||'ДЗ')}</span><h3>${esc(x.title||'Домашнее задание')}</h3><p>${esc(x.description||'')}${x.interactive_task_count?` · ${x.interactive_task_count} заданий`:''}</p><button class="form-primary" data-hw="${x.id}">Открыть</button></article>`).join('')||'<div class="empty">Новых заданий нет ✨</div>'}</section>`}catch(e){return '<div class="form-error">Не удалось загрузить домашние задания.</div>'}
 }
 
 async function homeworkDetail(id){
