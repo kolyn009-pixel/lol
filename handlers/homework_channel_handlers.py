@@ -28,9 +28,13 @@ async def homework_router(update, context):
         return
 
     data = str(query.data or "")
-    if data == "homework":
+    if data in ("homework", "homework_archive"):
         await query.answer()
-        rows = homework_channel_ui.list_items(user["id"], 20)
+        archive = data == "homework_archive"
+        rows = homework_channel_ui.list_items(user["id"], 100, include_finished=True) if archive else homework_channel_ui.list_items(user["id"], 20)
+        if archive:
+            active_ids = {int(x["id"]) for x in homework_channel_ui.list_items(user["id"], 100)}
+            rows = [x for x in rows if int(x["id"]) not in active_ids and str(x["status"] or "").upper() != "CANCELLED"][:20]
         keyboard = []
         for i, row in enumerate(rows, 1):
             status = row["status"] if "status" in row.keys() else "ASSIGNED"
@@ -38,10 +42,11 @@ async def homework_router(update, context):
                 f"{_status_icon(status)} {homework_channel_ui.item_title(row, i)[:38]}",
                 callback_data=f"homework_view|{row['id']}",
             )])
+        keyboard.append([InlineKeyboardButton("📝 Активные ДЗ" if archive else "📚 Архив ДЗ", callback_data="homework" if archive else "homework_archive")])
         keyboard.append([InlineKeyboardButton("🌐 Открыть все ДЗ в Аделии", url=homework_channel_ui.app_url())])
         keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main")])
         await query.edit_message_text(
-            homework_channel_ui.list_text(user["id"], 20),
+            ("📚 АРХИВ ДЗ\n\nВыберите задание, чтобы снова получить файл." if rows else "📚 Архив пока пуст.") if archive else homework_channel_ui.list_text(user["id"], 20),
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
         return
@@ -67,4 +72,4 @@ async def homework_router(update, context):
 
 
 def handlers():
-    return [CallbackQueryHandler(homework_router, pattern=r"^(homework|homework_view\|\d+)$")]
+    return [CallbackQueryHandler(homework_router, pattern=r"^(homework|homework_archive|homework_view\|\d+)$")]
