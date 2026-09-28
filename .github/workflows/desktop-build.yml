@@ -20,6 +20,7 @@ on:
       - 'web/teacher_messages_stage10.js'
       - 'scripts/student_messenger_selftest.js'
       - 'scripts/homework_archive_selftest.py'
+      - 'scripts/student_offline_selftest.js'
       - 'handlers/homework_channel_handlers.py'
       - '.github/workflows/desktop-build.yml'
 
@@ -53,6 +54,7 @@ jobs:
       - name: Check in-app messenger
         run: |
           node scripts/student_messenger_selftest.js
+          node scripts/student_offline_selftest.js
           python scripts/homework_archive_selftest.py
           node --check web/teacher_messages_stage10.js
       - name: Verify runner and desktop source
