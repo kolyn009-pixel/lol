@@ -3,7 +3,7 @@ from __future__ import annotations
 from web_backend.parent_portal import dashboard,student,schedule
 from web_backend.parent_auth import consume_parent_login_code
 from web_backend.web_sessions import SESSION_TTL,create_session
-from web_backend.payment_hub import parent_hub,parent_pay_nearest,parent_create_package,parent_quote_package,parent_attach_receipt
+from web_backend.payment_hub import parent_hub,parent_pay_nearest,parent_create_package,parent_quote_package,parent_attach_receipt,parent_claim_payment
 from web_backend import api as v1
 from web_backend import parent_messages, message_media
 
@@ -91,6 +91,8 @@ class Stage9Mixin:
                 return self._json(200,parent_quote_package(pid,uid,body.get('selection_key'),body.get('lessons_count'),body.get('promo_code')))
             if path=='/api/parent/finance/package':
                 return self._json(200,parent_create_package(pid,uid,body.get('selection_key'),body.get('lessons_count'),body.get('promo_code')))
+            if path=='/api/parent/finance/claim':
+                return self._json(200,parent_claim_payment(pid,uid,body.get('payment_id')))
             if path=='/api/parent/finance/receipt':
                 return self._json(200,parent_attach_receipt(pid,uid,body.get('payment_id'),body.get('filename'),body.get('mime_type'),body.get('content_b64')))
         except PermissionError:return self._json(404,{'error':'student_not_found'})
