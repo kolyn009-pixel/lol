@@ -11,6 +11,9 @@ on:
       - 'vk_adapter/**'
       - 'homework_pdf_runtime.py'
       - 'scripts/vk_homework_ingest_selftest.py'
+      - 'handlers/homework_v6.py'
+      - 'handlers/homework_file_delivery.py'
+      - 'scripts/telegram_homework_file_selftest.py'
       - '.github/workflows/desktop-build.yml'
 
 permissions:
@@ -38,6 +41,8 @@ jobs:
           python-version: '3.12'
       - name: Check VK homework file persistence
         run: python scripts/vk_homework_ingest_selftest.py
+      - name: Check Telegram homework file requests
+        run: python scripts/telegram_homework_file_selftest.py
       - name: Verify runner and desktop source
         shell: bash
         run: |
