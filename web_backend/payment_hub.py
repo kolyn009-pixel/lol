@@ -15,6 +15,7 @@ from datetime import datetime
 
 import database
 from web_backend import student_finance
+from web_backend.invoice_pricing import individual_lesson_quote
 
 
 def _linked(parent_id, student_id):
@@ -35,6 +36,16 @@ def _linked(parent_id, student_id):
 def _lesson_dict(row):
     if not row:return None
     keys=row.keys() if hasattr(row,'keys') else []
+    amount=int(row['price'] or 0)
+    source='LESSON_SNAPSHOT'
+    if str(row['payment_status'] or '').upper() not in {'PAID','FREE','RESERVED_BALANCE','TRANSFERRED'}:
+        existing=database.get_payment_for_lesson(int(row['id']))
+        if existing:
+            amount=int(existing['total_amount'] or 0);source='EXISTING_PAYMENT'
+        else:
+            individual=individual_lesson_quote(row)
+            if individual:
+                amount=int(individual['amount']);source=individual['source']
     return {
         'id':int(row['id']),
         'start_time':row['start_time'],
@@ -44,7 +55,8 @@ def _lesson_dict(row):
         'study_goal':row['study_goal'],
         'lesson_status':row['lesson_status'],
         'payment_status':row['payment_status'],
-        'price':int(row['price'] or 0),
+        'price':amount,
+        'price_source':source,
         'is_trial':bool(row['is_trial']) if 'is_trial' in keys else False,
     }
 
