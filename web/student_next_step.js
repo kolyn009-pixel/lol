@@ -1,5 +1,6 @@
 /* One current action for the student home screen, shared by PWA and Desktop. */
 (()=>{'use strict';
+if(window.__adeliaStudentNextStep)return;window.__adeliaStudentNextStep=true;
 const root=document.querySelector('#content');if(!root)return;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let sequence=0,started=0;
