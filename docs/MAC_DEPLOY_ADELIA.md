@@ -15,21 +15,23 @@ ssh ВАШ_ПОЛЬЗОВАТЕЛЬ@ВАШ_СЕРВЕР
 ```bash
 systemctl list-units --all --type=service | grep -Ei 'adelia|tutorbot|web'
 find /opt -maxdepth 3 -type d -name .git -print
-ss -ltnp | grep ':8765' || true
-systemctl status tutorbot --no-pager -n 5
+ss -ltnp
+systemctl show tutorbot-web -p MainPID -p WorkingDirectory -p ExecStart -p EnvironmentFiles --no-pager
+readlink -f /opt/adelia-current
+ls -ld /opt/adelia-current /opt/tutorbot
 ```
 
-Нужны точное имя службы, которая обслуживает веб-API, путь к её Git-копии и путь к рабочей SQLite-базе. Если на сервере видна служба `tutorbot`, сначала выясните, запускает ли она также веб-API: одно лишь имя бота этого не доказывает. Сверьте PID прослушивающего порта с деревом процессов службы (`systemctl status <СЛУЖБА> --no-pager`). База по умолчанию `tutor.db` в каталоге проекта, но служба может переопределить его через `ADELIA_DB_PATH`. Не выводите и не присылайте содержимое файлов с ключами и паролями.
+Нужны точное имя службы, которая обслуживает веб-API, путь к её Git-копии и путь к рабочей SQLite-базе. На известном сервере веб-API обслуживает `tutorbot-web.service`, а `tutorbot.service` — Telegram-бот. Службы и воркеры могут пользоваться общим кодом через `/opt/adelia-current`; перед выпуском надо проверить, является ли этот путь ссылкой на каталог релиза. Не запускайте сценарий из `/opt/tutorbot` только потому, что там находится Git-копия. База по умолчанию `tutor.db` в каталоге проекта, но служба может переопределить его через `ADELIA_DB_PATH`. Не выводите и не присылайте содержимое файлов с ключами и паролями.
 
 ## 2. Подготовить выпуск
 
-Замените значения в угловых скобках. Локальный адрес API по умолчанию использует порт 8765, но проверьте порт вашей службы. Из каталога Git-копии Аделии на сервере:
+Замените значения в угловых скобках. Порт 8765 на этом сервере не слушается. Укажите реальный локальный адрес API только после проверки процесса `tutorbot-web` и маршрута Nginx. Из каталога Git-копии Аделии на сервере:
 
 ```bash
 cd <КАТАЛОГ_АДЕЛИИ>
-export ADELIA_SERVICE='<ПРОВЕРЕННАЯ_СЛУЖБА_ВЕБ_API>.service'
+export ADELIA_SERVICE='tutorbot-web.service'
 export ADELIA_DB_PATH='<АБСОЛЮТНЫЙ_ПУТЬ_К_БАЗЕ>'
-export ADELIA_HEALTH_URL='http://127.0.0.1:8765/api/health'
+export ADELIA_HEALTH_URL='<ПРОВЕРЕННЫЙ_ЛОКАЛЬНЫЙ_URL_API_HEALTH>'
 export ADELIA_REF='release/adelia-unified-rc'
 git status --short
 git fetch --no-tags origin "$ADELIA_REF"
@@ -38,6 +40,8 @@ bash /tmp/adelia_release.sh inspect
 ```
 
 `inspect` только читает состояние. Если рабочая копия изменена, база недоступна либо служба и путь не совпадают с Аделией, сценарий останавливается. Не делайте `git reset` вручную, чтобы «починить» проверку.
+
+Если `/opt/adelia-current` — ссылка на отдельный каталог релиза, этот сценарий обновления Git-копии напрямую может не подходить. Остановитесь и сначала согласуйте схему переключения релизов и список служб, которые нужно перезапустить.
 
 ## 3. Выпустить после проверок
 
