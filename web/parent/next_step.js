@@ -10,10 +10,10 @@ function selected(d,hubs){
   const students=d.students||[];
   const pending=hubs.find(x=>x?.finance?.waiting_payment);
   if(pending){const p=pending.finance.waiting_payment,review=String(p.status||'').toUpperCase()==='RECEIPT_SENT';
-    return{student:pending.student?.id,title:review?'Перевод на проверке':'К оплате '+money(p.total_amount),detail:(pending.student?.name||'Ученик')+' · '+(review?'Вы сообщили об оплате. Преподаватель проверит поступление.':'Проверьте сумму и получателя перед переводом.'),label:review?'Посмотреть статус':'Показать QR и сумму'}
+    return{student:pending.student?.id,title:review?'Перевод на проверке':'К оплате '+money(p.total_amount),detail:(pending.student?.name||'Ученик')+' · '+(review?'Вы сообщили об оплате. Преподаватель проверит поступление.':'Проверьте сумму и получателя перед переводом.'),label:review?'Посмотреть статус':'Открыть оплату'}
   }
   const payable=hubs.find(x=>x?.nearest_unpaid_lesson);
-  if(payable)return{student:payable.student?.id,title:'Занятие · '+money(payable.nearest_unpaid_lesson.price),detail:(payable.student?.name||'Ученик')+' · индивидуальная цена уточнится при создании платежа.',label:'Перейти к оплате'};
+  if(payable)return{student:payable.student?.id,title:'Занятие · '+money(payable.nearest_unpaid_lesson.price),detail:(payable.student?.name||'Ученик')+' · сумма зафиксируется при создании платежа.',label:'Перейти к оплате'};
   const next=(d.upcoming||[])[0];if(next)return{student:next.user_id||students[0]?.id,title:'Ближайшее занятие',detail:(next.name||'Ученик')+' · '+(next.start_time?new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(next.start_time)):'смотрите расписание'),label:'Открыть карточку'};
   return null;
 }
