@@ -12,7 +12,12 @@ PR #4 ещё открыт. Переключение релиза возможн�
 for s in tutorbot.service tutorbot-vk.service tutorbot-web.service adelia-homework-delivery.service adelia-receipt-archive.service adelia-telemost-precreate.service; do
   echo "SERVICE $s"
   systemctl show "$s" -p WorkingDirectory -p EnvironmentFiles --no-pager
-  systemctl show "$s" -p ExecStart --value | sed -E "s/(token|password|secret|key)[^ ;}]*/[скрыто]/Ig"
+  exec_spec="$(systemctl show "$s" -p ExecStart --value)"
+  if [[ "$exec_spec" == *"/opt/tutorbot/tutor.db"* ]]; then
+    echo 'ExecStart: stable database path found'
+  else
+    echo 'ExecStart: stable database path NOT found; requires review'
+  fi
 done
 echo 'RELEASE LINKS'
 find /opt/adelia-current -maxdepth 2 -type l -printf '%p -> %l\n'
@@ -25,7 +30,7 @@ ls -ld /opt/adelia-releases /opt/adelia-current
 ls -l /opt/adelia-current/.adelia_release /opt/tutorbot/.adelia_release 2>/dev/null || true
 ```
 
-Не присылайте содержимое `/etc/tutorbot/*.env`, токенов и базы. Если вывод `ExecStart` всё же содержит секрет, удалите его перед отправкой. Эта проверка нужна, чтобы выяснить, нет ли записываемых файлов внутри каталога релиза и все ли процессы используют постоянную базу.
+Не присылайте содержимое `/etc/tutorbot/*.env`, токенов и базы. Эта проверка нужна, чтобы выяснить, нет ли записываемых файлов внутри каталога релиза и все ли процессы используют постоянную базу.
 
 ## Порядок выпуска после проверки
 
