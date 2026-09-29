@@ -1,64 +1,37 @@
 # Выкладка Аделии с терминала Mac
 
-Выкладывать после слияния PR #4 в `release/adelia-unified-rc` и проверки Mac-сборки.
+Текущая схема сервера (29 сентября 2026): `/opt/adelia-current` — ссылка на каталог в `/opt/adelia-releases/`. Nginx читает `/opt/adelia-current/web/` и направляет API на `127.0.0.1:8876`. Шесть служб Аделии работают из `/opt/adelia-current`; веб-служба — `tutorbot-web.service`. SQLite для неё указан явно: `/opt/tutorbot/tutor.db`. Локальная Git-копия `/opt/tutorbot` содержит изменения и данные вне Git. Не выполняйте там `git pull`, `git reset --hard`, `git clean` или `scripts/adelia_release.sh deploy`.
 
-**Текущий сервер использует `/opt/adelia-current` → `/opt/adelia-releases/<sha>`, а `tutorbot-web.service` слушает `127.0.0.1:8876`. Прямой Git-сценарий `scripts/adelia_release.sh deploy` намеренно блокируется для этой схемы. Нижеописанные команды выпуска будут заменены после проверки всех служб и источника статических файлов.** Сценарий меняет только Git-копию Аделии и одну указанную службу systemd. Nginx и второй сайт он не изменяет.
+PR #4 ещё открыт. Переключение релиза возможно только после проверки остальных пяти служб, путей данных и содержимого нового релиза. Нативную сборку macOS надо проверить на Mac отдельно; сервер её не собирает.
 
-## 1. Узнать точные параметры (без изменений на сервере)
+## Следующая проверка без изменений на сервере
 
-На Mac:
-
-```bash
-ssh ВАШ_ПОЛЬЗОВАТЕЛЬ@ВАШ_СЕРВЕР
-```
-
-На Ubuntu:
+В уже открытом SSH-сеансе выполните:
 
 ```bash
-systemctl list-units --all --type=service | grep -Ei 'adelia|tutorbot|web'
-find /opt -maxdepth 3 -type d -name .git -print
-ss -ltnp
-systemctl show tutorbot-web -p MainPID -p WorkingDirectory -p ExecStart -p EnvironmentFiles --no-pager
-readlink -f /opt/adelia-current
-ls -ld /opt/adelia-current /opt/tutorbot
+for s in tutorbot.service tutorbot-vk.service tutorbot-web.service adelia-homework-delivery.service adelia-receipt-archive.service adelia-telemost-precreate.service; do
+  echo "SERVICE $s"
+  systemctl show "$s" -p WorkingDirectory -p EnvironmentFiles --no-pager
+  systemctl show "$s" -p ExecStart --value | sed -E "s/(token|password|secret|key)[^ ;}]*/[скрыто]/Ig"
+done
+echo 'RELEASE LINKS'
+find /opt/adelia-current -maxdepth 2 -type l -printf '%p -> %l\n'
+echo 'DATA DIRS'
+find /opt/adelia-current -maxdepth 2 -type d \( -name storage -o -name uploads -o -name data \) -print
+echo 'DATABASE FILES'
+find /opt/adelia-current -maxdepth 2 -type f \( -name '*.db' -o -name '*.sqlite*' \) -printf '%p\n'
+echo 'RELEASE METADATA'
+ls -ld /opt/adelia-releases /opt/adelia-current
+ls -l /opt/adelia-current/.adelia_release /opt/tutorbot/.adelia_release 2>/dev/null || true
 ```
 
-Нужны точное имя службы, которая обслуживает веб-API, путь к её Git-копии и путь к рабочей SQLite-базе. На известном сервере веб-API обслуживает `tutorbot-web.service`, а `tutorbot.service` — Telegram-бот. Службы и воркеры могут пользоваться общим кодом через `/opt/adelia-current`; перед выпуском надо проверить, является ли этот путь ссылкой на каталог релиза. Не запускайте сценарий из `/opt/tutorbot` только потому, что там находится Git-копия. База по умолчанию `tutor.db` в каталоге проекта, но служба может переопределить его через `ADELIA_DB_PATH`. Не выводите и не присылайте содержимое файлов с ключами и паролями.
+Не присылайте содержимое `/etc/tutorbot/*.env`, токенов и базы. Если вывод `ExecStart` всё же содержит секрет, удалите его перед отправкой. Эта проверка нужна, чтобы выяснить, нет ли записываемых файлов внутри каталога релиза и все ли процессы используют постоянную базу.
 
-## 2. Подготовить выпуск
+## Порядок выпуска после проверки
 
-Замените значения в угловых скобках. На этом сервере веб-API слушает `127.0.0.1:8876`; порт 8765 не используется. Укажите реальный локальный адрес API только после проверки процесса `tutorbot-web` и маршрута Nginx. Из каталога Git-копии Аделии на сервере:
+1. В отдельный новый каталог `/opt/adelia-releases/<commit>` извлечь точно зафиксированный commit из Git, не меняя рабочее дерево `/opt/tutorbot`.
+2. Сравнить новый каталог с текущим: убедиться, что все активные скрипты и статические ресурсы присутствуют, а данные и конфигурация остаются вне каталога релиза.
+3. Проверить Python/JS, ресурсы PWA и маршрут API на копии данных. Сделать online-backup SQLite с учётом WAL и проверить `PRAGMA quick_check`; сохранить старую цель ссылки и SHA.
+4. Атомарно переключить `/opt/adelia-current`, перезапустить все шесть служб, проверить локальный и внешний health, кабинеты ученика/родителя/учителя, файл ДЗ, QR и очередь подтверждений. При сбое вернуть ссылку и перезапустить службы. Базу автоматически назад не восстанавливать, чтобы не потерять записи после переключения.
 
-```bash
-cd <КАТАЛОГ_АДЕЛИИ>
-export ADELIA_SERVICE='tutorbot-web.service'
-export ADELIA_DB_PATH='/opt/tutorbot/tutor.db'
-export ADELIA_HEALTH_URL='http://127.0.0.1:8876/api/health'
-export ADELIA_REF='release/adelia-unified-rc'
-git status --short
-git fetch --no-tags origin "$ADELIA_REF"
-git show FETCH_HEAD:scripts/adelia_release.sh > /tmp/adelia_release.sh
-bash /tmp/adelia_release.sh inspect
-```
-
-`inspect` только читает состояние. Если рабочая копия изменена, база недоступна либо служба и путь не совпадают с Аделией, сценарий останавливается. Не делайте `git reset` вручную, чтобы «починить» проверку.
-
-Если `/opt/adelia-current` — ссылка на отдельный каталог релиза, этот сценарий обновления Git-копии напрямую может не подходить. Остановитесь и сначала согласуйте схему переключения релизов и список служб, которые нужно перезапустить.
-
-## 3. Выпустить после проверок
-
-```bash
-ADELIA_DEPLOY_CONFIRM=YES ADELIA_WEB_SERVICE_VERIFIED=YES bash /tmp/adelia_release.sh deploy
-```
-
-Сценарий допускает только быстрое продвижение Git без конфликтов, делает проверенную SQLite-копию с учётом WAL, сохраняет старый и новый SHA, переключает код, перезапускает только указанную службу и пять раз проверяет `/api/health`. Если перезапуск или проверка не прошли, он возвращает код на старый SHA. База автоматически назад не восстанавливается, чтобы не потерять новые данные пользователей; путь к резервной копии показан в выводе.
-
-## 4. Проверить с Mac
-
-```bash
-curl -fsS https://adeliatutor.ru/api/health
-```
-
-Затем в браузере открыть кабинет ученика, родителя и преподавателя. Проверить карточку «Следующий шаг», чат с файлом, часы ученика, QR Сбера с индивидуальной суммой и очередь подтверждений. Проверить, что другой сайт отвечает как раньше. Нативный установщик macOS собрать и открыть отдельно на Mac; серверная выкладка его не создаёт.
-
-Если после выпуска возникнет ошибка, сохраните вывод команды, текущий SHA и путь к резервной копии. Восстановление самой базы требует остановить службу и отдельно оценить записи, появившиеся после выпуска.
+Команды переключения будут зафиксированы после этой проверки путей. Существующий `scripts/adelia_release.sh` рассчитан на Git-копию без ссылки и специально блокирует этот сервер.
