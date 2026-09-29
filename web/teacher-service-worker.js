@@ -23,7 +23,8 @@ function notificationView(payload){
   let title=String(payload?.title||meta?.title||'Аделия').trim();
   if(meta&&!/^[\p{Extended_Pictographic}]/u.test(title))title=`${meta.emoji} ${title}`;
   if(!meta&&title==='Аделия')title='💜 Аделия';
-  return {title,body:String(payload?.body||''),url:String(payload?.url||'/teacher/'),tag:String(payload?.tag||`adelia-teacher-${type||'notice'}`),data};
+  const financial=['invoice','payment','payment_review','receipt'].includes(type);if(financial)title='💳 Оплата в Аделии';
+  return {title,body:financial?'Детали доступны после входа в приложение.':String(payload?.body||''),url:String(payload?.url||'/teacher/'),tag:String(payload?.tag||`adelia-teacher-${type||'notice'}`),data};
 }
 self.addEventListener('install',event=>{event.waitUntil(self.skipWaiting())});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('adelia-teacher-shell-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()))});
@@ -31,7 +32,7 @@ self.addEventListener('message',event=>{if(event.data?.type==='SKIP_WAITING')sel
 self.addEventListener('push',event=>{
   let payload={};try{payload=event.data?.json()||{}}catch(_){try{payload={body:event.data?.text()||''}}catch(__){}}
   const view=notificationView(payload);
-  const options={body:view.body,icon:ICON,badge:BADGE,tag:view.tag,renotify:true,silent:false,timestamp:Date.now(),data:{url:view.url,...view.data}};
+  const options={body:view.body,icon:ICON,badge:BADGE,tag:view.tag,renotify:false,silent:false,timestamp:Date.now(),data:{url:view.url,...view.data}};
   event.waitUntil(self.registration.showNotification(view.title,options));
 });
 self.addEventListener('notificationclick',event=>{
