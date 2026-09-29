@@ -1,6 +1,7 @@
 /* Read-only action overview; decisions remain in their canonical screens. */
 (()=>{
 'use strict';
+if(window.__adeliaTeacherAttention)return;window.__adeliaTeacherAttention=true;
 const root=()=>document.querySelector('.teacher-dashboard-v2');
 let loading=false,last=0;
 const api=async path=>{const r=await fetch('/api'+path,{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw new Error('unavailable');return r.json()};
