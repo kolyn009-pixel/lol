@@ -33,6 +33,7 @@ if [[ "$MODE" == inspect ]]; then
 fi
 
 [[ "${ADELIA_DEPLOY_CONFIRM:-}" == YES ]] || { echo 'Set ADELIA_DEPLOY_CONFIRM=YES for deploy' >&2; exit 2; }
+[[ "${ADELIA_WEB_SERVICE_VERIFIED:-}" == YES ]] || { echo 'Verify that the selected service owns the web API, then set ADELIA_WEB_SERVICE_VERIFIED=YES' >&2; exit 2; }
 git fetch --no-tags origin "$ADELIA_REF"
 target="$(git rev-parse FETCH_HEAD^{commit})"
 git merge-base --is-ancestor "$current" "$target" || { echo 'Target is not a fast-forward of this checkout' >&2; exit 2; }
