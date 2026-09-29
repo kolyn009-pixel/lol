@@ -13,11 +13,13 @@ ssh ВАШ_ПОЛЬЗОВАТЕЛЬ@ВАШ_СЕРВЕР
 На Ubuntu:
 
 ```bash
-systemctl list-units --all --type=service | grep -Ei 'adelia|tutorbot'
+systemctl list-units --all --type=service | grep -Ei 'adelia|tutorbot|web'
 find /opt -maxdepth 3 -type d -name .git -print
+ss -ltnp | grep ':8765' || true
+systemctl status tutorbot --no-pager -n 5
 ```
 
-Нужны точное имя службы Аделии, путь к её Git-копии и путь к рабочей SQLite-базе. База по умолчанию `tutor.db` в каталоге проекта, но служба может переопределить его через `ADELIA_DB_PATH`. Не выводите и не присылайте содержимое файлов с ключами и паролями.
+Нужны точное имя службы, которая обслуживает веб-API, путь к её Git-копии и путь к рабочей SQLite-базе. Если на сервере видна служба `tutorbot`, сначала выясните, запускает ли она также веб-API: одно лишь имя бота этого не доказывает. Сверьте PID прослушивающего порта с деревом процессов службы (`systemctl status <СЛУЖБА> --no-pager`). База по умолчанию `tutor.db` в каталоге проекта, но служба может переопределить его через `ADELIA_DB_PATH`. Не выводите и не присылайте содержимое файлов с ключами и паролями.
 
 ## 2. Подготовить выпуск
 
@@ -25,7 +27,7 @@ find /opt -maxdepth 3 -type d -name .git -print
 
 ```bash
 cd <КАТАЛОГ_АДЕЛИИ>
-export ADELIA_SERVICE='<ИМЯ_СЛУЖБЫ>.service'
+export ADELIA_SERVICE='<ПРОВЕРЕННАЯ_СЛУЖБА_ВЕБ_API>.service'
 export ADELIA_DB_PATH='<АБСОЛЮТНЫЙ_ПУТЬ_К_БАЗЕ>'
 export ADELIA_HEALTH_URL='http://127.0.0.1:8765/api/health'
 export ADELIA_REF='release/adelia-unified-rc'
@@ -40,7 +42,7 @@ bash /tmp/adelia_release.sh inspect
 ## 3. Выпустить после проверок
 
 ```bash
-ADELIA_DEPLOY_CONFIRM=YES bash /tmp/adelia_release.sh deploy
+ADELIA_DEPLOY_CONFIRM=YES ADELIA_WEB_SERVICE_VERIFIED=YES bash /tmp/adelia_release.sh deploy
 ```
 
 Сценарий допускает только быстрое продвижение Git без конфликтов, делает проверенную SQLite-копию с учётом WAL, сохраняет старый и новый SHA, переключает код, перезапускает только указанную службу и пять раз проверяет `/api/health`. Если перезапуск или проверка не прошли, он возвращает код на старый SHA. База автоматически назад не восстанавливается, чтобы не потерять новые данные пользователей; путь к резервной копии показан в выводе.
