@@ -1,5 +1,6 @@
 /* The parent home leads to the canonical child payment screen. */
 (()=>{'use strict';
+if(window.__adeliaParentNextStep)return;window.__adeliaParentNextStep=true;
 const root=document.querySelector('#root');if(!root)return;
 let sequence=0;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
