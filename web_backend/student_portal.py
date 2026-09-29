@@ -177,9 +177,9 @@ def dashboard(user_id):
                    lesson_status,payment_status,price,started_at,finished_at,
                    meeting_url,homework_required,homework_assigned
               FROM lessons
-             WHERE user_id=? AND start_time>=?
+             WHERE user_id=? AND (start_time>=? OR (lesson_status='IN_PROGRESS' AND finished_at IS NULL))
                AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
-             ORDER BY start_time
+             ORDER BY CASE WHEN lesson_status='IN_PROGRESS' AND finished_at IS NULL THEN 0 ELSE 1 END,start_time
              LIMIT 1
             """,
             (uid, now),
