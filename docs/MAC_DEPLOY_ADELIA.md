@@ -1,6 +1,8 @@
 # Выкладка Аделии с терминала Mac
 
-Выкладывать после слияния PR #4 в `release/adelia-unified-rc` и проверки Mac-сборки. Сценарий меняет только Git-копию Аделии и одну указанную службу systemd. Nginx и второй сайт он не изменяет.
+Выкладывать после слияния PR #4 в `release/adelia-unified-rc` и проверки Mac-сборки.
+
+**Текущий сервер использует `/opt/adelia-current` → `/opt/adelia-releases/<sha>`, а `tutorbot-web.service` слушает `127.0.0.1:8876`. Прямой Git-сценарий `scripts/adelia_release.sh deploy` намеренно блокируется для этой схемы. Нижеописанные команды выпуска будут заменены после проверки всех служб и источника статических файлов.** Сценарий меняет только Git-копию Аделии и одну указанную службу systemd. Nginx и второй сайт он не изменяет.
 
 ## 1. Узнать точные параметры (без изменений на сервере)
 
@@ -25,13 +27,13 @@ ls -ld /opt/adelia-current /opt/tutorbot
 
 ## 2. Подготовить выпуск
 
-Замените значения в угловых скобках. Порт 8765 на этом сервере не слушается. Укажите реальный локальный адрес API только после проверки процесса `tutorbot-web` и маршрута Nginx. Из каталога Git-копии Аделии на сервере:
+Замените значения в угловых скобках. На этом сервере веб-API слушает `127.0.0.1:8876`; порт 8765 не используется. Укажите реальный локальный адрес API только после проверки процесса `tutorbot-web` и маршрута Nginx. Из каталога Git-копии Аделии на сервере:
 
 ```bash
 cd <КАТАЛОГ_АДЕЛИИ>
 export ADELIA_SERVICE='tutorbot-web.service'
-export ADELIA_DB_PATH='<АБСОЛЮТНЫЙ_ПУТЬ_К_БАЗЕ>'
-export ADELIA_HEALTH_URL='<ПРОВЕРЕННЫЙ_ЛОКАЛЬНЫЙ_URL_API_HEALTH>'
+export ADELIA_DB_PATH='/opt/tutorbot/tutor.db'
+export ADELIA_HEALTH_URL='http://127.0.0.1:8876/api/health'
 export ADELIA_REF='release/adelia-unified-rc'
 git status --short
 git fetch --no-tags origin "$ADELIA_REF"
