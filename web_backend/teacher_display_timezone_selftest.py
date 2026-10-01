@@ -2,6 +2,7 @@
 import sqlite3
 import sys
 import types
+from datetime import datetime
 from unittest.mock import patch
 
 sys.modules.setdefault('database', types.SimpleNamespace(connect=lambda: None, get_setting=lambda *_: 'Europe/Samara'))
@@ -51,3 +52,19 @@ with patch.object(clock, 'connect', return_value=conn), patch.object(clock, 'get
     assert enriched['today_lessons'][0]['end_at'] == '2026-09-27T21:00:00+04:00'
     assert 'start_at' not in sample['today_lessons'][0]
 print('TEACHER_DISPLAY_TIMEZONE_BACKEND=PASS')
+
+# Local midnight and week boundaries must move along with display times.
+rows = [
+    {'id': 1, 'start_at': '2026-09-27T23:30:00+03:00', 'start_time': '2026-09-27T23:30:00', 'lesson_status': 'CONFIRMED'},
+    {'id': 2, 'start_at': '2026-10-01T23:30:00+03:00', 'start_time': '2026-10-01T23:30:00', 'lesson_status': 'CONFIRMED'},
+    {'id': 3, 'start_at': '2026-10-04T23:30:00+03:00', 'start_time': '2026-10-04T23:30:00', 'lesson_status': 'CONFIRMED'},
+]
+base = {'week': {'timezone': 'Europe/Moscow'}, 'stats': {'students': 3}, 'next_lessons': []}
+projected = clock.project_dashboard(base, rows, {'zone': 'Asia/Bangkok', 'schedule_zone': 'Europe/Moscow'}, datetime.fromisoformat('2026-10-02T02:00:00+07:00'))
+assert [r['id'] for r in projected['today_lessons']] == [2]
+assert [r['id'] for r in projected['week_lessons']] == [1, 2]
+assert projected['week']['start'] == '2026-09-28T00:00:00+07:00'
+assert base['week']['timezone'] == 'Europe/Moscow'
+assert rows[1]['start_time'] == '2026-10-01T23:30:00'
+assert projected['next_lessons'][0]['id'] == 2
+print('TEACHER_TRAVEL_DAY_BOUNDARIES=PASS')

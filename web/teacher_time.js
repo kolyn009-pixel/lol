@@ -1,11 +1,33 @@
 (() => {
   'use strict';
   if (window.TeacherTime) return;
-  const PRESETS = [['Europe/Moscow','Москва'],['Europe/Samara','Самара'],['Asia/Yekaterinburg','Екатеринбург'],['Asia/Omsk','Омск'],['Asia/Krasnoyarsk','Красноярск'],['Asia/Irkutsk','Иркутск'],['Europe/Istanbul','Стамбул'],['Asia/Dubai','Дубай'],['Asia/Tbilisi','Тбилиси'],['Europe/Berlin','Берлин'],['Asia/Bangkok','Бангкок']];
+  const PRESETS = [['Europe/Moscow','Москва'],['Europe/Samara','Самара'],['Asia/Yekaterinburg','Екатеринбург'],['Asia/Omsk','Омск'],['Asia/Krasnoyarsk','Красноярск'],['Asia/Irkutsk','Иркутск'],['Europe/Istanbul','Турция · Стамбул'],['Asia/Dubai','ОАЭ · Дубай'],['Asia/Tbilisi','Грузия · Тбилиси'],['Europe/Berlin','Германия · Берлин'],['Asia/Bangkok','Таиланд · Бангкок'],['Asia/Makassar','Индонезия · Бали'],['Indian/Maldives','Мальдивы']];
   const DISMISS = 'adelia.teacher.display-timezone-dismiss.v1';
   const systemZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || '';
   const label = z => PRESETS.find(x => x[0] === z)?.[1] || String(z || '').split('/').pop().replace(/_/g, ' ');
   let value = null;
+
+  function parts(date, zone) {
+    return Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'}).formatToParts(date).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+  }
+  function instant(raw) {
+    if (!raw || !value) return null;
+    if (/(?:Z|[+-]\d\d:\d\d)$/.test(String(raw))) { const date=new Date(raw); return Number.isNaN(date.getTime())?null:date; }
+    // Legacy wall times belong to the schedule, never to the device timezone.
+    const m=String(raw).match(/^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d)(?::(\d\d)(?:\.\d+)?)?$/);
+    if (!m) return null;
+    const numbers=m.slice(1).map(n=>Number(n||0)), guess=Date.UTC(numbers[0],numbers[1]-1,numbers[2],numbers[3],numbers[4],numbers[5]);
+    const offsets=new Set([-36,0,36].map(hours=>{const ms=guess+hours*3600000,p=parts(new Date(ms),value.schedule_zone);return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)-ms;}));
+    const candidates=[...offsets].map(offset=>new Date(guess-offset)).filter(date=>{const p=parts(date,value.schedule_zone);return [p.year,p.month,p.day,p.hour,p.minute,p.second].every((n,i)=>+n===numbers[i]);});
+    // Match Python's legacy fold=0 policy; a nonexistent DST wall time stays unknown.
+    return candidates.sort((a,b)=>a-b)[0]||null;
+  }
+  function schedule(raw, options) { const date=instant(raw); return date?format(date,options):'—'; }
+  function dateKey(raw) { const date=instant(raw); if(!date)return '';const p=parts(date,value.zone);return p.year+'-'+p.month+'-'+p.day; }
+  function scheduleInput(raw) { const date=instant(raw);if(!date)return '';const p=parts(date,value.schedule_zone);return p.year+'-'+p.month+'-'+p.day+'T'+p.hour+':'+p.minute; }
+  function refreshLessonTimes() {
+    for (const node of document.querySelectorAll?.('[data-teacher-lesson-time]')||[]) node.textContent=schedule(node.dataset.teacherLessonTime,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  }
 
   function format(date, options) {
     const d = date instanceof Date ? date : new Date(date);
@@ -45,7 +67,7 @@
       clock.onclick = picker;
       header.prepend(clock);
     }
-    refreshClock(); suggest();
+    refreshClock(); refreshLessonTimes(); suggest();
     window.dispatchEvent(new Event('adelia:teacher-timezone-changed'));
   }
   async function save(zone) {
@@ -76,13 +98,16 @@
     if (document.querySelector('#teacherTimezonePicker')) return;
     const overlay = document.createElement('div');
     overlay.id = 'teacherTimezonePicker'; overlay.className = 'teacher-timezone-overlay';
-    overlay.innerHTML = '<section role="dialog" aria-modal="true" aria-labelledby="teacherTimezoneTitle"><button type="button" class="teacher-timezone-close" aria-label="Закрыть">×</button><h2 id="teacherTimezoneTitle">Время для просмотра</h2><p>Меняются только часы и время уроков на экране «Сегодня». Регион рабочего расписания, открытые слоты и существующие записи останутся прежними.</p><label for="teacherTimezoneSelect">Регион</label><select id="teacherTimezoneSelect"></select><button type="button" class="teacher-timezone-save">Сохранить</button><small role="status"></small></section>';
+    overlay.innerHTML = '<section role="dialog" aria-modal="true" aria-labelledby="teacherTimezoneTitle"><button type="button" class="teacher-timezone-close" aria-label="Закрыть">×</button><h2 id="teacherTimezoneTitle">Мой регион</h2><p>Выберите регион отдыха: часы, время занятий и дни на экране «Сегодня» пересчитаются. Ученики продолжат видеть время в своих регионах. Рабочие часы и переносы вводятся в поясе расписания.</p><label for="teacherTimezoneSelect">Где показывать время</label><select id="teacherTimezoneSelect"></select><p data-timezone-preview></p><button type="button" data-device-zone>Выбрать регион устройства</button><button type="button" class="teacher-timezone-save">Сохранить</button><small role="status"></small></section>';
     const select = overlay.querySelector('select'), zones = [...PRESETS];
     for (const z of [value?.zone, systemZone()]) if (z && !zones.some(x => x[0] === z)) zones.unshift([z, label(z)]);
     if (typeof Intl.supportedValuesOf === 'function') for (const z of Intl.supportedValuesOf('timeZone')) if (!zones.some(x => x[0] === z)) zones.push([z, label(z) + ' · ' + z]);
     select.add(new Option('Как в расписании · ' + label(value?.schedule_zone), 'schedule'));
     for (const [z, name] of zones) select.add(new Option(name, z));
     select.value = value?.selected ? value.zone : 'schedule';
+    const preview=()=>{const zone=select.value==='schedule'?value.schedule_zone:select.value,now=new Date(),opts={hour:'2-digit',minute:'2-digit',hourCycle:'h23'};overlay.querySelector('[data-timezone-preview]').textContent='Сейчас: '+new Intl.DateTimeFormat('ru-RU',{...opts,timeZone:zone}).format(now)+' · '+label(zone)+'. Расписание: '+new Intl.DateTimeFormat('ru-RU',{...opts,timeZone:value.schedule_zone}).format(now)+' · '+label(value.schedule_zone);};
+    select.onchange=preview;preview();
+    overlay.querySelector('[data-device-zone]').onclick=()=>{select.value=systemZone()||'schedule';preview();};
     const close = () => overlay.remove();
     overlay.querySelector('.teacher-timezone-close').onclick = close;
     overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
@@ -96,7 +121,7 @@
     if (!response.ok) throw new Error('timezone_unavailable');
     changed((await response.json()).timezone);
   }
-  window.TeacherTime = { format, lessonDate, lesson, load, save, get preference() { return value; } };
+  window.TeacherTime = { format, lessonDate, lesson, instant, schedule, dateKey, scheduleInput, label, load, save, open:async()=>{if(!value)await load();if(value)picker();}, ready:()=>value?Promise.resolve(value):load(), get preference() { return value; } };
   load().catch(() => {});
   setInterval(refreshClock, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshClock(); load().catch(() => {}); } });

@@ -28,7 +28,7 @@
     box.append(button, hint, message); container.prepend(box);
     if (manualNodes.length) {
       const manual = document.createElement('details');
-      const summary = document.createElement('summary'); summary.textContent = 'Перевести по QR Сбера';
+      const summary = document.createElement('summary'); summary.textContent = 'Другой способ оплаты';
       summary.style.cssText = 'cursor:pointer;padding:12px 0'; manual.append(summary);
       for (const node of manualNodes) if (node?.isConnected) manual.append(node);
       box.after(manual);

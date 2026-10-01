@@ -86,7 +86,7 @@ class Handler(api_v2.Handler):
   if path in {'/api/teacher/display-timezone','/api/teacher/dashboard'}:
    auth=self._teacher()
    if not auth:return self._json(401,{'error':'unauthorized'})
-   try:return self._json(200,teacher_timezone(int(auth['id'])) if path.endswith('/display-timezone') else dashboard_with_instants())
+   try:return self._json(200,teacher_timezone(int(auth['id'])) if path.endswith('/display-timezone') else dashboard_with_instants(int(auth['id'])))
    except Exception as exc:print('[web-api] teacher time display error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
   if path in {'/api/student/self-service/regular-schedules','/api/student/self-service/lesson-actions'}:
    auth=self._student()
