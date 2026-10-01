@@ -1,10 +1,10 @@
-const CACHE='adelia-shell-v18';
+const CACHE='adelia-shell-v19';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const SHELL=[
  '/app/','/app/manifest.webmanifest','/app/assets/icons/adelia-icon-32.png?v=20260925-brand4','/app/assets/icons/adelia-icon-180.png?v=20260925-brand4','/app/assets/icons/adelia-icon-192.png?v=20260925-brand4','/app/assets/icons/adelia-icon-512.png?v=20260925-brand4',
  '/app/student_clean.css','/app/student_time.css','/app/pwa_connection_status.css','/app/student_chat.css','/app/student_next_step.css','/app/student_homework_plus.css','/app/formulas.css','/app/student_booking_ui.css','/app/group_events_ui.css','/app/desktop_payment.css',
- '/app/pwa.js','/app/install_runtime.js','/app/student_time.js','/app/pwa_connection_status.js','/app/app.js','/app/auth_flow_v2.js','/app/app_shell_plus.js','/app/student_boot.js','/app/student_booking_ui.js','/app/group_events_ui.js','/app/desktop_payment.js',
+ '/app/online_payment.js','/app/pwa.js','/app/install_runtime.js','/app/student_time.js','/app/pwa_connection_status.js','/app/app.js','/app/auth_flow_v2.js','/app/app_shell_plus.js','/app/student_boot.js','/app/student_booking_ui.js','/app/group_events_ui.js','/app/desktop_payment.js',
  '/app/student_messenger_v2.js','/app/student_next_step.js','/app/student_stage1_home.js','/app/student_stage2_lessons.js','/app/student_stage3_learning.js','/app/student_stage4_workspace.js','/app/student_formulas.js'
 ];
 const ICON='/app/assets/icons/adelia-icon-180.png?v=20260925-brand4';

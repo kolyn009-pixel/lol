@@ -29,6 +29,12 @@ with patch.object(clock, 'connect', return_value=conn), patch.object(clock, 'get
     assert clock.set_preference(101, 'Europe/Moscow')['timezone']['selected']
     assert clock.preference(101)['timezone']['zone'] == 'Europe/Moscow'
     assert clock.preference(102)['timezone']['zone'] == 'Europe/Samara'
+    assert clock.set_preference(101, 'schedule')['timezone']['selected'] is False
+    with patch.object(clock, 'get_setting', return_value='Europe/Moscow'):
+        assert clock.preference(101)['timezone']['zone'] == 'Europe/Moscow'
+        clock.set_preference(101, 'Europe/Samara')
+        assert clock.preference(101)['timezone']['zone'] == 'Europe/Samara'
+        assert clock.set_preference(101, 'schedule')['timezone']['zone'] == 'Europe/Moscow'
     assert clock.get_setting('bot_timezone', 'Europe/Samara') == 'Europe/Samara'
     try:
         clock.set_preference(101, 'Not/AZone')

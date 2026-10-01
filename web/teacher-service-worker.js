@@ -1,4 +1,4 @@
-const CACHE='adelia-teacher-shell-v5';
+const CACHE='adelia-teacher-shell-v6';
 const ICON='/app/assets/icons/adelia-icon-180.png?v=20260925-brand4';
 const BADGE='/app/assets/icons/adelia-icon-32.png?v=20260925-brand4';
 const TYPE_META={

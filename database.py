@@ -5273,7 +5273,7 @@ def add_receipt(
 
 
 def approve_payment(
-    payment_id
+    payment_id, *, verify_in_transaction=None
 ):
 
     conn = connect()
@@ -5300,6 +5300,16 @@ def approve_payment(
         raise ValueError(
             "Платёж не найден."
         )
+
+    # Provider verification/audit runs under the same write lock as crediting.
+    # Only trusted server code may supply this callback (never HTTP input).
+    if verify_in_transaction is not None:
+        try:
+            verify_in_transaction(conn, payment)
+        except Exception:
+            conn.rollback()
+            conn.close()
+            raise
 
     if (
         payment["status"]

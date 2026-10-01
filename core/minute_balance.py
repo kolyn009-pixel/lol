@@ -441,7 +441,9 @@ def credit_confirmed_payment(payment_id: int, package_id: int | None = None):
                 continue
             # A direct one-lesson payment is already consumed; packages are not.
             legacy_used = int(pkg["lessons_used"] or 0)
-            used = min(total, legacy_used * base)
+            # Replayed provider callbacks must preserve minutes already consumed
+            # between callbacks, including a partial lesson rounded down in legacy counts.
+            used = min(total, max(int(pkg['minutes_used'] or 0), legacy_used * base))
             conn.execute("""
                 UPDATE lesson_packages
                 SET minutes_total=?,minutes_used=?,base_duration_minutes=?,hourly_rate=?,

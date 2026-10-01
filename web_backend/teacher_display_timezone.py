@@ -9,7 +9,7 @@ def _base_zone():
     name = str(get_setting('bot_timezone', 'Europe/Samara') or 'Europe/Samara')
     try:
         ZoneInfo(name)
-    except ZoneInfoNotFoundError:
+    except (ZoneInfoNotFoundError, ValueError):
         name = 'Europe/Samara'
     return name
 
@@ -41,6 +41,15 @@ def preference(admin_id):
 
 def set_preference(admin_id, zone):
     name = str(zone or '').strip()
+    if name == 'schedule':
+        conn = connect()
+        try:
+            _ensure(conn)
+            conn.execute('DELETE FROM teacher_display_timezones WHERE admin_telegram_id=?', (int(admin_id),))
+            conn.commit()
+        finally:
+            conn.close()
+        return preference(admin_id)
     if not name or len(name) > 100:
         raise ValueError('invalid_timezone')
     try:

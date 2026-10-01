@@ -26,7 +26,9 @@
     const clock = document.querySelector('#teacherLocalClock');
     if (!clock || !value) return;
     clock.querySelector('strong').textContent = format(new Date(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-    clock.querySelector('small').textContent = label(value.zone);
+    clock.querySelector('small').textContent = value.zone === value.schedule_zone
+      ? label(value.zone) + ' · как в расписании'
+      : label(value.zone) + ' · расписание: ' + label(value.schedule_zone);
     clock.title = 'Время для просмотра · ' + value.zone + '. Запись учеников: ' + value.schedule_zone;
   }
   function changed(payload) {
@@ -78,8 +80,9 @@
     const select = overlay.querySelector('select'), zones = [...PRESETS];
     for (const z of [value?.zone, systemZone()]) if (z && !zones.some(x => x[0] === z)) zones.unshift([z, label(z)]);
     if (typeof Intl.supportedValuesOf === 'function') for (const z of Intl.supportedValuesOf('timeZone')) if (!zones.some(x => x[0] === z)) zones.push([z, label(z) + ' · ' + z]);
+    select.add(new Option('Как в расписании · ' + label(value?.schedule_zone), 'schedule'));
     for (const [z, name] of zones) select.add(new Option(name, z));
-    select.value = value?.zone || systemZone() || 'Europe/Moscow';
+    select.value = value?.selected ? value.zone : 'schedule';
     const close = () => overlay.remove();
     overlay.querySelector('.teacher-timezone-close').onclick = close;
     overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
@@ -98,4 +101,5 @@
   setInterval(refreshClock, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshClock(); load().catch(() => {}); } });
   window.addEventListener('adelia:teacher-login', () => load().catch(() => {}));
+  window.addEventListener('adelia:schedule-timezone-changed', () => load().catch(() => {}));
 })();
