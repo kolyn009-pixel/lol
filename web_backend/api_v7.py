@@ -14,8 +14,9 @@ from web_backend import student_onboarding, student_regular_booking, student_soc
 from web_backend import telemost_runtime, telemost_settings, web_push, monthly_allowance, teacher_manual_booking
 from web_backend.stage12_indexes import ensure_indexes
 from web_backend.robokassa_api import RobokassaMixin
+from web_backend.legal_api import LegalMixin
 
-class Handler(RobokassaMixin, api_v6.Handler):
+class Handler(LegalMixin, RobokassaMixin, api_v6.Handler):
     server_version="AdeliaWeb/7.10"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
@@ -28,6 +29,7 @@ class Handler(RobokassaMixin, api_v6.Handler):
         except Exception as exc:print('[web-api] registration push error:',type(exc).__name__,repr(exc),flush=True)
     def do_GET(self):
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
+        if self.legal_get(path,q) or self.legal_parent_gate(path):return
         if self.robokassa_get(path):return
         if path=="/api/push/status":
             auth=self._auth()
@@ -66,6 +68,7 @@ class Handler(RobokassaMixin, api_v6.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        if self.legal_post(path) or self.legal_parent_gate(path):return
         if self.robokassa_post(path):return
         if path in {"/api/push/subscribe","/api/push/unsubscribe","/api/push/test"}:
             if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})

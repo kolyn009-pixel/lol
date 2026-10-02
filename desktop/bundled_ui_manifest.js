@@ -10,6 +10,6 @@ module.exports={
   },
   parent:{
     css:['parent/app.css','parent/parent_clean.css','parent/parent_v5.css','parent/messenger.css','parent/next_step.css','desktop_parent_app.css','desktop_premium.css'],
-    js:['online_payment.js','parent/app.js','parent/payment_claim.js','parent/messenger.js','parent/parent_v5.js','parent/next_step.js']
+    js:['parent/legal_gate.js','online_payment.js','parent/app.js','parent/payment_claim.js','parent/messenger.js','parent/parent_v5.js','parent/next_step.js']
   }
 };

@@ -75,8 +75,8 @@ def set_price(tariff_key,amount,title=None,subject=None,education_type=None,stud
  conn.execute("INSERT INTO price_catalog(tariff_key,title,subject,education_type,study_goal,amount,duration_minutes,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tariff_key) DO UPDATE SET title=excluded.title,subject=excluded.subject,education_type=excluded.education_type,study_goal=excluded.study_goal,amount=excluded.amount,duration_minutes=excluded.duration_minutes,active=excluded.active,updated_at=excluded.updated_at",(key,title or meta[0],subject or meta[1],education_type or meta[2],study_goal if study_goal is not None else meta[3],amount,duration,1 if active else 0,now,now))
  if key!='COLLEGE_PHYSICS':
   try:
-   cur=conn.execute('UPDATE price_settings SET hourly_rate=?,active=?,title=?,updated_at=? WHERE rate_key=?',(amount,1 if active else 0,title or meta[0],now,key))
-   if cur.rowcount==0:conn.execute('INSERT OR IGNORE INTO price_settings(rate_key,study_goal,subject,grade_min,grade_max,hourly_rate,title,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(key,meta[3],meta[1],meta[4],meta[5],amount,title or meta[0],1 if active else 0,now,now))
+   cur=conn.execute('UPDATE price_settings SET hourly_rate=?,active=?,title=?,updated_at=? WHERE rate_key=?',(round(amount*60/duration),1 if active else 0,title or meta[0],now,key))
+   if cur.rowcount==0:conn.execute('INSERT OR IGNORE INTO price_settings(rate_key,study_goal,subject,grade_min,grade_max,hourly_rate,title,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',(key,meta[3],meta[1],meta[4],meta[5],round(amount*60/duration),title or meta[0],1 if active else 0,now,now))
   except Exception:pass
  conn.commit();row=dict(conn.execute('SELECT * FROM price_catalog WHERE tariff_key=?',(key,)).fetchone());conn.close();_history('CATALOG',key,previous,row,source);return {'status':'ok','price':row}
 
