@@ -5,8 +5,10 @@ does not change an edition that a parent already accepted.
 """
 import hashlib
 import json
+import os
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from database import connect
 
 FIELDS = ('name', 'inn', 'email', 'phone', 'address', 'terms', 'privacy', 'consent')
@@ -65,7 +67,9 @@ def editor():
     try:
         row = conn.execute('SELECT * FROM legal_draft WHERE id=1').fetchone()
         current = _edition(conn)
-        return {'draft': json.loads(row['payload']) if row else {k: '' for k in FIELDS},
+        seed_name = os.environ.get('ADELIA_LEGAL_DRAFT_FILE', '').strip()
+        seed = json.loads(Path(seed_name).read_text(encoding='utf-8')) if not row and seed_name else {}
+        return {'draft': json.loads(row['payload']) if row else _clean(seed),
                 'updated_at': row['updated_at'] if row else None, 'published': current}
     finally:
         conn.close()

@@ -2,6 +2,8 @@
 import importlib
 import io
 import json
+import os
+from unittest.mock import patch
 import pathlib
 import sqlite3
 import sys
@@ -55,7 +57,15 @@ class LegalTests(unittest.TestCase):
     def accept(self, uid=1, version=None):
         return legal.accept(uid, dict(version=version or legal.public()['version'],terms=True,privacy_ack=True,consent=True))
     def test_draft_is_private_and_does_not_gate(self):
+        seed_path=pathlib.Path(tmp.name)/'draft.json'
+        seed_path.write_text(json.dumps({'terms':'Непубличный черновик'}),encoding='utf-8')
+        with patch.dict(os.environ,{'ADELIA_LEGAL_DRAFT_FILE':str(seed_path)}):
+            seed=legal.editor()['draft']
+            self.assertEqual(seed['terms'],'Непубличный черновик')
+        self.assertIsNone(legal.public())
+        with self.assertRaises(ValueError):legal.save({**seed,'reviewed':True},42,True)
         legal.save({'terms':'черновик'},42)
+        self.assertEqual(legal.editor()['draft']['terms'],'черновик')
         self.assertIsNone(legal.public())
         self.assertFalse(legal.status(1)['required'])
         with self.assertRaises(ValueError): legal.save({'terms':'черновик','reviewed':True},42,True)
