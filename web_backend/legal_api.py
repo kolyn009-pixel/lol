@@ -1,5 +1,6 @@
 """Legal routes and parent gate shared by all API v7 client entry points."""
 from web_backend import legal_documents as legal
+from web_backend import legal_stepup
 import json
 
 
@@ -23,6 +24,8 @@ class LegalMixin:
             return True
         if path == '/api/teacher/legal':
             if not self._owner(): self._json(403, {'error': 'owner_required'})
+            elif not legal_stepup.allowed(self._token(), self._auth()['id']):
+                self._json(403, {'error': 'stepup_required'})
             else: self._json(200, legal.editor())
             return True
         if path == '/api/parent/legal/status':
@@ -33,7 +36,7 @@ class LegalMixin:
         return False
 
     def legal_post(self, path):
-        if path not in {'/api/teacher/legal/draft', '/api/teacher/legal/publish', '/api/parent/legal/accept'}:
+        if path not in {'/api/teacher/legal/draft', '/api/teacher/legal/publish', '/api/teacher/legal/stepup/request', '/api/teacher/legal/stepup/verify', '/api/parent/legal/accept'}:
             return False
         if not self._same_origin_write():
             self._json(403, {'error': 'cross_origin_forbidden'}); return True
@@ -47,10 +50,18 @@ class LegalMixin:
         if not isinstance(body, dict):
             self._json(400, {'error': 'invalid_json'}); return True
         try:
+            if path.endswith('/stepup/request'):
+                self._json(200, legal_stepup.issue(self._token(), auth['id'])); return True
+            if path.endswith('/stepup/verify'):
+                self._json(200, legal_stepup.verify(self._token(), auth['id'], body.get('code', ''))); return True
+            if role == 'teacher' and not legal_stepup.allowed(self._token(), auth['id']):
+                self._json(403, {'error': 'stepup_required'}); return True
             result = legal.accept(auth['id'], body) if role == 'parent' else legal.save(body, auth['id'], path.endswith('/publish'))
             self._json(200, result)
         except ValueError as exc:
-            self._json(409, {'error': str(exc)})
+            self._json(429 if str(exc) == 'stepup_rate_limited' else 409, {'error': str(exc)})
+        except RuntimeError:
+            self._json(503, {'error': 'stepup_unavailable'})
         return True
 
     def legal_parent_gate(self, path):

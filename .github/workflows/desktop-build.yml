@@ -68,6 +68,14 @@ jobs:
           python scripts/parent_message_scope_selftest.py
           node --check web/parent/messenger.js
           node --check web/teacher_messages_stage10.js
+      - name: Check legal step-up and homework archive
+        run: |
+          python scripts/legal_stepup_selftest.py
+          python scripts/legal_documents_selftest.py
+          PYTHONPATH=. python scripts/homework_attachment_web_selftest.py
+          node scripts/teacher_messenger_layout_selftest.js
+          node --check web/legal-admin.js
+          node --check web/teacher_homework_detail_plus.js
       - name: Verify runner and desktop source
         shell: bash
         run: |

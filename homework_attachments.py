@@ -338,6 +338,7 @@ def web_descriptors(homework_id: int):
                 ),
                 "caption": item.get("caption") or "",
                 "size_bytes": int(item.get("content_size") or 0),
+                "stored_on_server": bool(item.get("content_size") and item.get("content_sha256")),
                 "url": f"/api/homework/attachment?id={aid}",
             }
         )

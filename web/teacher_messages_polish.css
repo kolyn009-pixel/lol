@@ -112,3 +112,32 @@ html.adelia-desktop-teacher body .msg-empty span{font-size:10px!important;max-wi
   html.adelia-desktop-teacher body .msg-shell{grid-template-columns:310px minmax(0,1fr)!important}
   html.adelia-desktop-teacher body .msg-bubble{max-width:78%!important}
 }
+
+/* Keep the composer inside the viewport in browser, PWA and desktop. */
+html:root body #app .msg-shell{height:var(--msg-height,calc(100dvh - 150px))!important;min-height:0!important;grid-template-columns:minmax(250px,320px) minmax(0,1fr)!important}
+html:root body #app .msg-sidebar,html:root body #app .msg-thread{min-height:0!important;max-height:none!important;overflow:hidden!important}
+html:root body #app .msg-thread{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important}
+html:root body #app .msg-history,html:root body #app .msg-conversations{min-height:0!important;overscroll-behavior:contain}
+html:root body #app .msg-thread-head{padding:12px 16px!important;flex-shrink:0}
+html:root body #app .msg-thread-person{min-width:0}
+html:root body #app .msg-thread-person b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html:root body #app .msg-compose{max-height:45dvh;overflow:auto;padding:10px 14px!important}
+html:root body #app .msg-compose textarea{min-height:54px!important;max-height:110px!important;font-size:14px!important}
+html:root body #app .msg-bubble{max-width:min(82%,640px)!important;font-size:14px!important;line-height:1.5!important;padding:12px 16px!important}
+html:root body #app .msg-avatar{width:40px!important;height:40px!important;border-radius:14px!important;font-size:18px!important}
+html:root body #app .msg-person{padding:12px!important;gap:10px!important}
+html:root body #app .msg-back{display:none}
+html:root body #app .msg-send-actions button{min-height:40px!important;font-size:12px!important}
+html:root body #app .msg-compose-foot>small{font-size:11px!important}
+@media(max-width:800px){
+ html:root body #app .msg-shell{grid-template-columns:minmax(0,1fr)!important}
+ html:root body #app .msg-shell:not(.has-active) .msg-thread,html:root body #app .msg-shell.has-active .msg-sidebar{display:none!important}
+ html:root body #app .msg-sidebar{border:0!important}
+ html:root body #app .msg-back{display:block}
+ html:root body #app .msg-thread-head{gap:8px!important;flex-wrap:wrap}
+ html:root body #app .msg-thread-actions{display:flex!important;flex-wrap:wrap;gap:6px}
+ html:root body #app .msg-compose textarea{font-size:16px!important}
+ html:root body #app .msg-bubble{max-width:92%!important}
+ html:root body #app .msg-compose-foot>small{display:none}
+}
+.hw-file-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}.hw-file-card{display:grid;gap:10px;padding:16px;border:1px solid #e7e1f1;border-radius:16px;overflow-wrap:anywhere}.hw-file-card img{width:100%;height:180px;object-fit:contain;background:#faf9fc}.hw-file-card small{color:#746d81}
