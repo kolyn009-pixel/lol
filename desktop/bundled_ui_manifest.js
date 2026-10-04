@@ -1,7 +1,7 @@
 'use strict';
 module.exports={
   student:{
-    css:['student_clean.css','student_desktop_v2.css','student_stage1_home.css','student_stage2_lessons.css','student_stage3_learning.css','student_stage4_workspace.css','desktop_shell.css','group_events_ui.css','desktop_polish.css','desktop_student_app.css','desktop_lesson_workspace.css','desktop_prelesson.css','student_next_step.css','desktop_premium.css'],
+    css:['student_clean.css','student_desktop_v2.css','student_stage1_home.css','student_stage2_lessons.css','student_stage3_learning.css','student_stage4_workspace.css','desktop_shell.css','group_events_ui.css','desktop_polish.css','desktop_student_app.css','desktop_lesson_workspace.css','desktop_prelesson.css','student_next_step.css','student_receipts.css','desktop_premium.css'],
     js:['student_time.js','online_payment.js','student_stage1_home.js','student_stage2_lessons.js','student_stage3_learning.js','student_stage4_workspace.js','desktop_shell.js','group_events_ui.js','desktop_polish.js','desktop_lesson_workspace.js','desktop_prelesson.js','student_next_step.js']
   },
   teacher:{

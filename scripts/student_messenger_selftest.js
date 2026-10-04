@@ -20,7 +20,7 @@ async function main(){
     },
     addEventListener(){},
   };
-  const window={};
+  const window={addEventListener(){},StudentTime:{preference:{zone:'Europe/Samara'},load:async()=>{}}};
   const context={
     window,document,console,
     fetch:async url=>({ok:true,json:async()=>url.includes('/student/messages')?{items:items.slice()}:{unread_messages:0}}),

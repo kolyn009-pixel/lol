@@ -5,6 +5,7 @@ histories. Legacy CRM rows are imported idempotently during the transition.
 """
 from __future__ import annotations
 import json,sqlite3,threading
+from datetime import datetime, timezone
 from database import connect, now_iso
 
 CHANNELS={'TELEGRAM','VK','WEB','SYSTEM','LEGACY'}
@@ -109,5 +110,19 @@ def history(conversation_id,limit=100,after_id=None,include_deliveries=False):
     conn.close();return out
 
 
-def mark_read(conversation_id):
-    ensure_tables();now=now_iso();conn=connect();conn.execute("UPDATE unified_messages SET read_at=COALESCE(read_at,?),status=CASE WHEN status IN ('DELIVERED','SENT') THEN 'READ' ELSE status END WHERE conversation_id=? AND direction='IN' AND read_at IS NULL",(now,int(conversation_id)));conn.commit();conn.close();return {'status':'ok'}
+def mark_read(conversation_id, through_id=None):
+    ensure_tables()
+    now=datetime.now(timezone.utc).isoformat(timespec='seconds')
+    conn=connect()
+    try:
+        where="conversation_id=? AND direction='IN' AND read_at IS NULL"
+        params=[now,int(conversation_id)]
+        if through_id is not None:
+            boundary=int(through_id)
+            if boundary <= 0: raise ValueError('invalid_read_boundary')
+            where+=' AND id<=?';params.append(boundary)
+        changed=conn.execute("UPDATE unified_messages SET read_at=?,status='READ' WHERE "+where,params).rowcount
+        conn.commit()
+        return {'status':'ok','read_at':now,'changed':changed}
+    finally:
+        conn.close()

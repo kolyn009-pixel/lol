@@ -1,0 +1,4 @@
+.student-chat-read{display:block;margin-top:8px;font-size:12px;line-height:1.5;color:#766b89}
+.student-chat-read.receipt-delivered{color:#665386}
+.student-chat-read.receipt-read{color:#4e2cb9;font-weight:600}
+.student-chat-read.receipt-failed{color:#ac2949}

@@ -61,7 +61,9 @@ def queue_teacher_reply(user_id,text,channels=("TELEGRAM","VK")):
   if c in {"TELEGRAM","VK"}:um.record_delivery(mid,c,'STUDENT',int(user_id),'QUEUED')
  return mid
 def _compat(row,include_deliveries=False):
+ from web_backend.message_receipts import receipt
  attachment=row.get('attachment') or {};item={'id':row.get('id'),'user_id':row.get('student_id'),'direction':row.get('direction'),'sender_role':row.get('sender_type'),'source_channel':row.get('origin_channel'),'external_message_id':None,'text':row.get('body') or '','attachment_type':attachment.get('kind') if isinstance(attachment,dict) else None,'attachment_ref':attachment.get('ref') if isinstance(attachment,dict) else None,'attachment_name':attachment.get('name') if isinstance(attachment,dict) else None,'created_at':row.get('created_at'),'read_at':row.get('read_at')}
+ item.update(receipt(row))
  if include_deliveries:item['deliveries']=row.get('deliveries') or []
  return item
 def conversation(user_id,limit=100,after_id=None):

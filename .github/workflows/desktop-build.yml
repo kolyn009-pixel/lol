@@ -70,6 +70,9 @@ jobs:
           node --check web/teacher_messages_stage10.js
       - name: Check legal step-up and homework archive
         run: |
+          python scripts/message_receipts_selftest.py
+          node scripts/student_receipts_selftest.js
+          node scripts/teacher_read_visibility_selftest.js
           python scripts/legal_stepup_selftest.py
           python scripts/legal_documents_selftest.py
           PYTHONPATH=. python scripts/homework_attachment_web_selftest.py

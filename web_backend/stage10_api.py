@@ -107,7 +107,7 @@ class Stage10Mixin:
                 result=send_existing_message_channels(int(body.get('message_id')),body.get('channels'))
                 return self._json(200,result) if result['status']=='ok' else self._json(502,result)
             if path=='/api/teacher/messages/read':
-                return self._json(200,mark_conversation_read(int(body.get('conversation_id'))))
+                return self._json(200,mark_conversation_read(int(body.get('conversation_id')),body.get('through_id')))
         except ValueError as exc:return self._json(400,{'error':str(exc)})
         except Exception as exc:print('[stage10] teacher messages POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         return self._json(404,{'error':'not_found'})
