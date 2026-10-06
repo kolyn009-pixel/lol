@@ -1,0 +1,14 @@
+/* All landing pictograms use the shared 24px Adelia SVG family. */
+.adelia-icon{display:inline-block;flex-shrink:0;vertical-align:middle;pointer-events:none}
+.hero-badge .adelia-icon{width:16px;height:16px}
+.hero-directions .adelia-icon{width:22px;height:22px}
+.hero-secondary .adelia-icon{width:14px;height:14px}
+.demo-tabs button{display:inline-flex;align-items:center;gap:7px}
+.demo-tabs .adelia-icon{width:18px;height:18px}
+.demo-icon{color:var(--p);line-height:1}
+.demo-icon .adelia-icon{width:36px;height:36px}
+.opportunity-kind{display:inline-flex;align-items:center;gap:6px}
+.link-grid>a>.adelia-icon{display:block;width:26px;height:26px;color:var(--p)}
+.download-card-icon .adelia-icon,.download-recommend-icon .adelia-icon{width:24px;height:24px}
+.brand img{display:block;object-fit:contain;flex-shrink:0}
+.adelia-note b .adelia-icon,.parent-mini strong .adelia-icon,.kicker .adelia-icon,.msg b .adelia-icon{width:18px;height:18px}
