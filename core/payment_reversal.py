@@ -124,7 +124,7 @@ def reverse(payment_id, *, actor_id, source, reason="Ошибочное подт
                     raise ValueError("payment_links_inconsistent")
                 if package["status"] not in {"REVERSED", "CANCELLED"}:
                     used = max(0, int(package["minutes_used"] or 0)-int(charge["minutes"]))
-                    c.execute("UPDATE lesson_packages SET minutes_used=?,status='ACTIVE' WHERE id=?", (used, package["id"]))
+                    c.execute("UPDATE lesson_packages SET minutes_used=?,status=CASE WHEN status IN ('ACTIVE','USED') THEN 'ACTIVE' ELSE status END WHERE id=?", (used, package["id"]))
                     minute_balance._sync_legacy_count_fields(c, package["id"])
                     _ledger(c, p, package, "PAYMENT_REVERSAL_RELEASE", int(charge["minutes"]), now,
                             actor_id, reason, f"payment-reverse:{p['id']}:charge:{charge['id']}", lesson_id=lesson["id"])

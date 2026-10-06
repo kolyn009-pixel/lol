@@ -10,6 +10,11 @@ from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 import database
 from core import minute_balance, payment_reversal
+# Load the actual accounting modules without importing Telegram bot handlers
+# from final_features.__init__ on dependency-free Actions preflight runners.
+accounting_package = types.ModuleType("final_features")
+accounting_package.__path__ = [str(Path(__file__).resolve().parents[1] / "final_features")]
+sys.modules.setdefault("final_features", accounting_package)
 from final_features import schema, ledger
 
 
@@ -67,11 +72,13 @@ class ReversalTests(unittest.TestCase):
         with self.assertRaises(ValueError): database.add_receipt(pid, 1, "old", "PHOTO")
         minute_balance.credit_confirmed_payment(pid, pkg)
         self.assertEqual(minute_balance.get_balance(1)["paid"], 0)
+        self.assertFalse(database.refund_prepaid_lesson(pkg))
 
     def test_direct_manual_lesson_can_be_paid_again(self):
         lid = self.lesson()
-        pid, _ = database.confirm_manual_lesson_payment(lid)
+        pid, pkg = database.confirm_manual_lesson_payment(lid)
         self.reverse(pid)
+        self.assertFalse(database.refund_prepaid_lesson(pkg))
         l = database.get_lesson(lid)
         self.assertEqual(l["payment_status"], "AWAITING_PAYMENT")
         self.assertEqual(l["lesson_status"], "CONFIRMED")

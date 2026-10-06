@@ -5904,7 +5904,7 @@ def refund_prepaid_lesson(
         package_id,
     )).fetchone()
 
-    if package is None:
+    if package is None or package["status"] == "REVERSED":
 
         conn.rollback()
         conn.close()
