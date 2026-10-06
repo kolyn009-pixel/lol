@@ -1393,6 +1393,10 @@ async def show_lesson(
                 text += " 📷"
 
     keyboard = []
+    if lesson["payment_id"] and lesson["payment_status"] == "PAID":
+        keyboard.append([InlineKeyboardButton(
+            "Отменить ошибочную оплату",
+            callback_data=f"payment_admin_reverse|{lesson['payment_id']}")])
 
     if lesson["lesson_status"] in {
         "PENDING",
@@ -2181,6 +2185,9 @@ async def show_student(
         pass
 
     keyboard = []
+    keyboard.append([InlineKeyboardButton(
+        "💳 Оплаты и исправления",
+        callback_data=f"payment_admin_history|{user_id}")])
 
     # Education management — canonical admin student card.
     keyboard.append([

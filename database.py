@@ -2756,6 +2756,7 @@ LESSON_STATUS_RU = {
 
 
 PAYMENT_STATUS_RU = {
+    "REVERSED": "Подтверждение отменено",
 
     "WAITING":
         "Ожидает оплаты",
@@ -5218,6 +5219,17 @@ def add_receipt(
     conn = connect()
     cursor = conn.cursor()
 
+    cursor.execute("BEGIN IMMEDIATE")
+    payment = cursor.execute("SELECT user_id,status FROM payments WHERE id=?", (int(payment_id),)).fetchone()
+    if payment is None or int(payment["user_id"]) != int(user_id):
+        conn.rollback()
+        conn.close()
+        raise ValueError("Платёж не найден.")
+    if payment["status"] in {"PAID", "REVERSED", "CANCELLED"}:
+        conn.rollback()
+        conn.close()
+        raise ValueError("Этот платёж закрыт. Создайте новый счёт.")
+
     cursor.execute("""
         INSERT INTO receipts (
 
@@ -5310,6 +5322,11 @@ def approve_payment(
             conn.rollback()
             conn.close()
             raise
+
+    if payment["status"] == "REVERSED":
+        conn.rollback()
+        conn.close()
+        raise ValueError("Это подтверждение отменено. Создайте новый платёж.")
 
     if (
         payment["status"]
@@ -6547,6 +6564,11 @@ def approve_paid_booking_draft_payment(payment_id):
         conn.rollback()
         conn.close()
         raise ValueError("Платёж не найден.")
+
+    if payment["status"] == "REVERSED":
+        conn.rollback()
+        conn.close()
+        raise ValueError("Это подтверждение отменено. Создайте новый платёж.")
 
     draft = cursor.execute(
         """

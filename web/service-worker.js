@@ -1,4 +1,4 @@
-const CACHE='adelia-shell-v22';
+const CACHE='adelia-shell-v23';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const SHELL=[
@@ -30,7 +30,7 @@ function notificationView(payload){
  let title=String(payload?.title||meta?.title||'Аделия').trim();
  if(meta&&!/^[\p{Extended_Pictographic}]/u.test(title))title=`${meta.emoji} ${title}`;
  if(!meta&&title==='Аделия')title='💜 Аделия';
- const financial=['invoice','payment','payment_review','receipt'].includes(type);if(financial)title='💳 Оплата в Аделии';
+ const financial=['invoice','payment','payment_review','payment_reversed','receipt'].includes(type);if(financial)title='💳 Оплата в Аделии';
  return {title,body:financial?'Детали доступны после входа в приложение.':String(payload?.body||''),url:String(payload?.url||'/app/'),tag:String(payload?.tag||`adelia-${type||'notice'}`),data};
 }
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>Promise.allSettled(SHELL.map(url=>cache.add(url)))).then(()=>self.skipWaiting()))});

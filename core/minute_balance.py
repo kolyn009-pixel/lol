@@ -425,7 +425,7 @@ def credit_confirmed_payment(payment_id: int, package_id: int | None = None):
     conn = database.connect()
     try:
         p = conn.execute("SELECT * FROM payments WHERE id=?", (int(payment_id),)).fetchone()
-        if not p:
+        if not p or p["status"] != "PAID":
             return
         base = int(p["base_duration_minutes"] or default_duration_for_goal(p["study_goal"]))
         total = int(p["minutes_total"] or (int(p["lessons_count"] or 0) * base))

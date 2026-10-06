@@ -6,7 +6,7 @@ module.exports={
   },
   teacher:{
     css:['teacher_time.css','teacher_v4.css','teacher_v5.css','teacher_students_clean8.css','teacher_students_polish.css','teacher_groups_polish.css','teacher_health.css','teacher_messages_polish.css','teacher_lesson_context.css','desktop_teacher_app.css','desktop_lesson_workspace.css','desktop_premium.css','teacher_attention.css'],
-    js:['teacher_time.js','teacher_v4.js','teacher_students_clean8.js','teacher_groups.js','teacher_health.js','teacher_v5_runtime.js','teacher_messages_stage10.js','teacher_lesson_context.js','teacher_post_lesson.js','desktop_lesson_workspace.js','desktop_teacher_density.js','teacher_attention.js']
+    js:['teacher_payment_reversal.js','teacher_time.js','teacher_v4.js','teacher_students_clean8.js','teacher_groups.js','teacher_health.js','teacher_v5_runtime.js','teacher_messages_stage10.js','teacher_lesson_context.js','teacher_post_lesson.js','desktop_lesson_workspace.js','desktop_teacher_density.js','teacher_attention.js']
   },
   parent:{
     css:['parent/app.css','parent/parent_clean.css','parent/parent_v5.css','parent/messenger.css','parent/next_step.css','desktop_parent_app.css','desktop_premium.css'],

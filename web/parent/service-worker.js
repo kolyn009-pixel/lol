@@ -1,4 +1,4 @@
-const CACHE='adelia-parent-v17';
+const CACHE='adelia-parent-v18';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const BASE='/app/parent/';
@@ -6,7 +6,7 @@ const SHELL=[BASE+'legal_gate.js','/app/online_payment.js',BASE,BASE+'app.js',BA
 const ICON='/app/assets/icons/adelia-icon-180.png?v=20260925-brand4';
 const BADGE='/app/assets/icons/adelia-icon-32.png?v=20260925-brand4';
 const TYPE_META={invoice:{emoji:'💳',title:'Новый счёт'},payment:{emoji:'✅',title:'Оплата подтверждена'},receipt:{emoji:'🧾',title:'Оплата'},lesson:{emoji:'🎓',title:'Занятие ребёнка'},lesson_start:{emoji:'🎥',title:'Занятие начинается'},schedule:{emoji:'🗓️',title:'Расписание изменилось'},homework:{emoji:'📚',title:'Домашнее задание'},homework_review:{emoji:'✍️',title:'Работа проверена'},message:{emoji:'💬',title:'Новое сообщение'},reminder:{emoji:'⏰',title:'Напоминание'},test:{emoji:'💜',title:'Аделия работает'}};
-function view(payload){const data=payload&&typeof payload.data==='object'&&payload.data?payload.data:{};const type=String(data.type||'').toLowerCase();const meta=TYPE_META[type];let title=String(payload?.title||meta?.title||'Аделия Родителям').trim();if(meta&&!/^[\p{Extended_Pictographic}]/u.test(title))title=`${meta.emoji} ${title}`;const financial=['invoice','payment','payment_review','receipt'].includes(type);if(financial)title='💳 Оплата в Аделии';return{title,body:financial?'Детали доступны после входа в приложение.':String(payload?.body||''),url:String(payload?.url||BASE),tag:String(payload?.tag||`adelia-parent-${type||'notice'}`),data}}
+function view(payload){const data=payload&&typeof payload.data==='object'&&payload.data?payload.data:{};const type=String(data.type||'').toLowerCase();const meta=TYPE_META[type];let title=String(payload?.title||meta?.title||'Аделия Родителям').trim();if(meta&&!/^[\p{Extended_Pictographic}]/u.test(title))title=`${meta.emoji} ${title}`;const financial=['invoice','payment','payment_review','payment_reversed','receipt'].includes(type);if(financial)title='💳 Оплата в Аделии';return{title,body:financial?'Детали доступны после входа в приложение.':String(payload?.body||''),url:String(payload?.url||BASE),tag:String(payload?.tag||`adelia-parent-${type||'notice'}`),data}}
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>Promise.all(SHELL.map(u=>c.add(u).catch(()=>null)))).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('adelia-parent-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWaiting()});

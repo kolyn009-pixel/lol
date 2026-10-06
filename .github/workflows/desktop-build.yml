@@ -6,6 +6,11 @@ on:
     branches: [release/adelia-unified-rc]
     paths:
       - 'desktop/**'
+      - 'core/payment_reversal.py'
+      - 'handlers/payment_reversal.py'
+      - 'web/teacher*finance*'
+      - 'web/teacher_payment_reversal.js'
+      - 'scripts/payment_reversal*'
       - 'scripts/desktop_release_manager.sh'
       - 'rc_desktop_static_selftest.py'
       - 'vk_adapter/**'
@@ -79,6 +84,11 @@ jobs:
           node scripts/teacher_messenger_layout_selftest.js
           node --check web/legal-admin.js
           node --check web/teacher_homework_detail_plus.js
+      - name: Check mistaken payment reversal
+        run: |
+          python scripts/payment_reversal_selftest.py
+          node scripts/payment_reversal_ui_selftest.cjs
+          node --check web/teacher_payment_reversal.js
       - name: Verify runner and desktop source
         shell: bash
         run: |
