@@ -44,7 +44,7 @@ def _paths(token):
     return folder, folder / (token + ".json")
 
 
-def store_bytes(student_id, content, filename, mime=None, kind=None, origin=None, external_ref=None):
+def store_bytes(student_id, content, filename, mime=None, kind=None, origin=None, external_ref=None, participant_type='STUDENT', participant_id=None):
     data = bytes(content or b"")
     if not data:
         raise ValueError("empty_media")
@@ -68,6 +68,8 @@ def store_bytes(student_id, content, filename, mime=None, kind=None, origin=None
     meta = {
         "token": token,
         "student_id": uid,
+        "participant_type": str(participant_type or "STUDENT").upper(),
+        "participant_id": int(participant_id) if participant_id is not None else None,
         "kind": str(kind or ("photo" if ctype.startswith("image/") else "document")).lower(),
         "name": name,
         "mime": ctype,

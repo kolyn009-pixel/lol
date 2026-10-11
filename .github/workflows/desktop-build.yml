@@ -2,6 +2,41 @@ name: Desktop beta build
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [release/adelia-unified-rc]
+    paths:
+      - 'desktop/**'
+      - 'core/payment_reversal.py'
+      - 'handlers/payment_reversal.py'
+      - 'web/teacher*finance*'
+      - 'web/teacher_payment_reversal.js'
+      - 'scripts/payment_reversal*'
+      - 'scripts/desktop_release_manager.sh'
+      - 'rc_desktop_static_selftest.py'
+      - 'vk_adapter/**'
+      - 'homework_pdf_runtime.py'
+      - 'scripts/vk_homework_ingest_selftest.py'
+      - 'handlers/homework_v6.py'
+      - 'handlers/homework_file_delivery.py'
+      - 'scripts/telegram_homework_file_selftest.py'
+      - 'web/student_messenger_v2.js'
+      - 'web/student_boot.js'
+      - 'web/app.js'
+      - 'web/teacher_messages_stage10.js'
+      - 'web/parent/**'
+      - 'web_backend/parent_messages.py'
+      - 'web_backend/stage9_api.py'
+      - 'web_backend/stage10_api.py'
+      - 'web_backend/unified_messaging.py'
+      - 'web_backend/message_delivery.py'
+      - 'web_backend/message_media.py'
+      - 'web_backend/unified_messages.py'
+      - 'scripts/parent_message_scope_selftest.py'
+      - 'scripts/student_messenger_selftest.js'
+      - 'scripts/homework_archive_selftest.py'
+      - 'scripts/student_offline_selftest.js'
+      - 'handlers/homework_channel_handlers.py'
+      - '.github/workflows/desktop-build.yml'
 
 permissions:
   contents: read
@@ -22,6 +57,38 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check VK homework file persistence
+        run: python scripts/vk_homework_ingest_selftest.py
+      - name: Check Telegram homework file requests
+        run: python scripts/telegram_homework_file_selftest.py
+      - name: Check in-app messenger
+        run: |
+          node scripts/student_messenger_selftest.js
+          node scripts/student_offline_selftest.js
+          python scripts/homework_archive_selftest.py
+          python scripts/parent_message_scope_selftest.py
+          node --check web/parent/messenger.js
+          node --check web/teacher_messages_stage10.js
+      - name: Check legal step-up and homework archive
+        run: |
+          python scripts/message_receipts_selftest.py
+          node scripts/student_receipts_selftest.js
+          node scripts/teacher_read_visibility_selftest.js
+          python scripts/legal_stepup_selftest.py
+          python scripts/legal_documents_selftest.py
+          PYTHONPATH=. python scripts/homework_attachment_web_selftest.py
+          node scripts/teacher_messenger_layout_selftest.js
+          node --check web/legal-admin.js
+          node --check web/teacher_homework_detail_plus.js
+      - name: Check mistaken payment reversal
+        run: |
+          python scripts/payment_reversal_selftest.py
+          node scripts/payment_reversal_ui_selftest.cjs
+          node --check web/teacher_payment_reversal.js
       - name: Verify runner and desktop source
         shell: bash
         run: |
@@ -92,16 +159,12 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      - name: Write beta manifest
-        run: node write_beta_manifest.js
-
       - name: Prepare verified beta bundle
         shell: bash
         run: |
           rm -rf beta-bundle
           VERSION=$(node -p "require('./package.json').version")
           python publish_updates.py dist beta-bundle ${{ matrix.publish_args }} --channel beta --version "$VERSION" --git-sha "${{ github.sha }}"
-          cp dist/beta-manifest.json beta-bundle/build-manifest.json
 
       - name: Verify beta bundle
         shell: bash
@@ -113,18 +176,20 @@ jobs:
           root = Path("beta-bundle")
           assert root.is_dir(), "beta bundle missing"
           manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-          build = json.loads((root / "build-manifest.json").read_text(encoding="utf-8"))
 
           assert manifest.get("files"), "publish manifest empty"
           assert manifest.get("channel") == "beta", manifest
           assert str(manifest.get("version", "")).startswith("0.3.0-beta."), manifest
           assert manifest.get("git_sha") == "${{ github.sha }}", manifest
           assert (root / "release.json").is_file(), "release metadata missing"
-          assert build.get("git_sha") == "${{ github.sha }}", (build.get("git_sha"), "${{ github.sha }}")
 
           names = {p.name for p in root.iterdir() if p.is_file()}
+          assert {item["name"] for item in manifest["files"]} <= names, "manifest references missing artifact"
+          assert manifest["version"] == json.loads(Path("package.json").read_text(encoding="utf-8"))["version"]
           platform = "${{ runner.os }}"
           arch = "${{ matrix.label }}"
+          metadata = "beta.yml" if platform == "Windows" else "beta-mac.yml"
+          assert metadata in names, (metadata, names)
           if platform == "Windows":
               assert any(n.endswith(".exe") for n in names), names
               assert "Adelia-latest-windows-x64.exe" in names, names

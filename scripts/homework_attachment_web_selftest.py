@@ -40,6 +40,7 @@ def main():
         assert items[0]["id"] == aid, items
         assert items[0]["url"] == f"/api/homework/attachment?id={aid}", items
         assert items[0]["filename"] == "physics-homework.pdf", items
+        assert items[0]["stored_on_server"] is True
         forbidden_keys = {"telegram_file_id", "file_id", "vk_attachment_key", "vk_url"}
         assert not (forbidden_keys & set(items[0])), items[0]
 
@@ -127,6 +128,23 @@ def main():
             attachment_bridge._bytes_request = old_bytes
 
         print("HOMEWORK_ATTACHMENT_VK_DB_FIRST=PASS")
+        photo_id = ha.save_reference(10, kind="photo", filename="solution.jpg",
+            mime_type="image/jpeg", source_channel="TELEGRAM", content=b"\xff\xd8\xff-test-photo")
+        attachment_bridge.telegram_file_bytes = forbidden_remote
+        attachment_bridge._bytes_request = forbidden_remote
+        try:
+            assert ha.read_for_web(photo_id, teacher=True)["content"] == b"\xff\xd8\xff-test-photo"
+            assert ha.read_for_web(photo_id, student_user_id=101)["kind"] == "photo"
+            try:
+                ha.read_for_web(photo_id, student_user_id=202)
+            except PermissionError:
+                pass
+            else:
+                raise AssertionError("foreign student read photo")
+        finally:
+            attachment_bridge.telegram_file_bytes = old_tg
+            attachment_bridge._bytes_request = old_bytes
+        print("HOMEWORK_PHOTO_DB_FIRST=PASS")
         print("HOMEWORK_ATTACHMENT_WEB_SELFTEST=PASS")
     finally:
         try:

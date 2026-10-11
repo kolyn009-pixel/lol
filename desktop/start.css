@@ -39,3 +39,27 @@ body{background:radial-gradient(circle at 7% 5%,rgba(126,91,245,.16),transparent
 .intro h1>span{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important}
 .intro h1 em{color:#d8ccff!important;-webkit-text-fill-color:#d8ccff!important;opacity:1!important}
 .intro{isolation:isolate}.intro:before,.intro:after{z-index:0;pointer-events:none}.intro>*{z-index:1}
+
+/* Desktop clarity pass: fewer decorative accents, larger working type. */
+:root{--p:#6547d4;--ink:#211d30;--muted:#625b70;--line:#e6e1ed}
+body{background:#f7f5fa}
+.card{border-radius:28px;box-shadow:0 28px 76px rgba(38,28,61,.11)}
+.intro{background:linear-gradient(145deg,#25213d 0%,#39305e 62%,#604aa3 130%)}
+.intro h1{letter-spacing:-.045em}
+.lead{font-size:15px;line-height:1.6}
+.mini-features span{font-size:11px;padding:9px 11px}
+.desktop-note b{font-size:13px}.desktop-note span{font-size:11px;line-height:1.5}
+.brand small,.top-state{font-size:12px}
+.screen-head span{font-size:25px}.screen-head small{font-size:12px;color:#625b70}
+.role{min-height:96px;border-radius:16px;box-shadow:none;transition:border-color .16s,background-color .16s,box-shadow .16s}
+.role:hover,.role:focus-visible{transform:none;box-shadow:0 7px 24px rgba(38,28,61,.075);background:#faf8ff}
+.role small{font-size:12px;color:#625b70}.role strong{font-size:17px}
+.role:active{transform:none}
+.privacy b{font-size:11px}.privacy small{font-size:11px;color:#625b70}
+footer{font-size:11px}
+.welcome>p,.auth-wrap p{font-size:13px}
+.welcome-points strong{font-size:13px}.welcome-points small{font-size:11px}
+.field-label,.back,.student-actions small,.busy-note,.error{font-size:12px}
+.student-actions b{font-size:14px}.primary,.secondary{font-size:13px}
+@media(max-width:820px){.intro{min-height:240px}.screen{padding:30px}.mini-features{display:none}}
+@media(prefers-reduced-motion:reduce){.role:hover,.role:focus-visible{transform:none}}

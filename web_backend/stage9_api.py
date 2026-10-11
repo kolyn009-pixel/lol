@@ -3,8 +3,9 @@ from __future__ import annotations
 from web_backend.parent_portal import dashboard,student,schedule
 from web_backend.parent_auth import consume_parent_login_code
 from web_backend.web_sessions import SESSION_TTL,create_session
-from web_backend.payment_hub import parent_hub,parent_pay_nearest,parent_create_package,parent_quote_package,parent_attach_receipt
+from web_backend.payment_hub import parent_hub,parent_pay_nearest,parent_create_package,parent_quote_package,parent_attach_receipt,parent_claim_payment
 from web_backend import api as v1
+from web_backend import parent_messages, message_media
 
 class Stage9Mixin:
     def _parent(self):
@@ -17,6 +18,11 @@ class Stage9Mixin:
         if not auth:return self._json(401,{'error':'unauthorized'})
         pid=int(auth['id'])
         try:
+            if path=='/api/parent/finance/qr/status':return self._json(200,{'configured':False,'removed':True})
+            if path=='/api/parent/finance/qr/image':return self._json(410,{'error':'payment_qr_removed'})
+            if path=='/api/parent/messages/students':return self._json(200,parent_messages.students(pid))
+            if path=='/api/parent/messages':
+                return self._json(200,parent_messages.thread(pid,int(q.get('student_id',['0'])[0]),q.get('limit',[100])[0]))
             if path=='/api/parent/dashboard':
                 item=dashboard(pid);return self._json(200,item) if item else self._json(404,{'error':'parent_not_found'})
             if path=='/api/parent/student':
@@ -42,7 +48,39 @@ class Stage9Mixin:
             if result.get('status')!='ok':return self._json(401,{'error':result.get('status','invalid_code')})
             entity=result['parent'];token=create_session('parent',int(entity['id']),SESSION_TTL)
             return self._json(200,{'ok':True,'parent':entity},token)
+        if path=='/api/parent/messages/upload':
+            auth=self._parent()
+            if not auth:return self._json(401,{'error':'unauthorized'})
+            try:
+                form=self._multipart()
+                item=form['file'] if form is not None and 'file' in form else None
+                if item is None or not getattr(item,'filename',None):raise ValueError('file_required')
+                uid=int(form.getfirst('student_id','0'))
+                parent_messages._conversation(int(auth['id']),uid)
+                data=item.file.read(message_media.MAX_BYTES+1)
+                if len(data)>message_media.MAX_BYTES:raise ValueError('media_too_large')
+                mime=getattr(item,'type',None) or 'application/octet-stream'
+                kind='photo' if str(mime).lower().startswith('image/') else 'document'
+                media=message_media.store_bytes(uid,data,item.filename,mime,kind,origin='WEB',participant_type='PARENT',participant_id=int(auth['id']))
+                return self._json(200,{'attachment':media})
+            except PermissionError:return self._json(404,{'error':'student_not_found'})
+            except (TypeError,ValueError) as exc:return self._json(413 if str(exc)=='media_too_large' else 400,{'error':str(exc) or 'invalid_request'})
+            except Exception as exc:print('[web-api] parent media upload error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
+        if path in {'/api/parent/messages/send','/api/parent/messages/read'}:
+            auth=self._parent()
+            if not auth:return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if not isinstance(body,dict):return self._json(400,{'error':'invalid_json'})
+            try:
+                pid=int(auth['id']);uid=int(body.get('student_id') or 0)
+                result=(parent_messages.send(pid,uid,body.get('text'),body.get('attachment')) if path.endswith('/send')
+                        else parent_messages.mark_parent_read(pid,uid,body.get('through_id')))
+                return self._json(200,result)
+            except PermissionError:return self._json(404,{'error':'student_not_found'})
+            except (TypeError,ValueError) as exc:return self._json(400,{'error':str(exc) or 'invalid_request'})
+            except Exception as exc:print('[web-api] parent messages POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if not path.startswith('/api/parent/finance/'):return False
+        if path=='/api/parent/finance/claim' and not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
         auth=self._parent()
         if not auth:return self._json(401,{'error':'unauthorized'})
         body=self._body()
@@ -56,6 +94,8 @@ class Stage9Mixin:
                 return self._json(200,parent_quote_package(pid,uid,body.get('selection_key'),body.get('lessons_count'),body.get('promo_code')))
             if path=='/api/parent/finance/package':
                 return self._json(200,parent_create_package(pid,uid,body.get('selection_key'),body.get('lessons_count'),body.get('promo_code')))
+            if path=='/api/parent/finance/claim':
+                return self._json(200,parent_claim_payment(pid,uid,body.get('payment_id')))
             if path=='/api/parent/finance/receipt':
                 return self._json(200,parent_attach_receipt(pid,uid,body.get('payment_id'),body.get('filename'),body.get('mime_type'),body.get('content_b64')))
         except PermissionError:return self._json(404,{'error':'student_not_found'})

@@ -217,68 +217,24 @@ def _rows(
     ]
 
 
-def menu(
-    app,
-    peer,
-    uid,
-):
-    rows = (
-        database
-        .get_student_homework(
-            int(uid),
-            active_only=True,
-        )
-    )
-
-    if not rows:
-        _send(
-            app,
-            peer,
-            "📝 Активных домашних "
-            "заданий нет.",
-            [[
-                _button(
-                    app,
-                    "🏠 Главная",
-                    "home",
-                )
-            ]],
-        )
-
-        return
-
+def menu(app, peer, uid, archive=False):
+    rows = database.get_student_homework(int(uid), active_only=not archive)
+    if archive:
+        rows = [
+            row for row in rows
+            if str(row["status"] or "").upper() not in
+            {"ASSIGNED", "UNDER_REVIEW", "REVISION", "CANCELLED"}
+        ]
     kb = []
-
     for hw in rows[:20]:
-        title = (
-            hw["title"]
-            or f"ДЗ #{hw['id']}"
-        )
-
-        kb.append([
-            _button(
-                app,
-                f"📝 {title}"[:38],
-                f"vkhw|{hw['id']}",
-                "primary",
-            )
-        ])
-
-    kb.append([
-        _button(
-            app,
-            "🏠 Главная",
-            "home",
-        )
-    ])
-
-    _send(
-        app,
-        peer,
-        "📝 ДОМАШНИЕ ЗАДАНИЯ\n\n"
-        "Выбери задание:",
-        kb,
-    )
+        title = hw["title"] or f"ДЗ #{hw['id']}"
+        kb.append([_button(app, f"📎 {title}"[:38], f"vkhw|{hw['id']}", "primary")])
+    kb.append([_button(app, "📝 Активные ДЗ" if archive else "📚 Архив ДЗ",
+                       "homework" if archive else "homework_archive")])
+    kb.append([_button(app, "🏠 Главная", "home")])
+    label = "📚 АРХИВ ДЗ" if archive else "📝 ДОМАШНИЕ ЗАДАНИЯ"
+    detail = "Выбери задание, чтобы снова получить файл:" if rows else "Заданий пока нет."
+    _send(app, peer, label + "\n\n" + detail, kb)
 
 
 def _vk_preview(
@@ -410,6 +366,12 @@ def open_homework(
     if not row:
         return
 
+    file_rows = [
+        [_button(app, "📎 " + PDF.attachment_filename(item)[:32],
+                 f"vkhwp|{hid}|{item['id']}|1")]
+        for item in ats if int(item["id"]) != int(row["id"])
+    ]
+
     if not PDF.is_pdf(
         row
     ):
@@ -422,64 +384,66 @@ def open_homework(
             else None
         )
 
-        if not key:
+        # The server copy is authoritative; VK attachment keys can expire.
+        stored = row["content_blob"] if "content_blob" in row.keys() else None
+        if stored:
+            key = None
+            data = bytes(stored)
+        elif not key:
             fid = PDF.telegram_file_id(
                 row
             )
+            data = bridge.telegram_file_bytes(fid) if fid else None
+        else:
+            data = None
 
-            if fid:
-                data = (
+        if data:
+
+            kind = str(
+                (
+                    row["file_type"]
+                    if "file_type"
+                    in row.keys()
+                    else ""
+                )
+                or "document"
+            ).lower()
+
+            if kind == "photo":
+                key = (
                     bridge
-                    .telegram_file_bytes(
-                        fid
+                    ._vk_upload_photo(
+                        int(peer),
+                        data,
+                        PDF.attachment_filename(
+                            row
+                        ),
+                        (
+                            row["mime_type"]
+                            if "mime_type"
+                            in row.keys()
+                            else None
+                        )
+                        or "image/jpeg",
                     )
                 )
-
-                kind = str(
-                    (
-                        row["file_type"]
-                        if "file_type"
-                        in row.keys()
-                        else ""
+            else:
+                key = (
+                    bridge
+                    ._vk_upload_document(
+                        int(peer),
+                        data,
+                        PDF.attachment_filename(
+                            row
+                        ),
+                        (
+                            row["mime_type"]
+                            if "mime_type"
+                            in row.keys()
+                            else None
+                        ),
                     )
-                    or "document"
-                ).lower()
-
-                if kind == "photo":
-                    key = (
-                        bridge
-                        ._vk_upload_photo(
-                            int(peer),
-                            data,
-                            PDF.attachment_filename(
-                                row
-                            ),
-                            (
-                                row["mime_type"]
-                                if "mime_type"
-                                in row.keys()
-                                else None
-                            )
-                            or "image/jpeg",
-                        )
-                    )
-                else:
-                    key = (
-                        bridge
-                        ._vk_upload_document(
-                            int(peer),
-                            data,
-                            PDF.attachment_filename(
-                                row
-                            ),
-                            (
-                                row["mime_type"]
-                                if "mime_type"
-                                in row.keys()
-                                else None
-                            ),
-                        )
-                    )
+                )
 
         _send(
             app,
@@ -503,7 +467,7 @@ def open_homework(
                     "⬅️ К ДЗ",
                     "homework",
                 )
-            ]],
+            ]] + file_rows,
             key,
         )
 
@@ -538,7 +502,7 @@ def open_homework(
                 page,
                 pages,
                 done=_done(hw),
-            ),
+            ) + file_rows,
             key,
         )
 
@@ -591,13 +555,11 @@ def original(
         else None
     )
 
-    if not key:
+    # Re-upload from persisted bytes when possible, even if a VK key exists.
+    stored = row["content_blob"] if "content_blob" in row.keys() else None
+    if stored or not key:
         try:
-            source = PDF.ensure_source(
-                row
-            )
-
-            data = source.read_bytes()
+            data = bytes(stored) if stored else PDF.ensure_source(row).read_bytes()
 
             key = (
                 bridge

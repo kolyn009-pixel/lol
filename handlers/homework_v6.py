@@ -17,6 +17,7 @@ from telegram.ext import (
 
 import database
 import homework_pdf_runtime as PDF
+from . import homework_file_delivery as FILES
 
 from formula_library import (
     FORMULA_LIBRARY,
@@ -229,6 +230,8 @@ def _markup(
             ),
         ],
 
+        *FILES.buttons(hid, PDF.attachments(hid)),
+
         [
             InlineKeyboardButton(
                 "⬅️ К списку ДЗ",
@@ -331,11 +334,7 @@ async def send_homework(
     if not PDF.is_pdf(
         primary
     ):
-        fid = (
-            PDF.telegram_file_id(
-                primary
-            )
-        )
+        fid = FILES.primary_media(primary)
 
         if not fid:
             return await bot.send_message(
@@ -380,6 +379,8 @@ async def send_homework(
                     ),
                 ),
             ],
+            *FILES.buttons(hid, attachments),
+
             [
                 InlineKeyboardButton(
                     "⬅️ К ДЗ",
@@ -561,43 +562,17 @@ async def _original(
     if not row:
         return
 
-    fid = PDF.telegram_file_id(
-        row
-    )
-
-    if fid:
-        await context.bot.send_document(
-            q.message.chat_id,
-            document=fid,
-            caption="📄 Оригинал ДЗ",
-        )
-
-        return
-
     try:
-        source = (
-            await asyncio.to_thread(
-                PDF.ensure_source,
-                row,
-            )
-        )
-
-        await context.bot.send_document(
+        await FILES.send(
+            context.bot,
             q.message.chat_id,
-            document=InputFile(
-                str(source),
-                filename=(
-                    PDF.attachment_filename(
-                        row
-                    )
-                ),
-            ),
-            caption="📄 Оригинал ДЗ",
+            hid,
+            aid,
         )
 
     except Exception as exc:
         await q.answer(
-            f"Не удалось открыть PDF: {exc}",
+            f"Не удалось получить файл: {exc}",
             show_alert=True,
         )
 
@@ -844,6 +819,23 @@ async def callback(
     handled = False
 
     try:
+        if (
+            data.startswith(("hw6_", "homework_view|", "hw2_student_home|"))
+            and q.message.chat_id != q.from_user.id
+        ):
+            await q.answer("Откройте ДЗ в личном чате с ботом.", show_alert=True)
+            raise ApplicationHandlerStop
+
+        if data.startswith("hw6_") and data != "hw6_nop":
+            try:
+                requested_hid = int(data.split("|", 2)[1])
+            except (IndexError, ValueError):
+                await q.answer("Некорректная кнопка.", show_alert=True)
+                raise ApplicationHandlerStop
+            if not _owns(q.from_user.id, requested_hid):
+                await q.answer("ДЗ не найдено.", show_alert=True)
+                raise ApplicationHandlerStop
+
         if data.startswith(
             "homework_view|"
         ):
@@ -877,6 +869,18 @@ async def callback(
 
         elif data == "hw6_nop":
             await q.answer()
+            handled = True
+
+        elif data.startswith("hw6_file|"):
+            try:
+                _, hid, aid = data.split("|", 2)
+                await FILES.send(
+                    context.bot, q.message.chat_id, int(hid), int(aid)
+                )
+            except Exception as exc:
+                await q.answer(f"Не удалось получить файл: {exc}", show_alert=True)
+            else:
+                await q.answer("Файл отправлен")
             handled = True
 
         elif data.startswith(
@@ -1059,6 +1063,11 @@ async def callback(
             hid = int(
                 data.split("|")[1]
             )
+
+            if not _owns(q.from_user.id, hid):
+                await q.answer("ДЗ не найдено.", show_alert=True)
+                handled = True
+                return
 
             await q.answer()
 

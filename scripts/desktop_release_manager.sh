@@ -60,10 +60,10 @@ for target,root in entries:
     assert files, (target,"empty manifest")
     names={item["name"] for item in files}
     if target=="win-x64":
-        assert "latest.yml" in names, names
+        assert ("beta.yml" if channel=="beta" else "latest.yml") in names, names
         assert "Adelia-latest-windows-x64.exe" in names, names
     else:
-        assert "latest-mac.yml" in names, names
+        assert ("beta-mac.yml" if channel=="beta" else "latest-mac.yml") in names, names
         alias=f"Adelia-latest-macos-{'arm64' if target.endswith('arm64') else 'x64'}.dmg"
         assert alias in names, (target,names)
 
@@ -162,15 +162,15 @@ for target in "${TARGETS[@]}"; do
   case "$target" in
     win-x64)
       curl -fsSI "$BASE_URL/$CHANNEL/$target/Adelia-latest-windows-x64.exe" >/dev/null
-      curl -fsS "$BASE_URL/$CHANNEL/$target/latest.yml" >/dev/null
+      curl -fsS "$BASE_URL/$CHANNEL/$target/$(test "$CHANNEL" = beta && echo beta || echo latest).yml" >/dev/null
       ;;
     macos-arm64)
       curl -fsSI "$BASE_URL/$CHANNEL/$target/Adelia-latest-macos-arm64.dmg" >/dev/null
-      curl -fsS "$BASE_URL/$CHANNEL/$target/latest-mac.yml" >/dev/null
+      curl -fsS "$BASE_URL/$CHANNEL/$target/$(test "$CHANNEL" = beta && echo beta-mac || echo latest-mac).yml" >/dev/null
       ;;
     macos-x64)
       curl -fsSI "$BASE_URL/$CHANNEL/$target/Adelia-latest-macos-x64.dmg" >/dev/null
-      curl -fsS "$BASE_URL/$CHANNEL/$target/latest-mac.yml" >/dev/null
+      curl -fsS "$BASE_URL/$CHANNEL/$target/$(test "$CHANNEL" = beta && echo beta-mac || echo latest-mac).yml" >/dev/null
       ;;
   esac
   echo "HTTP $target=OK"

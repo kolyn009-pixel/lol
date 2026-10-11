@@ -46,3 +46,4 @@
 .msg-bubble{max-width:min(70%,680px);padding:11px 13px;border-radius:16px;font-size:12px;line-height:1.48;box-shadow:none}.msg-bubble.out{background:#eee8ff}
 .msg-compose{padding:12px 16px 15px}.msg-compose textarea{min-height:58px;border-radius:14px}
 @media(max-width:1050px){.msg-shell{grid-template-columns:320px minmax(0,1fr)}}
+#msgForm.drag-over{outline:2px dashed #7450e8;outline-offset:3px;background:#f7f3ff}

@@ -12,6 +12,7 @@ from datetime import datetime
 import database
 from web_backend import web_push
 from web_backend.student_finance import create_lesson_payment
+from web_backend.invoice_pricing import individual_lesson_quote
 
 
 def _payment_summary(row):
@@ -37,7 +38,8 @@ def _lesson_price(row):
 
 
 def _notify_invoice(user_id,lesson_id,result,row):
-    amount=int(result.get('total_amount') or result.get('amount') or _lesson_price(row) or 0)
+    payment=result.get('payment') or {}
+    amount=int(payment.get('total_amount') or result.get('total_amount') or result.get('amount') or _lesson_price(row) or 0)
     subject={'PHYSICS':'Физика','CHEMISTRY':'Химия'}.get(str(row['subject'] or '').upper(),str(row['subject'] or 'занятие'))
     try:
         start=datetime.fromisoformat(str(row['start_time']))
@@ -79,6 +81,7 @@ def candidates(limit=100):
             continue
         seen.add(uid)
         payment=database.get_payment_for_lesson(int(row['id']))
+        individual=individual_lesson_quote(row) if payment is None else None
         out.append({
             'lesson_id':int(row['id']),
             'user_id':uid,
@@ -88,7 +91,8 @@ def candidates(limit=100):
             'duration_minutes':int(row['duration_minutes'] or 0) if 'duration_minutes' in row.keys() else 0,
             'subject':row['subject'],
             'study_goal':row['study_goal'],
-            'price':_lesson_price(row),
+            'price':int(individual['amount']) if individual else _lesson_price(row),
+            'price_source':individual['source'] if individual else 'LESSON_SNAPSHOT',
             'lesson_payment_status':row['payment_status'],
             'payment':_payment_summary(payment),
         })

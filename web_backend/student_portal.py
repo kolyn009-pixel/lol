@@ -6,11 +6,130 @@ can render quickly on mobile connections.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from time import monotonic
 from threading import Lock
 
-from database import connect, get_user
+from database import connect, get_user, get_user_timezone
+from core.lesson_time import lesson_timezone, schedule_datetime
+from core.user_timezone import fixed_zone_name_from_msk_offset
+
+_ZONE_LABELS = {
+    "Europe/Moscow": "Москва",
+    "Europe/Samara": "Самара",
+    "Asia/Yekaterinburg": "Екатеринбург",
+    "Asia/Omsk": "Омск",
+    "Asia/Krasnoyarsk": "Красноярск",
+    "Asia/Irkutsk": "Иркутск",
+    "Europe/Istanbul": "Стамбул",
+    "Asia/Dubai": "Дубай",
+    "Asia/Tbilisi": "Тбилиси",
+    "Europe/Berlin": "Берлин",
+    "Asia/Bangkok": "Бангкок",
+}
+
+
+def _valid_zone(name):
+    try:
+        value = str(name or "")
+        ZoneInfo(value)
+        return value
+    except Exception:
+        return None
+
+
+def _student_timezone(user, conn):
+    """Resolve an authenticated student's saved region, never the device timezone."""
+    telegram_id = user["telegram_id"] if "telegram_id" in user.keys() else None
+    pref = get_user_timezone(telegram_id) if telegram_id else None
+    chosen = []
+    if pref and int(pref["configured"] or 0):
+        offset = int(pref["msk_offset"] or 0)
+        zone = _valid_zone(pref["zone_name"]) or _valid_zone(fixed_zone_name_from_msk_offset(offset))
+        if zone:
+            chosen.append((str(pref["updated_at"] or ""), {
+                "zone": zone,
+                "label": _ZONE_LABELS.get(zone, f"МСК {offset:+d}" if offset else "Москва"),
+                "selected": True,
+            }))
+    desktop_exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='student_desktop_timezones'"
+    ).fetchone()
+    if desktop_exists:
+        desktop = conn.execute(
+            "SELECT zone_name, label, updated_at FROM student_desktop_timezones WHERE user_id=?",
+            (int(user["id"]),),
+        ).fetchone()
+        zone = _valid_zone(desktop["zone_name"]) if desktop else None
+        if zone:
+            chosen.append((str(desktop["updated_at"] or ""), {
+                "zone": zone,
+                "label": str(desktop["label"] or _ZONE_LABELS.get(zone) or zone).strip()[:80],
+                "selected": True,
+            }))
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='student_onboarding_sessions'"
+    ).fetchone()
+    if exists:
+        row = conn.execute(
+            """SELECT region, timezone, completed_at, updated_at FROM student_onboarding_sessions
+               WHERE linked_user_id=? AND timezone IS NOT NULL AND timezone!=''
+               ORDER BY updated_at DESC, id DESC LIMIT 1""",
+            (int(user["id"]),),
+        ).fetchone()
+        zone = _valid_zone(row["timezone"]) if row else None
+        if zone:
+            chosen.append((str(row["updated_at"] or row["completed_at"] or ""), {
+                "zone": zone,
+                "label": str(row["region"] or _ZONE_LABELS.get(zone) or zone).strip()[:80],
+                "selected": True,
+            }))
+    if chosen:
+        return max(chosen, key=lambda item: item[0])[1]
+    return {"zone": "Europe/Moscow", "label": "Москва", "selected": False}
+
+
+def set_student_timezone(user_id, zone_name):
+    """Save a student's explicit desktop choice; never infer it from an IP address."""
+    uid = int(user_id)
+    user = get_user(uid)
+    if not user or not user["active"]:
+        raise PermissionError("student_not_found")
+    raw = str(zone_name or "").strip()
+    if len(raw) > 80 or not _valid_zone(raw):
+        raise ValueError("invalid_timezone")
+    label = _ZONE_LABELS.get(raw) or raw.rsplit("/", 1)[-1].replace("_", " ")
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+    conn = connect()
+    try:
+        conn.execute("""CREATE TABLE IF NOT EXISTS student_desktop_timezones (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            zone_name TEXT NOT NULL,
+            label TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )""")
+        conn.execute("""INSERT INTO student_desktop_timezones(user_id,zone_name,label,updated_at)
+            VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+            zone_name=excluded.zone_name,label=excluded.label,updated_at=excluded.updated_at""",
+            (uid, raw, label, now))
+        conn.commit()
+    finally:
+        conn.close()
+    with _CACHE_LOCK:
+        _CACHE.pop(("dashboard", uid), None)
+    return {"timezone": {"zone": raw, "label": label, "selected": True}}
+
+
+def _lesson_instant(item):
+    for field in ("start_time", "end_time"):
+        if item.get(field):
+            try:
+                item[field.replace("_time", "_at")] = schedule_datetime(item[field]).isoformat()
+            except (TypeError, ValueError):
+                pass
+    return item
+
 
 _CACHE = {}
 _CACHE_LOCK = Lock()
@@ -51,16 +170,16 @@ def dashboard(user_id):
         if not user or not user["active"]:
             return None
         conn = connect()
-        now = datetime.now().isoformat(timespec="seconds")
+        now = datetime.now(lesson_timezone()).replace(tzinfo=None).isoformat(timespec="seconds")
         next_lesson = conn.execute(
             """
             SELECT id,start_time,end_time,duration_minutes,subject,study_goal,
                    lesson_status,payment_status,price,started_at,finished_at,
                    meeting_url,homework_required,homework_assigned
               FROM lessons
-             WHERE user_id=? AND start_time>=?
+             WHERE user_id=? AND (start_time>=? OR (lesson_status='IN_PROGRESS' AND finished_at IS NULL))
                AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')
-             ORDER BY start_time
+             ORDER BY CASE WHEN lesson_status='IN_PROGRESS' AND finished_at IS NULL THEN 0 ELSE 1 END,start_time
              LIMIT 1
             """,
             (uid, now),
@@ -88,8 +207,9 @@ def dashboard(user_id):
             """,
             (uid,),
         ).fetchone()
+        timezone = _student_timezone(user, conn)
         conn.close()
-        lesson = _dict(next_lesson)
+        lesson = _lesson_instant(_dict(next_lesson)) if next_lesson else None
         if lesson:
             lesson["ui_state"] = _lesson_state(lesson)
         return {
@@ -102,6 +222,7 @@ def dashboard(user_id):
                 "extra_minutes_balance": int(user["extra_minutes_balance"] or 0),
                 "bonus_lessons_earned": int(user["bonus_lessons_earned"] or 0),
                 "board_url": user["board_url"],
+                "timezone": timezone,
             },
             "next_lesson": lesson,
             "active_homework": int(active_hw or 0),
@@ -133,7 +254,7 @@ def schedule(user_id, limit=40):
     conn.close()
     items = []
     for row in rows:
-        item = dict(row)
+        item = _lesson_instant(dict(row))
         item["ui_state"] = _lesson_state(item)
         items.append(item)
     return items

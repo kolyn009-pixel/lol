@@ -94,6 +94,7 @@ SUBJECT_NAMES = {
 
 
 PAYMENT_STATUS_NAMES = {
+    "REVERSED": "↩ Подтверждение отменено",
     "WAITING": "⏳ Ожидает оплаты",
     "RECEIPT_SENT": "🧾 Чек проверяется",
     "PAID": "✅ Оплачено",
@@ -1972,6 +1973,7 @@ async def payment_buttons(
         else:
 
             statuses = {
+                "REVERSED": "↩ подтверждение отменено",
 
                 "WAITING":
                     "⏳ ожидает оплаты",
@@ -2672,7 +2674,8 @@ async def receipt_handler(
 
 async def edit_receipt_message(
     query,
-    text
+    text,
+    reply_markup=None
 ):
 
     try:
@@ -2683,19 +2686,22 @@ async def edit_receipt_message(
         ):
 
             await query.edit_message_caption(
-                caption=text
+                caption=text,
+                reply_markup=reply_markup
             )
 
         else:
 
             await query.edit_message_text(
-                text
+                text,
+                reply_markup=reply_markup
             )
 
     except Exception:
 
         await query.message.reply_text(
-            text
+            text,
+            reply_markup=reply_markup
         )
 
 
@@ -2728,6 +2734,10 @@ async def admin_payment_buttons(
     data = (
         query.data
     )
+
+    if data.startswith(("payment_admin_reverse|", "payment_admin_reverse_yes|", "payment_admin_history|")):
+        from handlers.payment_reversal import handle
+        return await handle(update, context)
 
 
     # ========================================================
@@ -2903,7 +2913,10 @@ async def admin_payment_buttons(
 
         await edit_receipt_message(
             query,
-            admin_text
+            admin_text,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("Отменить ошибочное подтверждение", callback_data=f"payment_admin_reverse|{payment_id}")]
+            ])
         )
 
 

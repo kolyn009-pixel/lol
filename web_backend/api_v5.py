@@ -94,7 +94,7 @@ class Handler(api_v4.Handler):
                 elif path.endswith('/event/enter'):r=student_live_entry.event_entry(int(body.get('event_id')),uid,'APP')
                 elif path.endswith('/event/leave'):r=student_live_entry.leave_event(int(body.get('event_id')),uid,'APP')
                 elif path.endswith('/presence'):r=student_social_profile.touch_presence(uid,int(body.get('active_seconds') or 120))
-                elif path.endswith('/group/chat'):r=group_portal.post_group_message(int(body.get('group_id')),uid,'STUDENT',body.get('body'))
+                elif path.endswith('/group/chat'):r=group_portal.post_group_message(int(body.get('group_id')),uid,'STUDENT',body.get('body'),body.get('client_token'))
                 else:
                     student_social_profile.update(uid,display_name=body.get('display_name'),avatar_kind=body.get('avatar_kind'),avatar_value=body.get('avatar_value'),manual_status=body.get('manual_status'),study_status_text=body.get('study_status_text'),show_online=body.get('show_online'),allow_group_messages=body.get('allow_group_messages'));r=_student_profile(uid)
                 return self._json(200,r)
@@ -106,3 +106,4 @@ def main():
     if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
     ensure_indexes();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();print(f'Adelia web API v5.7 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
+

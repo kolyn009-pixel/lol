@@ -5,17 +5,21 @@ from web_backend.finance_price_sync import set_override,delete_override,quote,pa
 from web_backend.finance_reporting import dashboard,student_finance,calendar_analytics,mark_lesson_paid
 from web_backend.finance_receipts import list_receipts,summary as receipt_summary,review as review_receipt
 from web_backend import teacher_invoices
+from core import payment_reversal
 
 class Stage8Mixin:
     def stage8_get(self,path,q):
         if not path.startswith('/api/teacher/finance/'):return False
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:
+            if path=='/api/teacher/finance/payment-qr/status':return self._json(200,{'configured':False,'removed':True})
+            if path=='/api/teacher/finance/payment-qr/image':return self._json(410,{'error':'payment_qr_removed'})
             if path=='/api/teacher/finance/dashboard':return self._json(200,dashboard(q.get('start',[None])[0],q.get('end',[None])[0],q.get('period',[None])[0]))
             if path=='/api/teacher/finance/calendar-analytics':return self._json(200,calendar_analytics())
             if path=='/api/teacher/finance/receipts':return self._json(200,{'summary':receipt_summary(),'items':list_receipts(q.get('status',['WAITING'])[0],q.get('limit',[100])[0])})
             if path=='/api/teacher/finance/invoices':return self._json(200,teacher_invoices.candidates(q.get('limit',[100])[0]))
             if path=='/api/teacher/finance/student':return self._json(200,student_finance(int(q.get('user_id',['0'])[0])))
+            if path=='/api/teacher/finance/payment/reversal-preview':return self._json(200,payment_reversal.preview(int(q.get('payment_id',['0'])[0])))
             if path=='/api/teacher/finance/prices':return self._json(200,{'items':list_prices()})
             if path=='/api/teacher/finance/overrides':
                 uid=q.get('user_id',[None])[0];return self._json(200,{'items':list_overrides(int(uid) if uid not in (None,'') else None)})
@@ -30,7 +34,21 @@ class Stage8Mixin:
 
     def stage8_post(self,path):
         if not path.startswith('/api/teacher/finance/'):return False
+        if path=='/api/teacher/finance/payment/reverse':
+            if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+            teacher=self._teacher()
+            if not teacher:return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if body is None:return self._json(400,{'error':'invalid_json'})
+            if body.get('confirmed') is not True:return self._json(400,{'error':'confirmation_required'})
+            try:
+                result=payment_reversal.reverse(body.get('payment_id'),actor_id=int(teacher['admin_telegram_id']),source='WEB',reason=body.get('reason')or'Ошибочное подтверждение оплаты')
+                payment_reversal.notify(result)
+                return self._json(200,result)
+            except (ValueError,TypeError) as exc:return self._json(409,{'error':str(exc)})
+            except Exception as exc:print('[web-api] payment reversal error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
+        if path=='/api/teacher/finance/payment-qr':return self._json(410,{'error':'payment_qr_removed'})
         body=self._body()
         if body is None:return self._json(400,{'error':'invalid_json'})
         try:

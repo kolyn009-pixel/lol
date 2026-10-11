@@ -5,6 +5,7 @@ histories. Legacy CRM rows are imported idempotently during the transition.
 """
 from __future__ import annotations
 import json,sqlite3,threading
+from datetime import datetime, timezone
 from database import connect, now_iso
 
 CHANNELS={'TELEGRAM','VK','WEB','SYSTEM','LEGACY'}
@@ -87,7 +88,7 @@ def import_legacy(limit=5000):
 
 def conversations(limit=100,only_unread=False):
     ensure_tables();import_legacy();conn=connect();where="HAVING unread>0" if only_unread else ''
-    rows=conn.execute(f"""SELECT c.id,c.student_id,u.name,c.participant_type,c.participant_id,c.status,c.updated_at,MAX(m.created_at) last_at,SUM(CASE WHEN m.direction='IN' AND m.read_at IS NULL THEN 1 ELSE 0 END) unread,(SELECT body FROM unified_messages x WHERE x.conversation_id=c.id ORDER BY x.id DESC LIMIT 1) last_body FROM unified_conversations c JOIN users u ON u.id=c.student_id LEFT JOIN unified_messages m ON m.conversation_id=c.id GROUP BY c.id {where} ORDER BY datetime(COALESCE(last_at,c.updated_at)) DESC LIMIT ?""",(max(1,min(int(limit),500)),)).fetchall();conn.close();return [dict(r) for r in rows]
+    rows=conn.execute(f"""SELECT c.id,c.student_id,CASE WHEN c.participant_type='PARENT' THEN COALESCE(p.name,'Родитель') ELSE u.name END name,u.name student_name,c.participant_type,c.participant_id,c.status,c.updated_at,MAX(m.created_at) last_at,SUM(CASE WHEN m.direction='IN' AND m.read_at IS NULL THEN 1 ELSE 0 END) unread,(SELECT body FROM unified_messages x WHERE x.conversation_id=c.id ORDER BY x.id DESC LIMIT 1) last_body FROM unified_conversations c JOIN users u ON u.id=c.student_id LEFT JOIN parent_accounts p ON p.id=c.participant_id AND c.participant_type='PARENT' LEFT JOIN unified_messages m ON m.conversation_id=c.id GROUP BY c.id {where} ORDER BY datetime(COALESCE(last_at,c.updated_at)) DESC LIMIT ?""",(max(1,min(int(limit),500)),)).fetchall();conn.close();return [dict(r) for r in rows]
 
 
 def history(conversation_id,limit=100,after_id=None,include_deliveries=False):
@@ -103,11 +104,32 @@ def history(conversation_id,limit=100,after_id=None,include_deliveries=False):
         for d in conn.execute(f"SELECT message_id,channel,recipient_type,recipient_id,status,external_message_id,error_code FROM unified_message_deliveries WHERE message_id IN ({marks}) ORDER BY id",ids).fetchall():delivery_map.setdefault(int(d['message_id']),[]).append(dict(d))
     for r in messages:
         x=dict(r);x['deliveries']=delivery_map.get(int(r['id']),[]) if include_deliveries else []
+        # Legacy naive timestamps belong to the server's timezone, not to the
+        # browser/device. Emit explicit instants before regional formatting.
+        for key in ('created_at','edited_at','read_at'):
+            if x.get(key):
+                try:x[key]=datetime.fromisoformat(x[key]).astimezone(timezone.utc).isoformat(timespec='seconds')
+                except (ValueError,TypeError):pass
         try:x['attachment']=json.loads(x.pop('attachment_json') or 'null')
         except (TypeError,ValueError,json.JSONDecodeError):x['attachment']=None
         out.append(x)
     conn.close();return out
 
 
-def mark_read(conversation_id):
-    ensure_tables();now=now_iso();conn=connect();conn.execute("UPDATE unified_messages SET read_at=COALESCE(read_at,?),status=CASE WHEN status IN ('DELIVERED','SENT') THEN 'READ' ELSE status END WHERE conversation_id=? AND direction='IN' AND read_at IS NULL",(now,int(conversation_id)));conn.commit();conn.close();return {'status':'ok'}
+def mark_read(conversation_id, through_id=None):
+    ensure_tables()
+    now=datetime.now(timezone.utc).isoformat(timespec='seconds')
+    conn=connect()
+    try:
+        where="conversation_id=? AND direction='IN' AND read_at IS NULL"
+        params=[now,int(conversation_id)]
+        if through_id is not None:
+            boundary=int(through_id)
+            if boundary <= 0: raise ValueError('invalid_read_boundary')
+            where+=' AND id<=?';params.append(boundary)
+        changed=conn.execute("UPDATE unified_messages SET read_at=?,status='READ' WHERE "+where,params).rowcount
+        conn.commit()
+        return {'status':'ok','read_at':now,'changed':changed}
+    finally:
+        conn.close()
+

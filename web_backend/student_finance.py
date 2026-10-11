@@ -8,6 +8,7 @@ import base64,os,re,secrets
 from pathlib import Path
 import database,payments
 from core import minute_balance,event_center
+from web_backend.invoice_pricing import individual_lesson_quote
 RECEIPT_ROOT=Path(os.environ.get('ADELIA_WEB_RECEIPT_DIR','/opt/tutorbot/data/web_receipts'));MAX_RECEIPT_BYTES=8*1024*1024
 _ALLOWED={'image/jpeg':('.jpg','PHOTO'),'image/png':('.png','PHOTO'),'application/pdf':('.pdf','DOCUMENT')}
 def _user(user_id):
@@ -51,7 +52,21 @@ def create_lesson_payment(user_id,lesson_id,promo_code=None):
  if promo:
   validation=database.validate_promo_code(promo,int(user_id))
   if not validation['valid']:raise ValueError(validation['reason'])
- existing=database.get_payment_for_lesson(int(lesson_id));payment_id=int(existing['id']) if existing else int(database.create_lesson_payment(int(lesson_id),promo_code=promo));return {'status':'ok','payment':_safe_payment(database.get_payment(payment_id)),'payment_method':payments.payment_method_text(),'lesson_start':lesson['start_time']}
+ existing=database.get_payment_for_lesson(int(lesson_id))
+ if existing:
+  payment_id=int(existing['id'])
+ else:
+  individual=individual_lesson_quote(lesson)
+  if individual:
+   duration=int(individual['duration_minutes'])
+   payment_id=int(database.create_payment(
+    user_id=int(user_id),study_goal=lesson['study_goal'],subject=lesson['subject'],
+    lessons_count=1,price_per_lesson=int(individual['amount']),promo_code=promo,
+    lesson_id=int(lesson_id),minutes_total=duration,base_duration_minutes=duration,
+    hourly_rate=round(int(individual['amount'])*60/max(duration,1))))
+  else:
+   payment_id=int(database.create_lesson_payment(int(lesson_id),promo_code=promo))
+ return {'status':'ok','payment':_safe_payment(database.get_payment(payment_id)),'payment_method':payments.payment_method_text(),'lesson_start':lesson['start_time']}
 def history(user_id,limit=30):return [_safe_payment(row) for row in database.get_user_payments(int(user_id),max(1,min(int(limit),100))) if str(row['payment_type'] or '').upper()!='BONUS']
 def attach_receipt(user_id,payment_id,filename,mime_type,content_b64):
  payment=_payment_owned(user_id,payment_id)
@@ -74,6 +89,39 @@ def attach_receipt(user_id,payment_id,filename,mime_type,content_b64):
    receipt_cloud_archive.enqueue(int(receipt_id))
   except Exception:pass
  user=_user(user_id)
- try:event_center.push('PAYMENT_RECEIPT',f"Новый чек: {user['name']}",f"Платёж #{int(payment_id)} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'ACTION','payment',int(payment_id),f'payment_receipt:{int(payment_id)}')
+ try:event_center.push('PAYMENT_RECEIPT',f"Подтверждение перевода: {user['name']}",f"Платёж #{int(payment_id)} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'ACTION','payment',int(payment_id),f'payment_receipt:{int(payment_id)}')
  except Exception:pass
  return {'status':'ok','payment_id':int(payment_id),'receipt_id':int(receipt_id) if receipt_id is not None else None,'filename':safe_name,'archive_status':'PENDING' if receipt_id is not None else 'UNTRACKED'}
+
+
+def claim_payment(user_id,payment_id):
+ """Record a payer's claim; never credit a payment before teacher review."""
+ uid=int(user_id);pid=int(payment_id)
+ conn=database.connect()
+ try:
+  conn.execute('BEGIN IMMEDIATE')
+  payment=conn.execute('SELECT id,user_id,status,total_amount FROM payments WHERE id=?',(pid,)).fetchone()
+  if not payment or int(payment['user_id'])!=uid:raise PermissionError('payment_not_found')
+  state=str(payment['status'] or '').upper()
+  if state=='PAID':raise ValueError('payment_already_paid')
+  if state not in {'WAITING','PENDING','RECEIPT_SENT','REJECTED'}:raise ValueError('payment_not_claimable')
+  pending=conn.execute("SELECT id,source_platform FROM receipts WHERE payment_id=? AND status='WAITING' ORDER BY id DESC LIMIT 1",(pid,)).fetchone()
+  if pending:
+   conn.rollback()
+   return {'status':'pending_review','payment_id':pid,'receipt_id':int(pending['id']),'already_sent':True}
+  now=database.now_iso()
+  cur=conn.execute("""INSERT INTO receipts
+   (payment_id,user_id,telegram_file_id,source_platform,file_type,status,created_at)
+   VALUES (?,?,?,'WEB_PAYMENT_CLAIM','CLAIM','WAITING',?)""",(pid,uid,'payment-claim:'+str(pid),now))
+  rid=int(cur.lastrowid)
+  conn.execute("UPDATE payments SET status='RECEIPT_SENT' WHERE id=?",(pid,))
+  conn.commit()
+ finally:conn.close()
+ user=_user(uid)
+ try:event_center.push('PAYMENT_RECEIPT',f"Заявление об оплате: {user['name']}",f"Платёж #{pid} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'ACTION','payment',pid,f'payment_claim:{pid}:{rid}')
+ except Exception:pass
+ try:
+  from web_backend import push_events
+  push_events.teachers('💳 Родитель сообщил об оплате',f"{user['name']} · платёж #{pid} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'/teacher/','payment-claim-'+str(pid),{'type':'payment_claim','payment_id':pid})
+ except Exception:pass
+ return {'status':'pending_review','payment_id':pid,'receipt_id':rid,'already_sent':False}

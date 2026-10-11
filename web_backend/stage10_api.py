@@ -4,7 +4,7 @@ from database import connect
 from web_backend import unified_messaging as um
 from web_backend.message_delivery import send_teacher_reply,send_existing_message_channels
 from web_backend.message_read_sync import mark_conversation_read
-from web_backend import message_media
+from web_backend import message_media,parent_messages
 
 
 def _channel_map(user_ids):
@@ -20,7 +20,13 @@ def _conversation_items(limit,unread_only=False):
     items=um.conversations(limit,unread_only);channels=_channel_map(i.get('student_id') for i in items)
     for item in items:
         item['channels']=channels.get(int(item['student_id']),{'telegram':False,'vk':False})
-    return items
+        from datetime import datetime, timezone
+        for key in ('last_at','updated_at'):
+            if item.get(key):
+                try:item[key]=datetime.fromisoformat(item[key]).astimezone(timezone.utc).isoformat(timespec='seconds')
+                except (ValueError,TypeError):pass
+    from web_backend.profile_avatars import conversation_avatars
+    return conversation_avatars(items)
 
 
 class Stage10Mixin:
@@ -32,8 +38,13 @@ class Stage10Mixin:
             try:
                 meta,data=message_media.read(token)
                 role=str(auth.get('role') or '')
-                if role=='student' and int(auth.get('id') or 0)!=int(meta.get('student_id') or 0):return self._json(403,{'error':'forbidden'})
-                if role not in {'student','teacher'}:return self._json(403,{'error':'forbidden'})
+                participant=str(meta.get('participant_type') or 'STUDENT').upper()
+                if role=='student' and (participant!='STUDENT' or int(auth.get('id') or 0)!=int(meta.get('student_id') or 0)):return self._json(403,{'error':'forbidden'})
+                if role=='parent':
+                    if participant!='PARENT' or int(auth.get('id') or 0)!=int(meta.get('participant_id') or 0):return self._json(403,{'error':'forbidden'})
+                    try:parent_messages._conversation(int(auth['id']),int(meta['student_id']))
+                    except PermissionError:return self._json(403,{'error':'forbidden'})
+                if role not in {'student','teacher','parent'}:return self._json(403,{'error':'forbidden'})
                 self.send_response(200);self.send_header('Content-Type',str(meta.get('mime') or 'application/octet-stream'));self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','private, max-age=86400');self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(data);return
             except (ValueError,FileNotFoundError):return self._json(404,{'error':'media_not_found'})
             except Exception as exc:print('[stage10] message media GET error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
@@ -77,12 +88,14 @@ class Stage10Mixin:
                 form=self._multipart()
                 item=form['file'] if form is not None and 'file' in form else None
                 if item is None or not getattr(item,'filename',None):raise ValueError('file_required')
-                uid=int(form.getfirst('user_id','0'))
+                cid=form.getfirst('conversation_id',None)
+                target=parent_messages.parent_target(int(cid)) if cid else None
+                uid=target['student_id'] if target else int(form.getfirst('user_id','0'))
                 data=item.file.read(message_media.MAX_BYTES+1)
                 if len(data)>message_media.MAX_BYTES:raise ValueError('media_too_large')
                 mime=getattr(item,'type',None) or 'application/octet-stream'
                 kind='photo' if str(mime).lower().startswith('image/') else 'document'
-                return self._json(200,{'attachment':message_media.store_bytes(uid,data,item.filename,mime,kind,origin='WEB')})
+                return self._json(200,{'attachment':message_media.store_bytes(uid,data,item.filename,mime,kind,origin='WEB',participant_type='PARENT' if target else 'STUDENT',participant_id=target['parent_id'] if target else None)})
             except ValueError as exc:return self._json(413 if str(exc)=='media_too_large' else 400,{'error':str(exc),'max_bytes':message_media.MAX_BYTES})
             except Exception as exc:print('[stage10] teacher media upload error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         body=self._body()
@@ -91,13 +104,17 @@ class Stage10Mixin:
             if path=='/api/teacher/messages/send':
                 tid=teacher.get('id') if hasattr(teacher,'get') else None
                 # Normal Send is Adelia-only. External channels require the explicit action below.
-                result=send_teacher_reply(int(body.get('user_id')),body.get('text'),[],tid,body.get('attachment'))
+                if body.get('conversation_id') is not None:
+                    result=parent_messages.send_teacher_to_parent(int(body['conversation_id']),body.get('text'),tid,body.get('attachment'))
+                else:
+                    result=send_teacher_reply(int(body.get('user_id')),body.get('text'),[],tid,body.get('attachment'))
                 return self._json(200,result)
             if path=='/api/teacher/messages/send-external':
                 result=send_existing_message_channels(int(body.get('message_id')),body.get('channels'))
                 return self._json(200,result) if result['status']=='ok' else self._json(502,result)
             if path=='/api/teacher/messages/read':
-                return self._json(200,mark_conversation_read(int(body.get('conversation_id'))))
+                return self._json(200,mark_conversation_read(int(body.get('conversation_id')),body.get('through_id')))
         except ValueError as exc:return self._json(400,{'error':str(exc)})
         except Exception as exc:print('[stage10] teacher messages POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         return self._json(404,{'error':'not_found'})
+

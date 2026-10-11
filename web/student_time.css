@@ -1,0 +1,16 @@
+.student-local-clock{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:100px;min-height:42px;margin-left:auto;margin-right:9px;padding:5px 10px;border:1px solid #e4dcf2;border-radius:13px;background:#fff;color:#29223b;font:inherit;cursor:pointer}
+.student-local-clock-face{font-weight:800;font-size:16px;line-height:1.1;font-variant-numeric:tabular-nums}
+.student-local-clock-zone{font-size:10px;color:#6e6681;white-space:nowrap}
+.student-timezone-suggestion{position:fixed;z-index:2147483001;left:14px;right:14px;bottom:max(14px,env(safe-area-inset-bottom));max-width:400px;margin:auto;padding:19px;border:1px solid #e4daf6;border-radius:20px;background:#fff;color:#29223b;box-shadow:0 20px 55px #24174730}
+.student-timezone-suggestion p,.student-timezone-overlay p{font-size:13px;line-height:1.5;color:#6e6681}
+.student-timezone-suggestion>div{display:flex;gap:8px;flex-wrap:wrap}
+.student-timezone-suggestion button,.student-timezone-save{min-height:42px;padding:0 14px;border:1px solid #e4dcf2;border-radius:11px;background:#fff;color:#29223b;font:inherit;font-weight:700;cursor:pointer}
+.student-timezone-suggestion [data-change],.student-timezone-save{background:#6847f5;border-color:#6847f5;color:#fff}
+.student-timezone-suggestion small[role=status],.student-timezone-overlay small[role=status]{display:block;color:#ad3553;margin-top:8px}
+.student-timezone-overlay{position:fixed;inset:0;z-index:2147483002;display:grid;place-items:center;padding:18px;background:#18102485}
+.student-timezone-overlay section{position:relative;width:min(100%,440px);max-height:90vh;overflow:auto;padding:26px;border-radius:22px;background:#fff;color:#29223b}
+.student-timezone-close{position:absolute;right:18px;top:16px;border:0;background:none;font-size:27px;cursor:pointer}
+.student-timezone-overlay h2{margin:8px 30px 8px 0;font-size:23px}.student-timezone-kicker{font-size:11px;font-weight:800;color:#6847f5;text-transform:uppercase}
+.student-timezone-overlay label{display:block;margin:18px 0 7px;font-size:13px;font-weight:750}
+.student-timezone-overlay select{width:100%;height:46px;padding:0 11px;border:1px solid #e4dcf2;border-radius:10px;background:#fff;font:inherit}
+.student-timezone-save{width:100%;margin-top:14px}

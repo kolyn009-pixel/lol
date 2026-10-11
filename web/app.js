@@ -4,10 +4,16 @@ const money=n=>Number(n||0).toLocaleString('ru-RU')+' ₽';
 const titles={home:'Главная',schedule:'Занятия',homework:'Домашка',payments:'Оплата',messages:'Сообщения',profile:'Профиль',studentLogin:'Вход'};
 let auth=null;
 let current='home';
+let timeReady=false;
 let authMode='gateway';
 const startupParams=new URLSearchParams(location.search);
 const startupHomework=/^\d+$/.test(startupParams.get('homework')||'')?Number(startupParams.get('homework')):null;
 async function afterStudentLogin(){window.dispatchEvent(new CustomEvent('adelia:student-authenticated'));if(startupHomework){$('#pageTitle').textContent='Домашка';document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.tab==='homework'));await openHomework(startupHomework);return}await render('home')}
+
+const OFFLINE_PATHS=new Set(['/student/schedule?limit=60','/student/homework']);
+function offlineKey(path){return 'adelia:offline:'+String(auth?.id||'')+':'+path}
+function clearOffline(){try{for(const key of Object.keys(sessionStorage))if(key.startsWith('adelia:offline:'))sessionStorage.removeItem(key);sessionStorage.removeItem('adelia:offline-owner')}catch{}}
+function offlineBanner(data){return data?'<p class="student-offline-note" role="status">Нет сети · показана сохранённая копия от '+new Date(data).toLocaleString('ru-RU')+'. Действия требуют подключения.</p>':''}
 
 async function api(path,opt={}){
   const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),12000);
@@ -15,12 +21,22 @@ async function api(path,opt={}){
     const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt,signal:opt.signal||ctrl.signal});
     const j=await r.json().catch(()=>({}));
     if(!r.ok){const e=new Error(j.error||'Ошибка');e.status=r.status;throw e}
+    if(OFFLINE_PATHS.has(path)&&!opt.method&&auth?.role==='student')try{sessionStorage.setItem(offlineKey(path),JSON.stringify({at:Date.now(),data:j}))}catch{}
     return j;
-  }catch(e){if(e?.name==='AbortError'){const x=new Error('NETWORK_TIMEOUT');x.status=0;throw x}throw e}
+  }catch(e){
+    if(e?.name==='AbortError'){const x=new Error('NETWORK_TIMEOUT');x.status=0;e=x}
+    if(e?.status==null&&e instanceof TypeError)e.status=0;
+    if(e?.status===0&&OFFLINE_PATHS.has(path)&&auth?.role==='student')try{const saved=JSON.parse(sessionStorage.getItem(offlineKey(path))||'null');if(saved?.data)return {...saved.data,_offline_at:saved.at}}catch{}
+    throw e;
+  }
   finally{clearTimeout(timer)}
 }
 function fmtDate(v){if(!v)return '—';const d=new Date(v);return new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(d)}
 function fmtTime(v){if(!v)return '—';const d=new Date(v);return new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'}).format(d)}
+function fmtLesson(v,opt){if(!v)return '—';return new Intl.DateTimeFormat('ru-RU',{...opt,...(window.StudentTime?.preference?{timeZone:window.StudentTime.preference.zone}:{})}).format(new Date(v))}
+const lessonShortDate=v=>fmtLesson(v,{day:'numeric',month:'short'}),lessonTime=v=>fmtLesson(v,{hour:'2-digit',minute:'2-digit'});
+function lessonStamp(x,field='start'){return x?.[field+'_at']||x?.[field+'_time']}
+function lessonDate(x,field='start'){return new Date(lessonStamp(x,field))}
 function subjectName(v){return ({PHYSICS:'Физика',CHEMISTRY:'Химия'})[String(v||'').toUpperCase()]||v||'Занятие'}
 function goalName(v){return ({EGE:'ЕГЭ',OGE:'ОГЭ',SCHOOL:'Школьный курс',OLYMPIAD:'Олимпиадная подготовка'})[String(v||'').toUpperCase()]||v||''}
 function payStatus(v){return ({PAID:'Оплачено',AWAITING_PAYMENT:'Ожидает оплаты',WAITING:'Ожидает оплаты',PENDING:'На проверке',CONFIRMED:'Подтверждено',CANCELLED:'Отменено'})[String(v||'').toUpperCase()]||v||'—'}
@@ -33,7 +49,7 @@ function authCard(){
 }
 
 async function ensureAuth(){
-  try{const d=await api('/auth/me');auth=d.session||null}catch{auth=null}
+  try{const d=await api('/auth/me');const next=d.session||null;try{const owner=sessionStorage.getItem('adelia:offline-owner');if(!next||owner&&owner!==String(next.id))clearOffline();if(next?.role==='student')sessionStorage.setItem('adelia:offline-owner',String(next.id))}catch{}auth=next}catch(e){if(e.status!==0||auth?.role!=='student')auth=null}
   if(auth?.role==='teacher'){location.href='/teacher/';return false}
   return !!(auth&&auth.role==='student');
 }
@@ -41,19 +57,20 @@ async function ensureAuth(){
 async function home(){
   const d=await api('/student/dashboard');
   const s=d.student||{};const l=d.next_lesson;
-  const next=l?`${subjectName(l.subject)} · ${fmtDate(l.start_time)} в ${fmtTime(l.start_time)} · ${l.duration_minutes||60} мин`:'Ближайших занятий пока нет';
+  const next=l?`${subjectName(l.subject)} · ${lessonShortDate(lessonStamp(l))} в ${lessonTime(lessonStamp(l))} · ${l.duration_minutes||60} мин`:'Ближайших занятий пока нет';
   const cta=l?`<button class="primary-btn" data-lesson="${l.id}">${l.started_at?'Вернуться к занятию':'Открыть занятие'}</button>`:`<button class="primary-btn" data-go="schedule">Расписание</button>`;
+  const focus=d.active_homework?'<section class="section" aria-label="Следующее действие"><h3>Задания ждут тебя</h3><p>Активных заданий: '+Number(d.active_homework||0)+'</p><button class="primary-btn" data-go="homework">Открыть ДЗ</button></section>':d.unread_messages?'<section class="section" aria-label="Следующее действие"><h3>Новое сообщение</h3><button class="primary-btn" data-go="messages">Открыть переписку</button></section>':'';
   const recent=d.recent_result?`<section class="section"><h3>Последний результат</h3><article class="task-card done"><span class="status">Проверено</span><h3>${esc(d.recent_result.title||'Домашняя работа')}</h3><p>${d.recent_result.accuracy_percent!=null?`Результат: <b>${esc(d.recent_result.accuracy_percent)}%</b>`:esc(d.recent_result.result||'Проверено')}</p></article></section>`:'';
-  return `<section class="welcome"><p>${esc(s.name||'Ученик')}, добро пожаловать 💜</p><h2>${l?'Следующее занятие':'Всё под контролем'}</h2><span>${esc(next)}</span>${cta}</section><section class="quick-actions"><button class="action-card" data-go="schedule"><span>📅</span><b>Расписание</b><small>${l?fmtDate(l.start_time)+' · '+fmtTime(l.start_time):'Нет ближайших занятий'}</small></button><button class="action-card" data-go="homework"><span>📚</span><b>Домашка</b><small>${d.active_homework} активных заданий</small></button><button class="action-card" data-go="payments"><span>💳</span><b>Оплата</b><small>${d.payments_waiting?`${money(d.payments_waiting_amount)} ожидает`:`Баланс ${s.extra_minutes_balance||0} мин`}</small></button><button class="action-card" data-go="messages"><span>💬</span><b>Сообщения</b><small>${d.unread_messages?`${d.unread_messages} новых`:'Связь с преподавателем'}</small></button></section>${recent}`;
+  return `<section class="welcome"><p>${esc(s.name||'Ученик')}, добро пожаловать 💜</p><h2>${l?'Следующее занятие':'Всё под контролем'}</h2><span>${esc(next)}</span>${cta}</section>${focus}<section class="quick-actions"><button class="action-card" data-go="schedule"><span>📅</span><b>Расписание</b><small>${l?lessonShortDate(lessonStamp(l))+' · '+lessonTime(lessonStamp(l)):'Нет ближайших занятий'}</small></button><button class="action-card" data-go="homework"><span>📚</span><b>Домашка</b><small>${d.active_homework} активных заданий</small></button><button class="action-card" data-go="payments"><span>💳</span><b>Оплата</b><small>${d.payments_waiting?`${money(d.payments_waiting_amount)} ожидает`:`Баланс ${s.extra_minutes_balance||0} мин`}</small></button><button class="action-card" data-go="messages"><span>💬</span><b>Сообщения</b><small>${d.unread_messages?`${d.unread_messages} новых`:'Связь с преподавателем'}</small></button></section>${recent}`;
 }
 
 async function schedule(){
   const d=await api('/student/schedule?limit=60');
   const items=d.items||[];const now=Date.now();
-  const upcoming=items.filter(x=>new Date(x.start_time).getTime()>=now&&!['cancelled','completed'].includes(x.ui_state)).sort((a,b)=>new Date(a.start_time)-new Date(b.start_time));
+  const upcoming=items.filter(x=>lessonDate(x).getTime()>=now&&!['cancelled','completed'].includes(x.ui_state)).sort((a,b)=>lessonDate(a)-lessonDate(b));
   const past=items.filter(x=>!upcoming.includes(x)).slice(0,20);
-  const card=x=>`<article class="list-card lesson-card state-${esc(x.ui_state)}" data-lesson="${x.id}"><div class="date-badge"><b>${new Date(x.start_time).getDate()}</b><span>${new Intl.DateTimeFormat('ru-RU',{month:'short'}).format(new Date(x.start_time))}</span></div><div class="list-copy"><b>${esc(subjectName(x.subject))}${x.study_goal?' · '+esc(goalName(x.study_goal)):''}</b><span>${fmtTime(x.start_time)}–${fmtTime(x.end_time)} · ${x.duration_minutes||60} мин</span><small>${esc(lessonStatus(x.lesson_status))} · ${esc(payStatus(x.payment_status))}</small></div><button class="mini-btn">Открыть</button></article>`;
-  return `<div class="segmented"><button class="active" data-schedule-tab="future">Предстоящие</button><button data-schedule-tab="past">Прошедшие</button></div><section class="section schedule-pane" id="futurePane"><h3>Ближайшие занятия</h3>${upcoming.map(card).join('')||'<div class="empty">Предстоящих занятий пока нет.</div>'}</section><section class="section schedule-pane hidden" id="pastPane"><h3>История</h3>${past.map(card).join('')||'<div class="empty">История занятий пока пуста.</div>'}</section>`;
+  const card=x=>`<article class="list-card lesson-card state-${esc(x.ui_state)}" data-lesson="${x.id}"><div class="date-badge"><b>${new Intl.DateTimeFormat('ru-RU',{day:'numeric',...(window.StudentTime?.preference?{timeZone:window.StudentTime.preference.zone}:{})}).format(lessonDate(x))}</b><span>${new Intl.DateTimeFormat('ru-RU',{month:'short',...(window.StudentTime?.preference?{timeZone:window.StudentTime.preference.zone}:{})}).format(lessonDate(x))}</span></div><div class="list-copy"><b>${esc(subjectName(x.subject))}${x.study_goal?' · '+esc(goalName(x.study_goal)):''}</b><span>${lessonTime(lessonStamp(x))}–${lessonTime(lessonStamp(x,'end'))} · ${x.duration_minutes||60} мин</span><small>${esc(lessonStatus(x.lesson_status))} · ${esc(payStatus(x.payment_status))}</small></div><button class="mini-btn">Открыть</button></article>`;
+  return `${offlineBanner(d._offline_at)}<div class="segmented"><button class="active" data-schedule-tab="future">Предстоящие</button><button data-schedule-tab="past">Прошедшие</button></div><section class="section schedule-pane" id="futurePane"><h3>Ближайшие занятия</h3>${upcoming.map(card).join('')||'<div class="empty">Предстоящих занятий пока нет.</div>'}</section><section class="section schedule-pane hidden" id="pastPane"><h3>История</h3>${past.map(card).join('')||'<div class="empty">История занятий пока пуста.</div>'}</section>`;
 }
 
 async function payments(){
@@ -73,7 +90,7 @@ async function profile(){
 }
 
 async function homework(){
-  try{const d=await api('/student/homework');return `<section class="stat-row"><div><b>${d.items.filter(x=>!['CHECKED','COMPLETED'].includes(x.status)).length}</b><span>активных</span></div><div><b>${d.items.filter(x=>['CHECKED','COMPLETED'].includes(x.status)).length}</b><span>выполнено</span></div></section><section class="section"><h3>Мои задания</h3>${d.items.map(x=>`<article class="task-card ${['CHECKED','COMPLETED'].includes(x.status)?'done':''}"><span class="status">${x.external?(x.external.provider==='RESHU_EGE'?'Решу ЕГЭ':x.external.provider==='RESHU_OGE'?'Решу ОГЭ':'Внешний вариант'):x.interactive_task_count?'Интерактивное ДЗ':esc(x.status||'ДЗ')}</span><h3>${esc(x.title||'Домашнее задание')}</h3><p>${esc(x.description||'')}${x.interactive_task_count?` · ${x.interactive_task_count} заданий`:''}</p><button class="form-primary" data-hw="${x.id}">Открыть</button></article>`).join('')||'<div class="empty">Новых заданий нет ✨</div>'}</section>`}catch(e){return '<div class="form-error">Не удалось загрузить домашние задания.</div>'}
+  try{const d=await api('/student/homework');return `${offlineBanner(d._offline_at)}<section class="stat-row"><div><b>${d.items.filter(x=>!['CHECKED','COMPLETED'].includes(x.status)).length}</b><span>активных</span></div><div><b>${d.items.filter(x=>['CHECKED','COMPLETED'].includes(x.status)).length}</b><span>выполнено</span></div></section><section class="section"><h3>Мои задания</h3>${d.items.map(x=>`<article class="task-card ${['CHECKED','COMPLETED'].includes(x.status)?'done':''}"><span class="status">${x.external?(x.external.provider==='RESHU_EGE'?'Решу ЕГЭ':x.external.provider==='RESHU_OGE'?'Решу ОГЭ':'Внешний вариант'):x.interactive_task_count?'Интерактивное ДЗ':esc(x.status||'ДЗ')}</span><h3>${esc(x.title||'Домашнее задание')}</h3><p>${esc(x.description||'')}${x.interactive_task_count?` · ${x.interactive_task_count} заданий`:''}</p><button class="form-primary" data-hw="${x.id}">Открыть</button></article>`).join('')||'<div class="empty">Новых заданий нет ✨</div>'}</section>`}catch(e){return '<div class="form-error">Не удалось загрузить домашние задания.</div>'}
 }
 
 async function homeworkDetail(id){
@@ -83,14 +100,20 @@ async function homeworkDetail(id){
 function loginView(){return authCard()}
 function showAuth(mode){authMode=mode;$('#content').innerHTML=loginView();bind()}
 
+let renderEpoch=0;
 async function render(tab='home'){
+  const epoch=++renderEpoch;window.AdeliaStudentMessenger?.stop();
   current=tab;$('#content').innerHTML=loading();$('#pageTitle').textContent=titles[tab]||tab;
   const ok=await ensureAuth();
+  if(epoch!==renderEpoch)return;
   if(!ok){$('#content').innerHTML=loginView();bind();return}
-  const views={home,schedule,homework,payments,messages,profile};
+  if(!timeReady){timeReady=true;window.dispatchEvent(new Event('adelia:student-authenticated'))}
+  if(window.StudentTime)await window.StudentTime.load().catch(()=>{});
+  if(epoch!==renderEpoch)return;
+  const views={home,schedule,homework,payments,messages:window.AdeliaStudentMessenger?.screen||messages,profile};
   const view=views[tab]||home;
-  try{$('#content').innerHTML=await view()}catch(e){if(e.status===401){auth=null;$('#content').innerHTML=loginView()}else $('#content').innerHTML='<div class="form-error">Не удалось загрузить данные. Попробуйте ещё раз.</div>'}
-  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));bind();
+  try{const markup=await view();if(epoch!==renderEpoch)return;$('#content').innerHTML=markup}catch(e){if(epoch!==renderEpoch)return;if(e.status===401){auth=null;$('#content').innerHTML=loginView()}else $('#content').innerHTML='<div class="form-error">Не удалось загрузить данные. Попробуйте ещё раз.</div>'}
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));bind();if(tab==='messages')window.AdeliaStudentMessenger?.mount();else window.AdeliaStudentMessenger?.stop();
 }
 
 async function openHomework(id){$('#content').innerHTML=loading();$('#content').innerHTML=await homeworkDetail(id);bind();const ext=$('#openExternal');if(ext)ext.onclick=async()=>{try{const r=await api('/student/homework/external/open',{method:'POST',body:JSON.stringify({homework_id:+id})});window.open(r.url,'_blank','noopener')}catch{$('#hwResult').innerHTML='<p class="form-error">Не удалось открыть вариант.</p>'}};document.querySelectorAll('[data-ext-status]').forEach(x=>x.onclick=async()=>{try{await api('/student/homework/external/status',{method:'POST',body:JSON.stringify({homework_id:+id,status:x.dataset.extStatus})});$('#hwResult').innerHTML='<div class="form-success">✓ Статус отправлен преподавателю</div>'}catch{$('#hwResult').innerHTML='<p class="form-error">Не удалось отправить статус.</p>'}});const submit=$('#submitInteractive');if(submit)submit.onclick=async()=>{const responses={};document.querySelectorAll('[data-answer]').forEach(x=>responses[x.dataset.answer]=x.value);try{const r=await api('/student/homework/submit',{method:'POST',body:JSON.stringify({homework_id:+id,responses})});$('#hwResult').innerHTML=`<div class="form-success"><b>${r.score_percent}%</b><br>${r.correct_tasks} из ${r.total_tasks} автоматически проверяемых заданий · ${r.earned_points} / ${r.total_points} баллов</div>`}catch{$('#hwResult').innerHTML='<p class="form-error">Не удалось проверить ответы.</p>'}}}
@@ -117,4 +140,8 @@ function bind(){
 document.querySelectorAll('.nav-item').forEach(x=>x.onclick=()=>render(x.dataset.tab));
 $('#roleButton').onclick=()=>render('profile');
 async function bootStudentRoute(){if(startupHomework){const ok=await ensureAuth();$('#pageTitle').textContent='Домашка';document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.tab==='homework'));if(!ok){current='homework';$('#content').innerHTML=loginView();bind();return}await openHomework(startupHomework);return}await render(startupParams.get('tab')||startupParams.get('view')||'home')}
+window.AdeliaStudentRender=render;
 bootStudentRoute();
+
+window.addEventListener('adelia:student-timezone-changed',()=>{if(current==='home'||current==='schedule')render(current)});
+

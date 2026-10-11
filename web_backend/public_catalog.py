@@ -1,8 +1,8 @@
 """Public catalog helpers for adeliatutor.ru.
 
 The website must never hardcode lesson prices. Active directions and rates are
-read from TutorBot's existing price_settings table so changes in admin/DB are
-reflected on the public site without a frontend rebuild.
+read from the teacher price_catalog (including duration), with price_settings as
+a legacy fallback, so updates appear without a frontend rebuild.
 """
 
 from database import connect
@@ -27,8 +27,8 @@ def get_public_price_catalog():
             title COLLATE NOCASE
         """
     ).fetchall()
-    conn.close()
-    return [
+    items = {
+        row['rate_key']:
         {
             "key": row["rate_key"],
             "goal": row["study_goal"],
@@ -36,7 +36,26 @@ def get_public_price_catalog():
             "grade_min": row["grade_min"],
             "grade_max": row["grade_max"],
             "hourly_rate": int(row["hourly_rate"]),
+            "amount": int(row["hourly_rate"]),
+            "duration_minutes": 60,
             "title": row["title"],
         }
         for row in rows
-    ]
+    }
+    # The teacher editor stores amount AND duration in price_catalog. Prefer
+    # that source, including deactivation and college, over legacy hourly rows.
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='price_catalog'").fetchone():
+        for row in conn.execute('SELECT * FROM price_catalog').fetchall():
+            key = row['tariff_key']
+            if not row['active']:
+                items.pop(key, None)
+                continue
+            duration = int(row['duration_minutes'] or 60)
+            old = items.get(key, {})
+            items[key] = {**old, 'key': key, 'title': row['title'],
+                          'goal': row['study_goal'], 'subject': row['subject'],
+                          'grade_min': old.get('grade_min'), 'grade_max': old.get('grade_max'),
+                          'amount': int(row['amount']), 'duration_minutes': duration,
+                          'hourly_rate': round(int(row['amount']) * 60 / duration)}
+    conn.close()
+    return list(items.values())

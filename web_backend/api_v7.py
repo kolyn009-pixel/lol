@@ -11,10 +11,13 @@ from web_backend import event_campaign, formula_schema_repair, google_calendar_o
 from web_backend import group_lessons, group_lesson_access, group_portal, open_event_admin
 from web_backend import lesson_join, otp_secret, public_trial_access, public_trial_channel
 from web_backend import student_onboarding, student_regular_booking, student_social_profile
+from web_backend.profile_avatars import AvatarMixin
 from web_backend import telemost_runtime, telemost_settings, web_push, monthly_allowance, teacher_manual_booking
 from web_backend.stage12_indexes import ensure_indexes
+from web_backend.robokassa_api import RobokassaMixin
+from web_backend.legal_api import LegalMixin
 
-class Handler(api_v6.Handler):
+class Handler(AvatarMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
     server_version="AdeliaWeb/7.10"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
@@ -27,6 +30,15 @@ class Handler(api_v6.Handler):
         except Exception as exc:print('[web-api] registration push error:',type(exc).__name__,repr(exc),flush=True)
     def do_GET(self):
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
+        if self.legal_get(path,q) or self.legal_parent_gate(path):return
+        if self.avatar_get(path,q):return
+        if path=='/api/teacher/group/chat':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            try:
+                gid=int((q.get('group_id')or['0'])[0]);g=group_lessons.get_group(gid)
+                return self._json(200,{'group':g,'items':group_portal.group_chat(gid,limit=int((q.get('limit')or['100'])[0]))})
+            except (ValueError,TypeError):return self._json(404,{'error':'group_not_found'})
+        if self.robokassa_get(path):return
         if path=="/api/push/status":
             auth=self._auth()
             if not auth:return self._json(401,{"error":"unauthorized"})
@@ -64,6 +76,16 @@ class Handler(api_v6.Handler):
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        if self.legal_post(path) or self.legal_parent_gate(path):return
+        if self.avatar_post(path):return
+        if path=='/api/teacher/group/chat':
+            if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            body=self._body()
+            if not isinstance(body,dict):return self._json(400,{'error':'invalid_json'})
+            try:return self._json(200,group_portal.post_group_message(int(body.get('group_id')),None,'TEACHER',body.get('body'),body.get('client_token')))
+            except (ValueError,TypeError,PermissionError) as exc:return self._json(409,{'error':str(exc)})
+        if self.robokassa_post(path):return
         if path in {"/api/push/subscribe","/api/push/unsubscribe","/api/push/test"}:
             if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
             auth=self._auth()
@@ -177,3 +199,4 @@ def main():
     if not otp_secret.configured():raise SystemExit("ADELIA_OTP_SECRET must be set to at least 32 bytes")
     ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();web_push.ensure_schema();monthly_allowance.ensure_schema();print(f"Adelia web API v7.10 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=="__main__":main()
+

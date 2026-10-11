@@ -425,7 +425,7 @@ def credit_confirmed_payment(payment_id: int, package_id: int | None = None):
     conn = database.connect()
     try:
         p = conn.execute("SELECT * FROM payments WHERE id=?", (int(payment_id),)).fetchone()
-        if not p:
+        if not p or p["status"] != "PAID":
             return
         base = int(p["base_duration_minutes"] or default_duration_for_goal(p["study_goal"]))
         total = int(p["minutes_total"] or (int(p["lessons_count"] or 0) * base))
@@ -441,7 +441,9 @@ def credit_confirmed_payment(payment_id: int, package_id: int | None = None):
                 continue
             # A direct one-lesson payment is already consumed; packages are not.
             legacy_used = int(pkg["lessons_used"] or 0)
-            used = min(total, legacy_used * base)
+            # Replayed provider callbacks must preserve minutes already consumed
+            # between callbacks, including a partial lesson rounded down in legacy counts.
+            used = min(total, max(int(pkg['minutes_used'] or 0), legacy_used * base))
             conn.execute("""
                 UPDATE lesson_packages
                 SET minutes_total=?,minutes_used=?,base_duration_minutes=?,hourly_rate=?,
