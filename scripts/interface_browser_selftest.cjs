@@ -27,6 +27,8 @@ async function scenario(browser,size){
   else if(u.pathname==='/api/parent/messages')data={items:[{id:1,direction:'OUT',body:'Фото задания',created_at:'2026-10-11T12:00:00Z',attachment:{kind:'photo',name:'Задание',url:'/app/assets/avatars/student_avatar_03.svg'}}]};
   else if(u.pathname==='/api/student/messages')data={items:[{id:1,direction:'OUT',text:'Здравствуйте',created_at:'2026-10-11T12:00:00Z'}]};
   else if(u.pathname==='/api/student/dashboard')data={unread_messages:0};
+  else if(u.pathname==='/api/auth/me')data={authenticated:true,session:{role:'student',id:1}};
+  else if(u.pathname==='/api/student/profile')data={display_name:'Анна',onboarding_completed:false,avatar_kind:'PRESET',avatar_value:'student_avatar_01'};
   await route.fulfill({json:data});
  });
  const origin='http://127.0.0.1:'+server.address().port;
@@ -42,6 +44,7 @@ async function scenario(browser,size){
  await page.evaluate(()=>AdeliaGroupChat.mount(document.querySelector('#testGroup'),{groupId:2,group:{chat_mode:'ANNOUNCEMENTS'}}));assert.equal(await page.locator('#testGroup textarea').isDisabled(),true);
  role='parent';await page.goto(origin+'/fixture/parent');await page.locator('#parentMessagesOpen').click();await page.locator('.pm-media img').waitFor();await page.locator('#pmText').fill('Первый черновик');await page.locator('#pmStudent').selectOption('2');assert.equal(await page.locator('#pmText').inputValue(),'');await page.locator('#pmText').fill('Второй черновик');await page.locator('#pmStudent').selectOption('1');assert.equal(await page.locator('#pmText').inputValue(),'Первый черновик');await page.keyboard.press('Escape');assert.equal(await page.locator('#parentMessenger').count(),0);
  role='teacher';await page.goto(origin+'/fixture/teacher');await page.evaluate(()=>teacherGroups());await page.locator('[data-group-chat]').click();await page.locator('.adelia-group-compose textarea').waitFor();await page.locator('.adelia-group-compose textarea').fill('Объявление преподавателя');await page.locator('.adelia-group-compose button').click();await page.locator('.adelia-group-status').filter({hasText:'Отправлено'}).waitFor();
+ role='student';await page.goto(origin+'/fixture/student');await page.addScriptTag({url:origin+'/app/registration_profile.js'});await page.locator('#adeliaOnboarding').waitFor();assert.equal(await page.locator('.adelia-onboarding-avatar').count(),10);const avatar=await page.locator('.adelia-onboarding-avatar').first().boundingBox();assert(avatar.width>=44&&avatar.width<=90,'onboarding avatars must be bounded');
  assert.deepEqual(errors,[]);console.log('INTERFACE_BROWSER='+size.width+'x'+size.height+' PASS');await context.close();
 }
 (async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));let browser;try{browser=await chromium.launch();for(const size of [{width:390,height:844},{width:1440,height:900}])await scenario(browser,size)}finally{await browser?.close();server.close()}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -14,7 +14,7 @@ function mount(){const back=document.querySelector('#back');if(!back||!studentId
 function draw(slot,d){const finance=d.finance||{},pending=finance.waiting_payment,lesson=d.nearest_unpaid_lesson;
  if(!pending&&!lesson){slot.innerHTML='<article class="card"><strong>Ближайшее занятие оплачено</strong><p class="muted">Когда появится новая оплата, она будет здесь.</p></article>';return}
  const amount=pending?.total_amount??lesson?.price;
- slot.innerHTML='<article class="card" style="display:grid;gap:12px;margin:12px 0 20px"><div><span class="eyebrow">К оплате</span><h3 style="font-size:27px;margin:6px 0">'+money(amount)+'</h3><p class="muted" style="margin:0">'+(pending?'Платёж #'+esc(pending.id):'Ближайшее занятие')+'</p></div><div data-payment-method></div><div data-payment-action></div><p class="muted" style="font-size:13px;margin:0">Для перевода по реквизитам нажмите «Я оплатил». Онлайн-оплата через Робокассу подтверждается автоматически.</p></article>';
+ slot.innerHTML='<article class="card" style="display:grid;gap:12px;margin:12px 0 20px"><div><span class="eyebrow">К оплате</span><h3 style="font-size:27px;margin:6px 0">'+money(amount)+'</h3><p class="muted" style="margin:0">'+(pending?'Платёж #'+esc(pending.id):'Ближайшее занятие')+'</p></div><div data-payment-method></div><div data-payment-action></div><p class="muted" style="font-size:13px;margin:0">Переведите указанную сумму по реквизитам, затем нажмите «Я оплатил». Преподаватель проверит поступление и подтвердит оплату.</p></article>';
  const action=slot.querySelector('[data-payment-action]'),method=slot.querySelector('[data-payment-method]');
  if(pending){method.textContent=finance.payment_method||'Реквизиты оплаты уточните у преподавателя.';method.style.whiteSpace='pre-line';
   if(String(pending.status).toUpperCase()==='RECEIPT_SENT'){action.textContent='Ожидает проверки преподавателем';return}
@@ -28,3 +28,4 @@ function draw(slot,d){const finance=d.finance||{},pending=finance.waiting_paymen
 document.addEventListener('click',e=>{const card=e.target.closest?.('[data-student]');if(card)studentId=card.dataset.student;else if(e.target.closest?.('#back')){studentId=null;sequence++}},true);
 window.addEventListener('adelia:parent-render',mount);
 })();
+
