@@ -118,6 +118,13 @@ class RoutingTests(unittest.TestCase):
         self.run_start(stop=False)
         self.backend.public_trial_channel.confirm.assert_not_called()
 
+    def test_trial_gate_does_not_intercept_start_fallthrough(self):
+        self.backend.public_trial_channel.pending_by_external.return_value = {"id": 9}
+        self.context.user_data = {}
+        asyncio.run(self.handler.trial_gate(self.update, self.context))
+        self.backend.public_trial_channel.pending_by_external.assert_not_called()
+        self.handler._show.assert_not_awaited()
+
     def test_new_trial_link_still_confirms(self):
         self.backend.public_trial_channel.confirm.side_effect = None
         self.backend.public_trial_channel.confirm.return_value = {"request_id": 1}

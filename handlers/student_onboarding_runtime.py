@@ -102,6 +102,9 @@ async def trial_callback(update:Update,context:ContextTypes.DEFAULT_TYPE):
 async def trial_gate(update:Update,context:ContextTypes.DEFAULT_TYPE):
  u=update.effective_user;m=update.effective_message
  if not u or not m:return
+ # /start was already routed above; let permanent-account handlers continue.
+ command=str(m.text or '').strip().split(maxsplit=1)
+ if command and command[0].split('@',1)[0].lower()=='/start':return
  try:r=public_trial_channel.pending_by_external('TELEGRAM',str(u.id))
  except Exception:r=None
  if not r:return
