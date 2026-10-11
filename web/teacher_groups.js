@@ -1,4 +1,5 @@
 (()=>{'use strict';
+if(window.__adeliaGroupsUI20261011)return;window.__adeliaGroupsUI20261011=true;
 const q=(s,r=document)=>r.querySelector(s);const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
 const api=async(path,opt={})=>{const r=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...opt});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Ошибка');return j};
 const days=['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'];
@@ -22,6 +23,7 @@ function card(x){const g=x.group||x;const count=Number(x.member_count??g.member_
     <div class="groups-card-title"><h3>${esc(g.name||g.title||'Группа')}</h3><span class="groups-status-v2 ${status.cls}">${esc(status.label)}</span></div>
     <p>${esc(subject)}${goal?' · '+esc(goal):''}</p>
     <div class="groups-card-meta"><span>👤 ${count} из ${cap}</span><span>🗓 Ближайшее: ${esc(nextLabel(x.next_lesson))}</span></div>
+    <button class="ghost" type="button" data-group-chat="${Number(g.id)}">Открыть чат группы</button>
   </div>
 </article>`}
 function emptyFiltered(){return `<div class="groups-empty-v2"><div class="groups-empty-icon">⌕</div><h3>Ничего не найдено</h3><p>Измените фильтр или поисковый запрос.</p><button class="ghost" type="button" id="groupsResetFilters">Сбросить фильтры</button></div>`}
@@ -51,5 +53,6 @@ async function render(){const app=q('#app'),title=q('#title');if(title)title.tex
 </section>`;bindToolbar();paintList()}catch(e){app.innerHTML=`<div class="error">Не удалось загрузить группы: ${esc(e.message)}</div>`}}
 async function create(ev){ev.preventDefault();const f=ev.currentTarget,s=q('#groupCreateState');const data=Object.fromEntries(new FormData(f).entries());['price_per_lesson','max_members','min_attendees','weekday','duration_minutes'].forEach(k=>data[k]=Number(data[k]||0));s.textContent='Создаю…';try{await api('/teacher/group/create',{method:'POST',body:JSON.stringify(data)});await render()}catch(e){s.textContent='Ошибка: '+e.message}}
 window.teacherGroups=render;
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-group-chat]');if(!b)return;const app=q('#app'),gid=Number(b.dataset.groupChat),marker=document.createElement('section');app.replaceChildren(marker);marker.className='loading';marker.textContent='Загружаю чат…';try{const d=await api('/teacher/group/chat?group_id='+gid);if(!marker.isConnected)return;marker.className='groups-chat-workspace';marker.innerHTML='<button class="ghost" type="button" data-chat-back>← К группам</button><h2>'+esc(d.group?.name||'Чат группы')+'</h2><div data-chat-host></div>';const chat=window.AdeliaGroupChat?.mount(marker.querySelector('[data-chat-host]'),{groupId:gid,role:'teacher',group:d.group||{}});marker.querySelector('[data-chat-back]').onclick=()=>{chat?.dispose();render()}}catch{if(marker.isConnected){marker.textContent='Не удалось открыть чат. ';const back=document.createElement('button');back.textContent='К группам';back.onclick=render;marker.append(back)}}});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-view="groups"]');if(!b||b.dataset.cleanProxy==='1')return;e.preventDefault();e.stopImmediatePropagation();document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b));render()},true);
 })();

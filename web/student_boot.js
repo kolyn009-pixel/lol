@@ -6,7 +6,7 @@ const modules=[
  'student_finance_live.js','student_events.js','student_group_space.js'
 ];
 let started=false;
-function load(src){return new Promise(resolve=>{const s=document.createElement('script');s.src='/app/'+src+'?v=20261006-reverse1';s.async=true;s.onload=resolve;s.onerror=resolve;document.body.append(s)})}
+function load(src){return new Promise(resolve=>{const s=document.createElement('script');s.src='/app/'+src+'?v=20261011-ui1';s.async=true;s.onload=resolve;s.onerror=resolve;document.body.append(s)})}
 async function boot(){
  if(started)return;
  try{
@@ -24,3 +24,4 @@ async function boot(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,0));else setTimeout(boot,0);
 window.addEventListener('adelia:student-authenticated',boot);
 })();
+

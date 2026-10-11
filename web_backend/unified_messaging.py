@@ -104,6 +104,12 @@ def history(conversation_id,limit=100,after_id=None,include_deliveries=False):
         for d in conn.execute(f"SELECT message_id,channel,recipient_type,recipient_id,status,external_message_id,error_code FROM unified_message_deliveries WHERE message_id IN ({marks}) ORDER BY id",ids).fetchall():delivery_map.setdefault(int(d['message_id']),[]).append(dict(d))
     for r in messages:
         x=dict(r);x['deliveries']=delivery_map.get(int(r['id']),[]) if include_deliveries else []
+        # Legacy naive timestamps belong to the server's timezone, not to the
+        # browser/device. Emit explicit instants before regional formatting.
+        for key in ('created_at','edited_at','read_at'):
+            if x.get(key):
+                try:x[key]=datetime.fromisoformat(x[key]).astimezone(timezone.utc).isoformat(timespec='seconds')
+                except (ValueError,TypeError):pass
         try:x['attachment']=json.loads(x.pop('attachment_json') or 'null')
         except (TypeError,ValueError,json.JSONDecodeError):x['attachment']=None
         out.append(x)
@@ -126,3 +132,4 @@ def mark_read(conversation_id, through_id=None):
         return {'status':'ok','read_at':now,'changed':changed}
     finally:
         conn.close()
+

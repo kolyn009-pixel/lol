@@ -20,7 +20,13 @@ def _conversation_items(limit,unread_only=False):
     items=um.conversations(limit,unread_only);channels=_channel_map(i.get('student_id') for i in items)
     for item in items:
         item['channels']=channels.get(int(item['student_id']),{'telegram':False,'vk':False})
-    return items
+        from datetime import datetime, timezone
+        for key in ('last_at','updated_at'):
+            if item.get(key):
+                try:item[key]=datetime.fromisoformat(item[key]).astimezone(timezone.utc).isoformat(timespec='seconds')
+                except (ValueError,TypeError):pass
+    from web_backend.profile_avatars import conversation_avatars
+    return conversation_avatars(items)
 
 
 class Stage10Mixin:
@@ -111,3 +117,4 @@ class Stage10Mixin:
         except ValueError as exc:return self._json(400,{'error':str(exc)})
         except Exception as exc:print('[stage10] teacher messages POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         return self._json(404,{'error':'not_found'})
+

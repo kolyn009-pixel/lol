@@ -25,11 +25,11 @@ class RobokassaMixin:
             return True
         if path == PREFIX + 'status':
             if not self._auth(): self._json(401, {'error': 'unauthorized'})
-            else: self._json(200, robokassa.availability())
+            else: self._json(200, {'enabled':False,'mode':'MANUAL','reason':'online_payment_postponed'})
             return True
         if path == '/api/teacher/finance/robokassa':
             if not self._teacher(): self._json(401, {'error': 'unauthorized'})
-            else: self._json(200, robokassa.teacher_status())
+            else: self._json(200, {**robokassa.teacher_status(), 'enabled':False, 'mode':'MANUAL', 'reason':'online_payment_postponed'})
             return True
         return False
 
@@ -50,20 +50,8 @@ class RobokassaMixin:
             return True
         if path != PREFIX + 'checkout': return False
         if not self._same_origin_write():
-            self._json(403, {'error': 'cross_origin_forbidden'}); return True
-        auth = self._auth()
-        if not auth or auth.get('role') not in {'student', 'parent'}:
-            self._json(401, {'error': 'unauthorized'}); return True
-        body = self._body()
-        if not isinstance(body, dict):
-            self._json(400, {'error': 'invalid_json'}); return True
-        try:
-            uid = int(auth['id'])
-            if auth['role'] == 'parent':
-                from web_backend.payment_hub import _linked
-                uid = _linked(uid, int(body.get('student_id') or 0))
-            self._json(200, robokassa.checkout(uid, int(body.get('payment_id') or 0)))
-        except PermissionError: self._json(404, {'error': 'payment_not_found'})
-        except (ValueError, TypeError) as exc: self._json(409, {'error': str(exc)})
-        except Exception: self._json(503, {'error': 'payment_unavailable'})
-        return True
+            self._json(403, {'error':'cross_origin_forbidden'}); return True
+        if not self._auth():
+            self._json(401, {'error':'unauthorized'}); return True
+        self._json(409, {'error':'online_payment_postponed','mode':'MANUAL'}); return True
+

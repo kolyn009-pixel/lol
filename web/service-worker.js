@@ -1,4 +1,4 @@
-const CACHE='adelia-shell-v23';
+const CACHE='adelia-shell-ui-20261011';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const SHELL=[
@@ -55,3 +55,4 @@ self.addEventListener('fetch',event=>{
  if(code){event.respondWith(boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response}).catch(()=>caches.match(request)));return}
  event.respondWith(caches.match(request).then(cached=>cached||boundedFetch(request).then(response=>{if(response.ok)caches.open(CACHE).then(c=>c.put(request,response.clone()));return response})))
 });
+

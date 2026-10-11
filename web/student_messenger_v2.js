@@ -1,6 +1,7 @@
 /* The student inbox uses the same server conversation as Telegram and VK. */
 (()=>{
 'use strict';
+if(window.AdeliaStudentMessenger)return;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const time=value=>{if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';const zone=window.StudentTime?.preference?.zone;if(!zone)return 'время уточняется';try{return new Intl.DateTimeFormat('ru-RU',{timeZone:zone,day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(d)}catch{return 'время недоступно'}};
 function receipt(x){
@@ -10,14 +11,14 @@ function receipt(x){
  return '<small class="student-chat-read receipt-'+esc(state)+'" title="'+esc(hint)+'">'+esc(label)+'</small>';
 }
 const api=async(path,options={})=>{const r=await fetch('/api'+path,{credentials:'same-origin',...options,headers:{...(options.body?{'Content-Type':'application/json'}:{})}});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Не удалось связаться с сервером');return data};
-let timer=null,last='',busy=false,polling=false;
+let timer=null,last='',busy=false,polling=false,draft='',draftFile=null;
 const attachments=a=>!a?[]:Array.isArray(a)?a:Array.isArray(a.items)?a.items:[a];
-function media(x){return attachments(x.attachment).map(a=>{const url=esc(a.url||''),name=esc(a.name||'Вложение');if(!url)return'';return String(a.kind||'').toLowerCase()==='photo'?'<a class="student-chat-photo" href="'+url+'" target="_blank" rel="noopener"><img src="'+url+'" alt="'+name+'" loading="lazy"></a>':'<a class="student-chat-file" href="'+url+'" target="_blank" rel="noopener">📎 '+name+'</a>'}).join('')}
+function media(x){return attachments(x.attachment).map(a=>{const raw=window.AdeliaAppearance?.safeUrl(a.url);if(!raw)return'';const url=esc(raw),name=esc(a.name||'Вложение');return String(a.kind||'').toLowerCase()==='photo'?'<a class="student-chat-photo" href="'+url+'" target="_blank" rel="noopener"><img src="'+url+'" alt="'+name+'" loading="lazy"></a>':'<a class="student-chat-file" href="'+url+'" target="_blank" rel="noopener">📎 '+name+'</a>'}).join('')}
 function bubble(x){const mine=x.direction==='IN';return '<article class="student-chat-bubble '+(mine?'mine':'teacher')+'"><div class="student-chat-meta"><b>'+(mine?'Вы':'Преподаватель')+'</b><span>'+time(x.created_at)+'</span></div><div class="student-chat-text">'+esc(x.text||'')+'</div>'+media(x)+(mine?receipt(x):'')+'</article>'}
 function messages(items){return items.length?items.map(bubble).join(''):'<div class="student-chat-empty"><b>Начните диалог 💜</b><span>Здесь можно спросить о занятии, ДЗ или расписании.</span></div>'}
 const signature=items=>JSON.stringify(items.map(x=>[x.id,x.text,x.status,x.read_at,x.attachment]));
 const helpTopics={lesson:'Когда следующий урок?',homework:'Где домашнее задание?',payment:'Что с оплатой?',contact:'Как связаться с преподавателем?'};
-function helperMarkup(){return '<section class="student-helper" aria-label="Помощник Аделии"><div class="student-helper-title"><b>Помощник Аделии</b><small>Короткие ответы по данным кабинета · не преподаватель</small></div><div class="student-helper-topics">'+Object.entries(helpTopics).map(([key,label])=>'<button type="button" data-help-topic="'+key+'">'+esc(label)+'</button>').join('')+'</div><p id="studentHelperAnswer" role="status" aria-live="polite">Для личного вопроса напишите преподавателю ниже.</p></section>'}
+function helperMarkup(){return '<details class="student-helper" aria-label="Помощник Аделии"><summary>Помощник Аделии <small>Расписание, ДЗ и оплата</small></summary><div class="student-helper-title"><small>Ответы по данным кабинета · не преподаватель</small></div><div class="student-helper-topics">'+Object.entries(helpTopics).map(([key,label])=>'<button type="button" data-help-topic="'+key+'">'+esc(label)+'</button>').join('')+'</div><p id="studentHelperAnswer" role="status" aria-live="polite">Для личного вопроса напишите преподавателю ниже.</p></details>'}
 async function help(topic){
   const answer=document.querySelector('#studentHelperAnswer');if(!answer||!Object.hasOwn(helpTopics,topic))return;
   answer.textContent='Проверяю данные Аделии…';
@@ -49,6 +50,7 @@ async function refresh(force=false){
   polling=true;
   try{
     const data=await api('/student/messages?limit=200'),items=data.items||[],next=signature(items);
+    if(document.querySelector('#studentChatHistory')!==list)return;
     if(force||next!==last){const stick=list.scrollHeight-list.scrollTop-list.clientHeight<90;list.innerHTML=messages(items);last=next;if(stick||force)list.scrollTop=list.scrollHeight}
     const state=document.querySelector('#studentChatState');if(state&&state.dataset.networkError){state.textContent='';delete state.dataset.networkError}
   }catch{const state=document.querySelector('#studentChatState');if(state&&!busy){state.textContent='Нет соединения. Сообщение можно отправить после восстановления сети.';state.dataset.networkError='1'}}
@@ -58,30 +60,33 @@ async function badge(){try{const d=await api('/student/dashboard'),n=Number(d.un
 async function upload(file){const body=new FormData();body.append('file',file);const r=await fetch('/api/student/message-media/upload',{method:'POST',credentials:'same-origin',body});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Не удалось загрузить файл');return d.attachment}
 async function send(event){
   event.preventDefault();if(busy)return;
-  const form=event.currentTarget,input=form.querySelector('#studentChatText'),file=form.querySelector('#studentChatFile')?.files?.[0],text=input.value.trim(),status=document.querySelector('#studentChatState'),button=form.querySelector('button[type="submit"]');
-  if(!text&&!file)return;busy=true;button.disabled=true;status.textContent=file?'Загружаю файл…':'Отправляю…';
+  const form=event.currentTarget,input=form.querySelector('#studentChatText'),file=form.querySelector('#studentChatFile')?.files?.[0]||draftFile,text=input.value.trim(),status=document.querySelector('#studentChatState'),button=form.querySelector('button[type="submit"]');
+  if(file?.size>20*1024*1024){status.textContent='Файл слишком большой. Максимум 20 МБ.';return}
+  if(!text&&!file)return;busy=true;button.disabled=true;input.disabled=true;form.querySelector('#studentChatFile').disabled=true;status.textContent=file?'Загружаю файл…':'Отправляю…';
   try{
     const attachment=file?await upload(file):null;
     await api('/student/message',{method:'POST',body:JSON.stringify({text,attachment})});
-    input.value='';input.style.height='';form.querySelector('#studentChatFile').value='';
-    document.querySelector('#studentChatFileName').textContent='';status.textContent='Отправлено';
-    await refresh(true);await badge();
+    draft='';draftFile=null;input.value='';input.style.height='';form.querySelector('#studentChatFile').value='';
+    if(form.isConnected){document.querySelector('#studentChatFileName').textContent='';status.textContent='Отправлено';await refresh(true)}await badge();
   }catch(error){status.textContent='Не удалось отправить: '+error.message+' — текст сохранён, попробуйте ещё раз.'}
-  finally{busy=false;button.disabled=false}
+  finally{busy=false;button.disabled=false;input.disabled=false;form.querySelector('#studentChatFile').disabled=false}
 }
-function stop(){if(timer){clearInterval(timer);timer=null}}
+function stop(preserve=true){const input=document.querySelector('#studentChatText');if(preserve&&input)draft=input.value;const file=document.querySelector('#studentChatFile');if(preserve&&file?.files?.[0])draftFile=file.files[0];if(timer){clearInterval(timer);timer=null}}
 function mount(){
-  stop();const list=document.querySelector('#studentChatHistory');if(!list)return;
+  stop(false);const list=document.querySelector('#studentChatHistory');if(!list)return;
   list.scrollTop=list.scrollHeight;
   document.querySelectorAll('[data-help-topic]').forEach(button=>button.addEventListener('click',()=>help(button.dataset.helpTopic)));
   const form=document.querySelector('#studentChatForm');if(form){form.addEventListener('submit',send);if(window.adeliaDesktop?.desktop){form.addEventListener('dragover',event=>{event.preventDefault();form.classList.add('drag-over')});form.addEventListener('dragleave',()=>form.classList.remove('drag-over'));form.addEventListener('drop',event=>{event.preventDefault();form.classList.remove('drag-over');const dropped=event.dataTransfer?.files?.[0],input=form.querySelector('#studentChatFile');if(!dropped||!input)return;const transfer=new DataTransfer();transfer.items.add(dropped);input.files=transfer.files;input.dispatchEvent(new Event('change'))})}}
-  const file=document.querySelector('#studentChatFile');if(file)file.addEventListener('change',()=>{const name=document.querySelector('#studentChatFileName');if(name)name.textContent=file.files?.[0]?.name||''});
-  const input=document.querySelector('#studentChatText');if(input)input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(120,input.scrollHeight)+'px'});
-  timer=setInterval(()=>{if(!document.hidden)refresh()},4000);badge();
+  const file=document.querySelector('#studentChatFile');if(file)file.addEventListener('change',()=>{draftFile=file.files?.[0]||null;const name=document.querySelector('#studentChatFileName');if(name)name.textContent=draftFile?.name||''});
+  const input=document.querySelector('#studentChatText');if(input){input.value=draft;input.addEventListener('input',()=>{draft=input.value;input.style.height='auto';input.style.height=Math.min(120,input.scrollHeight)+'px'})}if(draftFile)document.querySelector('#studentChatFileName').textContent=draftFile.name;
+  timer=setInterval(()=>{if(!document.hidden)refresh()},4000);badge();fit();
 }
 window.AdeliaStudentMessenger={screen,mount,stop,refresh};
 window.addEventListener('adelia:student-timezone-changed',()=>refresh(true));
+function fit(){const card=document.querySelector('.student-chat-card');if(!card)return;const viewport=window.visualViewport,bottom=document.querySelector('.bottom-nav')?.getBoundingClientRect().height||0;card.style.setProperty('--student-chat-height',Math.max(230,(viewport?.height||window.innerHeight)-(card.getBoundingClientRect().top-(viewport?.offsetTop||0))-bottom-16)+'px')}
+window.visualViewport?.addEventListener('resize',fit);window.visualViewport?.addEventListener('scroll',fit);window.addEventListener('resize',fit);
 if(document.querySelector('.nav-item.active[data-tab="messages"]'))window.AdeliaStudentRender?.('messages');
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
 setInterval(badge,30000);badge();
 })();
+

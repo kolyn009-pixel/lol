@@ -1,5 +1,6 @@
 """Private parent–teacher conversations, one per linked child."""
 from database import connect, now_iso
+from datetime import datetime, timezone
 from web_backend import unified_messaging as um, message_media
 from web_backend.parent_portal import _assert_link, linked_students
 
@@ -47,14 +48,16 @@ def send(parent_id, student_id, text, attachment=None):
     return {'status': 'ok', 'conversation_id': int(conv['id']), 'message_id': mid}
 
 
-def mark_parent_read(parent_id, student_id):
+def mark_parent_read(parent_id, student_id, through_id=None):
     conv = _conversation(parent_id, student_id)
+    through = max(0, int(through_id)) if through_id is not None else None
     conn = connect()
     try:
         conn.execute("""UPDATE unified_messages SET read_at=COALESCE(read_at,?),
                         status=CASE WHEN status IN ('DELIVERED','SENT') THEN 'READ' ELSE status END
-                        WHERE conversation_id=? AND direction='OUT' AND read_at IS NULL""",
-                     (now_iso(), int(conv['id'])))
+                        WHERE conversation_id=? AND direction='OUT' AND read_at IS NULL
+                        AND (? IS NULL OR id<=?)""",
+                     (datetime.now(timezone.utc).isoformat(timespec='seconds'), int(conv['id']), through, through))
         conn.commit()
     finally:
         conn.close()
@@ -101,3 +104,4 @@ def send_teacher_to_parent(conversation_id, text, teacher_id, attachment=None):
     except Exception as exc:
         print('[parent-messages] parent push:', type(exc).__name__, flush=True)
     return {'status': 'ok', 'message_id': mid, 'delivery_status': 'SENT'}
+

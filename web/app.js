@@ -100,15 +100,19 @@ async function homeworkDetail(id){
 function loginView(){return authCard()}
 function showAuth(mode){authMode=mode;$('#content').innerHTML=loginView();bind()}
 
+let renderEpoch=0;
 async function render(tab='home'){
+  const epoch=++renderEpoch;window.AdeliaStudentMessenger?.stop();
   current=tab;$('#content').innerHTML=loading();$('#pageTitle').textContent=titles[tab]||tab;
   const ok=await ensureAuth();
+  if(epoch!==renderEpoch)return;
   if(!ok){$('#content').innerHTML=loginView();bind();return}
   if(!timeReady){timeReady=true;window.dispatchEvent(new Event('adelia:student-authenticated'))}
   if(window.StudentTime)await window.StudentTime.load().catch(()=>{});
+  if(epoch!==renderEpoch)return;
   const views={home,schedule,homework,payments,messages:window.AdeliaStudentMessenger?.screen||messages,profile};
   const view=views[tab]||home;
-  try{$('#content').innerHTML=await view()}catch(e){if(e.status===401){auth=null;$('#content').innerHTML=loginView()}else $('#content').innerHTML='<div class="form-error">Не удалось загрузить данные. Попробуйте ещё раз.</div>'}
+  try{const markup=await view();if(epoch!==renderEpoch)return;$('#content').innerHTML=markup}catch(e){if(epoch!==renderEpoch)return;if(e.status===401){auth=null;$('#content').innerHTML=loginView()}else $('#content').innerHTML='<div class="form-error">Не удалось загрузить данные. Попробуйте ещё раз.</div>'}
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));bind();if(tab==='messages')window.AdeliaStudentMessenger?.mount();else window.AdeliaStudentMessenger?.stop();
 }
 
@@ -140,3 +144,4 @@ window.AdeliaStudentRender=render;
 bootStudentRoute();
 
 window.addEventListener('adelia:student-timezone-changed',()=>{if(current==='home'||current==='schedule')render(current)});
+

@@ -66,8 +66,20 @@ def update(user_id,*,display_name=None,avatar_kind=None,avatar_value=None,manual
     name=str(display_name if display_name is not None else p['display_name']).strip()[:40]
     if not name:raise ValueError('display_name_required')
     avatar=str(avatar_value if avatar_value is not None else p['avatar_value']).strip()[:500]
+    if avatar_kind is not None or avatar_value is not None:
+        from web_backend.profile_avatars import PRESETS
+        from urllib.parse import urlparse,parse_qs
+        if kind=='PRESET' and avatar not in PRESETS and avatar not in {f'adelia_{i:02d}' for i in range(1,9)}:raise ValueError('invalid_avatar_preset')
+        if kind=='CUSTOM':
+            parsed=urlparse(avatar);query=parse_qs(parsed.query)
+            if parsed.scheme or parsed.netloc or parsed.path!='/api/profile/avatar' or query.get('role')!=['student'] or query.get('id')!=[str(int(user_id))]:raise ValueError('invalid_avatar_url')
     study=str(study_status_text if study_status_text is not None else (p['study_status_text'] or '')).strip()[:80] or None
-    c=database.connect();c.execute("""UPDATE student_social_profiles SET display_name=?,avatar_kind=?,avatar_value=?,manual_status=?,study_status_text=?,show_online=?,allow_group_messages=?,onboarding_completed=1,updated_at=? WHERE user_id=?""",(name,kind,avatar,status,study,int(bool(p['show_online'] if show_online is None else show_online)),int(bool(p['allow_group_messages'] if allow_group_messages is None else allow_group_messages)),database.now_iso(),int(user_id)));c.commit();c.close();return public_profile(user_id,viewer_id=user_id)
+    c=database.connect();c.execute("""UPDATE student_social_profiles SET display_name=?,avatar_kind=?,avatar_value=?,manual_status=?,study_status_text=?,show_online=?,allow_group_messages=?,onboarding_completed=1,updated_at=? WHERE user_id=?""",(name,kind,avatar,status,study,int(bool(p['show_online'] if show_online is None else show_online)),int(bool(p['allow_group_messages'] if allow_group_messages is None else allow_group_messages)),database.now_iso(),int(user_id)));c.commit();c.close()
+    if (avatar_kind is not None or avatar_value is not None) and kind=='PRESET':
+        from web_backend import profile_avatars
+        preset=avatar if avatar in profile_avatars.PRESETS else 'student_avatar_'+avatar[-2:]
+        profile_avatars.save({'role':'student','id':int(user_id)},preset=preset)
+    return public_profile(user_id,viewer_id=user_id)
 
 
 def touch_presence(user_id,active_seconds=120):
@@ -95,3 +107,4 @@ def group_members(group_id,viewer_id):
     if not allowed:c.close();raise PermissionError('group_access_denied')
     rows=c.execute("SELECT user_id FROM group_members WHERE group_id=? AND status IN ('ACTIVE','PAUSED') ORDER BY user_id",(gid,)).fetchall();mutes={int(r['muted_user_id']) for r in c.execute("SELECT muted_user_id FROM group_user_mutes WHERE group_id=? AND user_id=?",(gid,vid)).fetchall()};c.close()
     return [{**public_profile(int(r['user_id']),viewer_id=vid),'muted':int(r['user_id']) in mutes} for r in rows]
+

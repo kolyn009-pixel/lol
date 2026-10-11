@@ -1,4 +1,4 @@
-const CACHE='adelia-teacher-shell-v11';
+const CACHE='adelia-teacher-shell-ui-20261011';
 const ICON='/app/assets/icons/adelia-icon-180.png?v=20260925-brand4';
 const BADGE='/app/assets/icons/adelia-icon-32.png?v=20260925-brand4';
 const TYPE_META={
@@ -40,3 +40,4 @@ self.addEventListener('notificationclick',event=>{
   try{const u=new URL(raw,self.location.origin);target=u.origin===self.location.origin?u.href:new URL('/teacher/',self.location.origin).href}catch(_){target=new URL('/teacher/',self.location.origin).href}
   event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{for(const client of list){try{const u=new URL(client.url);if(u.origin===self.location.origin&&u.pathname.startsWith('/teacher/')){if('navigate' in client)client.navigate(target);return client.focus()}}catch(_){}}return clients.openWindow?clients.openWindow(target):undefined}));
 });
+

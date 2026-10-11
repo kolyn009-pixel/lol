@@ -74,7 +74,7 @@ class Stage9Mixin:
             try:
                 pid=int(auth['id']);uid=int(body.get('student_id') or 0)
                 result=(parent_messages.send(pid,uid,body.get('text'),body.get('attachment')) if path.endswith('/send')
-                        else parent_messages.mark_parent_read(pid,uid))
+                        else parent_messages.mark_parent_read(pid,uid,body.get('through_id')))
                 return self._json(200,result)
             except PermissionError:return self._json(404,{'error':'student_not_found'})
             except (TypeError,ValueError) as exc:return self._json(400,{'error':str(exc) or 'invalid_request'})
