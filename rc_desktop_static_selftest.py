@@ -54,7 +54,7 @@ teacher_portal = read(ROOT / "web_backend" / "teacher_portal.py")
 parent_manifest_text = read(WEB / "parent" / "manifest.webmanifest")
 parent_manifest = json.loads(parent_manifest_text)
 
-require(pkg.get("version") == "0.3.0-beta.1", "desktop package version")
+require(pkg.get("version") == "0.3.0-beta.2", "desktop package version")
 require(pkg.get("main") == "bootstrap.js", "desktop bootstrap entry")
 build = pkg.get("build") or {}
 require(build.get("appId") == "ru.adeliatutor.desktop", "stable app id")
@@ -217,3 +217,4 @@ if errors:
 
 print("RC DESKTOP STATIC SELFTEST: OK")
 print("desktop package/security/update/deeplink/role/lifecycle invariants present")
+
