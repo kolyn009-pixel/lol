@@ -6,7 +6,9 @@ const vm = require('node:vm');
 const manifest = require('./bundled_ui_manifest');
 
 assert.equal(manifest.student.js[0], 'student_time.js');
-assert.equal(manifest.student.css.at(-1), 'desktop_premium.css');
+assert(manifest.student.css.includes('desktop_premium.css'));
+assert.equal(manifest.student.css.at(-1), 'interface_unified.css');
+assert(manifest.student.css.indexOf('desktop_premium.css')<manifest.student.css.indexOf('interface_unified.css'));
 
 const events = [], writes = [];
 const window = { adeliaDesktop: { desktop: true }, addEventListener: () => {}, dispatchEvent: event => events.push(event.type) };
