@@ -1,0 +1,28 @@
+name: Telegram registration routing
+on:
+  pull_request:
+    branches: [release/adelia-unified-rc]
+    paths:
+      - 'handlers/student_onboarding_runtime.py'
+      - 'scripts/student_onboarding_start_selftest.py'
+      - '.github/workflows/telegram-registration.yml'
+  push:
+    branches: [codex/desktop-beta-build-fixes]
+    paths:
+      - 'handlers/student_onboarding_runtime.py'
+      - 'scripts/student_onboarding_start_selftest.py'
+      - '.github/workflows/telegram-registration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  registration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/student_onboarding_start_selftest.py
+      - run: python -m py_compile handlers/student_onboarding_runtime.py

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from telegram import InlineKeyboardButton,InlineKeyboardMarkup,Update
 from telegram.ext import ApplicationHandlerStop,CallbackQueryHandler,CommandHandler,ContextTypes,MessageHandler,filters
+import database
 from web_backend import student_onboarding,public_trial_channel,public_trial,trial_followup
 
 def _kb(r):
@@ -29,11 +30,35 @@ async def _show(update,r):
 async def start_join(update:Update,context:ContextTypes.DEFAULT_TYPE):
  u=update.effective_user;m=update.effective_message
  if not u or not m:return
- raw=(context.args[0] if getattr(context,'args',None) else '').strip()
+ # Read the current message, never a previous handler's cached arguments.
+ parts=str(m.text or '').strip().split()
+ raw=parts[1] if len(parts)>1 else ''
  if raw.lower().startswith('trial_'):
   try:p=public_trial_channel.confirm(raw[6:].strip().upper(),'TELEGRAM',str(u.id),username=u.username,display_name=u.full_name);r=public_trial.get(int(p['request_id']))
   except ValueError as e:
-   code=str(e);await m.reply_text('Ссылка пробного уже недействительна. Вернитесь на сайт Аделии и создайте новую привязку 💜' if code in {'trial_link_expired','trial_link_not_found'} else 'Не удалось подключить Telegram к пробному. Вернитесь на сайт и попробуйте ещё раз.');raise ApplicationHandlerStop
+   # A successful link consumes its token. Reopening that deep link must
+   # recover only this Telegram sender's verified identity, never token data.
+   if str(e) in {'trial_link_expired','trial_link_not_found','request_not_actionable'}:
+    user=database.get_user_by_telegram_id(u.id)
+    parent=database.get_parent_by_telegram_id(u.id)
+    if (user and user['active']) or (parent and parent['active']):
+     return  # Existing-role /start handlers open the permanent account.
+    pending=student_onboarding.pending_for_external('TELEGRAM',str(u.id))
+    if pending:
+     await m.reply_text('Telegram уже подключён. Вернитесь на открытую страницу регистрации Аделии и продолжите заполнение.')
+     raise ApplicationHandlerStop
+    trial=public_trial_channel.pending_by_external('TELEGRAM',str(u.id))
+    if trial:
+     await _show(update,trial)
+     raise ApplicationHandlerStop
+   await m.reply_text(
+    'Эту ссылку подключения больше нельзя использовать. Откройте страницу Аделии, где оформляли пробное, и создайте новую ссылку. Обычная регистрация доступна по кнопке ниже.',
+    reply_markup=InlineKeyboardMarkup([
+     [InlineKeyboardButton('Регистрация ученика',url='https://adeliatutor.ru/onboarding/')],
+     [InlineKeyboardButton('Открыть сайт Аделии',url='https://adeliatutor.ru/')],
+    ]),
+   )
+   raise ApplicationHandlerStop
   await m.reply_text('✅ Telegram подключён к пробному занятию 💜');await _show(update,r);raise ApplicationHandlerStop
  token=''
  if raw.lower().startswith('join_'):token=raw[5:].strip().upper()
