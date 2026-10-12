@@ -1,0 +1,100 @@
+name: Adelia desktop installers
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'web/**'
+      - 'scripts/build_desktop_mac.sh'
+      - '.github/workflows/desktop-current.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-current-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installers:
+    name: ${{ matrix.label }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows x64
+            target: windows-x64
+            command: dist:win
+            platform: win
+            arch: x64
+          - os: macos-latest
+            label: macOS Apple Silicon
+            target: macos-arm64
+            command: dist:mac:arm64
+            platform: mac
+            arch: arm64
+          - os: macos-latest
+            label: macOS Intel
+            target: macos-x64
+            command: dist:mac:x64
+            platform: mac
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    env:
+      ADELIA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact desktop dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Verify desktop UI and current chats
+        run: |
+          npm run selftest
+          node ../scripts/student_chat_draft_selftest.cjs
+          node ../scripts/group_chat_selftest.cjs
+          node ../scripts/onboarding_confirmation_selftest.cjs
+          python ../scripts/learning_hub_selftest.py
+      - name: Build native installer
+        run: npm run ${{ matrix.command }} -- --publish never --config.directories.output=dist/${{ matrix.target }}
+      - name: Verify and bundle artifacts
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          python publish_updates.py "dist/${{ matrix.target }}" "beta-bundle/${{ matrix.target }}" --platform "${{ matrix.platform }}" --arch "${{ matrix.arch }}" --channel beta --version "$VERSION" --git-sha "$ADELIA_BUILD_SHA"
+          python - "beta-bundle/${{ matrix.target }}" <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);manifest=json.loads((root/'manifest.json').read_text())
+          assert manifest['git_sha']==os.environ['ADELIA_BUILD_SHA']
+          assert manifest['version']=='0.3.0-beta.2'
+          for item in manifest['files']:
+              file=root/item['name']
+              assert file.stat().st_size==item['size']
+              digest=hashlib.sha512()
+              with file.open('rb') as stream:
+                  for chunk in iter(lambda:stream.read(1024*1024),b''):digest.update(chunk)
+              assert digest.hexdigest()==item['sha512']
+          print('INSTALLER_BUNDLE=OK')
+          PY
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: Adelia-beta2-${{ matrix.target }}-${{ env.ADELIA_BUILD_SHA }}
+          path: desktop/beta-bundle/${{ matrix.target }}/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

@@ -195,7 +195,7 @@ function openDeviceCheck(lessonId='') {
 }
 
 function buildSha() {
-  return String(process.env.ADELIA_BUILD_SHA || process.env.GITHUB_SHA || '').trim().slice(0,12) || null;
+  return String(process.env.ADELIA_BUILD_SHA || process.env.GITHUB_SHA || require('./package.json').adeliaBuildSha || '').trim().slice(0,12) || null;
 }
 function sendUpdateState(next) {
   updateState={...updateState,...next};
@@ -338,3 +338,4 @@ if (!gotSingleInstanceLock) {
 
 app.on('before-quit',()=>{isQuitting=true;if(updateTimer)clearInterval(updateTimer);if(deviceCheckWindow&&!deviceCheckWindow.isDestroyed())deviceCheckWindow.destroy();if(aboutWindow&&!aboutWindow.isDestroyed())aboutWindow.destroy();closeLessonWindows();});
 app.on('window-all-closed',()=>{if(process.platform==='darwin'&&isQuitting)app.quit();});
+

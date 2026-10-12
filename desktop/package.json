@@ -1,18 +1,18 @@
 {
   "name": "adelia-desktop",
-  "version": "0.3.0-beta.1",
+  "version": "0.3.0-beta.2",
   "private": true,
   "description": "Аделия — приложение для обучения и преподавания",
   "main": "bootstrap.js",
   "scripts": {
     "sync:icon": "node generate_assets.js",
     "start": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron .",
-    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js && node student_timezone_selftest.js && node teacher_timezone_selftest.js",
-    "dist": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder",
-    "dist:win": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis --x64",
-    "dist:mac": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip",
-    "dist:mac:arm64": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --arm64",
-    "dist:mac:x64": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --x64"
+    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js && node student_timezone_selftest.js && node teacher_timezone_selftest.js && node current_features_selftest.cjs",
+    "dist": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder",
+    "dist:win": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis --x64",
+    "dist:mac": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip",
+    "dist:mac:arm64": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --arm64",
+    "dist:mac:x64": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip --x64"
   },
   "dependencies": {
     "electron-updater": "6.6.2"

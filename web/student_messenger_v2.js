@@ -1,6 +1,7 @@
 /* The student inbox uses the same server conversation as Telegram and VK. */
 (()=>{
 'use strict';
+if(window.AdeliaStudentMessenger)return;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const time=value=>{if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';const zone=window.StudentTime?.preference?.zone;if(!zone)return 'время уточняется';try{return new Intl.DateTimeFormat('ru-RU',{timeZone:zone,day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(d)}catch{return 'время недоступно'}};
 function receipt(x){

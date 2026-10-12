@@ -1,5 +1,6 @@
 (()=>{
 'use strict';
+if(window.AdeliaLearningHub)return;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const subjects={PHYSICS:'Физика',CHEMISTRY:'Химия',MATH:'Математика'},states={OPEN:'Повторить',PRACTICING:'В работе',RESOLVED:'Исправлено',TODO:'Впереди',IN_PROGRESS:'В работе',DONE:'Готово',OFFERED:'Предложено',ACCEPTED:'Ученик согласен · ожидает подтверждения преподавателя',DECLINED:'Отклонено',WITHDRAWN:'Предложение отозвано'};
 const errors={slot_unavailable:'Это время уже занято. Выберите другое.',unauthorized:'Войдите в кабинет.',student_not_linked:'Нет доступа к данным этого ученика.',text_required:'Заполните обязательные поля.',invalid_time_window:'Проверьте дату и диапазон времени.',invalid_steps:'Добавьте от одного до 50 шагов.',invalid_slot:'Выберите будущее время и длительность от 30 до 180 минут.',slot_outside_preferences:'Время не подходит под пожелания ученика.',offer_unavailable:'Это предложение уже недоступно.',server_error:'Не удалось связаться с сервером. Попробуйте ещё раз.'};
