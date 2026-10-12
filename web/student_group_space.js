@@ -1,4 +1,5 @@
 (()=>{
+if(window.AdeliaGroupSpace)return;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const api=async(u,o={})=>{const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),15000);try{const r=await fetch(u,{credentials:'same-origin',...o,signal:ctrl.signal,headers:{'Content-Type':'application/json',...(o.headers||{})}});if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||'request_failed');return await r.json();}finally{clearTimeout(timeout);}};
 let groupView=0,groupTimer=null;const groupDrafts=new Map();
