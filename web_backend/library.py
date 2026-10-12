@@ -78,11 +78,11 @@ def link_task_to_homework(task_id,homework_id,sort_order=100):
 
 
 def list_materials(user_id=None,subject=None,search=None,limit=100):
-    ensure_tables();conn=connect();where=["m.active=1"];params=[];join=""
+    ensure_tables();conn=connect();conn.create_function("CASEFOLD",1,lambda v:str(v or "").casefold());where=["m.active=1"];params=[];join=""
     if user_id is not None:join=" JOIN material_access a ON a.material_id=m.id ";where.append("a.user_id=?");params.append(int(user_id))
     if subject:where.append("m.subject=?");params.append(str(subject).upper())
     if search:
-      where.append("(LOWER(m.title) LIKE ? OR LOWER(COALESCE(m.description,'')) LIKE ? OR LOWER(m.tags_json) LIKE ?)");q='%'+str(search).lower()+'%';params += [q,q,q]
+      where.append("(CASEFOLD(m.title) LIKE ? OR CASEFOLD(COALESCE(m.description,'')) LIKE ? OR CASEFOLD(m.tags_json) LIKE ?)");q='%'+str(search).casefold()+'%';params += [q,q,q]
     rows=conn.execute(f"SELECT DISTINCT m.* FROM materials m {join} WHERE {' AND '.join(where)} ORDER BY m.updated_at DESC,m.id DESC LIMIT ?",(*params,int(limit))).fetchall();conn.close();return [dict(r) for r in rows]
 
 
@@ -99,5 +99,6 @@ def list_tasks(subject=None,grade=None,topic=None,search=None,collection_id=None
     if topic:where.append("topic=?");params.append(str(topic))
     if collection_id:where.append("collection_id=?");params.append(int(collection_id))
     if search:
-      where.append("(LOWER(statement) LIKE ? OR LOWER(COALESCE(title,'')) LIKE ? OR LOWER(COALESCE(topic,'')) LIKE ?)");q='%'+str(search).lower()+'%';params += [q,q,q]
+      where.append("(LOWER(statement) LIKE ? OR LOWER(COALESCE(title,'')) LIKE ? OR LOWER(COALESCE(topic,'')) LIKE ?)");q='%'+str(search).casefold()+'%';params += [q,q,q]
     rows=conn.execute(f"SELECT * FROM task_bank WHERE {' AND '.join(where)} ORDER BY difficulty,topic,id LIMIT ?",(*params,int(limit))).fetchall();conn.close();return [dict(r) for r in rows]
+

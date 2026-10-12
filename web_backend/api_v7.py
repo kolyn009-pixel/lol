@@ -15,8 +15,9 @@ from web_backend import telemost_runtime, telemost_settings, web_push, monthly_a
 from web_backend.stage12_indexes import ensure_indexes
 from web_backend.robokassa_api import RobokassaMixin
 from web_backend.legal_api import LegalMixin
+from web_backend.learning_hub_api import LearningHubMixin, GET_PATHS as LEARNING_GET, POST_PATHS as LEARNING_POST
 
-class Handler(LegalMixin, RobokassaMixin, api_v6.Handler):
+class Handler(LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
     server_version="AdeliaWeb/7.10"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
@@ -30,6 +31,7 @@ class Handler(LegalMixin, RobokassaMixin, api_v6.Handler):
     def do_GET(self):
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
         if self.legal_get(path,q) or self.legal_parent_gate(path):return
+        if path in LEARNING_GET:return self.learning_get(path,q)
         if self.robokassa_get(path):return
         if path=="/api/push/status":
             auth=self._auth()
@@ -69,6 +71,7 @@ class Handler(LegalMixin, RobokassaMixin, api_v6.Handler):
     def do_POST(self):
         path=urlparse(self.path).path
         if self.legal_post(path) or self.legal_parent_gate(path):return
+        if path in LEARNING_POST:return self.learning_post(path)
         if self.robokassa_post(path):return
         if path in {"/api/push/subscribe","/api/push/unsubscribe","/api/push/test"}:
             if not self._same_origin_write():return self._json(403,{"error":"cross_origin_forbidden"})
@@ -183,3 +186,4 @@ def main():
     if not otp_secret.configured():raise SystemExit("ADELIA_OTP_SECRET must be set to at least 32 bytes")
     ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();web_push.ensure_schema();monthly_allowance.ensure_schema();print(f"Adelia web API v7.10 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=="__main__":main()
+

@@ -86,7 +86,7 @@ async function messages(){
 async function profile(){
   const p=await api('/student/profile');const initial=(p.name||'У')[0].toUpperCase();
   const rates=[['Школьная физика',p.school_physics_rate],['ЕГЭ физика',p.ege_physics_rate],['ОГЭ физика',p.oge_physics_rate],['Олимпиадная физика',p.olympiad_physics_rate],['Школьная химия',p.school_chemistry_rate],['ОГЭ химия',p.oge_chemistry_rate]].filter(x=>x[1]);
-  return `<section class="profile-card"><div class="big-avatar">${esc(initial)}</div><h2>${esc(p.name||'Ученик')}</h2><p>${p.grade?`${esc(p.grade)} класс · `:''}${esc(subjectName(p.main_subject))}${p.study_goal?' · '+esc(goalName(p.study_goal)):''}</p></section><section class="menu-list"><button data-go="payments">💳 <span>Оплата и чеки</span>›</button><button data-go="messages">💬 <span>Сообщения</span>›</button>${p.board_url?`<button data-external="${esc(p.board_url)}">🖥 <span>Моя Доска</span>↗</button>`:''}<button data-install-adelia>＋ <span>Установить приложение</span>›</button><button data-external="/app/privacy.html">🔒 <span>Политика конфиденциальности</span>›</button></section>${rates.length?`<section class="section"><h3>Мои тарифы</h3>${rates.map(([n,v])=>`<article class="payment"><div><b>${esc(n)}</b><span>Индивидуальная цена</span></div><strong>${money(v)}/ч</strong></article>`).join('')}</section>`:''}`;
+  return `<section class="profile-card"><div class="big-avatar">${esc(initial)}</div><h2>${esc(p.name||'Ученик')}</h2><p>${p.grade?`${esc(p.grade)} класс · `:''}${esc(subjectName(p.main_subject))}${p.study_goal?' · '+esc(goalName(p.study_goal)):''}</p></section><section class="menu-list"><button type="button" data-learning-open>📈 <span>Учебный план и результаты</span>›</button><button data-go="payments">💳 <span>Оплата и чеки</span>›</button><button data-go="messages">💬 <span>Сообщения</span>›</button>${p.board_url?`<button data-external="${esc(p.board_url)}">🖥 <span>Моя Доска</span>↗</button>`:''}<button data-install-adelia>＋ <span>Установить приложение</span>›</button><button data-external="/app/privacy.html">🔒 <span>Политика конфиденциальности</span>›</button></section>${rates.length?`<section class="section"><h3>Мои тарифы</h3>${rates.map(([n,v])=>`<article class="payment"><div><b>${esc(n)}</b><span>Индивидуальная цена</span></div><strong>${money(v)}/ч</strong></article>`).join('')}</section>`:''}`;
 }
 
 async function homework(){
@@ -140,3 +140,4 @@ window.AdeliaStudentRender=render;
 bootStudentRoute();
 
 window.addEventListener('adelia:student-timezone-changed',()=>{if(current==='home'||current==='schedule')render(current)});
+
