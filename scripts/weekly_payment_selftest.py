@@ -77,6 +77,24 @@ class WeeklyPayments(unittest.TestCase):
         obj = self.route({}, auth=False)
         self.assertEqual(obj.stage9_post('/api/parent/finance/receipt')[0], 401)
 
+    def test_telegram_has_two_lesson_option(self):
+        import asyncio
+        from types import SimpleNamespace
+        module = ast.parse((ROOT / 'handlers/payment_hub_handlers.py').read_text())
+        node = next(n for n in module.body if isinstance(n, ast.AsyncFunctionDef) and n.name == 'tariff')
+        for arg in node.args.args: arg.annotation = None
+        saved = {}
+        async def answer(): pass
+        async def edit(text, reply_markup): saved.update(text=text, rows=reply_markup)
+        scope = {'_verify_actor': lambda *args: None,
+                 'student_finance': SimpleNamespace(quote=lambda uid,key,count: {'total_amount': 1500*count}),
+                 '_money': str, 'InlineKeyboardButton': lambda text,callback_data: (text,callback_data),
+                 'InlineKeyboardMarkup': lambda rows: rows}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),'tariff','exec'),scope)
+        update = SimpleNamespace(callback_query=SimpleNamespace(data='parent_payhub_tariff|19|3',answer=answer,edit_message_text=edit))
+        asyncio.run(scope['tariff'](update,None))
+        self.assertTrue(any('2 занятия' in row[0][0] and row[0][1]=='parent_payhub_buy|19|3|2' for row in saved['rows']))
+
     def test_invalid_json_and_oversize_response(self):
         for data in [[], 'text', None]:
             self.assertEqual(self.route(data).stage9_post('/api/parent/finance/package')[0], 400)

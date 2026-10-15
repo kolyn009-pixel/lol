@@ -41,7 +41,7 @@ def _hub_markup(hub, *, prefix, student_id):
             callback_data=f"{prefix}_nearest|{int(student_id)}|{int(lesson['id'])}",
         )])
     rows.append([InlineKeyboardButton(
-        "🎟 Купить абонемент",
+        "🎟 Оплатить несколько занятий",
         callback_data=f"{prefix}_packages|{int(student_id)}",
     )])
     rows.append([InlineKeyboardButton(
@@ -144,11 +144,11 @@ async def packages(update:Update,context:ContextTypes.DEFAULT_TYPE):
 async def tariff(update:Update,context:ContextTypes.DEFAULT_TYPE):
     q=update.callback_query;await q.answer();prefix=q.data.split("_tariff|",1)[0];_,uid_raw,key_raw=q.data.split("|");uid=int(uid_raw);key=int(key_raw);_verify_actor(update,uid,prefix)
     rows=[]
-    for count in (4,8,12):
+    for count in (1,2,4,8,12):
         quote=student_finance.quote(uid,key,count)
-        rows.append([InlineKeyboardButton(f"{count} занятий · {_money(quote['total_amount'])}",callback_data=f"{prefix}_buy|{uid}|{key}|{count}")])
+        rows.append([InlineKeyboardButton(f"{count} {'занятие' if count==1 else 'занятия' if count in (2,4) else 'занятий'} · {_money(quote['total_amount'])}",callback_data=f"{prefix}_buy|{uid}|{key}|{count}")])
     rows.append([InlineKeyboardButton("⬅️ К тарифам",callback_data=f"{prefix}_packages|{uid}")])
-    await q.edit_message_text("🎟 Выберите размер абонемента",reply_markup=InlineKeyboardMarkup(rows))
+    await q.edit_message_text("🎟 Выберите количество занятий. Например, 2 занятия на неделю — один платёж и один чек.",reply_markup=InlineKeyboardMarkup(rows))
 
 
 async def buy_package(update:Update,context:ContextTypes.DEFAULT_TYPE):
@@ -217,3 +217,4 @@ def handlers():
         CallbackQueryHandler(receipt_prompt,pattern=r"^payhub_receipt\|"),
         MessageHandler((filters.PHOTO|filters.Document.PDF)&~filters.COMMAND,receipt_message),
     ]
+
