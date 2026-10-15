@@ -1,4 +1,4 @@
-const CACHE='adelia-parent-v18';
+const CACHE='adelia-parent-v19';
 const NETWORK_LIMIT_MS=4500;
 const boundedFetch=request=>Promise.race([fetch(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('network_timeout')),NETWORK_LIMIT_MS))]);
 const BASE='/app/parent/';
@@ -13,3 +13,4 @@ self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWa
 self.addEventListener('push',e=>{let payload={};try{payload=e.data?.json()||{}}catch(_){try{payload={body:e.data?.text()||''}}catch(__){}}const n=view(payload);e.waitUntil(self.registration.showNotification(n.title,{body:n.body,icon:ICON,badge:BADGE,tag:n.tag,renotify:false,silent:false,timestamp:Date.now(),data:{url:n.url,...n.data}}))});
 self.addEventListener('notificationclick',e=>{e.notification.close();const raw=e.notification?.data?.url||BASE;let target;try{const u=new URL(raw,self.location.origin);target=u.origin===self.location.origin&&u.pathname.startsWith(BASE)?u.href:new URL(BASE,self.location.origin).href}catch(_){target=new URL(BASE,self.location.origin).href}e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{for(const client of list){try{const u=new URL(client.url);if(u.origin===self.location.origin&&u.pathname.startsWith(BASE)){if('navigate'in client)client.navigate(target);return client.focus()}}catch(_){}}return clients.openWindow?clients.openWindow(target):undefined}))});
 self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;const u=new URL(r.url);if(u.origin!==location.origin||u.pathname.startsWith('/api/'))return;if(r.mode==='navigate'&&u.pathname.startsWith(BASE)){e.respondWith(boundedFetch(r).catch(()=>caches.match(BASE)));return}if(!u.pathname.startsWith(BASE)&&!['/app/pwa_connection_status.js','/app/pwa_connection_status.css'].includes(u.pathname))return;e.respondWith(boundedFetch(r).then(res=>{if(res&&res.ok)caches.open(CACHE).then(c=>c.put(r,res.clone()));return res}).catch(()=>caches.match(r)))});
+

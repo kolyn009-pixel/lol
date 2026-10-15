@@ -80,11 +80,12 @@ class Stage9Mixin:
             except (TypeError,ValueError) as exc:return self._json(400,{'error':str(exc) or 'invalid_request'})
             except Exception as exc:print('[web-api] parent messages POST error:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if not path.startswith('/api/parent/finance/'):return False
-        if path=='/api/parent/finance/claim' and not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+        if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
         auth=self._parent()
         if not auth:return self._json(401,{'error':'unauthorized'})
         body=self._body()
-        if body is None:return self._json(400,{'error':'invalid_json'})
+        if body is None and getattr(self,'_body_too_large',False):return self._json(413,{'error':'request_too_large'})
+        if not isinstance(body,dict):return self._json(400,{'error':'invalid_json'})
         pid=int(auth['id'])
         try:
             uid=int(body.get('student_id') or 0)
@@ -102,3 +103,4 @@ class Stage9Mixin:
         except (TypeError,ValueError) as exc:return self._json(400,{'error':str(exc) or 'invalid_request'})
         except Exception as exc:print('[web-api] parent finance POST error:',repr(exc),flush=True);return self._json(500,{'error':'server_error'})
         return False
+

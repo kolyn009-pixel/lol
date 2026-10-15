@@ -46,11 +46,13 @@ class Handler(api_v2.Handler):
    first=_valid_ip(forwarded.split(',',1)[0])
    if first:return first
   return peer
+ def _json_body_limit(self):
+  return 12*1024*1024 if urlparse(self.path).path in {'/api/student/finance/receipt','/api/parent/finance/receipt'} else MAX_JSON_BODY
  def _body(self):
   try:total=int(self.headers.get('Content-Length','0') or 0)
   except Exception:return None
   if total<0:return None
-  if total>MAX_JSON_BODY:self._body_too_large=True;return None
+  if total>self._json_body_limit():self._body_too_large=True;return None
   self._body_too_large=False
   try:return json.loads(self.rfile.read(total) or b'{}')
   except Exception:return None
@@ -102,7 +104,7 @@ class Handler(api_v2.Handler):
   if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
   try:declared=int(self.headers.get('Content-Length','0') or 0)
   except Exception:declared=0
-  if declared>MAX_JSON_BODY and path!='/api/teacher/pdf-import/upload':return self._json(413,{'error':'request_too_large'})
+  if declared>self._json_body_limit() and path!='/api/teacher/pdf-import/upload':return self._json(413,{'error':'request_too_large'})
   if path in _OWNER_ONLY_POST and not self._owner():return self._json(403,{'error':'owner_required'})
   if path in {'/api/auth/student/code','/api/auth/teacher/code','/api/auth/parent/code'} and not _auth_allowed(self._client_ip(),path):return self._json(429,{'error':'too_many_attempts'})
   if path=='/api/teacher/display-timezone':
@@ -159,3 +161,4 @@ def main():
  if not otp_secret.configured():raise SystemExit('ADELIA_OTP_SECRET must be set to at least 32 bytes')
  ensure_indexes();print(f'Adelia web API v3.8 listening on http://{v1.HOST}:{v1.PORT}');ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=='__main__':main()
+
