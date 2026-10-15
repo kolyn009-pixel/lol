@@ -1,0 +1,25 @@
+/* Bounded network requests and an opt-in technical report; no form contents are recorded. */
+(()=>{'use strict';
+if(window.AdeliaReliability)return;
+const nativeFetch=window.fetch.bind(window),events=[],VERSION='20261015-mobile2';
+const safeName=value=>['AbortError','TypeError','RangeError','ReferenceError','SyntaxError','Error'].includes(value)?value:'Error';
+function record(kind,route,status=0,ms=0){events.push({at:new Date().toISOString(),kind,route,status,ms:Math.round(ms)});if(events.length>25)events.shift()}
+function routeOf(raw){try{const u=new URL(raw,location.origin);if(u.origin!==location.origin||!u.pathname.startsWith('/api/'))return null;return u.pathname.split('/').map(x=>x===''||/^[a-z_-]{1,35}$/i.test(x)?x:':id').join('/')}catch{return null}}
+window.fetch=async function(resource,options={}){const route=routeOf(typeof resource==='string'||resource instanceof URL?String(resource):resource?.url);if(!route)return nativeFetch(resource,options);
+ const ctrl=new AbortController(),signal=options.signal||resource?.signal,method=String(options.method||resource?.method||'GET').toUpperCase(),limit=/upload|receipt/.test(route)?90000:method==='GET'?20000:45000,start=performance.now();let timedOut=false;
+ const abort=()=>ctrl.abort(signal?.reason);if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});
+ const timer=setTimeout(()=>{timedOut=true;ctrl.abort()},limit);
+ try{const r=await nativeFetch(resource,{...options,signal:ctrl.signal});const elapsed=performance.now()-start;if(r.status>=400||elapsed>4000)record(r.ok?'slow':'http',route,r.status,elapsed);return r}
+ catch(e){record(timedOut?'timeout':e.name==='AbortError'?'cancelled':'network',route,0,performance.now()-start);if(timedOut){const err=new Error('Сервер отвечает долго. Проверьте результат перед повторной отправкой.');err.name='AbortError';throw err}throw e}
+ finally{clearTimeout(timer);signal?.removeEventListener('abort',abort)}
+};
+window.addEventListener('error',e=>{if(e.error)record('script',safeName(e.error.name));else if(e.target?.tagName==='SCRIPT')record('resource','script')},true);
+window.addEventListener('unhandledrejection',e=>record('promise',safeName(e.reason?.name)));
+function report(){return{app:'Аделия',ui_version:VERSION,created_at:new Date().toISOString(),surface:location.pathname.startsWith('/app/parent')?'parent':location.pathname.includes('teacher')?'teacher':'student',online:navigator.onLine,standalone:matchMedia('(display-mode: standalone)').matches,viewport:{width:innerWidth,height:innerHeight},events:events.map(x=>({...x}))}}
+function show(){if(document.querySelector('#adeliaSupport'))return;const previous=document.activeElement,dialog=document.createElement('dialog');dialog.id='adeliaSupport';dialog.setAttribute('aria-labelledby','supportTitle');dialog.innerHTML='<h2 id="supportTitle">Сообщить о проблеме</h2><p>Сохраните технический отчёт и отправьте его преподавателю или в поддержку вместе с описанием проблемы.</p><p class="ar-muted">В отчёте: версия интерфейса, размер экрана, коды ошибок и время запросов. Переписка, ответы на ДЗ, чеки, пароли и коды входа не включаются.</p><div class="ar-actions"><button type="button" data-copy>Скопировать отчёт</button><button type="button" data-download>Скачать отчёт</button><button type="button" data-close>Закрыть</button></div><p data-status role="status" aria-live="polite"></p>';document.body.appendChild(dialog);dialog.showModal();
+ const status=dialog.querySelector('[data-status]');dialog.querySelector('[data-copy]').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(report(),null,2));status.textContent='Отчёт скопирован. Добавьте описание и отправьте в поддержку.'}catch{status.textContent='Копирование недоступно. Нажмите «Скачать отчёт».'}};
+ dialog.querySelector('[data-download]').onclick=()=>{const blob=new Blob([JSON.stringify(report(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='adelia-report-'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='Отчёт сохранён. Его можно приложить к сообщению.'};dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{dialog.remove();previous?.focus()});dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close()}});
+}
+function mount(){if(document.querySelector('[data-adelia-support]'))return;let footer=document.querySelector('footer');if(!footer){footer=document.createElement('footer');document.body.appendChild(footer)}const b=document.createElement('button');b.type='button';b.dataset.adeliaSupport='';b.className='ar-support';b.textContent='Сообщить о проблеме';b.onclick=show;footer.appendChild(b)}
+window.AdeliaReliability={report,show};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})();

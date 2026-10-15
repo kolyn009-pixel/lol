@@ -12,6 +12,7 @@ render one consistent payment model instead of exposing a lesson list first.
 from __future__ import annotations
 
 from datetime import datetime
+from core.lesson_time import schedule_datetime, lesson_timezone
 
 import database
 from web_backend import student_finance
@@ -49,6 +50,8 @@ def _lesson_dict(row):
     return {
         'id':int(row['id']),
         'start_time':row['start_time'],
+        'start_at':schedule_datetime(row['start_time']).isoformat(),
+        'program_id':int(row['program_id']) if 'program_id' in keys and row['program_id'] else None,
         'end_time':row['end_time'] if 'end_time' in keys else None,
         'duration_minutes':int(row['duration_minutes'] or 0) if 'duration_minutes' in keys else 0,
         'subject':row['subject'],
@@ -62,7 +65,7 @@ def _lesson_dict(row):
 
 
 def nearest_payable_lesson(user_id):
-    uid=int(user_id);now=datetime.now().isoformat(timespec='seconds');c=database.connect()
+    uid=int(user_id);now=datetime.now(lesson_timezone()).replace(tzinfo=None).isoformat(timespec='seconds');c=database.connect()
     row=c.execute(
         """SELECT * FROM lessons
            WHERE user_id=? AND start_time>=?
@@ -75,7 +78,7 @@ def nearest_payable_lesson(user_id):
 
 
 def upcoming_payment_lessons(user_id,limit=12):
-    uid=int(user_id);now=datetime.now().isoformat(timespec='seconds');c=database.connect()
+    uid=int(user_id);now=datetime.now(lesson_timezone()).replace(tzinfo=None).isoformat(timespec='seconds');c=database.connect()
     rows=c.execute(
         """SELECT * FROM lessons
            WHERE user_id=? AND start_time>=? AND COALESCE(is_trial,0)=0
@@ -92,6 +95,7 @@ def student_hub(user_id):
     nearest=nearest_payable_lesson(uid)
     return {
         'student':{'id':uid,'name':user['name']},
+        'schedule_timezone':str(lesson_timezone()),
         'primary_action':{
             'type':'PAY_NEAREST' if nearest else 'BUY_PACKAGE',
             'label':'Оплатить ближайшее занятие' if nearest else 'Купить абонемент',
@@ -146,3 +150,9 @@ def parent_attach_receipt(parent_id,student_id,payment_id,filename,mime_type,con
 def parent_claim_payment(parent_id,student_id,payment_id):
     uid=_linked(parent_id,student_id)
     return student_finance.claim_payment(uid,int(payment_id))
+
+
+
+def parent_payment(parent_id,student_id,payment_id):
+    uid=_linked(parent_id,student_id)
+    return {'payment':student_finance._safe_payment(student_finance._payment_owned(uid,int(payment_id)))}

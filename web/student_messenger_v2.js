@@ -60,7 +60,7 @@ async function upload(file){const body=new FormData();body.append('file',file);c
 async function send(event){
   event.preventDefault();if(busy)return;
   const form=event.currentTarget,input=form.querySelector('#studentChatText'),file=form.querySelector('#studentChatFile')?.files?.[0],text=input.value.trim(),status=document.querySelector('#studentChatState'),button=form.querySelector('button[type="submit"]');
-  if(!text&&!file)return;busy=true;button.disabled=true;status.textContent=file?'Загружаю файл…':'Отправляю…';
+  if(!text&&!file)return;busy=true;button.disabled=true;input.disabled=true;status.textContent=file?'Загружаю файл…':'Отправляю…';
   try{
     const attachment=file?await upload(file):null;
     await api('/student/message',{method:'POST',body:JSON.stringify({text,attachment})});
@@ -68,7 +68,7 @@ async function send(event){
     document.querySelector('#studentChatFileName').textContent='';status.textContent='Отправлено';
     await refresh(true);await badge();
   }catch(error){status.textContent='Не удалось отправить: '+error.message+' — текст сохранён, попробуйте ещё раз.'}
-  finally{busy=false;button.disabled=false}
+  finally{busy=false;button.disabled=false;input.disabled=false}
 }
 function stop(){const input=document.querySelector('#studentChatText');if(input)draft=input.value;if(timer){clearInterval(timer);timer=null}}
 function mount(){

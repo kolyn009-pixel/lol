@@ -7,7 +7,7 @@ let loading=false,last=0;
 const api=async path=>{const r=await fetch('/api'+path,{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw new Error('unavailable');return r.json()};
 const count=x=>Math.max(0,Number(x)||0);
 function card(item,featured=false){return '<button type="button" class="attention-card'+(featured?' featured':'')+'" data-attention="'+item.kind+'"><span>'+item.label+'</span><strong>'+item.value+'</strong><small>'+item.hint+'</small></button>'}
-function ensure(){const host=root();if(!host)return null;let section=host.querySelector('#teacherAttention');if(section)return section;section=document.createElement('section');section.id='teacherAttention';section.className='teacher-attention';section.innerHTML='<div class="attention-heading"><div><small>Важное сейчас</small><h2>Требует внимания</h2></div><span id="attentionFreshness">Загружаю…</span></div><div class="attention-grid" id="attentionGrid"></div>';const after=host.querySelector('.today-command');after?.after(section);host.classList.add('has-attention');return section}
+function ensure(){const host=root();if(!host)return null;let section=host.querySelector('#teacherAttention');if(section)return section;section=document.createElement('section');section.id='teacherAttention';section.className='teacher-attention';section.innerHTML='<div class="attention-heading"><div><small>Важное сейчас</small><h2>Требует внимания</h2></div><div><span id="attentionFreshness" role="status">Загружаю…</span><button type="button" data-attention-refresh style="min-height:44px;margin-left:8px">Обновить</button></div></div><div class="attention-grid" id="attentionGrid"></div>';const after=host.querySelector('.today-command');after?.after(section);host.classList.add('has-attention');return section}
 async function refresh(force=false){
   const section=ensure();if(!section||loading||!force&&Date.now()-last<30000)return;
   loading=true;
@@ -41,9 +41,10 @@ function open(kind){
   }
   document.querySelector('aside nav [data-view="'+kind+'"]')?.click();
 }
-document.addEventListener('click',e=>{const b=e.target.closest('#teacherAttention [data-attention]');if(b)open(b.dataset.attention)});
+document.addEventListener('click',e=>{const b=e.target.closest('#teacherAttention [data-attention]');if(b)open(b.dataset.attention);if(e.target.closest('[data-attention-refresh]'))refresh(true)});
 new MutationObserver(()=>{if(root())refresh()}).observe(document.querySelector('#app'),{childList:true});
 setInterval(()=>{if(!document.hidden&&root())refresh(true)},45000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true)});
 setTimeout(()=>refresh(),500);
 })();
+

@@ -16,7 +16,7 @@ function choose(d,homework){
   if(lesson){let when='';try{when=new Intl.DateTimeFormat('ru-RU',{timeZone:d.student?.timezone?.zone||'Europe/Moscow',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(lesson.start_at||lesson.start_time))}catch{}return{eyebrow:'Ближайший урок',title:'Урок '+(when||'в расписании'),detail:'Время по выбранному региону: '+(d.student?.timezone?.label||'Москва')+'.',label:'Открыть занятие',kind:'lesson',id:lesson.id}}
   if(homeworkOpen.length)return{eyebrow:'Следующий шаг',title:'ДЗ ждёт тебя',detail:homeworkOpen.length+' заданий в работе.',label:'Открыть ДЗ',kind:'homework'};
   if(Number(d.payments_waiting||0)>0)return{eyebrow:'Оплата',title:'Есть платёж в ожидании',detail:'Статус и сумма доступны в разделе оплаты.',label:'Посмотреть',kind:'payments'};
-  return null;
+  return{eyebrow:'Аделия',title:'Всё для учёбы под рукой',detail:'Расписание, домашние задания и связь с преподавателем.',label:'Посмотреть занятия',kind:'schedule'};
 }
 function show(a){
   const hero=root.querySelector('.welcome,.student2-hero');if(!hero)return;
@@ -24,12 +24,13 @@ function show(a){
   if(!slot){slot=document.createElement('section');slot.id='studentNextStep';slot.className='student-next-step';hero.after(slot)}
   slot.innerHTML='<div><small>'+esc(a.eyebrow)+'</small><h2>'+esc(a.title)+'</h2><p>'+esc(a.detail)+'</p></div><button type="button">'+esc(a.label)+' →</button>';
   root.classList.add('student-has-next-step');
+  const shortcuts=document.createElement('div');shortcuts.className='student-home-shortcuts';[['schedule','Занятия'],['homework','Домашнее задание'],['messages','Написать преподавателю']].forEach(([tab,label])=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>navigate(tab);shortcuts.appendChild(b)});slot.appendChild(shortcuts);
   slot.querySelector('button').onclick=()=>{if(a.kind==='lesson'){if(window.adeliaDesktop?.desktop&&window.adeliaDesktop.openLesson)window.adeliaDesktop.openLesson(a.id);else location.href='/app/lesson/?id='+encodeURIComponent(a.id)}else navigate(a.kind)};
 }
 async function update(){
   if(!isHome())return;
   const current=++sequence;try{
-    const [d,h]=await Promise.all([api('/student/dashboard'),api('/student/homework')]);
+    const [d,h]=await Promise.all([api('/student/dashboard'),api('/student/homework').catch(()=>({items:[]}))]);
     if(current!==sequence||!isHome())return;show(choose(d,h));
   }catch{if(current===sequence)root.classList.remove('student-has-next-step')}
 }

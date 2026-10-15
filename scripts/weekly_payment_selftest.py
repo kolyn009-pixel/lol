@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parents[1]
 
 def production_class(path, name, methods=None, env=None):
-    module = ast.parse((ROOT / path).read_text())
+    module = ast.parse((ROOT / path).read_text(encoding='utf-8'))
     node = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name == name)
     node.bases = []
     if methods:
@@ -80,7 +80,7 @@ class WeeklyPayments(unittest.TestCase):
     def test_telegram_has_two_lesson_option(self):
         import asyncio
         from types import SimpleNamespace
-        module = ast.parse((ROOT / 'handlers/payment_hub_handlers.py').read_text())
+        module = ast.parse((ROOT / 'handlers/payment_hub_handlers.py').read_text(encoding='utf-8'))
         node = next(n for n in module.body if isinstance(n, ast.AsyncFunctionDef) and n.name == 'tariff')
         for arg in node.args.args: arg.annotation = None
         saved = {}

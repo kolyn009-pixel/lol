@@ -11,7 +11,7 @@ async function setup({pending=null,tariffs=[{selection_key:3,subject:'MATH',stud
  else if(url.endsWith('/package'))data={payment:{id:42,status:'WAITING',lessons_count:body.lessons_count,total_amount:3000,subject:'MATH'},payment_method:'Реквизиты'};
  return {ok:true,json:async()=>data}};
  class FileReader{readAsDataURL(){this.result='data:application/pdf;base64,JVBERi0=';this.onload()}}
- const context=vm.createContext({window,document,fetch,FileReader,AbortController,setTimeout,clearTimeout,Intl,console});vm.runInContext(source,context);
+ const context=vm.createContext({window,document,fetch,FileReader,AbortController,setTimeout,clearTimeout,setInterval:(fn,ms)=>{const t=setInterval(fn,ms);t.unref();return t},clearInterval,Intl,console});vm.runInContext(source,context);
  document.querySelector('[data-student]').dispatchEvent(new window.Event('click',{bubbles:true}));
  document.querySelector('#root').innerHTML='<button id="back"></button><main class="wrap"><section><div class="section-title"><h2>Оплата</h2></div></section></main>';
  window.dispatchEvent(new window.Event('adelia:parent-render'));await tick();await tick();
@@ -27,5 +27,6 @@ async function setup({pending=null,tariffs=[{selection_key:3,subject:'MATH',stud
  let resolvers=[];s=await setup({quoteHandler:body=>new Promise(resolve=>resolvers.push(()=>resolve({ok:true,json:async()=>({lessons_count:body.lessons_count,duration:60,total_amount:body.lessons_count*1500})}))) });
  s.el('[data-count="4"]').onclick();resolvers[1]();await tick();resolvers[0]();await tick();assert.match(s.el('[data-quote]').textContent,/6\s?000/);assert.doesNotMatch(s.el('[data-quote]').textContent,/3\s?000/);
  s=await setup({failHub:true});assert.ok(s.el('[data-retry]'));s.el('[data-retry]').onclick();await tick();await tick();assert.ok(s.el('[data-create]'));
+ s=await setup({tariffs:[{selection_key:3,subject:'MATH',study_goal:'SCHOOL',duration:60,balance_minutes:{total:120}}]});assert.equal(s.el('[data-create]').disabled,true);assert.match(s.el('[data-quote]').textContent,/Повторный перевод не требуется/);s.el('[data-advance]').onclick();await tick();assert.equal(s.el('[data-create]').disabled,false);
  console.log('WEEKLY_PAYMENT_UI=OK: 2 lessons, one receipt, duplicate click, review lock, file size, explicit tariff, quote race, retry');
 })().catch(e=>{console.error(e);process.exitCode=1});

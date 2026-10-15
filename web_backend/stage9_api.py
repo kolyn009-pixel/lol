@@ -3,7 +3,7 @@ from __future__ import annotations
 from web_backend.parent_portal import dashboard,student,schedule
 from web_backend.parent_auth import consume_parent_login_code
 from web_backend.web_sessions import SESSION_TTL,create_session
-from web_backend.payment_hub import parent_hub,parent_pay_nearest,parent_create_package,parent_quote_package,parent_attach_receipt,parent_claim_payment
+from web_backend.payment_hub import parent_hub,parent_pay_nearest,parent_create_package,parent_quote_package,parent_attach_receipt,parent_claim_payment,parent_payment
 from web_backend import api as v1
 from web_backend import parent_messages, message_media
 
@@ -29,6 +29,8 @@ class Stage9Mixin:
                 item=student(pid,int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
             if path=='/api/parent/schedule':
                 uid=q.get('student_id',[None])[0];return self._json(200,{'items':schedule(pid,int(uid) if uid not in (None,'') else None,q.get('days',[45])[0],q.get('limit',[120])[0])})
+            if path=='/api/parent/finance/payment':
+                return self._json(200,parent_payment(pid,int(q.get('student_id',['0'])[0]),int(q.get('payment_id',['0'])[0])))
             if path=='/api/parent/finance/hub':
                 uid=q.get('student_id',[None])[0]
                 return self._json(200,parent_hub(pid,int(uid) if uid not in (None,'') else None))

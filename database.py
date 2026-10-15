@@ -4907,7 +4907,8 @@ def create_payment(
     minutes_total=None,
     base_duration_minutes=None,
     hourly_rate=None,
-    program_id=None
+    program_id=None,
+    self_service=False
 ):
 
     package = (
@@ -4990,6 +4991,28 @@ def create_payment(
 
     conn = connect()
     cursor = conn.cursor()
+
+    if self_service:
+        # Serialize checkout across web and bot processes using SQLite's write lock.
+        cursor.execute("BEGIN IMMEDIATE")
+        review = cursor.execute("""SELECT id FROM payments
+            WHERE user_id=? AND status='RECEIPT_SENT' LIMIT 1""", (int(user_id),)).fetchone()
+        if review:
+            conn.rollback(); conn.close()
+            raise ValueError('receipt_already_under_review')
+        existing = cursor.execute("""SELECT id FROM payments
+            WHERE user_id=? AND status='WAITING'
+              AND study_goal=? AND subject=? AND lessons_count=? AND total_amount=?
+              AND COALESCE(lesson_id,0)=? AND COALESCE(program_id,0)=?
+              AND COALESCE(minutes_total,0)=? AND COALESCE(hourly_rate,0)=?
+              AND COALESCE(base_duration_minutes,0)=? AND COALESCE(promo_code,'')=?
+            ORDER BY id DESC LIMIT 1""",
+            (int(user_id),study_goal,subject,int(lessons_count),int(total_amount),
+             int(lesson_id or 0),int(program_id or 0),minutes_total,hourly_rate,
+             base_duration_minutes,str(promo_code or ''))).fetchone()
+        if existing:
+            conn.rollback(); conn.close()
+            return int(existing['id'])
 
     cursor.execute("""
         INSERT INTO payments (
@@ -5132,7 +5155,8 @@ def get_payment_for_lesson(
 
 def create_lesson_payment(
     lesson_id,
-    promo_code=None
+    promo_code=None,
+    self_service=False
 ):
 
     lesson = get_lesson(
@@ -5179,6 +5203,7 @@ def create_lesson_payment(
         price_per_lesson=int(lesson["price"]),
         promo_code=promo_code,
         lesson_id=lesson_id,
+        self_service=self_service,
     )
 
 
@@ -14326,3 +14351,4 @@ def freeze_legacy_lesson_timezones():
     conn.commit(); conn.close()
     set_setting('lesson_timezone_canonicalized_v1', '1')
     return changed
+

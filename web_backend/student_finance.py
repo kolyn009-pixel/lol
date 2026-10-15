@@ -20,15 +20,19 @@ def _payment_owned(user_id,payment_id):
  if not row or int(row['user_id'])!=int(user_id):raise PermissionError('payment_not_found')
  return row
 def _safe_payment(row):
- keys=row.keys() if hasattr(row,'keys') else [];return {'id':int(row['id']),'status':row['status'],'payment_type':row['payment_type'] if 'payment_type' in keys else None,'total_amount':int(row['total_amount'] or 0),'lessons_count':int(row['lessons_count'] or 0),'minutes_total':int(row['minutes_total'] or 0) if 'minutes_total' in keys else 0,'base_duration_minutes':int(row['base_duration_minutes'] or 0) if 'base_duration_minutes' in keys else 0,'hourly_rate':int(row['hourly_rate'] or 0) if 'hourly_rate' in keys else 0,'discount_percent':int(row['discount_percent'] or 0),'promo_code':row['promo_code'],'promo_discount_amount':int(row['promo_discount_amount'] or 0),'study_goal':row['study_goal'],'subject':row['subject'],'lesson_id':int(row['lesson_id']) if 'lesson_id' in keys and row['lesson_id'] else None,'created_at':row['created_at'],'confirmed_at':row['confirmed_at'] if 'confirmed_at' in keys else None}
+ keys=row.keys() if hasattr(row,'keys') else [];return {'id':int(row['id']),'status':row['status'],'payment_type':row['payment_type'] if 'payment_type' in keys else None,'total_amount':int(row['total_amount'] or 0),'lessons_count':int(row['lessons_count'] or 0),'minutes_total':int(row['minutes_total'] or 0) if 'minutes_total' in keys else 0,'base_duration_minutes':int(row['base_duration_minutes'] or 0) if 'base_duration_minutes' in keys else 0,'hourly_rate':int(row['hourly_rate'] or 0) if 'hourly_rate' in keys else 0,'discount_percent':int(row['discount_percent'] or 0),'promo_code':row['promo_code'],'promo_discount_amount':int(row['promo_discount_amount'] or 0),'study_goal':row['study_goal'],'subject':row['subject'],'program_id':int(row['program_id']) if 'program_id' in keys and row['program_id'] else None,'lesson_id':int(row['lesson_id']) if 'lesson_id' in keys and row['lesson_id'] else None,'created_at':row['created_at'],'confirmed_at':row['confirmed_at'] if 'confirmed_at' in keys else None}
+def pending_review(user_id):
+ conn=database.connect()
+ try:return conn.execute("SELECT * FROM payments WHERE user_id=? AND status='RECEIPT_SENT' ORDER BY id LIMIT 1",(int(user_id),)).fetchone()
+ finally:conn.close()
 def overview(user_id):
  user=_user(user_id);options=payments.get_purchase_nominals(user);balances=database.get_balance_by_nominal(int(user_id))
  try:total=payments.get_balance_breakdown(user)
  except Exception:total=minute_balance.get_balance(int(user_id))
  tariffs=[]
  for key,item in options.items():
-  bal=balances.get(key,{'paid':0,'bonus':0,'total':0});tariffs.append({'selection_key':int(key),'program_id':item.get('program_id'),'study_goal':item['study_goal'],'subject':item['subject'],'hourly_rate':int(item['hourly_rate']),'duration':int(item['duration']),'nominal':int(item['nominal']),'balance':dict(bal)})
- waiting=payments.get_waiting_payment(int(user_id));return {'balance':{'paid':int(total.get('paid',0)),'bonus':int(total.get('bonus',0)),'total':int(total.get('total',0))},'tariffs':tariffs,'waiting_payment':_safe_payment(waiting) if waiting else None,'payment_method':payments.payment_method_text(),'discounts':[{'min':1,'max':3,'percent':0},{'min':4,'max':5,'percent':5},{'min':6,'max':9,'percent':10},{'min':10,'max':50,'percent':15}]}
+  bal=balances.get(key,{'paid':0,'bonus':0,'total':0});tariffs.append({'selection_key':int(key),'program_id':item.get('program_id'),'study_goal':item['study_goal'],'subject':item['subject'],'hourly_rate':int(item['hourly_rate']),'duration':int(item['duration']),'nominal':int(item['nominal']),'balance':dict(bal),'balance_minutes':dict(minute_balance.get_balance(int(user_id),int(item['hourly_rate'])))})
+ waiting=pending_review(user_id) or payments.get_waiting_payment(int(user_id));return {'balance':{'paid':int(total.get('paid',0)),'bonus':int(total.get('bonus',0)),'total':int(total.get('total',0))},'tariffs':tariffs,'waiting_payment':_safe_payment(waiting) if waiting else None,'payment_method':payments.payment_method_text(),'recent_payments':history(user_id,10),'discounts':[{'min':1,'max':3,'percent':0},{'min':4,'max':5,'percent':5},{'min':6,'max':9,'percent':10},{'min':10,'max':50,'percent':15}]}
 def quote(user_id,selection_key,lessons_count,promo_code=None):
  user=_user(user_id);count=int(lessons_count)
  if count<1 or count>50:raise ValueError('invalid_lessons_count')
@@ -46,8 +50,9 @@ def create_package_payment(user_id,selection_key,lessons_count,promo_code=None):
  if promo:
   validation=database.validate_promo_code(promo,int(user_id))
   if not validation['valid']:raise ValueError(validation['reason'])
- payment_id=database.create_payment(user_id=int(user_id),study_goal=item['study_goal'],subject=item['subject'],lessons_count=count,price_per_lesson=int(item['nominal']),promo_code=promo,minutes_total=count*int(item['duration']),base_duration_minutes=int(item['duration']),hourly_rate=int(item['hourly_rate']),program_id=item.get('program_id'));return {'status':'ok','payment':_safe_payment(database.get_payment(payment_id)),'payment_method':payments.payment_method_text()}
+ payment_id=database.create_payment(user_id=int(user_id),study_goal=item['study_goal'],subject=item['subject'],lessons_count=count,price_per_lesson=int(item['nominal']),promo_code=promo,minutes_total=count*int(item['duration']),base_duration_minutes=int(item['duration']),hourly_rate=int(item['hourly_rate']),program_id=item.get('program_id'),self_service=True);return {'status':'ok','payment':_safe_payment(database.get_payment(payment_id)),'payment_method':payments.payment_method_text()}
 def create_lesson_payment(user_id,lesson_id,promo_code=None):
+ if pending_review(user_id):raise ValueError('receipt_already_under_review')
  lesson=payments.get_lesson_for_payment(int(lesson_id),int(user_id));promo=database.normalize_promo_code(promo_code) if promo_code else None
  if promo:
   validation=database.validate_promo_code(promo,int(user_id))
@@ -63,9 +68,9 @@ def create_lesson_payment(user_id,lesson_id,promo_code=None):
     user_id=int(user_id),study_goal=lesson['study_goal'],subject=lesson['subject'],
     lessons_count=1,price_per_lesson=int(individual['amount']),promo_code=promo,
     lesson_id=int(lesson_id),minutes_total=duration,base_duration_minutes=duration,
-    hourly_rate=round(int(individual['amount'])*60/max(duration,1))))
+    hourly_rate=round(int(individual['amount'])*60/max(duration,1)),self_service=True))
   else:
-   payment_id=int(database.create_lesson_payment(int(lesson_id),promo_code=promo))
+   payment_id=int(database.create_lesson_payment(int(lesson_id),promo_code=promo,self_service=True))
  return {'status':'ok','payment':_safe_payment(database.get_payment(payment_id)),'payment_method':payments.payment_method_text(),'lesson_start':lesson['start_time']}
 def history(user_id,limit=30):return [_safe_payment(row) for row in database.get_user_payments(int(user_id),max(1,min(int(limit),100))) if str(row['payment_type'] or '').upper()!='BONUS']
 def attach_receipt(user_id,payment_id,filename,mime_type,content_b64):
@@ -125,3 +130,4 @@ def claim_payment(user_id,payment_id):
   push_events.teachers('💳 Родитель сообщил об оплате',f"{user['name']} · платёж #{pid} · {int(payment['total_amount'] or 0):,} ₽".replace(',',' '),'/teacher/','payment-claim-'+str(pid),{'type':'payment_claim','payment_id':pid})
  except Exception:pass
  return {'status':'pending_review','payment_id':pid,'receipt_id':rid,'already_sent':False}
+
