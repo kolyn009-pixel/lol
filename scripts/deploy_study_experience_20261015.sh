@@ -8,7 +8,7 @@ MODE=$1
 REPO=/opt/tutorbot
 CURRENT=/opt/adelia-current
 BASE=9d6495518c3de5fd00d30ca9733c1b5154e5a5b1
-TARGET=5558b07df93c2f104ff5e2a3c214b2bdab61e786
+TARGET=737d53fa5b0940d4cab788eb22aa641fa23ee537
 BRANCH=feat/adelia-study-experience-20261015
 DB=/opt/tutorbot/tutor.db
 HEALTH=http://127.0.0.1:8876/api/health
@@ -18,6 +18,7 @@ flock -n 9 || { echo 'Another deployment is running.' >&2; exit 2; }
 [[ -L $CURRENT ]] || { echo 'Expected release symlink is missing.' >&2; exit 2; }
 OLD=$(readlink -f "$CURRENT")
 case "$OLD" in
+ /opt/adelia-releases/5558b07df93c2f104ff5e2a3c214b2bdab61e786-*) BASE=5558b07df93c2f104ff5e2a3c214b2bdab61e786 ;;
  /opt/adelia-releases/3d7a111b68f826441326688c718cce3843738906-*) BASE=3d7a111b68f826441326688c718cce3843738906 ;;
  /opt/adelia-releases/5df2445deeaf215d8c6923ff3a0fdd7fc0b06321-*) BASE=9d6495518c3de5fd00d30ca9733c1b5154e5a5b1 ;;
  /opt/adelia-releases/fdcf9ba42dc547ac4a02a3c3023ba474bdef59a6-*) BASE=fdcf9ba42dc547ac4a02a3c3023ba474bdef59a6 ;;
