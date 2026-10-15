@@ -29,6 +29,11 @@ class Handler(LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
             for row in rows:web_push.send('teacher',int(row['entity_id']),'👋 Новый ученик зарегистрировался',f'{name} завершил регистрацию на сайте. Откройте карточку ученика, чтобы посмотреть данные.','/teacher/','adelia-registration',{'type':'registration','user_id':int(user_id)})
         except Exception as exc:print('[web-api] registration push error:',type(exc).__name__,repr(exc),flush=True)
     def do_GET(self):
+        if urlparse(self.path).path=='/api/teacher/lesson/options':
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            try:return self._json(200,teacher_manual_booking.options(parse_qs(urlparse(self.path).query).get('user_id',['0'])[0]))
+            except (ValueError,TypeError):return self._json(400,{'error':'invalid_request'})
+
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
         if self.legal_get(path,q) or self.legal_parent_gate(path):return
         if path in LEARNING_GET:return self.learning_get(path,q)
@@ -91,7 +96,7 @@ class Handler(LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
             if not self._teacher():return self._json(401,{"error":"unauthorized"})
             body=self._body()
             if body is None:return self._json(400,{"error":"invalid_json"})
-            try:return self._json(200,teacher_manual_booking.create(body.get("user_id"),body.get("start_time"),body.get("duration_minutes")or 60,body.get("payment_mode")or"AWAITING_PAYMENT"))
+            try:return self._json(200,teacher_manual_booking.create(body.get("user_id"),body.get("start_time"),body.get("duration_minutes")or 60,body.get("payment_mode")or"AWAITING_PAYMENT",body.get("program_id"),body.get("topic"),body.get("formula_id")))
             except (TypeError,ValueError) as exc:return self._json(409,{"error":str(exc)or"invalid_request"})
             except Exception as exc:print("[web-api] teacher manual booking error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
         if path=="/api/teacher/crm/student/monthly-allowance":

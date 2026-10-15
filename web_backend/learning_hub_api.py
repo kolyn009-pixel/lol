@@ -1,9 +1,11 @@
 """Authenticated routes for learning records, material search and waiting slots."""
-from web_backend import learning_hub as hub
+from web_backend import learning_hub as hub, learning_tools
 
 GET_PATHS={f'/api/{role}/learning' for role in ('teacher','student','parent')} | {'/api/teacher/learning/waiting','/api/student/learning/materials','/api/teacher/learning/materials'}
-POST_PATHS={f'/api/teacher/learning/{action}' for action in ('summary','error','plan','offer')} | {f'/api/student/learning/{action}' for action in ('wait','wait/close','offer/respond')}
+GET_PATHS |= {'/api/teacher/learning/help','/api/student/learning/help','/api/teacher/learning/week'}
 
+POST_PATHS={f'/api/teacher/learning/{action}' for action in ('summary','error','plan','offer')} | {f'/api/student/learning/{action}' for action in ('wait','wait/close','offer/respond')}
+POST_PATHS |= {'/api/student/learning/help','/api/teacher/learning/help/close'}
 
 class LearningHubMixin:
     def _learning_identity(self, role, requested=None):
@@ -23,6 +25,8 @@ class LearningHubMixin:
         role=path.split('/')[2]
         try:
             uid=self._learning_identity(role,q.get('user_id',[None])[0])
+            if path.endswith('/help'):return self._json(200,{'items':learning_tools.list_help(uid if role=='student' else None)})
+            if path.endswith('/week'):return self._json(200,learning_tools.week_summary())
             if path.endswith('/materials'):result={'items':hub.material_search(uid,q.get('q',[''])[0])}
             elif path.endswith('/waiting'):
                 if q.get('start_at'):result={'items':hub.candidates(q['start_at'][0],q.get('duration',['60'])[0],q.get('subject',['PHYSICS'])[0])}
@@ -44,6 +48,8 @@ class LearningHubMixin:
             data=self._body()
             if not isinstance(data,dict):return self._json(400,{'error':'invalid_json'})
             uid=self._learning_identity(role,data.get('user_id'))
+            if path.endswith('/help/close'):return self._json(200,learning_tools.close_help(data.get('id')))
+            if path.endswith('/help'):return self._json(200,learning_tools.request_help(uid,data))
             if path.endswith('/summary'):result=hub.save_summary(uid,data)
             elif path.endswith('/error'):result=hub.save_error(uid,data)
             elif path.endswith('/plan'):result=hub.save_plan(uid,data)

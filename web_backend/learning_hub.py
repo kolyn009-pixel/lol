@@ -173,7 +173,7 @@ def close_wait(uid, request_id):
         rid=int(request_id)
         if not conn.execute('SELECT id FROM learning_wait_requests WHERE id=? AND user_id=?',(rid,int(uid))).fetchone(): raise PermissionError('request_not_found')
         conn.execute("UPDATE learning_wait_requests SET status='CLOSED' WHERE id=?",(rid,))
-        conn.execute("UPDATE learning_slot_offers SET status='WITHDRAWN' WHERE request_id=? AND status='OFFERED'",(rid,))
+        conn.execute("UPDATE learning_slot_offers SET status='WITHDRAWN' WHERE request_id=? AND status IN ('OFFERED','ACCEPTED')",(rid,))
         conn.commit();return {'status':'ok'}
     finally: conn.close()
 
@@ -194,9 +194,13 @@ def _matches(row,start,duration):
 def _assert_available(conn, start, duration):
     import database
     from web_backend.availability_guard import assert_available
-    zone=ZoneInfo(database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara')
+    from core.lesson_time import lesson_timezone
+    zone=lesson_timezone()
     local=start.astimezone(zone).replace(tzinfo=None);end=local+timedelta(minutes=duration)
     assert_available(local,end,conn=conn)
+    for held in conn.execute("SELECT start_at,duration_minutes FROM learning_slot_offers WHERE status='ACCEPTED'"):
+        held_start=datetime.fromisoformat(held['start_at']);held_end=held_start+timedelta(minutes=held['duration_minutes'])
+        if held_start<start+timedelta(minutes=duration) and held_end>start:raise ValueError('slot_unavailable')
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='group_lessons'").fetchone():
         hit=conn.execute("SELECT 1 FROM group_lessons WHERE start_time<? AND end_time>? AND status NOT IN ('CANCELLED','QUORUM_FAILED','COMPLETED') LIMIT 1",(end.isoformat(),local.isoformat())).fetchone()
         if hit:raise ValueError('slot_unavailable')
@@ -228,9 +232,15 @@ def offer(request_id, start_at, duration):
         if not row: raise PermissionError('request_not_found')
         if not _matches(row,start,duration): raise ValueError('slot_outside_preferences')
         _assert_available(conn,start,duration)
-        conn.execute('''INSERT INTO learning_slot_offers(request_id,start_at,duration_minutes,created_at) VALUES(?,?,?,?)
+        inserted=conn.execute('''INSERT INTO learning_slot_offers(request_id,start_at,duration_minutes,created_at) VALUES(?,?,?,?)
           ON CONFLICT(request_id,start_at) DO NOTHING''',(rid,start.isoformat(timespec='seconds'),duration,stamp()))
-        conn.commit();return {'status':'ok'}
+        conn.commit()
+        if inserted.rowcount:
+            try:
+                from web_backend import push_events
+                push_events.student_and_parents(int(row['user_id']),'Есть свободное окно для занятия','Откройте учебный план и проверьте предложенное время.','/app/?tab=profile','/app/parent/',f'learning-offer-{rid}-{start.isoformat()}',{'type':'schedule'})
+            except Exception:pass
+        return {'status':'ok'}
     finally: conn.close()
 
 
@@ -238,6 +248,7 @@ def respond_offer(uid, offer_id, response):
     if response not in {'ACCEPTED','DECLINED'}: raise ValueError('invalid_response')
     ensure_tables();conn=connect()
     try:
+        conn.execute('BEGIN IMMEDIATE')
         row=conn.execute('''SELECT o.*,w.status AS request_status FROM learning_slot_offers o JOIN learning_wait_requests w ON w.id=o.request_id
           WHERE o.id=? AND w.user_id=?''',(int(offer_id),int(uid))).fetchone()
         if not row: raise PermissionError('offer_not_found')
@@ -245,6 +256,11 @@ def respond_offer(uid, offer_id, response):
         if row['status']!='OFFERED' or row['request_status']!='ACTIVE' or datetime.fromisoformat(row['start_at'])<=datetime.now(timezone.utc):raise ValueError('offer_unavailable')
         if response=='ACCEPTED':_assert_available(conn,datetime.fromisoformat(row['start_at']),row['duration_minutes'])
         conn.execute("UPDATE learning_slot_offers SET status=? WHERE id=? AND status='OFFERED'",(response,int(offer_id)))
+        if response=='ACCEPTED':
+            start=datetime.fromisoformat(row['start_at']);end=start+timedelta(minutes=row['duration_minutes'])
+            for other in conn.execute("SELECT id,start_at,duration_minutes FROM learning_slot_offers WHERE status='OFFERED'").fetchall():
+                os=datetime.fromisoformat(other['start_at'])
+                if os<end and os+timedelta(minutes=other['duration_minutes'])>start:conn.execute("UPDATE learning_slot_offers SET status='WITHDRAWN' WHERE id=?",(other['id'],))
         conn.commit();return {'status':'ok','booking':'teacher_confirmation_required'}
     finally: conn.close()
 

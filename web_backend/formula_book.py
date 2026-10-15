@@ -132,10 +132,10 @@ def list_formulas(user_id=None,subject=None,section=None,topic=None,search=None,
     if section:where.append('f.section=?');params.append(str(section))
     if topic:where.append('f.topic=?');params.append(str(topic))
     if search:
-        q='%'+str(search).strip().lower()+'%';where.append("(LOWER(f.title) LIKE ? OR LOWER(COALESCE(f.description,'')) LIKE ? OR LOWER(COALESCE(f.formula_plain,'')) LIKE ? OR LOWER(COALESCE(f.tags_json,'')) LIKE ?)");params += [q,q,q,q]
+        q='%'+str(search).strip().casefold()+'%';where.append("(CASEFOLD(f.title) LIKE ? OR CASEFOLD(COALESCE(f.description,'')) LIKE ? OR CASEFOLD(COALESCE(f.formula_plain,'')) LIKE ? OR CASEFOLD(COALESCE(f.tags_json,'')) LIKE ?)");params += [q,q,q,q]
     if favorites_only and user_id is not None:where.append('fav.id IS NOT NULL')
     favcol='CASE WHEN fav.id IS NULL THEN 0 ELSE 1 END favorite' if user_id is not None else '0 favorite'
-    conn=connect();rows=conn.execute(f"SELECT f.*,{favcol} FROM formula_book f {join} WHERE {' AND '.join(where)} ORDER BY f.subject,f.education_level,f.sort_order,f.section,f.topic,f.id LIMIT ?",(*params,max(1,min(int(limit),500)))).fetchall();conn.close();return [dict(r) for r in rows]
+    conn=connect();conn.create_function('CASEFOLD',1,lambda value:str(value or '').casefold());rows=conn.execute(f"SELECT f.*,{favcol} FROM formula_book f {join} WHERE {' AND '.join(where)} ORDER BY f.subject,f.education_level,f.sort_order,f.section,f.topic,f.id LIMIT ?",(*params,max(1,min(int(limit),500)))).fetchall();conn.close();return [dict(r) for r in rows]
 
 
 def formula_detail(formula_id,user_id=None):
@@ -173,3 +173,4 @@ def seed_starter_formulas():
         if row:continue
         created.append(int(create_formula(item)['id']))
     return {'status':'ok','created':len(created),'formula_ids':created}
+

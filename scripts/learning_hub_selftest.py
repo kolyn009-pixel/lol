@@ -69,8 +69,11 @@ class Tests(unittest.TestCase):
         rid,data,start=self.wait();hub.offer(rid,start,60);hub.offer(rid,start,60)
         offers=hub.overview(1)['offers'];self.assertEqual(len(offers),1)
         with self.assertRaises(PermissionError):hub.respond_offer(2,offers[0]['id'],'ACCEPTED')
+        rid2=hub.add_wait(2,data)['id'];hub.offer(rid2,start,60)
+        other=hub.overview(2)['offers'][0]['id']
         self.assertEqual(hub.respond_offer(1,offers[0]['id'],'ACCEPTED')['booking'],'teacher_confirmation_required')
-        rid2=hub.add_wait(2,data)['id'];hub.offer(rid2,start,60);hub.close_wait(2,rid2)
+        with self.assertRaises(ValueError):hub.respond_offer(2,other,'ACCEPTED')
+        hub.close_wait(2,rid2)
         self.assertEqual(hub.overview(2)['offers'][0]['status'],'WITHDRAWN')
     def test_russian_material_search_and_access(self):
         mid=library.create_material('ЗАКОН НЬЮТОНА','Конспект',subject='PHYSICS',file_path='/private/file.pdf')

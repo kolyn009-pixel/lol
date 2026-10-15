@@ -2,6 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'..'),outputs=path.join(root,'qa-mobile');
+const catalog=require('../data/formulas/physics_handbook_20261015.json').items.map((x,i)=>({...x,id:i+1,favorite:0}));
 const now=new Date(),future=h=>new Date(now.getTime()+h*3600000).toISOString();
 const lesson={id:10,user_id:1,name:'Тестовый ученик',start_time:future(24),start_at:future(24),end_time:future(25),duration_minutes:60,subject:'MATH',study_goal:'SCHOOL',lesson_status:'CONFIRMED',payment_status:'AWAITING_PAYMENT',price:1750};
 const student={id:1,name:'Тестовый ученик',grade:8,study_goal:'SCHOOL',main_subject:'MATH',education_type:'SCHOOL',education_level:8,timezone:{zone:'Europe/Moscow',label:'Москва',selected:true},board_url:'https://example.test/board'};
@@ -12,7 +13,7 @@ const parentDash={parent:{id:7,name:'Родитель'},students:[student],upcom
 (async()=>{fs.mkdirSync(outputs,{recursive:true});let args=['--no-sandbox'],executablePath=process.env.ADELIA_CHROMIUM;
  if(process.env.ADELIA_CHROMIUM_HELPER){const c=(await import(process.env.ADELIA_CHROMIUM_HELPER)).default;args=c.args.filter(x=>x!=='--single-process')}
  const browser=await chromium.launch({headless:true,args,...(executablePath?{executablePath}:{})});try{
- for(const role of ['parent','student','teacher']){const ctx=await browser.newContext({viewport:{width:390,height:844},timezoneId:'Europe/Moscow',serviceWorkers:'block'}),page=await ctx.newPage(),errors=[],writes=[],unknown=new Set();let pending=null,chatFail=false,homeworkFail=false,lessonOpen=false,loggedIn=true;
+ for(const role of ['parent','student','teacher']){const ctx=await browser.newContext({viewport:{width:390,height:844},timezoneId:'Europe/Moscow',locale:'ru-RU',serviceWorkers:'block'}),page=await ctx.newPage(),errors=[],writes=[],unknown=new Set();let pending=null,chatFail=false,homeworkFail=false,lessonOpen=false,loggedIn=true;
  await page.clock.install({time:now});page.setDefaultTimeout(8000);console.log('START',role);page.on('pageerror',e=>errors.push(e.message));
  await page.route('http://adelia.test/**',async route=>{const req=route.request(),u=new URL(req.url()),p=u.pathname;let d={};
  if(!p.startsWith('/api/')){let file=path.join(root,'web',p.replace(/^\/app\/?/,''));if(p==='/teacher/'||p==='/app/teacher.html')file=path.join(root,'web/teacher.html');if(p.endsWith('/')&&p!=='/teacher/')file=path.join(file,'index.html');
@@ -31,6 +32,14 @@ const parentDash={parent:{id:7,name:'Родитель'},students:[student],upcom
  else if(p.endsWith('/finance/package/quote')||p.endsWith('/finance/quote')){const body=req.method()==='POST'?req.postDataJSON():Object.fromEntries(u.searchParams);d={lessons_count:+body.lessons_count,duration:60,minutes_total:+body.lessons_count*60,total_amount:+body.lessons_count*1750};}
  else if(p.endsWith('/finance/package')){pending={id:42,status:'WAITING',lessons_count:2,total_amount:3500,minutes_total:120,subject:'MATH'};d={payment:pending,payment_method:'Тестовые реквизиты'};}
  else if(p.endsWith('/finance/receipt')){pending.status='RECEIPT_SENT';d={status:'ok',receipt_id:1};}
+ else if(p.endsWith('/formulas'))d={items:catalog,facets:{subjects:['PHYSICS']},education:{type:'SCHOOL',level:11},browse:{education_level:'SCHOOL',level:11}};
+ else if(p.endsWith('/formula'))d=catalog.find(x=>x.id===Number(u.searchParams.get('id')));
+ else if(p.endsWith('/formula/favorite'))d={status:'ok'};
+ else if(p==='/api/teacher/crm/students')d={items:[student]};
+ else if(p==='/api/teacher/lesson/options')d={programs:[{id:3,subject:'PHYSICS',study_goal:'EGE',hourly_rate:2100}],schedule_timezone:'Europe/Moscow'};
+ else if(p==='/api/teacher/lesson/create')d={status:'ok',lesson_id:99};
+ else if(p.endsWith('/learning/week'))d={week:{worked:{count:2}},finance:{paid:{amount:3500},lessons:{completed:2}},pending_reviews:1};
+ else if(p.endsWith('/learning/help'))d=req.method()==='POST'?{status:'ok',id:1}:{items:[]};
  else if(p==='/api/student/profile')d={student,onboarding_required:false,profile_complete:true,onboarding_completed:true};
  else if(p==='/api/student/dashboard')d=dash;
  else if(p==='/api/student/lesson')d={lesson:{...lesson,entry_open:lessonOpen,payment_required:false},board_url:'https://example.test/board'};
@@ -67,12 +76,23 @@ const parentDash={parent:{id:7,name:'Родитель'},students:[student],upcom
  await page.screenshot({path:path.join(outputs,'student-home.png'),fullPage:true}); await page.locator('.nav-item[data-tab=homework]').click();await page.locator('[data-hw="5"]').first().click();await page.locator('#manualHwComment').fill('Сохрани мой комментарий');homeworkFail=true;await page.locator('#manualHwSubmit').click();await page.locator('#studentHwResult .form-error').waitFor();assert.equal(await page.locator('#manualHwComment').inputValue(),'Сохрани мой комментарий');await page.locator('#studentHwBack').click();await page.locator('[data-hw="5"]').first().click();assert.equal(await page.locator('#manualHwComment').inputValue(),'Сохрани мой комментарий');
  await page.goto('http://adelia.test/app/lesson/?id=10');await page.getByRole('heading',{name:'Преподаватель ещё не открыл занятие'}).waitFor();lessonOpen=true;await page.reload();await page.evaluate(()=>window.open=()=>({closed:false}));await page.locator('#joinLesson').click();assert.equal(writes.filter(w=>w.path==='/api/student/lesson/join').length,1);
  }
+ if(role==='student'||role==='teacher'){
+ await page.goto('http://adelia.test'+(role==='student'?'/app/':'/teacher/'));await page.waitForTimeout(1200);
+ if(role==='student'){await page.locator('.nav-item[data-tab=profile]').click();await page.locator('[data-study-formulas]').click()}else await page.evaluate(()=>window.teacherFormulas());
+ await page.locator('.fx-card').first().waitFor();await page.locator('math').first().waitFor();assert.equal(await page.locator('.fx-card').count(),24);assert.equal(await page.locator('.fx-topics details').count()>5,true);
+ await page.locator('[data-fx-search]').fill('ОМА');await page.waitForTimeout(100);assert.ok(await page.locator('.fx-card').count()>=2);await page.locator('[data-fx-detail]').first().click();await page.getByRole('heading',{name:'Когда применять',exact:true}).waitFor();await page.screenshot({path:path.join(outputs,role+'-formula-detail.png'),fullPage:true});
+ if(role==='student'){await page.locator('[data-fx-help-detail]').click();await page.locator('#studyDialog textarea').fill('Не понимаю, как выбрать сопротивление');await page.locator('#studyDialog [type=submit]').click();await page.getByText('Вопрос отправлен. Преподаватель увидит контекст и сможет помочь.').waitFor();assert.ok(writes.some(w=>w.path==='/api/student/learning/help'&&w.body.formula_id));await page.locator('#studyDialog [data-close]').click()}
+ else{await page.locator('[data-fx-book]').click();await page.locator('#lessonPlanner [name=user_id]').selectOption('1');await page.locator('#lessonPlanner [name=program_id]').selectOption('3');await page.locator('#lessonPlanner [name=duration_minutes]').selectOption('90');await page.locator('#lessonPlanner [name=start_time]').fill('2027-01-15T18:00');assert.match(await page.locator('[data-price]').innerText(),/3\s?150/);await page.screenshot({path:path.join(outputs,'teacher-booking.png'),fullPage:true});await page.locator('#lessonPlanner [type=submit]').click();await page.getByText('Занятие назначено. Расписание обновлено.').waitFor();const created=writes.find(w=>w.path==='/api/teacher/lesson/create');assert.equal(created.body.program_id,3);assert.ok(created.body.formula_id);await page.locator('#lessonPlanner [data-close]').click()}
+ await page.locator('[data-fx-back]').click();await page.locator('[data-fx-search]').fill('');await page.screenshot({path:path.join(outputs,role+'-formulas.png'),fullPage:true});await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(outputs,role+'-formulas-viewport.png')});
+ for(const width of [390,320,1280]){await page.setViewportSize({width,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,role+' formula width '+width)}
+ await page.setViewportSize({width:390,height:844});await page.goto('http://adelia.test'+(role==='student'?'/app/':'/teacher/'));await page.waitForTimeout(1000);
+ }
  if(role==='teacher'){await page.locator('#teacherAttention').waitFor();assert.ok(await page.locator('[data-attention=payments]').count());await page.locator('[data-attention-refresh]').click()}
  await page.evaluate(()=>fetch('/api/health?token=PRIVATE_TEST_TOKEN&text=PRIVATE_TEXT').catch(()=>{}));await page.locator('[data-adelia-support]').click();await page.locator('#adeliaSupport').waitFor();const report=await page.evaluate(()=>window.AdeliaReliability.report());assert.ok(!JSON.stringify(report).includes('PRIVATE_'));assert.ok(report.events.some(e=>e.route==='/api/health'&&e.status===503));assert.ok(!JSON.stringify(report).includes('Черновик'));assert.ok(!JSON.stringify(report).includes('Сохрани мой'));await page.screenshot({path:path.join(outputs,role+'-support.png'),fullPage:true});await page.locator('[data-close]').click();
  for(const width of [390,320]){await page.setViewportSize({width,height:844});if(!(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)))console.log('OVERFLOW',role,width,await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>[e.tagName,e.id,e.className,Math.round(e.getBoundingClientRect().width)]).slice(0,15)));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,role+' width '+width)}
  await page.screenshot({path:path.join(outputs,role+'.png'),fullPage:true});if(role==='parent'){loggedIn=false;await page.goto('http://adelia.test/app/parent/');await page.locator('#code').fill('000000');await page.locator('#loginForm button').click();await page.getByText('Не удалось войти. Проверьте код.').waitFor();await page.locator('#code').fill('123456');await page.locator('#loginForm button').click();await page.locator('[data-student="1"]').waitFor()}
  console.log(role,'pageerrors',errors,'unmapped API',Array.from(unknown));assert.deepEqual(errors,[]);await ctx.close();
  }
- console.log('MOBILE_JOURNEYS=OK: parent weekly receipt/status/chat recovery; student homework recovery; support + 320/390px across 3 roles');
+ console.log('MOBILE_JOURNEYS=OK: login, payment, chat/homework recovery, lesson entry; formulas/search/math/detail/help; topic booking + tariff; 320/390/1280px');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
