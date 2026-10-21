@@ -190,7 +190,7 @@ async def callbacks(update:Update,context:ContextTypes.DEFAULT_TYPE):
             if slots:kb.append([InlineKeyboardButton(f"📅 {day.strftime('%d.%m')} • свободно {len(slots)}",callback_data=f"ff_swap_day|{lid}|{day.isoformat()}")])
         kb.append([InlineKeyboardButton('✍️ Предложить своё время',callback_data=f'ff_custom_reschedule|{lid}')]);kb.append([InlineKeyboardButton('⬅️ Назад',callback_data=f"ff_swap|{lesson['user_id']}")]);await q.edit_message_text(f"🔄 Перенос занятия\nТекущее время: {_dt_text(lesson['start_time'])}\n\nСначала выберите одно из свободных окон. Если ничего не подходит — предложите своё время.",reply_markup=InlineKeyboardMarkup(kb));return
     if d.startswith('ff_swap_day|'):
-        _,_,lid_s,day_s=d.split('|',3);lid=int(lid_s);lesson=database.get_lesson(lid)
+        _,lid_s,day_s=d.split('|',2);lid=int(lid_s);lesson=database.get_lesson(lid)
         if not lesson:return
         import bot as tutor_bot
         day=__import__('datetime').date.fromisoformat(day_s);duration=int(lesson['duration_minutes'] or 60);slots=await __import__('asyncio').to_thread(tutor_bot.get_free_slots,day,duration,lid);kb=[];row=[]
@@ -200,7 +200,7 @@ async def callbacks(update:Update,context:ContextTypes.DEFAULT_TYPE):
         if row:kb.append(row)
         kb.append([InlineKeyboardButton('✍️ Предложить другое время',callback_data=f'ff_custom_reschedule|{lid}')]);kb.append([InlineKeyboardButton('⬅️ Назад',callback_data=f'ff_swap_lesson|{lid}')]);await q.edit_message_text(f"📅 {day.strftime('%d.%m.%Y')}\n\nСвободные окна:",reply_markup=InlineKeyboardMarkup(kb));return
     if d.startswith('ff_swap_free|'):
-        _,_,lid_s,start_s=d.split('|',3);lid=int(lid_s);lesson=database.get_lesson(lid)
+        _,lid_s,start_s=d.split('|',2);lid=int(lid_s);lesson=database.get_lesson(lid)
         if not lesson:return
         start=datetime.fromisoformat(start_s);duration=int(lesson['duration_minutes'] or 60);end=start+__import__('datetime').timedelta(minutes=duration)
         try:new_id=database.free_reschedule_lesson(lid,start.isoformat(),end.isoformat());await _refresh_calendar_and_reminders(context,[new_id]);new_lesson=database.get_lesson(new_id);await _notify_family(context,lesson['user_id'],f"✅ Готово, я перенесла занятие. Новое время: {_dt_text(new_lesson['start_time'])}.");await q.edit_message_text(f"✅ Перенос выполнен\n\nНовое время: {_dt_text(new_lesson['start_time'])}",reply_markup=student_menu(lesson['user_id']))
