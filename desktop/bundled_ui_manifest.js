@@ -20,7 +20,8 @@ module.exports={
       "student_receipts.css",
       "desktop_premium.css",
       "reliability.css",
-      "experience.css"
+      "experience.css",
+      "desktop_workspace_v3.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -42,7 +43,8 @@ module.exports={
       "student_next_step.js",
       "formula_explorer.js",
       "lesson_planner.js",
-      "study_experience.js"
+      "study_experience.js",
+      "desktop_workspace_v3.js"
     ]
   },
   "teacher": {
@@ -58,12 +60,14 @@ module.exports={
       "teacher_health.css",
       "teacher_messages_polish.css",
       "teacher_lesson_context.css",
-      "desktop_teacher_app.css",
-      "desktop_lesson_workspace.css",
+            "desktop_lesson_workspace.css",
       "desktop_premium.css",
       "teacher_attention.css",
       "reliability.css",
-      "experience.css"
+      "experience.css",
+      "teacher_student_workspace.css",
+      "desktop_teacher_app.css",
+      "desktop_workspace_v3.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -81,11 +85,11 @@ module.exports={
       "teacher_lesson_context.js",
       "teacher_post_lesson.js",
       "desktop_lesson_workspace.js",
-      "desktop_teacher_density.js",
       "teacher_attention.js",
       "formula_explorer.js",
       "lesson_planner.js",
-      "study_experience.js"
+      "study_experience.js",
+      "desktop_workspace_v3.js"
     ]
   },
   "parent": {
@@ -99,7 +103,8 @@ module.exports={
       "desktop_parent_app.css",
       "desktop_premium.css",
       "reliability.css",
-      "experience.css"
+      "experience.css",
+      "desktop_workspace_v3.css"
     ],
     "js": [
       "reliability.js",
@@ -113,7 +118,8 @@ module.exports={
       "parent/next_step.js",
       "formula_explorer.js",
       "lesson_planner.js",
-      "study_experience.js"
+      "study_experience.js",
+      "desktop_workspace_v3.js"
     ]
   }
 };

@@ -3,6 +3,7 @@ const { app, BrowserWindow, shell, session, dialog, ipcMain, screen, Tray, Menu,
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
+const yandexSession = require('./yandex_session');
 
 const APP_URL = process.env.ADELIA_DESKTOP_URL || 'https://adeliatutor.ru/app/';
 const APP_ORIGIN = new URL(APP_URL).origin;
@@ -150,10 +151,19 @@ function tileLessonWindows() {
   meetingWindow.show(); boardWindow.show(); boardWindow.focus();
 }
 function openMeetingWindow(url) {
-  if (!trustedChild(url)) return false;
-  if (focusExisting(meetingWindow)) { meetingWindow.loadURL(url); tileLessonWindows(); return true; }
+  if (!yandexSession.isMeeting(url)) return false;
+  yandexSession.configureSession();
+  if (focusExisting(meetingWindow)) { if(new URL(url).pathname !== '/')meetingWindow.__adeliaMeetingUrl=url; meetingWindow.loadURL(url); tileLessonWindows(); return true; }
   meetingWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:560, minHeight:400, title:'Телемост — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-lesson', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:false } }), 'meeting');
-  hardenNavigation(meetingWindow, trustedChild); meetingWindow.loadURL(url); tileLessonWindows(); return true;
+  meetingWindow.__adeliaMeetingUrl=url;
+  yandexSession.attach(meetingWindow, url);
+  meetingWindow.setMenu(Menu.buildFromTemplate([{label:'Телемост',submenu:[
+    {label:'Войти в аккаунт Яндекса',click:()=>meetingWindow?.loadURL('https://telemost.yandex.ru/')},
+    {label:'Вернуться к встрече',click:()=>meetingWindow?.loadURL(meetingWindow.__adeliaMeetingUrl)},
+    {label:'Открыть встречу в браузере',click:()=>openExternalSafe(meetingWindow.__adeliaMeetingUrl)},
+    {type:'separator'},{label:'Закрыть окно',role:'close'}
+  ]}]));
+  meetingWindow.loadURL(url); tileLessonWindows(); return true;
 }
 function openBoardWindow(url) {
   if (!trustedBoard(url)) return false;

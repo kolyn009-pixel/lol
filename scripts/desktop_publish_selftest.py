@@ -32,7 +32,8 @@ class Tests(unittest.TestCase):
     def test_config_preserves_other_routes(self):
         old='server {\n    root /var/www/adeliatutor.ru;\n    location /api/ { proxy_pass http://127.0.0.1:8876; }\n}\n'
         new=p.nginx_config(old);self.assertIn('location ^~ /desktop-updates/',new);self.assertIn('proxy_pass http://127.0.0.1:8876',new)
-        with self.assertRaises(ValueError):p.nginx_config(new)
+        self.assertEqual(p.nginx_config(new),new)
+        with self.assertRaises(ValueError):p.nginx_config(new.replace('autoindex off;', 'autoindex on;'))
     def test_failed_http_check_restores_config_and_all_links(self):
         root=self.folder/'public';root.mkdir();old=self.folder/'old';old.mkdir();(root/'beta').symlink_to(old)
         (root/'index.html').write_text('previous page');config=self.folder/'site.conf';original='server {\n    root /var/www/adeliatutor.ru;\n}\n';config.write_text(original)

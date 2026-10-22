@@ -53,17 +53,10 @@
     wrap.querySelector('[data-install-close]').addEventListener('click',()=>wrap.hidden=true);wrap.hidden=false;
   }
 
-  async function install(){
-    if(standalone())return modal('Аделия уже установлена на этом устройстве. Запускайте её с иконки приложения.');
-    const api=window.AdeliaPWA;
-    if(api&&typeof api.install==='function'&&!isiOS())try{const result=await api.install();if(result&&['accepted','installed'].includes(result.status))return;if(result&&result.status==='dismissed')return modal('',true)}catch(e){console.warn('Adelia install:',e)}
-    if(isiOS()||isAndroid())return modal('',true);
-    if(isMac()&&!isChrome()&&!isEdge())return modal('На Mac откройте Аделию в Chrome или Edge. В Safari также можно использовать «Файл → Добавить в Dock», если этот пункт доступен.');
-    if(isChrome()||isEdge())return modal('Если системное окно не появилось, нажмите значок установки справа в адресной строке или откройте меню браузера → «Установить Аделию».');
-    modal('',true);
-  }
+  async function install(){ location.assign('/desktop-updates/'); }
 
-  function mount(){if(window.adeliaDesktop?.desktop){document.querySelectorAll('[data-install-adelia],.v4-install,#adelia-install-bar').forEach(x=>{x.hidden=true;x.style.display='none'});return}style();if(!document.getElementById('adelia-install-bar')){const bar=document.createElement('div');bar.id='adelia-install-bar';bar.className='adelia-install-bar';bar.innerHTML='<div class="adelia-install-icon">↧</div><div class="adelia-install-copy"><b>Установить Аделию на телефон</b><small>Пошаговая инструкция для iPhone и Android</small></div><button class="adelia-install-btn" type="button">Инструкция</button><button class="adelia-install-close" type="button" aria-label="Скрыть">×</button>';bar.querySelector('.adelia-install-btn').addEventListener('click',install);bar.querySelector('.adelia-install-close').addEventListener('click',()=>{bar.hidden=true;sessionStorage.setItem('adelia-install-dismissed','1')});document.body.appendChild(bar)}const bar=document.getElementById('adelia-install-bar');bar.hidden=standalone()||sessionStorage.getItem('adelia-install-dismissed')==='1'}
-  document.addEventListener('click',e=>{const target=e.target.closest('[data-install-adelia]');if(!target)return;e.preventDefault();install()},true);
+  function mount(){if(window.adeliaDesktop?.desktop){document.querySelectorAll('[data-install-adelia],.v4-install,#adelia-install-bar').forEach(x=>{x.hidden=true;x.style.display='none'});return}style();if(!document.getElementById('adelia-install-bar')){const bar=document.createElement('div');bar.id='adelia-install-bar';bar.className='adelia-install-bar';bar.innerHTML='<div class="adelia-install-icon">↧</div><div class="adelia-install-copy"><b>Установить Аделию</b><small>Windows, Mac, iPhone и Android</small></div><button class="adelia-install-btn" type="button">Скачать</button><button class="adelia-install-close" type="button" aria-label="Скрыть">×</button>';bar.querySelector('.adelia-install-btn').addEventListener('click',install);bar.querySelector('.adelia-install-close').addEventListener('click',()=>{bar.hidden=true;sessionStorage.setItem('adelia-install-dismissed','1')});document.body.appendChild(bar)}const bar=document.getElementById('adelia-install-bar');bar.hidden=standalone()||sessionStorage.getItem('adelia-install-dismissed')==='1'}
+  document.addEventListener('click',e=>{const target=e.target.closest('[data-install-adelia]');if(!target)return;e.preventDefault();e.stopImmediatePropagation();install()},true);
   window.AdeliaInstall={open:install,guide};window.addEventListener('adelia:pwa-state',mount);window.addEventListener('appinstalled',()=>{const b=document.getElementById('adelia-install-bar');if(b)b.hidden=true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
+

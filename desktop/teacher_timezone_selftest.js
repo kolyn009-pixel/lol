@@ -9,7 +9,7 @@ const window = { addEventListener() {}, dispatchEvent() {} };
 const document = { querySelector() { return null; }, addEventListener() {}, hidden: false };
 let writes = 0;
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'web', 'teacher_time.js'), 'utf8'), {
-  window, document, Intl, Date, Event, setInterval() {},
+  window, document, Intl, Date, Event, AbortController, setTimeout, clearTimeout, setInterval() {},
   fetch: async (url, options) => {
     if (options?.method === 'POST') {
       writes += 1;
@@ -34,3 +34,4 @@ const time = window.TeacherTime;
   assert.equal(new Date(row.start_at).toISOString(), '2026-09-27T16:00:00.000Z');
   console.log('TEACHER_DISPLAY_TIMEZONE=PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
+

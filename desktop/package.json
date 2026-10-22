@@ -1,13 +1,13 @@
 {
   "name": "adelia-desktop",
-  "version": "0.3.0-beta.2",
+  "version": "0.3.0-beta.3",
   "private": true,
   "description": "Аделия — приложение для обучения и преподавания",
   "main": "bootstrap.js",
   "scripts": {
     "sync:icon": "node generate_assets.js",
     "start": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron .",
-    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js && node student_timezone_selftest.js && node teacher_timezone_selftest.js && node current_features_selftest.cjs",
+    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js && node student_timezone_selftest.js && node teacher_timezone_selftest.js && node current_features_selftest.cjs && node yandex_session_selftest.cjs",
     "dist": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder",
     "dist:win": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis --x64",
     "dist:mac": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip",
@@ -64,7 +64,8 @@
       "build/icon.png",
       "build/icon.icns",
       "build/icon.ico",
-      "build/icon-macos.png"
+      "build/icon-macos.png",
+      "yandex_session.js"
     ],
     "directories": {
       "output": "dist",

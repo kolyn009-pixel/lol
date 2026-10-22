@@ -101,11 +101,6 @@ def restore(row):
     elif os.path.lexists(path):path.unlink()
 
 def nginx_config(original):
-    if re.search(r'location[^\n{]*/desktop-updates/',original):raise ValueError('A desktop-updates location already exists; inspect it before replacing')
-    marker=re.compile(r'(?m)^([ \t]*)root[ \t]+/var/www/adeliatutor\.ru/?[ \t]*;[ \t]*$')
-    hits=list(marker.finditer(original))
-    if len(hits)!=1:raise ValueError('Expected one HTTPS website root; nginx was not changed')
-    hit=hits[0]
     block='''
 
     # Adelia desktop downloads and per-platform beta update feeds.
@@ -119,6 +114,14 @@ def nginx_config(original):
         try_files $uri $uri/ =404;
     }
 '''
+    locations=re.findall(r'location[^\n{]*/desktop-updates/',original)
+    if locations:
+        if len(locations)==1 and block.strip() in original:return original
+        raise ValueError('Unknown desktop-updates location; existing nginx config preserved')
+    marker=re.compile(r'(?m)^([ \t]*)root[ \t]+/var/www/adeliatutor\.ru/?[ \t]*;[ \t]*$')
+    hits=list(marker.finditer(original))
+    if len(hits)!=1:raise ValueError('Expected one HTTPS website root; nginx was not changed')
+    hit=hits[0]
     return original[:hit.end()]+block+original[hit.end():]
 
 def run(*args):subprocess.run(args,check=True)
@@ -157,6 +160,10 @@ def publish(archives):
         manifests[target]=extract_bundle(archive,stage/target,target)
         print('VERIFIED='+target,flush=True)
     page='''<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Скачать Аделию</title><style>body{font:17px/1.5 system-ui;background:#f8f5ff;color:#282238;margin:0;padding:32px}main{max-width:800px;margin:auto}a{color:#6440c9}article{background:white;border-radius:18px;padding:24px;margin:16px 0;border:1px solid #e6deef}h1{font-size:32px}small{color:#73687c}</style><main><a href="/">← На сайт Аделии</a><h1>Аделия для компьютера</h1><p>Версия 0.3.0-beta.2 · кабинет ученика, родителя и преподавателя.</p><article><h2>Windows</h2><a href="/desktop-updates/Adelia-latest-windows-x64.exe">Скачать установщик Windows x64</a></article><article><h2>Mac с Apple Silicon</h2><p>Для Mac с процессорами серии M.</p><a href="/desktop-updates/Adelia-latest-macos-arm64.dmg">Скачать для Mac Apple Silicon</a></article><article><h2>Mac с Intel</h2><a href="/desktop-updates/Adelia-latest-macos-x64.dmg">Скачать для Mac Intel</a></article><p>Откройте .dmg и перенесите Аделию в «Программы». На Windows запустите .exe.</p><small>Бета-сборки пока без цифровой подписи. Для телефона доступен <a href="/app/">личный кабинет</a>.</small></main></html>'''
+    guide=Path(__file__).resolve().parents[1]/'web'/'desktop_install.html'
+    if guide.is_file():page=guide.read_text().replace('0.3.0-beta.2',VERSION)
+    else:page=page.replace('0.3.0-beta.2',VERSION)
+    if VERSION not in page:page=page.replace('</main>','<p style="text-align:center;color:#7a6e88">Версия '+VERSION+'</p></main>',1)
     (stage/'index.html').write_text(page);(stage/'index.html').chmod(0o644)
     for directory in [root,root/'releases',root/'releases'/'beta']:
         directory.mkdir(parents=True,exist_ok=True);directory.chmod(0o755)
@@ -196,7 +203,10 @@ def publish(archives):
     shutil.rmtree(stage)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('archives',nargs='*');parser.add_argument('--rollback');args=parser.parse_args()
+    global VERSION,SHA
+    parser=argparse.ArgumentParser();parser.add_argument('archives',nargs='*');parser.add_argument('--rollback');parser.add_argument('--version',default=VERSION);parser.add_argument('--sha',default=SHA);args=parser.parse_args()
+    if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?',args.version) or not re.fullmatch(r'[a-f0-9]{40}',args.sha):raise SystemExit('Invalid release identity')
+    VERSION,SHA=args.version,args.sha
     if os.geteuid()!=0:raise SystemExit('Run on the Ubuntu server as root')
     import fcntl
     with open('/run/adelia-desktop-publish.lock','w') as lock:
