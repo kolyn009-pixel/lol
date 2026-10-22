@@ -20,7 +20,7 @@ function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed
 function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
 for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,diagnostics:files.diagnostics,report:files.report,report_preload:files.reportPreload,device_check:files.deviceCheck,device_check_preload:files.deviceCheckPreload,about:files.about,about_preload:files.aboutPreload,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings,teacher_dashboard_week:web.teacherDashboard,pwa:web.pwa,student_service_worker:web.studentSw}))parseJs(`${n}.js`,s);
 
-check(pkg.version==='0.3.0-beta.3','desktop beta package version');
+check(/^\d+\.\d+\.\d+-beta\.\d+$/.test(pkg.version),'desktop beta package version');
 check(pkg.main==='bootstrap.js','desktop bootstrap entry');
 check(pkg.build?.appId==='ru.adeliatutor.desktop','stable app id');
 check(pkg.build?.asar===true,'asar enabled');
@@ -116,7 +116,7 @@ check(files.startHtml.includes('./build/icon.png')&&files.startHtml.includes('st
 check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start screen styles present');
 check(pkg.build.files.includes('bundled_ui_manifest.js'),'desktop bundled UI manifest packaged');
 check(files.bundledUi.includes("catch(()=>false)")&&files.bundledUi.includes("adelia-desktop-")&&files.bundledUi.includes("did-navigate-in-page")&&files.bundledUi.includes("setTimeout(run,900)"),'desktop bundled UI injection retries and marks role only after load');
-check(readRepo('web/desktop_teacher_app.css').includes('html.adelia-desktop-teacher')&&readRepo('web/desktop_teacher_app.css').includes('grid-template-areas:none!important'), 'teacher desktop compact workspaces are marker-scoped');
+check(readRepo('web/desktop_teacher_app.css').includes('html:is(.adelia-desktop-teacher,[data-adelia-design="studio4"])')&&readRepo('web/desktop_teacher_app.css').includes('grid-template-areas:none!important'), 'teacher website and desktop workspaces are marker-scoped');
 check(!web.desktopManifest.includes('desktop_teacher_density.js')&&web.desktopManifest.includes('desktop_workspace_v3.js'),'canonical desktop workspace replaces density runtime');
 check(web.desktopManifest.includes('teacher_groups.js')&&web.desktopManifest.includes('teacher_groups_polish.css')&&web.desktopManifest.includes('teacher_health.js')&&web.desktopManifest.includes('teacher_health.css'),'rebuilt groups and health workspaces are packaged for teacher desktop');
 check(web.desktopManifest.includes('teacher_messages_stage10.js')&&web.desktopManifest.includes('teacher_messages_polish.css'),'redesigned teacher messenger is packaged for teacher desktop');

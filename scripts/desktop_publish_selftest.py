@@ -8,7 +8,7 @@ p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
 
 class Tests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.folder=Path(self.temp.name)
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.folder=Path(self.temp.name).resolve()
     def archive(self,target,tamper=False,badname=False):
         alias,metadata=p.TARGETS[target];files={alias:b'installer bytes',metadata:b'updater metadata'}
         if target.startswith('macos-'):files['Adelia-0.3.0-beta.2-mac-'+target.split('-')[-1]+'.zip']=b'native ZIP bytes'

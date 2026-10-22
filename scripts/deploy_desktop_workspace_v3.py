@@ -53,8 +53,8 @@ def atomic(path,data):
     finally:
         if os.path.exists(tmp):os.unlink(tmp)
 
-def install(root,payload,backups):
-    updates=build_updates(root,payload)
+def install(root,payload,backups,prepared=None):
+    updates=prepared if prepared is not None else build_updates(root,payload)
     backup=Path(tempfile.mkdtemp(prefix='desktop-workspace-v3-',dir=backups));os.chmod(backup,0o700)
     existed={str(p.relative_to(root)):p.exists() for p in updates}
     for p in updates:
@@ -83,7 +83,7 @@ print('DESKTOP_WORKSPACE_ROLLED_BACK')
     print('DESKTOP_WORKSPACE_STATIC_OK')
     print('Backup:',backup)
     print('Rollback: python3 '+str(backup/'rollback.py'))
-    print('The Yandex login fix also requires the new native desktop release 0.3.0-beta.3.')
+    print('The Yandex login fix also requires the new native desktop release 0.3.0-beta.3 or newer.')
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('commit');args=parser.parse_args()

@@ -1,18 +1,20 @@
 /* Shared desktop controls and right-hand conversations. */
-html.adelia-desktop body{color:#202538;--v3-accent:#6352c7;--v3-line:#e5e7ef}
-html.adelia-desktop body button:focus-visible,html.adelia-desktop body a:focus-visible{outline:3px solid #bcb1ef!important;outline-offset:3px}
-html.adelia-desktop body .v3-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-html.adelia-desktop body .v3-tools button{min-height:38px;padding:8px 13px;border:1px solid #dedfea;border-radius:9px;background:#fff;color:#4e4769;font:600 13px/1.4 Arial,"Segoe UI",sans-serif;cursor:pointer}
-html.adelia-desktop body .v3-chat-launcher{position:fixed!important;right:24px!important;bottom:24px!important;z-index:150!important;display:flex!important;align-items:center!important;gap:9px!important;min-height:48px!important;padding:12px 20px!important;border:0!important;border-radius:14px!important;background:#6352c7!important;color:#fff!important;box-shadow:0 6px 24px #31246b30!important;font:600 15px/1.4 Arial,"Segoe UI",sans-serif!important;cursor:pointer}
-html.adelia-desktop body .v3-chat-panel{position:fixed;inset:0 0 0 auto;width:min(760px,100vw);height:100dvh;z-index:160;display:flex;flex-direction:column;background:#fff;border-left:1px solid #e1deec;box-shadow:-16px 0 64px #28204324}
-html.adelia-desktop body .v3-chat-panel[hidden]{display:none!important}
-html.adelia-desktop body .v3-chat-panel>header{display:flex!important;justify-content:space-between;align-items:center;gap:12px;padding:18px 20px!important;background:#fff!important;border-bottom:1px solid #e9e7f1!important;min-height:68px!important;box-sizing:border-box}
-html.adelia-desktop body .v3-chat-panel>header b{font-size:18px!important;color:#2a2740}
-html.adelia-desktop body .v3-chat-panel>header button{font:inherit;min-width:40px;min-height:36px;border:1px solid #e3dfed;border-radius:9px;background:#fff;color:#554c6c;cursor:pointer}
-html.adelia-desktop body .v3-chat-panel iframe{flex:1;min-height:0;width:100%;border:0;background:#fff}
-html.adelia-desktop body .v3-chat-feedback{padding:14px 20px;color:#a04141;font-size:14px}
-html.adelia-desktop body .v3-chat-feedback:empty{display:none}
-html.adelia-desktop body .v3-account-status{font-size:13px;color:#645c77}
+html:is(.adelia-desktop,.adelia-chat-enabled) body{color:#202538;--v3-accent:#6352c7;--v3-line:#e5e7ef}
+html:is(.adelia-desktop,.adelia-chat-enabled) body button:focus-visible,html:is(.adelia-desktop,.adelia-chat-enabled) body a:focus-visible{outline:3px solid #bcb1ef!important;outline-offset:3px}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-tools button{min-height:38px;padding:8px 13px;border:1px solid #dedfea;border-radius:9px;background:#fff;color:#4e4769;font:600 13px/1.4 Arial,"Segoe UI",sans-serif;cursor:pointer}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-launcher{position:fixed!important;right:24px!important;bottom:24px!important;z-index:150!important;display:flex!important;align-items:center!important;gap:9px!important;min-height:48px!important;padding:12px 20px!important;border:0!important;border-radius:14px!important;background:#6352c7!important;color:#fff!important;box-shadow:0 6px 24px #31246b30!important;font:600 15px/1.4 Arial,"Segoe UI",sans-serif!important;cursor:pointer}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-panel{position:fixed;inset:0 0 0 auto;width:min(760px,100vw);height:100dvh;z-index:160;display:flex;flex-direction:column;background:#fff;border-left:1px solid #e1deec;box-shadow:-16px 0 64px #28204324}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-panel[hidden]{display:none!important}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-panel>header{display:flex!important;justify-content:space-between;align-items:center;gap:12px;padding:18px 20px!important;background:#fff!important;border-bottom:1px solid #e9e7f1!important;min-height:68px!important;box-sizing:border-box}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-panel>header b{font-size:18px!important;color:#2a2740}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-panel>header button{font:inherit;min-width:40px;min-height:36px;border:1px solid #e3dfed;border-radius:9px;background:#fff;color:#554c6c;cursor:pointer}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-panel iframe{flex:1;min-height:0;width:100%;border:0;background:#fff}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-feedback{padding:14px 20px;color:#a04141;font-size:14px}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-chat-feedback:empty{display:none}
+html:is(.adelia-desktop,.adelia-chat-enabled) body .v3-account-status{font-size:13px;color:#645c77}
 html.adelia-desktop-student body .student-chat-text,html.adelia-desktop-student body .student-chat-compose textarea{font-size:15px!important;line-height:1.6!important}
 html.adelia-desktop-student body .desktop-command input{font-size:14px!important}
 @media(prefers-reduced-motion:no-preference){.v3-chat-panel{animation:v3-panel-in .18s ease-out}@keyframes v3-panel-in{from{transform:translateX(28px);opacity:.6}to{transform:none;opacity:1}}}
+
+@media(max-width:600px){html.adelia-chat-enabled body .v3-chat-launcher{right:16px!important;bottom:max(16px,env(safe-area-inset-bottom))!important}html.adelia-chat-enabled body .v3-chat-panel>header{padding:12px 16px!important;min-height:58px!important}}

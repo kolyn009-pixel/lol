@@ -1,6 +1,7 @@
 'use strict';
 const { app, BrowserWindow, shell, session, dialog, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const { offerUpdate } = require('./update_offer');
 const fs = require('fs');
 const path = require('path');
 const yandexSession = require('./yandex_session');
@@ -268,7 +269,7 @@ function setupAutoUpdates() {
   autoUpdater.on('download-progress',info=>sendUpdateState({status:'downloading',percent:Number(info.percent||0)}));
   autoUpdater.on('error',err=>sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'}));
   if (!app.isPackaged) { sendUpdateState({status:'current'}); return; }
-  autoUpdater.on('update-available', async info => { sendUpdateState({status:'available',version:info.version}); if(updateBusy)return; updateBusy=true; try { const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Доступно обновление Аделии',message:`Доступна новая версия ${info.version}.`,detail:'Скачать обновление сейчас? Можно продолжать пользоваться приложением во время загрузки.',buttons:['Скачать','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0) await autoUpdater.downloadUpdate(); } catch(_){} finally{updateBusy=false;} });
+  autoUpdater.on('update-available', async info => { sendUpdateState({status:'available',version:info.version}); if(updateBusy)return; updateBusy=true; try { await offerUpdate({platform:process.platform,arch:process.arch,version:info.version,dialog,parent:mainWindow||undefined,openExternal:url=>shell.openExternal(url),downloadUpdate:()=>autoUpdater.downloadUpdate()}); } catch(_){} finally{updateBusy=false;} });
   autoUpdater.on('update-downloaded', async info => { sendUpdateState({status:'downloaded',version:info.version,percent:100}); const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Обновление готово',message:`Версия ${info.version} загружена.`,detail:'Перезапустить Аделию и установить обновление сейчас?',buttons:['Перезапустить и обновить','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0){closeLessonWindows();autoUpdater.quitAndInstall(false,true);} });
   const check=()=>{if(updateBusy||lessonWindows.size>0)return;autoUpdater.checkForUpdates().catch(()=>{});}; setTimeout(check,15000); updateTimer=setInterval(check,UPDATE_CHECK_MS);
 }
