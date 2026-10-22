@@ -112,6 +112,8 @@ jobs:
           gh release upload "$TAG" "$BUNDLE" --repo "$GITHUB_REPOSITORY" --clobber
           echo "DRAFT_INSTALLER_UPLOAD=OK"
       - name: Retain installers for download
+        if: vars.ADELIA_RETAIN_ACTIONS_ARTIFACTS == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Adelia-beta3-${{ matrix.target }}
