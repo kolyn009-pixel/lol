@@ -1,0 +1,15 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),{EventEmitter}=require('node:events');
+const scheduled=new Map(),dialogs=[],opened=[];let uid=0,ua='Mozilla/5.0 Chrome/140.0.0.0 Electron/38.0.0 adelia-desktop/0.3.0-beta.3';
+const context={URL,Set,console,module:{exports:{}},require:name=>{assert.equal(name,'electron');return{BrowserWindow:{},session:{fromPartition:name=>{assert.equal(name,'persist:adelia-lesson');return{getUserAgent:()=>ua,setUserAgent:value=>ua=value}}},shell:{openExternal:async url=>opened.push(url)},dialog:{showMessageBox:async(_win,opt)=>{dialogs.push(opt);return{response:2}}}}},setTimeout:fn=>{scheduled.set(++uid,fn);return uid},clearTimeout:id=>scheduled.delete(id)};
+vm.runInNewContext(fs.readFileSync(__dirname+'/yandex_session.js','utf8'),context);const y=context.module.exports;
+for(const u of ['https://telemost.yandex.ru/j/123','https://passport.yandex.ru/auth','https://id.yandex.com/'])assert(y.allowed(u));
+for(const u of ['http://telemost.yandex.ru','https://telemost.yandex.ru.evil.example/','https://evil.example/?next=telemost.yandex.ru','https://user:secret@telemost.yandex.ru','file:///tmp/login','javascript:alert(1)','yandextelemost://call','https://passport.yandex.ru:8000/'])assert(!y.allowed(u),u);
+y.configureSession();assert(!ua.includes('Electron/'));assert(!ua.includes('adelia-desktop/'));assert(ua.includes('Chrome/140.0.0.0'));
+const w=new EventEmitter();w.webContents=new EventEmitter();w.webContents.setWindowOpenHandler=fn=>w.popup=fn;w.isDestroyed=()=>false;w.close=()=>{w.closed=true;w.emit('closed')};w.loadURL=async()=>{};
+y.attach(w,'https://telemost.yandex.ru/j/123');
+const popup=w.popup({url:'https://passport.yandex.ru/auth'});assert.equal(popup.action,'allow');assert.equal(popup.overrideBrowserWindowOptions.webPreferences.partition,'persist:adelia-lesson');assert.equal(popup.overrideBrowserWindowOptions.webPreferences.nodeIntegration,false);assert.equal(popup.overrideBrowserWindowOptions.webPreferences.preload,undefined);assert.equal(w.popup({url:'https://evil.example'}).action,'deny');
+let denied=false;w.webContents.emit('will-redirect',{preventDefault:()=>denied=true},'https://evil.example');assert(denied);denied=false;w.webContents.emit('will-navigate',{preventDefault:()=>denied=true},'https://passport.yandex.ru/auth');assert(!denied);
+w.webContents.emit('did-start-navigation',{},'https://telemost.yandex.ru/j/123',false,true);assert.equal(scheduled.size,1);w.webContents.emit('did-stop-loading');assert.equal(scheduled.size,0);
+w.webContents.emit('did-start-navigation',{},'https://telemost.yandex.ru/j/123',false,true);const timeout=[...scheduled.values()][0];
+(async()=>{await timeout();assert.equal(dialogs.length,1);assert(w.closed);assert.equal(scheduled.size,0);assert.equal(opened.length,0);console.log('YANDEX_SESSION=PASS: auth allowlist, shared persistent login, popup isolation, navigation, timeout and close')})().catch(e=>{console.error(e);process.exit(1)});

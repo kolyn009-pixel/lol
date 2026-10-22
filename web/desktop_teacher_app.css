@@ -1,257 +1,84 @@
-/* Adelia Desktop — teacher-only workspace shell */
-:root{--desktop-a:#6847f5;--desktop-bg:#f4f2f7;--desktop-line:#e8e3ee}
-html,body{background:var(--desktop-bg)!important}
-body{overflow-x:hidden}
-.teacher-shell{min-height:100vh!important;grid-template-columns:236px minmax(0,1fr)!important;background:var(--desktop-bg)!important}
-.teacher-shell>aside{position:sticky!important;top:0!important;height:100vh!important;padding:22px 14px!important;border-right:1px solid rgba(225,219,233,.9)!important;background:rgba(250,248,252,.96)!important;backdrop-filter:blur(24px)!important}
-.teacher-shell>aside .brand{margin:0 5px 22px!important;padding:0!important}
-.teacher-shell>aside nav{display:grid!important;gap:3px!important}
-.teacher-shell>aside nav button,.teacher-more summary{min-height:42px!important;border-radius:12px!important;padding:0 12px!important}
-.teacher-shell>aside nav button.active{background:linear-gradient(135deg,#eee9ff,#f5f2ff)!important;box-shadow:inset 0 0 0 1px rgba(104,71,245,.08)!important;color:#5f3fd0!important}
-.teacher-shell>main{min-width:0!important;padding:0 28px 48px!important}
-.teacher-shell main>header{position:sticky!important;top:0!important;z-index:35!important;min-height:86px!important;margin:0 -28px 18px!important;padding:18px 28px 14px!important;background:rgba(244,242,247,.90)!important;backdrop-filter:blur(22px)!important;border-bottom:1px solid rgba(224,218,231,.7)!important}
-.teacher-shell main>header h1{font-size:32px!important;letter-spacing:-.045em!important}
-.header-actions{gap:8px!important}.header-actions button{min-height:40px!important;border-radius:12px!important}
-#app{max-width:1480px!important;margin:0 auto!important}
-.teacher-dashboard-v2 .week-overview{gap:9px!important}.teacher-dashboard-v2 .week-metric{min-height:76px!important;border-radius:16px!important}
-.teacher-dashboard-v2 .dashboard-layout{gap:14px!important}
-.msg-shell{height:calc(100vh - 126px)!important;border-radius:18px!important;overflow:hidden!important}
-.wh-shell{max-width:1460px!important}
-@media(min-width:1500px){.teacher-shell{grid-template-columns:250px minmax(0,1fr)!important}.teacher-shell>main{padding-left:38px!important;padding-right:38px!important}.teacher-shell main>header{margin-left:-38px!important;margin-right:-38px!important;padding-left:38px!important;padding-right:38px!important}}
-
-/* Desktop is already installed: keep the teacher workspace app-native. */
-[data-install-adelia],.v4-install,#adelia-install-bar,.adelia-install-bar{display:none!important}
-.desktop-sidebar-toggle{display:none!important}
-.teacher-shell>aside{overflow:auto!important}
-.teacher-shell>main{max-width:none!important}
-#app{width:100%!important}
-.teacher-dashboard-v2 .dashboard-layout{grid-template-columns:minmax(0,1.55fr) minmax(300px,.7fr)!important}
-.teacher-dashboard-v2 .week-overview{grid-template-columns:repeat(7,minmax(0,1fr))!important}
-.msg-shell{min-height:620px!important}
-.msg-shell .msg-list{min-width:330px!important}
-.library-shell,.formula-shell,.progress-shell,.groups-shell,.health-shell{max-width:none!important}
-.v4-empty-state,.empty{min-height:0!important}
-@media(max-width:1180px){.teacher-dashboard-v2 .dashboard-layout{grid-template-columns:1fr!important}.teacher-dashboard-v2 .week-overview{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
-
-
-/* Desktop teacher workspace — native-density pass */
-html body .clean-menu-toggle,html body .v4-mobile-menu{display:none!important}
-html body .teacher-shell>main>header .header-actions [data-install-adelia],html body .teacher-shell>main>header .v4-install{display:none!important}
-html body .teacher-shell>main>header{min-height:78px!important;padding-top:14px!important;padding-bottom:12px!important}
-html body .teacher-shell main>header h1{font-size:30px!important}
-html body .teacher-shell main>header small{letter-spacing:.08em!important;text-transform:uppercase!important;font-size:10px!important;color:#8a8292!important}
-html body .header-actions{display:flex!important;align-items:center!important;flex-wrap:wrap!important;justify-content:flex-end!important}
-html body .header-actions button{min-height:38px!important;padding:0 13px!important;font-weight:750!important}
-html body .teacher-book-student{background:#6847f5!important;border-color:#6847f5!important;color:#fff!important;box-shadow:0 8px 22px rgba(104,71,245,.18)!important}
-html body .teacher-dashboard-v2 .dashboard-layout{align-items:start!important}
-html body .teacher-dashboard-v2 .week-overview{margin-bottom:14px!important}
-html body #app .row{border-radius:15px!important}
-html body .teacher-quick-actions{gap:5px!important}
-html body .teacher-quick-actions button{min-height:32px!important;padding:6px 9px!important;font-size:11px!important}
-html body .teacher-booking-card{border-radius:20px!important;box-shadow:0 30px 100px rgba(31,22,55,.22)!important}
-@media(max-width:1180px){html body .header-actions{justify-content:flex-start!important}}
-
-
-/* Desktop Today — information-first workspace */
-html body .teacher-dashboard-v2{gap:14px!important}
-html body .teacher-dashboard-v2 .week-overview{grid-template-columns:repeat(5,minmax(120px,1fr))!important;gap:8px!important;overflow-x:auto!important;padding-bottom:2px!important}
-html body .teacher-dashboard-v2 .week-metric{min-width:120px!important;min-height:70px!important;padding:12px 13px!important;border-radius:14px!important;box-shadow:0 4px 16px rgba(58,43,97,.025)!important}
-html body .teacher-dashboard-v2 .week-metric b{font-size:23px!important}
-html body .teacher-dashboard-v2 .week-metric span{font-size:10px!important}
-html body .teacher-dashboard-v2 .dashboard-layout{grid-template-columns:minmax(0,1.72fr) minmax(270px,.58fr)!important;gap:12px!important}
-html body .teacher-dashboard-v2 .dashboard-main,html body .teacher-dashboard-v2 .dashboard-side{gap:12px!important}
-html body .teacher-dashboard-v2 .dashboard-panel{padding:15px!important;border-radius:17px!important;box-shadow:0 5px 20px rgba(58,43,97,.028)!important}
-html body .teacher-dashboard-v2 .dashboard-panel-head{margin-bottom:11px!important;align-items:center!important}
-html body .teacher-dashboard-v2 .dashboard-panel-head h2{font-size:16px!important;letter-spacing:-.015em!important}
-html body .teacher-dashboard-v2 .dashboard-panel-head p{font-size:10px!important}
-html body .teacher-dashboard-v2 .dashboard-lesson-card.row{grid-template-columns:auto minmax(170px,1fr) minmax(270px,auto)!important;padding:10px 11px!important;border-radius:13px!important;gap:8px 11px!important}
-html body .teacher-dashboard-v2 .dashboard-lesson-main>b{font-size:13px!important}
-html body .teacher-dashboard-v2 .dashboard-lesson-main>span:first-of-type{font-size:11px!important}
-html body .teacher-dashboard-v2 .dashboard-side{position:sticky!important;top:96px!important}
-html body .teacher-dashboard-v2 .week-day{border-radius:13px!important}
-html body .teacher-dashboard-v2 .week-day-head{padding:9px 11px!important}
-html body .teacher-dashboard-v2 .week-lesson{padding:8px 11px!important}
-html body .teacher-dashboard-v2 .today-history-card{padding:9px 10px!important;border-radius:12px!important}
-html body .teacher-dashboard-v2 .dashboard-empty{padding:18px 10px!important}
-@media(max-width:1280px){html body .teacher-dashboard-v2 .dashboard-layout{grid-template-columns:1fr!important}html body .teacher-dashboard-v2 .dashboard-side{position:static!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}html body .teacher-dashboard-v2 .dashboard-lesson-card.row{grid-template-columns:auto minmax(140px,1fr)!important}}
-@media(max-width:900px){html body .teacher-dashboard-v2 .dashboard-side{grid-template-columns:1fr!important}}
-
-/* Desktop active lesson — keep teaching controls above secondary history. */
-html body .lesson-hero{padding:15px 17px!important;border-radius:17px!important;box-shadow:0 5px 20px rgba(58,43,97,.035)!important}html body .lesson-hero h2{font-size:24px!important;margin:7px 0 4px!important}html body .lesson-hero p{font-size:10px!important}html body .lesson-actions{margin:8px 0!important;min-height:0!important}html body .lesson-actions>[hidden]{display:none!important}html body .lesson-live-workspace{margin-top:9px!important}html body .lesson-live-tools{grid-template-columns:minmax(180px,.85fr) minmax(180px,.85fr) minmax(220px,1fr)!important}html body .lesson-grid{align-items:start!important;gap:12px!important}html body .lesson-grid .panel{padding:14px!important;border-radius:16px!important}html body .lesson-grid .panel h2{font-size:15px!important}html body #lessonComment{min-height:92px!important}@media(max-width:1100px){html body .lesson-live-tools{grid-template-columns:1fr 1fr!important}html body .lesson-live-presence{grid-column:1/3!important}}@media(max-width:760px){html body .lesson-live-tools{grid-template-columns:1fr!important}html body .lesson-live-presence{grid-column:auto!important}}
-
-/* Desktop post-lesson — compact completion desk */
-html body .post-workspace{max-width:1380px;margin:0 auto!important}html body .post-checklist>div{min-height:52px!important}html body .post-progress-panel{min-height:0!important}html body .post-side .panel{box-shadow:0 5px 18px rgba(58,43,97,.028)!important}html body .post-finishbar{bottom:16px!important}@media(min-width:1280px){html body .post-layout{grid-template-columns:minmax(0,1.78fr) minmax(290px,.5fr)!important}}
-
-/* Desktop Today command center */
-html body .today-command{grid-template-columns:minmax(0,1.55fr) minmax(390px,.65fr)!important;gap:9px!important}html body .today-command-main{padding:14px 16px!important;border-radius:16px!important}html body .today-next h2{font-size:20px!important}html body .today-command-actions{gap:6px!important}html body .today-command-actions button{min-height:88px!important;padding:10px!important;border-radius:14px!important}html body .today-command-actions b{font-size:22px!important}@media(max-width:1250px){html body .today-command{grid-template-columns:1fr!important}html body .today-command-actions button{min-height:72px!important}}
-
-
-/* Desktop secondary workspaces — compact, tool-first, no web landing heroes. */
-html body .v4-page-head,html body .finance-head:not(.compact),html body .health-hero{padding:12px 14px!important;margin-bottom:10px!important;border-radius:15px!important;min-height:0!important;box-shadow:0 4px 16px rgba(58,43,97,.025)!important}
-html body .v4-page-head h2,html body .finance-head:not(.compact) h2,html body .health-hero h2{font-size:18px!important;margin:2px 0 3px!important}
-html body .v4-page-head p,html body .finance-head:not(.compact) p,html body .health-hero p{font-size:10px!important;line-height:1.35!important;margin-top:2px!important}
-html body .v4-kicker,html body .health-kicker{font-size:8px!important;letter-spacing:.07em!important}
-html body .v4-page-head .primary,html body .health-hero .soft{min-height:34px!important;padding:0 11px!important;font-size:10px!important}
-html body .v4-group-grid:has(.v4-empty-state){grid-template-columns:minmax(0,520px)!important}
-html body .v4-empty-state{padding:20px 18px!important;border-radius:15px!important;text-align:left!important}
-html body .v4-empty-icon{font-size:22px!important}html body .v4-empty-state h3{font-size:16px!important;margin:5px 0 3px!important}html body .v4-empty-state p{font-size:10px!important;margin:0 0 10px!important;max-width:460px!important}html body .v4-empty-state .primary{min-width:190px!important;min-height:34px!important}
-html body .finance-tabs,html body .payments-tabs{margin-bottom:9px!important}html body .finance-tabs button,html body .payments-tabs button{min-height:32px!important;padding:5px 10px!important;font-size:10px!important}
-html body .finance-head>div>span.badge{margin-bottom:3px!important;font-size:8px!important}html body .finance-overview-toolbar{padding:11px 13px!important;border-radius:15px!important}
-html body .health-grid{gap:7px!important;margin-bottom:9px!important}html body .health-card{padding:10px 12px!important;min-height:68px!important;border-radius:14px!important}html body .health-card strong{font-size:19px!important}html body .health-google,html body .health-panel{padding:12px 14px!important;border-radius:14px!important}
-html body .tb-grid{gap:10px!important}html body .tb-grid>section>h2{font-size:17px!important;margin:0 0 3px!important}html body .tb-grid>section>.muted{font-size:10px!important;margin:0 0 9px!important}html body .tb-card{padding:11px 12px!important;margin-bottom:8px!important;border-radius:14px!important}html body .tb-card h3{font-size:14px!important;margin:4px 0!important}html body .tb-card p{font-size:10px!important;margin:5px 0!important}html body .tb-meta,html body .tb-state{font-size:9px!important}html body .tb-actions{margin-top:8px!important;gap:5px!important}html body .tb-actions button{padding:6px 9px!important;font-size:9px!important}html body .tb-form{gap:6px!important;margin-top:7px!important}html body .tb-form input,html body .tb-form select{padding:7px 9px!important;font-size:10px!important}
-html body .msg-shell{height:calc(100vh - 108px)!important;min-height:540px!important}html body .msg-thread-head{min-height:50px!important;padding:9px 12px!important}html body .msg-history{padding:11px 13px!important}html body .msg-compose textarea{min-height:50px!important}
-
-
-/* Desktop marker pass — these rules only activate inside the Electron teacher workspace. */
-html.adelia-desktop-teacher body .v4-page-head,
-html.adelia-desktop-teacher body .finance-head:not(.compact),
-html.adelia-desktop-teacher body .health-hero{
-  padding:10px 13px!important;
-  min-height:0!important;
-  margin:0 0 10px!important;
-  border-radius:14px!important;
-}
-html.adelia-desktop-teacher body .v4-page-head h1,
-html.adelia-desktop-teacher body .v4-page-head h2,
-html.adelia-desktop-teacher body .finance-head h1,
-html.adelia-desktop-teacher body .finance-head h2,
-html.adelia-desktop-teacher body .health-hero h1,
-html.adelia-desktop-teacher body .health-hero h2{
-  font-size:18px!important;
-  line-height:1.15!important;
-  margin:2px 0 3px!important;
-}
-html.adelia-desktop-teacher body .v4-page-head p,
-html.adelia-desktop-teacher body .finance-head p,
-html.adelia-desktop-teacher body .health-hero p{
-  font-size:10px!important;
-  line-height:1.35!important;
-  margin:2px 0!important;
-}
-html.adelia-desktop-teacher body .v4-group-grid:has(.v4-empty-state){display:block!important}
-html.adelia-desktop-teacher body .v4-empty-state{
-  width:min(100%,520px)!important;
-  min-height:0!important;
-  padding:18px!important;
-  margin:0!important;
-  text-align:left!important;
-}
-html.adelia-desktop-teacher body .v4-empty-state .primary{
-  width:auto!important;
-  min-width:180px!important;
-  max-width:280px!important;
-  min-height:34px!important;
-  padding:7px 13px!important;
-}
-html.adelia-desktop-teacher body .finance-tabs,
-html.adelia-desktop-teacher body .payments-tabs{margin:0 0 9px!important}
-html.adelia-desktop-teacher body .finance-overview-toolbar{padding:10px 12px!important}
-html.adelia-desktop-teacher body .health-grid{gap:8px!important}
-html.adelia-desktop-teacher body .health-card{min-height:66px!important;padding:10px 12px!important}
-html.adelia-desktop-teacher body .tb-grid{gap:10px!important}
-html.adelia-desktop-teacher body .tb-card{padding:10px 12px!important;margin-bottom:8px!important}
-
-
-/* Desktop teacher contrast system — readable everywhere, independent of web theme. */
-html.adelia-desktop-teacher body #app{
-  --adelia-desk-text:#211d2a;
-  --adelia-desk-muted:#6f6878;
-  --adelia-desk-hero:#242943;
-  --adelia-desk-hero-2:#343966;
-  color:var(--adelia-desk-text)!important;
-}
-html.adelia-desktop-teacher body #app :is(.panel,.row,.card,.v4-empty-state,.health-card,.health-panel,.health-google,.tb-card,.finance-overview-toolbar,.dashboard-panel){
-  color:var(--adelia-desk-text)!important;
-}
-html.adelia-desktop-teacher body #app :is(.panel,.row,.card,.v4-empty-state,.health-card,.health-panel,.health-google,.tb-card,.finance-overview-toolbar,.dashboard-panel) :is(h1,h2,h3,h4,b,strong){
-  color:#211d2a!important;
-}
-html.adelia-desktop-teacher body #app :is(.panel,.row,.card,.v4-empty-state,.health-card,.health-panel,.health-google,.tb-card,.finance-overview-toolbar,.dashboard-panel) :is(p,small,.muted,.sub,.meta){
-  color:#6f6878!important;
-}
-html.adelia-desktop-teacher body #app :is(.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero){
-  background:linear-gradient(135deg,var(--adelia-desk-hero),var(--adelia-desk-hero-2))!important;
-  color:#fff!important;
-  border-color:rgba(255,255,255,.08)!important;
-}
-html.adelia-desktop-teacher body #app :is(.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero) :is(h1,h2,h3,h4,b,strong){
-  color:#fff!important;
-  text-shadow:none!important;
-  opacity:1!important;
-}
-html.adelia-desktop-teacher body #app :is(.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero) :is(p,span,small,.muted,.sub,.meta){
-  color:rgba(255,255,255,.82)!important;
-  opacity:1!important;
-}
-html.adelia-desktop-teacher body #app :is(.v4-page-head,.finance-head:not(.compact),.health-hero,.lesson-hero) :is(.v4-kicker,.health-kicker,.badge){
-  color:#d9d4ff!important;
-  opacity:1!important;
-}
-html.adelia-desktop-teacher body #app button,
-html.adelia-desktop-teacher body #app input,
-html.adelia-desktop-teacher body #app select,
-html.adelia-desktop-teacher body #app textarea{
-  opacity:1!important;
-}
-
-
-/* Desktop Health primary metric: dark surface must keep explicit light typography. */
-html.adelia-desktop-teacher body #app .health-grid-v2 .health-card.health-card-primary{background:linear-gradient(135deg,#252a48,#353b68)!important;border-color:#343a63!important;color:#fff!important}
-html.adelia-desktop-teacher body #app .health-grid-v2 .health-card.health-card-primary :is(span,strong,b,h1,h2,h3,h4){color:#fff!important;opacity:1!important;text-shadow:none!important}
-html.adelia-desktop-teacher body #app .health-grid-v2 .health-card.health-card-primary :is(small,p,.muted,.sub,.meta){color:rgba(255,255,255,.78)!important;opacity:1!important}
-
-
-/* Adelia Desktop teacher — unified lavender workspace visual system */
-html.adelia-desktop-teacher body{
-  --ad-bg:#f6f5fb;--ad-card:#fff;--ad-soft:#faf9ff;--ad-line:#ebe8f5;
-  --ad-text:#15132b;--ad-muted:#716c8b;--ad-purple:#6847f5;--ad-purple2:#7b5cff;
-  background:var(--ad-bg)!important;color:var(--ad-text)!important;
-}
-html.adelia-desktop-teacher body .teacher-shell{grid-template-columns:224px minmax(0,1fr)!important;background:var(--ad-bg)!important}
-html.adelia-desktop-teacher body .teacher-shell>aside{background:linear-gradient(180deg,#fbfaff 0%,#f7f5ff 100%)!important;border-right:1px solid var(--ad-line)!important;padding:20px 14px!important}
-html.adelia-desktop-teacher body .teacher-shell>aside nav{gap:5px!important}
-html.adelia-desktop-teacher body .teacher-shell>aside nav button,
-html.adelia-desktop-teacher body .teacher-more summary{min-height:44px!important;border-radius:13px!important;color:#292442!important;font-size:13px!important}
-html.adelia-desktop-teacher body .teacher-shell>aside nav button.active{background:#eee9ff!important;color:#623df2!important;box-shadow:none!important}
-html.adelia-desktop-teacher body .teacher-shell>main{padding:0 20px 32px!important}
-html.adelia-desktop-teacher body .teacher-shell main>header{min-height:68px!important;margin:0 -20px 14px!important;padding:12px 20px!important;background:rgba(250,249,255,.94)!important;border-bottom:1px solid var(--ad-line)!important}
-html.adelia-desktop-teacher body .teacher-shell main>header h1{font-size:27px!important;line-height:1.05!important;color:var(--ad-text)!important}
-html.adelia-desktop-teacher body .header-actions button{border-radius:12px!important;min-height:38px!important}
-html.adelia-desktop-teacher body .teacher-book-student,
-html.adelia-desktop-teacher body button.primary{background:linear-gradient(135deg,var(--ad-purple),#5732f0)!important;border-color:transparent!important;color:#fff!important;box-shadow:0 8px 20px rgba(104,71,245,.18)!important}
-
-/* Cards and controls: same visual language as approved mockup. */
-html.adelia-desktop-teacher body #app :is(.panel,.row,.card,.dashboard-panel,.tb-card,.health-card,.health-panel,.health-google,.finance-overview-toolbar,.v4-empty-state){
-  background:var(--ad-card)!important;border:1px solid var(--ad-line)!important;border-radius:16px!important;box-shadow:0 5px 18px rgba(49,38,91,.035)!important;
-}
-html.adelia-desktop-teacher body #app :is(input,select,textarea){background:#fff!important;border:1px solid #dfdbed!important;border-radius:12px!important;color:var(--ad-text)!important}
-html.adelia-desktop-teacher body #app :is(button,.btn){border-radius:11px!important}
-
-/* Lesson workspace — status/action center first, supporting tools below. */
-html.adelia-desktop-teacher body #app .lesson-hero{
-  background:#fff!important;color:var(--ad-text)!important;border:1px solid var(--ad-line)!important;
-  border-radius:17px!important;padding:16px 18px!important;box-shadow:0 5px 18px rgba(49,38,91,.035)!important;
-}
-html.adelia-desktop-teacher body #app .lesson-hero :is(h1,h2,h3,h4,b,strong){color:var(--ad-text)!important}
-html.adelia-desktop-teacher body #app .lesson-hero :is(p,span,small,.muted,.sub,.meta){color:var(--ad-muted)!important}
-html.adelia-desktop-teacher body #app .lesson-actions{display:grid!important;grid-template-columns:minmax(180px,1.2fr) repeat(2,minmax(150px,1fr))!important;gap:8px!important}
-html.adelia-desktop-teacher body #app .lesson-actions button{min-height:46px!important}
-html.adelia-desktop-teacher body #app .lesson-grid{grid-template-columns:minmax(0,1.45fr) minmax(300px,.75fr)!important;gap:12px!important}
-html.adelia-desktop-teacher body #app .lesson-grid .panel{padding:15px!important}
-html.adelia-desktop-teacher body #app #lessonComment{min-height:118px!important}
-html.adelia-desktop-teacher body #app .lesson-live-tools{gap:10px!important}
-@media(max-width:1120px){html.adelia-desktop-teacher body #app .lesson-grid{grid-template-columns:1fr!important}}
-
-/* Messages — permanent two-pane desktop messenger. */
-html.adelia-desktop-teacher body #app .msg-shell{
-  display:grid!important;grid-template-columns:minmax(300px,360px) minmax(0,1fr)!important;
-  height:calc(100vh - 96px)!important;min-height:600px!important;background:#fff!important;
-  border:1px solid var(--ad-line)!important;border-radius:18px!important;box-shadow:0 8px 28px rgba(49,38,91,.05)!important;
-}
-html.adelia-desktop-teacher body #app .msg-list{min-width:0!important;background:#fbfaff!important;border-right:1px solid var(--ad-line)!important}
-html.adelia-desktop-teacher body #app .msg-thread-head{min-height:64px!important;padding:11px 14px!important;background:#fff!important;border-bottom:1px solid var(--ad-line)!important}
-html.adelia-desktop-teacher body #app .msg-history{padding:16px!important;background:linear-gradient(180deg,#fff,#fbfaff)!important}
-html.adelia-desktop-teacher body #app .msg-compose{padding:11px 13px!important;background:#fff!important;border-top:1px solid var(--ad-line)!important}
-html.adelia-desktop-teacher body #app .msg-compose textarea{min-height:48px!important;max-height:120px!important}
-html.adelia-desktop-teacher body #app .msg-list :is(.active,[aria-selected="true"]){background:#eee9ff!important}
-@media(max-width:980px){html.adelia-desktop-teacher body #app .msg-shell{grid-template-columns:300px minmax(0,1fr)!important}}
+/* One desktop teacher layout. Loaded after the shared web styles. */
+html.adelia-desktop-teacher{--desktop-bg:#f5f6fa;--desktop-a:#6352c7;--desktop-line:#e5e7ef;background:var(--desktop-bg)}
+html.adelia-desktop-teacher body{margin:0!important;font-family:Arial,"Segoe UI",sans-serif!important;font-size:15px!important;line-height:1.5!important;color:#202538!important;background:var(--desktop-bg)!important;overflow-x:hidden}
+html.adelia-desktop-teacher body .teacher-shell{display:grid!important;grid-template-columns:224px minmax(0,1fr)!important;min-height:100vh!important;width:100%!important;max-width:none!important}
+html.adelia-desktop-teacher body .teacher-shell>aside{position:sticky!important;top:0!important;align-self:start!important;height:100vh!important;box-sizing:border-box!important;overflow-y:auto!important;padding:26px 14px!important;background:#fff!important;border-right:1px solid var(--desktop-line)!important;backdrop-filter:none!important}
+html.adelia-desktop-teacher body .teacher-shell>aside .brand{margin:0 10px 28px!important;gap:12px!important}
+html.adelia-desktop-teacher body .teacher-shell>aside .brand img{width:42px!important;height:42px!important;object-fit:contain!important}
+html.adelia-desktop-teacher body .teacher-shell>aside nav{display:grid!important;gap:5px!important}
+html.adelia-desktop-teacher body .teacher-shell>aside nav button{display:flex!important;align-items:center!important;gap:12px!important;min-height:43px!important;width:100%!important;border:0!important;border-radius:10px!important;padding:10px 13px!important;background:transparent!important;color:#60677b!important;font:500 14px/1.4 Arial,"Segoe UI",sans-serif!important;text-align:left!important;box-shadow:none!important}
+html.adelia-desktop-teacher body .teacher-shell>aside nav button.active{color:#5140ad!important;background:#efedfa!important;font-weight:650!important}
+html.adelia-desktop-teacher body .teacher-shell>aside nav button:hover{background:#f5f4fa!important}
+html.adelia-desktop-teacher body .teacher-shell>main{min-width:0!important;width:auto!important;max-width:none!important;margin:0!important;padding:0 30px 40px!important;box-sizing:border-box!important;background:transparent!important}
+html.adelia-desktop-teacher body .teacher-shell>main>header{display:flex!important;align-items:center!important;justify-content:space-between!important;flex-wrap:wrap!important;gap:14px!important;min-height:96px!important;padding:20px 0!important;box-sizing:border-box!important;border-bottom:1px solid var(--desktop-line)!important;background:transparent!important}
+html.adelia-desktop-teacher body .teacher-shell main>header h1{font-size:28px!important;font-weight:650!important;letter-spacing:-.035em!important;margin:0!important;color:#202538!important}
+html.adelia-desktop-teacher body .teacher-shell main>header small{font-size:12px!important;letter-spacing:.04em!important;color:#7b8195!important}
+html.adelia-desktop-teacher body .header-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important;align-items:center!important}
+html.adelia-desktop-teacher body .clean-menu-toggle,html.adelia-desktop-teacher body .v4-mobile-menu,html.adelia-desktop-teacher body [data-install-adelia]{display:none!important}
+html.adelia-desktop-teacher body #app{width:100%!important;max-width:1600px!important;margin:24px auto 0!important;min-width:0!important}
+html.adelia-desktop-teacher body button,html.adelia-desktop-teacher body input,html.adelia-desktop-teacher body select,html.adelia-desktop-teacher body textarea{font-family:inherit!important}
+html.adelia-desktop-teacher body button{font-size:13px!important;line-height:1.4!important;min-height:36px!important;padding:8px 12px!important;border-radius:9px!important;box-shadow:none!important;max-width:100%;white-space:normal}
+html.adelia-desktop-teacher body button.primary{background:#6352c7!important;border-color:#6352c7!important;color:#fff!important}
+html.adelia-desktop-teacher body .teacher-dashboard-v2{display:grid!important;gap:20px!important;min-width:0!important}
+html.adelia-desktop-teacher body .today-command{display:grid!important;grid-template-columns:minmax(0,1.6fr) minmax(240px,.8fr)!important;gap:18px!important}
+html.adelia-desktop-teacher body .today-command-main{padding:24px!important;background:#fff!important;border:1px solid var(--desktop-line)!important;border-radius:16px!important;box-shadow:none!important}
+html.adelia-desktop-teacher body .today-eyebrow,html.adelia-desktop-teacher body .attention-heading small{font-size:11px!important;text-transform:uppercase;letter-spacing:.08em!important;color:#868ca0!important}
+html.adelia-desktop-teacher body .today-next{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:18px!important;flex-wrap:wrap!important}
+html.adelia-desktop-teacher body .today-next h2{font-size:25px!important;line-height:1.25!important;letter-spacing:-.03em!important;margin:8px 0!important}
+html.adelia-desktop-teacher body .today-next p,html.adelia-desktop-teacher body .today-next small{font-size:13px!important;color:#73798e!important}
+html.adelia-desktop-teacher body .today-command-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+html.adelia-desktop-teacher body .today-command-actions button{min-height:100px!important;border:1px solid var(--desktop-line)!important;background:#fff!important;color:#454c63!important;padding:16px!important;text-align:left!important;border-radius:14px!important}
+html.adelia-desktop-teacher body .today-command-actions b{font-size:26px!important;color:#5140ad!important}
+html.adelia-desktop-teacher body .teacher-attention{padding:20px!important;border:1px solid var(--desktop-line)!important;background:#fff!important;border-radius:16px!important}
+html.adelia-desktop-teacher body .attention-heading{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;flex-wrap:wrap!important}
+html.adelia-desktop-teacher body .attention-heading h2{font-size:18px!important;margin:4px 0 14px!important}
+html.adelia-desktop-teacher body .attention-grid{display:flex!important;align-items:stretch!important;flex-wrap:wrap!important;gap:12px!important}
+html.adelia-desktop-teacher body .attention-grid>.attention-card{flex:1 1 240px!important;max-width:430px!important}
+html.adelia-desktop-teacher body .attention-secondary{display:flex!important;flex-wrap:wrap!important;gap:10px!important;flex:1 1 240px!important}
+html.adelia-desktop-teacher body .attention-card,html.adelia-desktop-teacher body .attention-card.featured{display:grid!important;gap:4px!important;padding:15px 18px!important;background:#f6f5fc!important;color:#5140ad!important;border:1px solid #e9e5f8!important;border-radius:12px!important;box-shadow:none!important;text-align:left!important;min-height:96px!important;flex:1 1 180px!important}
+html.adelia-desktop-teacher body .attention-card strong{font-size:26px!important;color:#322c5d!important}
+html.adelia-desktop-teacher body .attention-card small,html.adelia-desktop-teacher body #attentionFreshness{font-size:12px!important;color:#7d7792!important}
+html.adelia-desktop-teacher body .week-overview{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:12px!important;overflow:visible!important;margin:0!important}
+html.adelia-desktop-teacher body .week-metric{min-width:0!important;min-height:90px!important;background:#fff!important;border:1px solid var(--desktop-line)!important;border-radius:13px!important;padding:16px!important;box-shadow:none!important;box-sizing:border-box!important}
+html.adelia-desktop-teacher body .week-metric b{font-size:28px!important;font-weight:600!important;color:#30364b!important}
+html.adelia-desktop-teacher body .week-metric span{font-size:12px!important;color:#7b8195!important}
+html.adelia-desktop-teacher body .dashboard-layout{display:grid!important;grid-template-columns:minmax(0,1fr) 270px!important;gap:20px!important;align-items:start!important}
+html.adelia-desktop-teacher body .dashboard-main,html.adelia-desktop-teacher body .dashboard-side{display:grid!important;gap:20px!important;min-width:0!important;position:static!important}
+html.adelia-desktop-teacher body .dashboard-panel{padding:20px!important;border:1px solid var(--desktop-line)!important;border-radius:16px!important;background:#fff!important;box-shadow:none!important;min-width:0!important}
+html.adelia-desktop-teacher body .dashboard-panel-head{display:flex!important;align-items:center!important;justify-content:space-between!important;flex-wrap:wrap!important;gap:10px!important;margin-bottom:16px!important}
+html.adelia-desktop-teacher body .dashboard-panel-head h2{font-size:17px!important;margin:0!important}
+html.adelia-desktop-teacher body .dashboard-panel-head p{font-size:12px!important;color:#858b9e!important}
+html.adelia-desktop-teacher body .dashboard-lesson-card.row{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important;padding:18px!important;border:1px solid #e9ebf2!important;border-radius:12px!important;background:#fff!important;min-width:0!important;align-items:start!important}
+html.adelia-desktop-teacher body .dashboard-subject{display:inline-flex!important;justify-self:start!important;width:auto!important;max-width:100%!important;font-size:11px!important;padding:4px 9px!important;background:#f0eef9!important;color:#65589c!important;border-radius:6px!important;line-height:1.3!important;grid-column:auto!important}
+html.adelia-desktop-teacher body .dashboard-lesson-main{min-width:0!important;overflow-wrap:anywhere!important;grid-column:auto!important}
+html.adelia-desktop-teacher body .dashboard-lesson-main>b{display:block!important;font-size:17px!important;font-weight:600!important;color:#282e43!important}
+html.adelia-desktop-teacher body .dashboard-lesson-main>span{font-size:13px!important;line-height:1.6!important;color:#7a8093!important}
+html.adelia-desktop-teacher body .dashboard-lesson-actions{display:flex!important;flex-wrap:wrap!important;gap:7px!important;justify-content:flex-start!important;grid-column:auto!important;min-width:0!important;width:auto!important;margin:0!important}
+html.adelia-desktop-teacher body .teacher-quick-actions{display:none!important}
+html.adelia-desktop-teacher body .teacher-status-badge,html.adelia-desktop-teacher body .teacher-payment-badge{font-size:12px!important;line-height:1.4!important;padding:4px 8px!important}
+html.adelia-desktop-teacher body .week-day-head,html.adelia-desktop-teacher body .week-lesson{font-size:13px!important;padding:12px 14px!important}
+html.adelia-desktop-teacher body .week-lesson-main b,html.adelia-desktop-teacher body .lesson-name{font-size:14px!important}
+html.adelia-desktop-teacher body .week-lesson-main span,html.adelia-desktop-teacher body .lesson-meta{font-size:12px!important}
+html.adelia-desktop-teacher body .week-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))!important}
+html.adelia-desktop-teacher body .panel,html.adelia-desktop-teacher body .v4-page-head,html.adelia-desktop-teacher body .finance-head,html.adelia-desktop-teacher body .health-hero{box-shadow:none!important;border-color:var(--desktop-line)!important;border-radius:15px!important;padding:20px!important}
+html.adelia-desktop-teacher body .v4-page-head h2,html.adelia-desktop-teacher body .health-hero h2{font-size:23px!important}
+html.adelia-desktop-teacher body .v4-page-head p,html.adelia-desktop-teacher body .health-hero p,html.adelia-desktop-teacher body .tb-card p{font-size:14px!important}
+html.adelia-desktop-teacher body .msg-shell{min-height:420px!important;height:calc(100vh - 165px)!important;grid-template-columns:290px minmax(0,1fr)!important}
+html.adelia-desktop-teacher body .msg-list{min-width:0!important}
+html.adelia-desktop-teacher body .msg-thread-head{padding:16px!important}
+html.adelia-desktop-teacher body .msg-bubble{font-size:14px!important}
+@media(min-width:1500px){html.adelia-desktop-teacher body .dashboard-lesson-card.row{grid-template-columns:minmax(0,1fr) minmax(220px,.8fr)!important}html.adelia-desktop-teacher body .dashboard-subject{grid-column:1!important}html.adelia-desktop-teacher body .dashboard-lesson-main{grid-column:1!important}html.adelia-desktop-teacher body .dashboard-lesson-actions{grid-column:2!important;grid-row:1/3!important;align-self:center!important}}
+@media(max-width:1200px){html.adelia-desktop-teacher body .dashboard-layout{grid-template-columns:minmax(0,1fr)!important}html.adelia-desktop-teacher body .dashboard-side{grid-template-columns:repeat(2,minmax(0,1fr))!important}html.adelia-desktop-teacher body .today-command{grid-template-columns:minmax(0,1fr)!important}html.adelia-desktop-teacher body .today-command-actions button{min-height:76px!important}}
+@media(max-width:1000px){html.adelia-desktop-teacher body .teacher-shell{grid-template-columns:200px minmax(0,1fr)!important}html.adelia-desktop-teacher body .teacher-shell>main{padding:0 20px 30px!important}html.adelia-desktop-teacher body .week-overview{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:760px){html.adelia-desktop-teacher body .teacher-shell{grid-template-columns:1fr!important}html.adelia-desktop-teacher body .teacher-shell>aside{position:static!important;height:auto!important;max-height:220px!important}html.adelia-desktop-teacher body .teacher-shell>main{padding:0 14px 24px!important}html.adelia-desktop-teacher body .week-overview{grid-template-columns:repeat(2,minmax(0,1fr))!important}html.adelia-desktop-teacher body .dashboard-side{grid-template-columns:1fr!important}html.adelia-desktop-teacher body .msg-shell{grid-template-columns:1fr!important}}
+/* Explicit grid placement replaces named areas left by the web dashboard. */
+html.adelia-desktop-teacher body .dashboard-lesson-card.row{grid-template-areas:none!important}
+html.adelia-desktop-teacher body .dashboard-lesson-card>.dashboard-subject,html.adelia-desktop-teacher body .dashboard-lesson-card>.dashboard-lesson-main,html.adelia-desktop-teacher body .dashboard-lesson-card>.dashboard-lesson-actions{grid-area:auto!important;position:static!important;float:none!important;transform:none!important}
+html.adelia-desktop-teacher body .teacher-shell>aside{border-radius:0!important;transform:none!important;left:auto!important}
+html.adelia-desktop-teacher body .today-command-actions small{font-size:12px!important;color:#7b8195!important}
+html.adelia-desktop-teacher body .today-command-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+html.adelia-desktop-teacher body .today-command-actions button{min-height:90px!important}
+html.adelia-desktop-teacher body .today-command{grid-template-columns:minmax(0,1fr)!important}
+html.adelia-desktop-teacher body .today-command-main{min-height:0!important}
+html.adelia-desktop-teacher body .brand b{color:#24283b!important}
+@media(min-width:1500px){html.adelia-desktop-teacher body .dashboard-lesson-card>.dashboard-subject{grid-column:1!important;grid-row:1!important}html.adelia-desktop-teacher body .dashboard-lesson-card>.dashboard-lesson-main{grid-column:1!important;grid-row:2!important}html.adelia-desktop-teacher body .dashboard-lesson-card>.dashboard-lesson-actions{grid-column:2!important;grid-row:1/3!important}}

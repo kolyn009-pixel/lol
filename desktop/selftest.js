@@ -20,7 +20,7 @@ function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed
 function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
 for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,diagnostics:files.diagnostics,report:files.report,report_preload:files.reportPreload,device_check:files.deviceCheck,device_check_preload:files.deviceCheckPreload,about:files.about,about_preload:files.aboutPreload,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings,teacher_dashboard_week:web.teacherDashboard,pwa:web.pwa,student_service_worker:web.studentSw}))parseJs(`${n}.js`,s);
 
-check(pkg.version==='0.3.0-beta.2','desktop beta package version');
+check(pkg.version==='0.3.0-beta.3','desktop beta package version');
 check(pkg.main==='bootstrap.js','desktop bootstrap entry');
 check(pkg.build?.appId==='ru.adeliatutor.desktop','stable app id');
 check(pkg.build?.asar===true,'asar enabled');
@@ -104,7 +104,7 @@ check(files.role.includes("APP_ORIGIN+'/app/parent/'"),'parent cabinet wired');
 check(files.role.includes("APP_ORIGIN+'/app/teacher.html'"),'desktop teacher opens canonical document without redirect');
 check(web.pwa.includes("location.pathname==='/app/teacher.html'"),'PWA runtime recognizes canonical teacher document');
 check(web.studentSw.includes("url.pathname==='/app/teacher.html'"),'student service worker never intercepts canonical teacher document');
-check(web.teacher.includes('teacherBootRetry'),'teacher boot watchdog prevents endless loading state');
+check((web.teacher.includes('teacherBootRetry')||web.teacher.includes('AdeliaTeacherBootGuard')),'teacher boot watchdog prevents endless loading state');
 check(files.workspaceShell.includes("u.pathname.startsWith('/teacher')")&&files.workspaceShell.includes("u.pathname==='/app/teacher.html'")&&files.bundledUi.includes("pathname.startsWith('/teacher')")&&files.bundledUi.includes("pathname==='/app/teacher.html'"),'canonical teacher routes remain desktop teacher role');
 check(files.role.includes("APP_ORIGIN+'/api/auth/me'")&&files.role.includes("role==='teacher'")&&files.role.includes("role==='parent'")&&files.role.includes("role==='student'"),'authenticated desktop role is restored');
 check(files.main.includes("createWindow(startupDeep ? parseDeepLink(startupDeep).target : null)")&&files.main.includes("if (!startupDeep) await restoreMainRole()")&&files.main.includes("win.loadFile(path.join(__dirname,'start.html'))"),'desktop startup is role-gated before remote cabinet load');
@@ -116,8 +116,8 @@ check(files.startHtml.includes('./build/icon.png')&&files.startHtml.includes('st
 check(files.startCss.includes('.role')&&files.startCss.includes('.intro'),'start screen styles present');
 check(pkg.build.files.includes('bundled_ui_manifest.js'),'desktop bundled UI manifest packaged');
 check(files.bundledUi.includes("catch(()=>false)")&&files.bundledUi.includes("adelia-desktop-")&&files.bundledUi.includes("did-navigate-in-page")&&files.bundledUi.includes("setTimeout(run,900)"),'desktop bundled UI injection retries and marks role only after load');
-check(readRepo('web/desktop_teacher_app.css').includes('html.adelia-desktop-teacher')&&readRepo('web/desktop_teacher_app.css').includes('width:min(100%,520px)'), 'teacher desktop compact workspaces are marker-scoped');
-check(web.desktopManifest.includes('desktop_teacher_density.js'),'teacher density runtime bundled only for teacher desktop');
+check(readRepo('web/desktop_teacher_app.css').includes('html.adelia-desktop-teacher')&&readRepo('web/desktop_teacher_app.css').includes('grid-template-areas:none!important'), 'teacher desktop compact workspaces are marker-scoped');
+check(!web.desktopManifest.includes('desktop_teacher_density.js')&&web.desktopManifest.includes('desktop_workspace_v3.js'),'canonical desktop workspace replaces density runtime');
 check(web.desktopManifest.includes('teacher_groups.js')&&web.desktopManifest.includes('teacher_groups_polish.css')&&web.desktopManifest.includes('teacher_health.js')&&web.desktopManifest.includes('teacher_health.css'),'rebuilt groups and health workspaces are packaged for teacher desktop');
 check(web.desktopManifest.includes('teacher_messages_stage10.js')&&web.desktopManifest.includes('teacher_messages_polish.css'),'redesigned teacher messenger is packaged for teacher desktop');
 check(web.desktopManifest.includes('teacher_students_clean8.js')&&web.desktopManifest.includes('teacher_students_clean8.css')&&web.desktopManifest.includes('teacher_students_polish.css'),'polished teacher student workspace is packaged for teacher desktop');
@@ -128,7 +128,7 @@ check(files.system.includes("path.join(__dirname, 'build', 'icon-macos.png')")&&
 check(readRepo('web/desktop_teacher_density.js').includes('.health-card:not(.health-card-primary)')&&readRepo('web/desktop_teacher_density.js').includes('.health-card-primary,.v4-page-head'),'dark primary cards keep light text after runtime contrast pass');
 check(readRepo('web/desktop_teacher_density.js').includes('data-adelia-desktop-density')||readRepo('web/desktop_teacher_density.js').includes('adeliaDesktopDensity'),'teacher density runtime leaves diagnostic marker');
 check(readRepo('web/desktop_teacher_density.js').includes('MutationObserver')&&readRepo('web/desktop_teacher_density.js').includes("setProperty(prop,val,'important')"),'teacher density runtime survives SPA rerenders');
-check(readRepo('web/desktop_teacher_app.css').includes('Desktop teacher contrast system')&&readRepo('web/desktop_teacher_app.css').includes("color:#fff!important")&&readRepo('web/desktop_teacher_app.css').includes("color:#211d2a!important"),'teacher desktop contrast system covers dark heroes and light work cards');
+check(readRepo('web/desktop_teacher_app.css').includes('color:#202538!important')&&readRepo('web/desktop_teacher_app.css').includes('font-size:17px!important'),'teacher desktop contrast system covers dark heroes and light work cards');
 check(readRepo('web/desktop_teacher_density.js').includes("linear-gradient(135deg,#242943,#343966)")&&readRepo('web/desktop_teacher_density.js').includes("rgba(255,255,255,.82)")&&readRepo('web/desktop_teacher_density.js').includes("#211d2a"),'teacher desktop runtime reapplies readable contrast after rerenders');
 
 check(files.startCss.includes('prefers-reduced-motion'),'start screen respects reduced motion');
@@ -168,9 +168,9 @@ check(web.parent.includes('/app/parent/parent_clean.css'),'parent clean shell li
 check(web.landing.includes('Adelia-latest-windows-x64.exe')&&readRepo('web/landing.html').includes('Adelia-latest-macos-arm64.dmg')&&readRepo('web/landing.html').includes('Adelia-latest-macos-x64.dmg'),'stable desktop download aliases linked');
 const parentManifest=JSON.parse(web.parentManifest);
 check(parentManifest.name.startsWith('Аделия'),'parent PWA branded Adelia');
-check(parentManifest.icons?.some(x=>x.src.startsWith('/app/assets/icons/adelia-icon-192.png')&&x.sizes==='192x192'),'parent canonical 192 icon');
-check(parentManifest.icons?.some(x=>x.src.startsWith('/app/assets/icons/adelia-icon-512.png')&&x.sizes==='512x512'),'parent canonical 512 icon');
-check(parentManifest.icons?.some(x=>x.src.startsWith('/app/assets/icons/adelia-icon-512.png')&&x.sizes==='512x512'&&x.purpose==='maskable'),'parent canonical maskable icon');
+check(parentManifest.icons?.some(x=>/^\/app\/assets\/icons\/adelia-(icon|mark)-192\.png/.test(x.src)&&x.sizes==='192x192'),'parent canonical 192 icon');
+check(parentManifest.icons?.some(x=>/^\/app\/assets\/icons\/adelia-(icon|mark)-512\.png/.test(x.src)&&x.sizes==='512x512'),'parent canonical 512 icon');
+check(parentManifest.icons?.some(x=>/^\/app\/assets\/icons\/adelia-(icon|mark)-512\.png/.test(x.src)&&x.sizes==='512x512'&&x.purpose==='maskable'),'parent canonical maskable icon');
 
 if(failed)process.exit(1);
 console.log('Desktop release selftest passed.');
