@@ -18,8 +18,8 @@ import urllib.request
 BASE='20e87e13e5f3f425cb6abfe6875ac2a680f1b3fa'
 PATCHED=['web/teacher_groups.js','web/teacher_events.js','web/student_group_space.js','web/onboarding/onboarding.js','web_backend/api_v7.py','web_backend/availability_guard.py']
 ADDED=['web_backend/group_workspace.py','web_backend/group_workspace_api.py','web/teacher_group_settings.js',
-       'web/group-invite.html','web/group_invite.js','web/group_invite.css','web/group_invite_continue.js','web_backend/group_weekly_schedule.py']
-VERSION='20261022-groups2'
+       'web/group-invite.html','web/group_invite.js','web/group_invite.css','web/group_invite_continue.js','web_backend/group_weekly_schedule.py','web/teacher_group_settings.css']
+VERSION='20261022-group-design1'
 
 
 def delta(live, old, new, label):
