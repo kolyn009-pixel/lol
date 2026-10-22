@@ -17,7 +17,9 @@ from web_backend.robokassa_api import RobokassaMixin
 from web_backend.legal_api import LegalMixin
 from web_backend.learning_hub_api import LearningHubMixin, GET_PATHS as LEARNING_GET, POST_PATHS as LEARNING_POST
 
-class Handler(LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
+from web_backend.group_workspace_api import GroupWorkspaceMixin
+
+class Handler(GroupWorkspaceMixin, LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
     server_version="AdeliaWeb/7.10"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()

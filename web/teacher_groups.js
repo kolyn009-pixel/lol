@@ -22,7 +22,7 @@ function card(x){const g=x.group||x;const count=Number(x.member_count??g.member_
     <div class="groups-card-title"><h3>${esc(g.name||g.title||'Группа')}</h3><span class="groups-status-v2 ${status.cls}">${esc(status.label)}</span></div>
     <p>${esc(subject)}${goal?' · '+esc(goal):''}</p>
     <div class="groups-card-meta"><span>👤 ${count} из ${cap}</span><span>🗓 Ближайшее: ${esc(nextLabel(x.next_lesson))}</span></div>
-  </div>
+  </div><button class="soft" type="button" data-group-settings="${g.id}">Настроить группу</button>
 </article>`}
 function emptyFiltered(){return `<div class="groups-empty-v2"><div class="groups-empty-icon">⌕</div><h3>Ничего не найдено</h3><p>Измените фильтр или поисковый запрос.</p><button class="ghost" type="button" id="groupsResetFilters">Сбросить фильтры</button></div>`}
 function emptyAll(){return `<div class="groups-empty-v2 is-first"><div class="groups-empty-icon">👥</div><h3>Пока нет учебных групп</h3><p>Создайте первую группу, задайте состав и постоянное время занятий.</p><button class="primary" type="button" id="groupCreateOpen">＋ Создать группу</button></div>`}
