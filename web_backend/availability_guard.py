@@ -11,7 +11,15 @@ BLOCKING_LESSON_STATUSES={'PENDING','CONFIRMED','IN_PROGRESS'}
 BLOCKING_REGULAR_STATUSES={'PENDING','APPROVED'}
 BLOCKING_TRIAL_STATUSES={'LINKING','NEW','CONTACTED','ACCEPTED'}
 
-def _dt(v):return v if isinstance(v,datetime) else datetime.fromisoformat(str(v))
+def _dt(v):
+ """Normalize scheduled instants to the canonical schedule wall-clock.
+
+ Legacy naive values already use this timezone. Convert explicit offsets
+ before removing tzinfo; simply stripping an offset would shift busy slots.
+ """
+ from core.lesson_time import lesson_timezone
+ value=v if isinstance(v,datetime) else datetime.fromisoformat(str(v))
+ return value if value.tzinfo is None else value.astimezone(lesson_timezone()).replace(tzinfo=None)
 def overlaps(a_start,a_end,b_start,b_end):return _dt(a_start)<_dt(b_end) and _dt(b_start)<_dt(a_end)
 def _clock_minutes(v):
  h,m=[int(x) for x in str(v)[:5].split(':')];return h*60+m
@@ -31,8 +39,8 @@ def availability_snapshot(range_start,range_end,include_pending_regular=True,con
    marks=','.join('?' for _ in BLOCKING_LESSON_STATUSES)
    rows=c.execute(
     f"SELECT id,start_time,end_time,lesson_status FROM lessons "
-    f"WHERE start_time < ? AND end_time > ? AND lesson_status IN ({marks})",
-    (end.isoformat(),start.isoformat(),*sorted(BLOCKING_LESSON_STATUSES))
+    f"WHERE lesson_status IN ({marks})",
+    tuple(sorted(BLOCKING_LESSON_STATUSES))
    ).fetchall()
    lessons=[dict(r) for r in rows]
   except Exception:pass
@@ -57,6 +65,15 @@ def availability_snapshot(range_start,range_end,include_pending_regular=True,con
    ).fetchall()
    regular=[dict(r) for r in rows]
   except Exception:pass
+  # ISO strings with different offsets cannot be compared lexicographically.
+  # Filter the active rows in Python using the same normalization as collisions.
+  for r in lessons:
+   r['start_time']=_dt(r['start_time']).isoformat()
+   r['end_time']=_dt(r['end_time']).isoformat()
+  lessons=[r for r in lessons if overlaps(start,end,r['start_time'],r['end_time'])]
+  for r in trials:
+   r['selected_slot_start']=_dt(r['selected_slot_start']).isoformat()
+   if r.get('selected_slot_end'):r['selected_slot_end']=_dt(r['selected_slot_end']).isoformat()
   return {'lessons':lessons,'trials':trials,'regular':regular}
  finally:
   if own_connection:c.close()
