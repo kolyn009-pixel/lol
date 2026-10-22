@@ -7,7 +7,7 @@ import os
 import re
 import struct
 
-VERSION='20261022-unified1'
+VERSION='20261022-unified2'
 PREFIX='/app/assets/icons/adelia-mark-'
 def icon_url(size):return PREFIX+str(size)+'.png?v='+VERSION
 ICON_TAGS=(
@@ -20,11 +20,14 @@ ICON_TAGS=(
 class HeadParser(HTMLParser):
  def __init__(self,source):
   super().__init__(convert_charrefs=False)
-  self.source=source;self.lines=source.splitlines(keepends=True);self.edits=[];self.in_head=False;self.head_end=None;self.html_start=None;self.body_start=None
+  self.source=source;self.lines=source.splitlines(keepends=True);self.edits=[];self.in_head=False;self.head_end=None;self.html_start=None;self.body_start=None;self.brand_stack=[];self.brand_images=[]
  def source_index(self):
   line,column=self.getpos();return sum(map(len,self.lines[:line-1]))+column
  def handle_starttag(self,tag,attrs):
   attrs=dict(attrs)
+  classes=set(str(attrs.get('class') or '').lower().split())
+  is_brand=(self.brand_stack[-1][1] if self.brand_stack else False) or bool(classes & {'brand','logo','site-brand','site-logo','brand-logo','navbar-brand'})
+  if tag not in {'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}:self.brand_stack.append((tag,is_brand))
   if tag=='html':self.html_start=self.source_index()+len(self.get_starttag_text())
   if tag in {'body','main','header','section','div'} and not self.in_head and self.body_start is None:self.body_start=self.source_index()
   if tag=='head':self.in_head=True
@@ -34,12 +37,20 @@ class HeadParser(HTMLParser):
     start=self.source_index();self.edits.append((start,start+len(self.get_starttag_text()),''))
   if tag=='img':
    src=str(attrs.get('src') or '')
-   if re.search(r'(?:^|/)(?:adelia-(?:icon-\d+|favicon-\d+|apple-touch-icon-\d+|logo)[^/?]*)(?:\?|$)',src):
+   if is_brand or re.search(r'(?:^|/)(?:adelia-(?:icon-\d+|favicon-\d+|apple-touch-icon-\d+|logo)[^/?]*)(?:\?|$)',src):
+    self.brand_images.append(src)
     raw=self.get_starttag_text()
-    new=re.sub(r'(?i)(\bsrc\s*=\s*)([\'"])(.*?)\2',lambda m:m[1]+m[2]+icon_url(180)+m[2],raw,count=1)
+    new=re.sub(r'''(?i)(\ssrc\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s>]+)''',lambda m:m[1]+'"'+icon_url(180)+'"',raw,count=1)
+    if not re.search(r'(?i)\ssrc\s*=',new):new=re.sub(r'(/?>)$',lambda m:' src="'+icon_url(180)+'"'+m[1],new)
+    new=re.sub(r'''(?i)(\sdata-src\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s>]+)''',lambda m:m[1]+'"'+icon_url(180)+'"',new)
+    new=re.sub(r'(?i)\s+srcset\s*=\s*([\'"]).*?\1','',new)
     start=self.source_index();self.edits.append((start,start+len(raw),new))
+  if tag=='source' and is_brand:
+   raw=self.get_starttag_text();start=self.source_index();self.edits.append((start,start+len(raw),''))
  def handle_endtag(self,tag):
   if tag=='head':self.head_end=self.source_index();self.in_head=False
+  for i in range(len(self.brand_stack)-1,-1,-1):
+   if self.brand_stack[i][0]==tag:del self.brand_stack[i:];break
 
 def transform_html(source):
  parser=HeadParser(source);parser.feed(source)
@@ -111,30 +122,42 @@ def install(commit):
    metadata[path]=path.stat() if path.exists() else None
    if original is not None:(backup/str(i)).write_bytes(original)
   (backup/'files.json').write_text(json.dumps([{'path':str(p),'backup':str(i) if originals[p] is not None else None} for i,p in enumerate(updates)],indent=2))
-  def replace(path,data):
+  def replace(path,data,restore=False):
    path.parent.mkdir(parents=True,exist_ok=True)
    fd,name=tempfile.mkstemp(prefix='.adelia-brand-',dir=path.parent)
    try:
     with os.fdopen(fd,'wb') as out:out.write(data);out.flush();os.fsync(out.fileno())
-    st=metadata[path];os.chmod(name,(st.st_mode & 0o777) if st else 0o644)
+    st=metadata[path];mode=(st.st_mode & 0o777) if st else 0o644
+    if not restore and path.suffix in {'.png','.ico'}:mode=0o644
+    os.chmod(name,mode)
     if st:os.chown(name,st.st_uid,st.st_gid)
     os.replace(name,path)
    finally:
     if os.path.exists(name):os.unlink(name)
-  written=[]
+  written=[];directories=[]
   try:
+   for directory in (release/'web/assets',release/'web/assets/icons'):
+    old_mode=directory.stat().st_mode & 0o777 if directory.exists() else None
+    directories.append((directory,old_mode));directory.mkdir(parents=True,exist_ok=True)
+    os.chmod(directory,(old_mode if old_mode is not None else 0o700)|0o555)
    for path,data in updates.items():
-    if originals[path]!=data:replace(path,data);written.append(path)
+    st=metadata[path];wrong_mode=path.suffix in {'.png','.ico'} and st is not None and (st.st_mode & 0o777)!=0o644
+    if originals[path]!=data or wrong_mode:replace(path,data);written.append(path)
    for route in ('/','/app/','/app/teacher.html','/app/parent/','/start/','/onboarding/'):
     served=subprocess.check_output(['curl','--resolve','adeliatutor.ru:443:127.0.0.1','--max-time','15','-fsS','https://adeliatutor.ru'+route],timeout=20).decode()
     if icon_url(32) not in served or icon_url(180) not in served:raise RuntimeError('Page serves a different icon: '+route)
+    parsed=HeadParser(served);parsed.feed(served)
+    if any(url!=icon_url(180) for url in parsed.brand_images):raise RuntimeError('Header logo was not updated: '+route)
    for size in (32,180,192,512):
     served=subprocess.check_output(['curl','--resolve','adeliatutor.ru:443:127.0.0.1','--max-time','15','-fsS','https://adeliatutor.ru'+icon_url(size)],timeout=20)
     if served!=pngs[size]:raise RuntimeError('Icon response mismatch')
   except BaseException:
    for path in reversed(written):
     if originals[path] is None:path.unlink(missing_ok=True)
-    else:replace(path,originals[path])
+    else:replace(path,originals[path],restore=True)
+   for directory,old_mode in reversed(directories):
+    if old_mode is not None:os.chmod(directory,old_mode)
+    elif directory.exists():directory.rmdir()
    print('Brand update failed; original files restored. Backup:',backup);raise
   print('UNIFIED_ADELIA_ICON_OK')
   print('Pages and icon responses: OK')

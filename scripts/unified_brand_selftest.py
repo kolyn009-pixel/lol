@@ -9,6 +9,21 @@ path=Path(__file__).with_name('unify_brand_20261022.py')
 spec=importlib.util.spec_from_file_location('branding',path);brand=importlib.util.module_from_spec(spec);spec.loader.exec_module(brand)
 
 class BrandTests(unittest.TestCase):
+ def test_generic_header_logo_and_srcset_cannot_select_old_image(self):
+  source='<html><head><title>Аделия</title></head><body><a class="brand"><picture><source type="image/webp" srcset="/missing-logo.webp"><img src="/logo.png" srcset="/logo@2x.png 2x" alt="Аделия"></picture></a><img src="/photo.jpg" alt="Фото"></body></html>'
+  updated=brand.transform_html(source)
+  self.assertIn('src="'+brand.icon_url(180)+'"',updated)
+  self.assertNotIn('/logo.png',updated);self.assertNotIn('/missing-logo.webp',updated);self.assertNotIn('srcset=',updated)
+  self.assertIn('src="/photo.jpg"',updated)
+  self.assertEqual(updated,brand.transform_html(updated))
+
+ def test_unquoted_or_lazy_header_image_gets_real_src(self):
+  for image in ('<img src=/logo.png>','<img data-src="/old.png">','<img data-src="/old.png" src="/broken.png">'):
+   source='<html><head></head><body><a class="brand">'+image+'</a></body></html>'
+   updated=brand.transform_html(source)
+   self.assertIn('src="'+brand.icon_url(180)+'"',updated)
+   self.assertNotIn('/old.png',updated);self.assertNotIn('/broken.png',updated)
+
  def test_desktop_download_page_with_implicit_head(self):
   source='<!doctype html><html lang="ru"><meta charset="utf-8"><title>Скачать Аделию</title><style>main{padding:32px}</style><main><a href="/desktop-updates/app.dmg">Скачать</a></main></html>'
   updated=brand.transform_html(source)
