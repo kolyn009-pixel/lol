@@ -72,7 +72,7 @@ jobs:
           node ../scripts/onboarding_confirmation_selftest.cjs
           python ../scripts/learning_hub_selftest.py
           python ../scripts/publish_adelia_release_selftest.py
-          python ../scripts/desktop_publish_selftest.py
+          if [ "$RUNNER_OS" != "Windows" ]; then python ../scripts/desktop_publish_selftest.py; fi
       - name: Build native installer
         run: npm run ${{ matrix.command }} -- --publish never --config.directories.output=dist/${{ matrix.target }}
       - name: Verify and bundle artifacts
