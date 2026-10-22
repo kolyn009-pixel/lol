@@ -74,7 +74,13 @@ def availability_snapshot(range_start,range_end,include_pending_regular=True,con
   for r in trials:
    r['selected_slot_start']=_dt(r['selected_slot_start']).isoformat()
    if r.get('selected_slot_end'):r['selected_slot_end']=_dt(r['selected_slot_end']).isoformat()
-  return {'lessons':lessons,'trials':trials,'regular':regular}
+  group_rows=[]
+  if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='group_lessons'").fetchone():
+   rows=c.execute("SELECT id,start_time,end_time,status FROM group_lessons WHERE status IN ('SCHEDULED','STARTED','IN_PROGRESS')").fetchall()
+   for row in rows:
+    r=dict(row);r['start_time']=_dt(r['start_time']).isoformat();r['end_time']=_dt(r['end_time']).isoformat()
+    if overlaps(start,end,r['start_time'],r['end_time']):group_rows.append(r)
+  return {'lessons':lessons,'trials':trials,'regular':regular,'group_lessons':group_rows}
  finally:
   if own_connection:c.close()
 
@@ -82,6 +88,8 @@ def conflicts_from_snapshot(start_time,end_time,snapshot,ignore_lesson_id=None,i
  start=_dt(start_time);end=_dt(end_time)
  if end<=start:raise ValueError('invalid_interval')
  out=[]
+ for r in snapshot.get('group_lessons',[]):
+  if overlaps(start,end,r['start_time'],r['end_time']):out.append({'kind':'group_lesson','id':int(r['id']),'status':r.get('status')})
  for r in snapshot.get('lessons',[]):
   if ignore_lesson_id and int(r['id'])==int(ignore_lesson_id):continue
   if overlaps(start,end,r['start_time'],r['end_time']):out.append({'kind':'lesson','id':int(r['id']),'status':r.get('lesson_status')})

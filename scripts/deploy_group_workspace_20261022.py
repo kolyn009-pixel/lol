@@ -16,10 +16,10 @@ import urllib.error
 import urllib.request
 
 BASE='20e87e13e5f3f425cb6abfe6875ac2a680f1b3fa'
-PATCHED=['web/teacher_groups.js','web/teacher_events.js','web/student_group_space.js','web/onboarding/onboarding.js','web_backend/api_v7.py']
+PATCHED=['web/teacher_groups.js','web/teacher_events.js','web/student_group_space.js','web/onboarding/onboarding.js','web_backend/api_v7.py','web_backend/availability_guard.py']
 ADDED=['web_backend/group_workspace.py','web_backend/group_workspace_api.py','web/teacher_group_settings.js',
-       'web/group-invite.html','web/group_invite.js','web/group_invite.css','web/group_invite_continue.js']
-VERSION='20261022-groups1'
+       'web/group-invite.html','web/group_invite.js','web/group_invite.css','web/group_invite_continue.js','web_backend/group_weekly_schedule.py']
+VERSION='20261022-groups2'
 
 
 def delta(live, old, new, label):
@@ -98,10 +98,10 @@ def install(commit):
             with sqlite3.connect(backup/'database.db') as dest:src.backup(dest)
         overlay=backup/'candidate';(overlay/'web_backend').mkdir(parents=True)
         (overlay/'web_backend/__init__.py').write_text('__path__='+repr([str(overlay/'web_backend'),str(release/'web_backend')]))
-        for p in ['web_backend/api_v7.py','web_backend/group_workspace.py','web_backend/group_workspace_api.py']:(overlay/p).write_bytes(updates[p])
+        for p in ['web_backend/api_v7.py','web_backend/group_workspace.py','web_backend/group_workspace_api.py','web_backend/group_weekly_schedule.py','web_backend/availability_guard.py']:(overlay/p).write_bytes(updates[p])
         smoke='''import sys,threading,urllib.request,urllib.error
 sys.path[:0]=[sys.argv[1],sys.argv[2]]
-from web_backend import api_v7,group_workspace
+from web_backend import api_v7,group_workspace,group_weekly_schedule
 from http.server import ThreadingHTTPServer
 group_workspace.ensure_schema()
 server=ThreadingHTTPServer(('127.0.0.1',0),api_v7.Handler)
@@ -161,6 +161,8 @@ systemctl restart tutorbot-web
             print('GROUP_WORKSPACE_FAILED; original files restored. Backup:',backup);raise
         print('GROUP_WORKSPACE_OK')
         print('Groups: settings, invitations and registration continuation enabled')
+        print('Weekly sessions: enabled; 15-minute start grid; 1-26 weeks of lessons')
+        print('Code:',commit)
         print('Backup:',backup)
         print('Rollback: bash',backup/'rollback.sh')
 

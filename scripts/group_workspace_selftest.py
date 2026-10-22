@@ -111,6 +111,7 @@ class Groups(unittest.TestCase):
             def _same_origin_write(self):return True
         h=Handler();h.path='/api/teacher/group/settings?id=1';self.assertEqual(h.do_GET()[0],401)
         h.path='/api/student/group/invite/join';self.assertEqual(h.do_POST()[0],401)
+        h.path='/api/teacher/group/weekly-session';self.assertEqual(h.do_POST()[0],401)
         h._same_origin_write=lambda:False;self.assertEqual(h.do_POST()[0],403)
         h.path='/api/health';self.assertEqual(h.do_GET(),'original-get');self.assertEqual(h.do_POST(),'original-post')
 

@@ -26,6 +26,9 @@ def ensure_schema():
           token TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS group_invite_onboarding (
           onboarding_token TEXT PRIMARY KEY, invite_token TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS group_slot_windows (
+          slot_id INTEGER PRIMARY KEY REFERENCES group_schedule_slots(id),
+          starts_on TEXT NOT NULL, ends_on TEXT NOT NULL);
         ''')
 
 
@@ -51,16 +54,21 @@ def invitation(gid, rotate=False):
 
 def preview(token):
     ensure_schema()
+    from datetime import datetime
+    from core.lesson_time import lesson_timezone
+    today=datetime.now(lesson_timezone()).date().isoformat()
     with connection() as c:
         row = c.execute('SELECT group_id FROM group_invite_links WHERE token=?', (str(token),)).fetchone()
         if not row:
             raise ValueError('invite_not_found')
         g = _group(c, row['group_id'])
         count = c.execute("SELECT COUNT(*) FROM group_members WHERE group_id=? AND status IN ('ACTIVE','PAUSED')", (g['id'],)).fetchone()[0]
-        slots = [dict(r) for r in c.execute('SELECT weekday,start_time,duration_minutes FROM group_schedule_slots WHERE group_id=? AND active=1 ORDER BY weekday,start_time', (g['id'],))]
+        slots = [dict(r) for r in c.execute('''SELECT s.weekday,s.start_time,s.duration_minutes,w.starts_on,w.ends_on
+           FROM group_schedule_slots s LEFT JOIN group_slot_windows w ON w.slot_id=s.id
+           WHERE s.group_id=? AND s.active=1 AND (w.ends_on IS NULL OR w.ends_on>=?) ORDER BY s.weekday,s.start_time''', (g['id'],today))]
     # Public invite responses contain no roster, board, or conference links.
     return {'group': {k:g[k] for k in ('id','name','subject','study_goal','description','price_per_lesson','recruitment_status')},
-            'places_left': max(0, g['max_members']-count), 'slots':slots}
+            'places_left': max(0, g['max_members']-count), 'slots':slots,'timezone':str(lesson_timezone())}
 
 
 def join(token, uid):
@@ -94,12 +102,21 @@ def join(token, uid):
 
 
 def settings(gid):
+    ensure_schema()
     group = group_lessons.get_group(int(gid))
     if not group['active']:
         raise ValueError('group_not_found')
     # Do not send contacts or identities in the roster unnecessarily.
     group['members'] = [{k:r.get(k) for k in ('user_id','name','status')} for r in group['members']]
-    return {'group':group, 'invite_path':invitation(gid)}
+    from core.lesson_time import lesson_timezone
+    with connection() as c:
+        windows={r['slot_id']:dict(r) for r in c.execute('SELECT w.* FROM group_slot_windows w JOIN group_schedule_slots s ON s.id=w.slot_id WHERE s.group_id=?',(int(gid),))}
+    for slot in group['slots']:
+        slot.update(windows.get(slot['id'],{}))
+    from datetime import datetime
+    today=datetime.now(lesson_timezone()).date().isoformat()
+    group['slots']=[s for s in group['slots'] if not s.get('ends_on') or s['ends_on']>=today]
+    return {'group':group, 'invite_path':invitation(gid), 'timezone':str(lesson_timezone())}
 
 
 def update(gid, body):

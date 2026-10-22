@@ -29,7 +29,7 @@ class Deployment(unittest.TestCase):
         html='<head></head><body><script src="/onboarding/onboarding.js?v=old"></script></body>'
         result=html_assets(html,['onboarding/onboarding.js'])
         self.assertEqual(result.count('<script'),1)
-        self.assertIn('/app/onboarding/onboarding.js?v=20261022-groups1',result)
+        self.assertIn('/app/onboarding/onboarding.js?v=20261022-groups2',result)
 
 
 if __name__=='__main__':unittest.main()
