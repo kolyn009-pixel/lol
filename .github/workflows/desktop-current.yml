@@ -82,9 +82,9 @@ jobs:
           python - "beta-bundle/${{ matrix.target }}" <<'PY'
           import hashlib,json,os,sys
           from pathlib import Path
-          root=Path(sys.argv[1]);manifest=json.loads((root/'manifest.json').read_text())
+          root=Path(sys.argv[1]);manifest=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
           assert manifest['git_sha']==os.environ['ADELIA_BUILD_SHA']
-          assert manifest['version']==json.loads(Path('package.json').read_text())['version']
+          assert manifest['version']==json.loads(Path('package.json').read_text(encoding='utf-8'))['version']
           for item in manifest['files']:
               file=root/item['name']
               assert file.stat().st_size==item['size']
