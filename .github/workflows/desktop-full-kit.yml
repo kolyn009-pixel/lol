@@ -19,7 +19,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           mkdir -p bundles
-          gh release download desktop-0.3.0-beta.5-5050eb35a498 --pattern 'Adelia-0.3.0-beta.5-${{ matrix.target }}-5050eb35a498.zip' --dir bundles
+          name='Adelia-0.3.0-beta.5-${{ matrix.target }}-5050eb35a498.zip'
+          id=$(gh api "repos/$GH_REPO/releases/421029183/assets" --jq '.[] | select(.name == "Adelia-0.3.0-beta.5-${{ matrix.target }}-5050eb35a498.zip") | .id')
+          test -n "$id"
+          gh api "repos/$GH_REPO/releases/assets/$id" -H 'Accept: application/octet-stream' > "bundles/$name"
       - uses: actions/upload-artifact@v4
         with:
           name: beta5-complete-${{ matrix.target }}
