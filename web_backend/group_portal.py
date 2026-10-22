@@ -43,7 +43,7 @@ def group_chat(group_id,user_id=None,limit=100):
  if viewer is not None:
   c=database.connect();m=c.execute("SELECT 1 FROM group_members WHERE group_id=? AND user_id=? AND status IN ('ACTIVE','PAUSED')",(gid,viewer)).fetchone();c.close()
   if not m:raise PermissionError('not_group_member')
- c=database.connect();rows=c.execute("SELECT m.id,m.sender_user_id,m.sender_role,m.body,m.created_at,COALESCE(p.display_name,u.name) AS sender_name FROM group_chat_messages m LEFT JOIN users u ON u.id=m.sender_user_id LEFT JOIN student_social_profiles p ON p.user_id=m.sender_user_id WHERE m.group_id=? AND m.deleted_at IS NULL ORDER BY m.id DESC LIMIT ?",(gid,max(1,min(int(limit),300)))).fetchall();c.close();out=[]
+ c=database.connect();rows=c.execute("SELECT m.id,m.sender_user_id,m.sender_role,m.body,m.created_at,COALESCE(p.display_name,u.name) AS sender_name,p.avatar_kind,p.avatar_value FROM group_chat_messages m LEFT JOIN users u ON u.id=m.sender_user_id LEFT JOIN student_social_profiles p ON p.user_id=m.sender_user_id WHERE m.group_id=? AND m.deleted_at IS NULL ORDER BY m.id DESC LIMIT ?",(gid,max(1,min(int(limit),300)))).fetchall();c.close();out=[]
  for r in reversed(rows):
   item=dict(r);item['mine']=viewer is not None and item.get('sender_user_id') is not None and int(item['sender_user_id'])==viewer;out.append(item)
  return out
@@ -82,3 +82,4 @@ def teacher_schedule_cards(from_time=None,to_time=None):
  for r in c.execute("SELECT l.id,l.group_id,l.start_time,l.end_time,l.status,g.name,(SELECT COUNT(*) FROM group_lesson_participants p WHERE p.lesson_id=l.id AND p.attendance_status<>'PAUSED') AS participants FROM group_lessons l JOIN study_groups g ON g.id=l.group_id WHERE l.start_time>=? AND l.start_time<=? ORDER BY l.start_time",(start,end)).fetchall():cards.append({'kind':'GROUP','id':int(r['id']),'start_time':r['start_time'],'end_time':r['end_time'],'title':f"👥 {r['name']}",'status':r['status'],'participants':int(r['participants'])})
  for r in c.execute("SELECT * FROM open_learning_events WHERE starts_at>=? AND starts_at<=? ORDER BY starts_at",(start,end)).fetchall():n=int(c.execute("SELECT COUNT(*) n FROM open_event_participants WHERE event_id=? AND status='REGISTERED'",(int(r['id']),)).fetchone()['n']);cards.append({'kind':'OPEN_EVENT','id':int(r['id']),'start_time':r['starts_at'],'end_time':r['ends_at'],'title':f"📝 {r['title']}",'status':r['status'],'participants':n})
  c.close();cards.sort(key=lambda x:x['start_time']);return cards
+

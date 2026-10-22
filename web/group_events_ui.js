@@ -53,7 +53,7 @@
   }
 
   function groupCard(g){
-    return `<button class="group-card" data-group-open="${g.id}"><div class="group-avatar">👥</div><div><b>${esc(g.name||'Учебная группа')}</b><span>${esc(g.subject||'')} ${g.membership_status==='PAUSED'?'· пауза':'· участник'}</span></div><span class="group-arrow">→</span></button>`;
+    return `<button class="group-card" data-group-open="${g.id}"><div class="group-avatar">${window.AdeliaAvatars?window.AdeliaAvatars.image(g,'group'):'👥'}</div><div><b>${esc(g.name||'Учебная группа')}</b><span>${esc(g.subject||'')} ${g.membership_status==='PAUSED'?'· пауза':'· участник'}</span></div><span class="group-arrow">→</span></button>`;
   }
   function rsvpControls(l){
     if(finalLesson(l.status))return `<small>Ответ: ${esc(rsvpStatus(l.rsvp_status))}</small>`;
@@ -85,7 +85,7 @@
       const d=await api('/student/group/summary?group_id='+encodeURIComponent(id));
       const g=d.group||{};title(g.name||'Моя группа');
       const lessons=d.upcoming_lessons||[];
-      content().innerHTML=`<button class="back group-back" id="groupsBack">← ${groups.length>1?'К группам':'Назад'}</button><section class="group-detail-hero"><div class="group-avatar big">👥</div><div><span>Моя группа</span><h2>${esc(g.name||'Учебная группа')}</h2><p>${esc(g.subject||'')} ${g.study_goal?'· '+esc(g.study_goal):''}</p></div></section><section class="group-tabs"><button class="active" data-group-tab="lessons">Занятия</button><button data-group-tab="chat">Чат группы</button></section><div id="groupPane"><section class="section"><h3>Ближайшие занятия</h3>${lessons.map(groupLessonCard).join('')||'<div class="empty">Ближайших групповых занятий пока нет.</div>'}</section></div>`;
+      content().innerHTML=`<button class="back group-back" id="groupsBack">← ${groups.length>1?'К группам':'Назад'}</button><section class="group-detail-hero"><div class="group-avatar big">${window.AdeliaAvatars?window.AdeliaAvatars.image(g,'group'):'👥'}</div><div><span>Моя группа</span><h2>${esc(g.name||'Учебная группа')}</h2><p>${esc(g.subject||'')} ${g.study_goal?'· '+esc(g.study_goal):''}</p></div></section><section class="group-tabs"><button class="active" data-group-tab="lessons">Занятия</button><button data-group-tab="chat">Чат группы</button></section><div id="groupPane"><section class="section"><h3>Ближайшие занятия</h3>${lessons.map(groupLessonCard).join('')||'<div class="empty">Ближайших групповых занятий пока нет.</div>'}</section></div>`;
       $('#groupsBack').onclick=()=>groups.length>1?groupsView():eventsView();
       document.querySelectorAll('[data-group-tab]').forEach(x=>x.onclick=()=>{document.querySelectorAll('[data-group-tab]').forEach(b=>b.classList.toggle('active',b===x));x.dataset.groupTab==='chat'?groupChat(id):groupDetail(id)});
       document.querySelectorAll('[data-group-enter]').forEach(x=>x.onclick=()=>enterGroupLesson(x.dataset.groupEnter));

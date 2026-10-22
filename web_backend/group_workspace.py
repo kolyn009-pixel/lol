@@ -102,12 +102,16 @@ def join(token, uid):
 
 
 def settings(gid):
+    from web_backend import group_visuals
+    group_visuals.ensure_schema()
     ensure_schema()
     group = group_lessons.get_group(int(gid))
     if not group['active']:
         raise ValueError('group_not_found')
     # Do not send contacts or identities in the roster unnecessarily.
-    group['members'] = [{k:r.get(k) for k in ('user_id','name','status')} for r in group['members']]
+    with connection() as c:
+        avatars={r['user_id']:dict(r) for r in c.execute('SELECT p.user_id,p.avatar_kind,p.avatar_value FROM student_social_profiles p JOIN group_members m ON m.user_id=p.user_id WHERE m.group_id=?',(int(gid),))}
+    group['members'] = [{**{k:r.get(k) for k in ('user_id','name','status')},**avatars.get(r['user_id'],{})} for r in group['members']]
     from core.lesson_time import lesson_timezone
     with connection() as c:
         windows={r['slot_id']:dict(r) for r in c.execute('SELECT w.* FROM group_slot_windows w JOIN group_schedule_slots s ON s.id=w.slot_id WHERE s.group_id=?',(int(gid),))}
