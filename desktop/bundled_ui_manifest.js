@@ -68,7 +68,8 @@ module.exports={
       "teacher_student_workspace.css",
       "desktop_teacher_app.css",
       "desktop_workspace_v3.css",
-      "teacher_studio.css"
+      "teacher_studio.css",
+      "student_lesson_history.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -78,6 +79,7 @@ module.exports={
       "teacher_payment_reversal.js",
       "teacher_time.js",
       "teacher_v4.js",
+      "student_lesson_history.js",
       "teacher_students_clean8.js",
       "teacher_groups.js",
       "teacher_health.js",

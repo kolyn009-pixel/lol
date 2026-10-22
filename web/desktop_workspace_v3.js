@@ -1,5 +1,6 @@
 (()=>{'use strict';
-if(!window.adeliaDesktop?.desktop||location.pathname.startsWith('/app/parent')||window.__adeliaWorkspaceV3)return;
+if(!document.querySelector('.teacher-shell')||location.pathname.startsWith('/app/parent')||window.__adeliaWorkspaceV3)return;
+document.documentElement.classList.add('adelia-chat-enabled');
 window.__adeliaWorkspaceV3=true;
 const D=window.adeliaDesktop;
 let panel=null,frame=null,lastFocus=null,ready=false,open=false,timeout=null;
@@ -17,6 +18,6 @@ launch.onclick=()=>open?close():show();
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open){e.preventDefault();close()}});
 const tools=document.createElement('div');tools.className='v3-tools';tools.innerHTML='<button type="button" data-yandex-login>Яндекс Телемост</button><span class="v3-account-status" role="status"></span>';
 const host=document.querySelector('.header-actions')||document.querySelector('.desktop-top-actions')||document.querySelector('.topbar');if(host)host.append(tools);
-tools.querySelector('button').onclick=async e=>{const b=e.currentTarget;b.disabled=true;const status=tools.querySelector('[role="status"]');status.textContent='Открываю Яндекс…';try{const ok=await D.openLessonTool('meeting','https://telemost.yandex.ru/');status.textContent=ok?'Войдите в Яндекс в окне Телемоста.':'Не удалось открыть Телемост.'}catch{status.textContent='Не удалось открыть Телемост. Повторите попытку.'}finally{b.disabled=false}};
+tools.querySelector('button').onclick=async e=>{const b=e.currentTarget;b.disabled=true;const status=tools.querySelector('[role="status"]');status.textContent='Открываю Яндекс…';try{if(D?.desktop){const ok=await D.openLessonTool('meeting','https://telemost.yandex.ru/');status.textContent=ok?'Войдите в Яндекс в окне Телемоста.':'Не удалось открыть Телемост.'}else{window.open('https://telemost.yandex.ru/','_blank','noopener,noreferrer');status.textContent='Телемост открыт в новой вкладке.'}}catch{status.textContent='Не удалось открыть Телемост. Повторите попытку.'}finally{b.disabled=false}};
 window.AdeliaQuickChat={open:show,close};
 })();
