@@ -41,6 +41,23 @@ then
 else
   python3 "$work/groups.py" "$media"
 fi
-git -C /opt/tutorbot show "$target:scripts/deploy_receipt_tools_20261022.py" > "$work/receipts.py"
-python3 "$work/receipts.py" "$target"
-echo 'GROUPS_AND_RECEIPTS_UPDATE_OK'
+receipts=e4a1d07993253aaa7ae0a05b6009b2adf20c7867
+if python3 - "$receipts" <<'PYR'
+import subprocess,sys
+from pathlib import Path
+root=Path('/opt/adelia-current').resolve()
+for p in ['web_backend/receipt_review_tools.py','web_backend/receipt_tools_api.py','web/teacher_receipt_review_tools.js','web/teacher_receipt_review_tools.css']:
+ expected=subprocess.check_output(['git','-C','/opt/tutorbot','show',sys.argv[1]+':'+p])
+ if not (root/p).is_file() or (root/p).read_bytes()!=expected:sys.exit(1)
+if 'ReceiptToolsMixin' not in (root/'web_backend/api_v7.py').read_text():sys.exit(1)
+if 'teacher_receipt_review_tools.js' not in (root/'web/teacher.html').read_text():sys.exit(1)
+PYR
+then
+  echo 'RECEIPT_TOOLS_ALREADY_INSTALLED'
+else
+  git -C /opt/tutorbot show "$receipts:scripts/deploy_receipt_tools_20261022.py" > "$work/receipts.py"
+  python3 "$work/receipts.py" "$receipts"
+fi
+git -C /opt/tutorbot show "$target:scripts/deploy_day_off_20261022.py" > "$work/dayoff.py"
+python3 "$work/dayoff.py" "$target"
+echo 'ADELIA_FULL_UPDATE_OK'

@@ -20,8 +20,9 @@ from web_backend.learning_hub_api import LearningHubMixin, GET_PATHS as LEARNING
 from web_backend.group_workspace_api import GroupWorkspaceMixin
 from web_backend.group_media_api import GroupMediaMixin
 from web_backend.receipt_tools_api import ReceiptToolsMixin
+from web_backend.day_off_api import DayOffMixin
 
-class Handler(ReceiptToolsMixin, GroupMediaMixin, GroupWorkspaceMixin, LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
+class Handler(DayOffMixin, ReceiptToolsMixin, GroupMediaMixin, GroupWorkspaceMixin, LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
     server_version="AdeliaWeb/7.10"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
@@ -195,6 +196,8 @@ def main():
     if not otp_secret.configured():raise SystemExit("ADELIA_OTP_SECRET must be set to at least 32 bytes")
     from web_backend import group_visuals
     group_visuals.ensure_schema()
+    from web_backend import day_off_planner
+    day_off_planner.ensure_schema();day_off_planner.start_worker()
     ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();web_push.ensure_schema();monthly_allowance.ensure_schema();print(f"Adelia web API v7.10 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=="__main__":main()
 
