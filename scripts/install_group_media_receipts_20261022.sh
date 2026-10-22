@@ -60,4 +60,6 @@ else
 fi
 git -C /opt/tutorbot show "$target:scripts/deploy_day_off_20261022.py" > "$work/dayoff.py"
 python3 "$work/dayoff.py" "$target"
+git -C /opt/tutorbot show "$target:scripts/deploy_install_guide_20261022.py" > "$work/install-guide.py"
+python3 "$work/install-guide.py" "$target"
 echo 'ADELIA_FULL_UPDATE_OK'
