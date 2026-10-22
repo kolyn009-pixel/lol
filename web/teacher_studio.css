@@ -1,0 +1,240 @@
+/* Adelia Studio. Component layouts replace the legacy density rules. */
+html[data-adelia-design="studio4"]{--as-ink:#222337;--as-muted:#858397;--as-line:#e8e7f0;--as-purple:#7256d8;--as-soft:#f3effc;--as-canvas:#f7f7fb}
+html[data-adelia-design="studio4"] body{font-family:Arial,"Segoe UI",sans-serif!important;background:var(--as-canvas)!important;color:var(--as-ink)!important}
+html[data-adelia-design="studio4"] body #app{max-width:1480px!important;width:100%!important;margin:26px auto 0!important;min-width:0!important;font-size:15px!important;line-height:1.55!important}
+html[data-adelia-design="studio4"] body #app *,html[data-adelia-design="studio4"] body #learningHubPanel *{box-sizing:border-box}
+html[data-adelia-design="studio4"] body #app :is(button,input,textarea,select,a),html[data-adelia-design="studio4"] body #learningHubPanel :is(button,input,textarea,select){font-family:Arial,"Segoe UI",sans-serif!important}
+html[data-adelia-design="studio4"] body #app :is(button,.ghost,.primary,.soft,a.ghost){font-size:14px!important;line-height:1.4!important;min-height:40px!important;padding:10px 14px!important;border-radius:10px!important;max-width:100%;box-shadow:none!important;cursor:pointer!important;letter-spacing:0!important}
+html[data-adelia-design="studio4"] body #app :is(input:not([type=checkbox]):not([type=radio]),select,textarea){min-height:46px!important;border:1px solid #dedce9!important;background:#fff!important;border-radius:10px!important;padding:11px 13px!important;font-size:14px!important;line-height:1.5!important;color:#343245!important;min-width:0;box-shadow:none!important}
+html[data-adelia-design="studio4"] body #app :is(button,a,input,textarea,select):focus-visible,html[data-adelia-design="studio4"] body .al-editor :focus-visible{outline:3px solid #c9b8f0!important;outline-offset:3px!important}
+html[data-adelia-design="studio4"] body #app [hidden],html[data-adelia-design="studio4"] body #learningHubPanel [hidden]{display:none!important}
+html[data-adelia-design="studio4"] body #app button:disabled{cursor:default!important;opacity:.55!important}
+html[data-adelia-design="studio4"] body #app :is(.finance-head,.formula-head,.v4-page-head,.library-toolbar,.rc-head){display:flex!important;align-items:center!important;justify-content:space-between!important;gap:20px!important;flex-wrap:wrap!important;padding:26px 28px!important;background:#fff!important;color:var(--as-ink)!important;border:1px solid var(--as-line)!important;border-radius:18px!important;box-shadow:none!important;min-height:110px!important;margin-bottom:20px!important}
+html[data-adelia-design="studio4"] body #app :is(.finance-head,.formula-head,.v4-page-head,.rc-head) :is(h2,h3){font-size:25px!important;line-height:1.25!important;letter-spacing:-.035em!important;color:var(--as-ink)!important;margin:7px 0!important}
+html[data-adelia-design="studio4"] body #app :is(.finance-head,.formula-head,.v4-page-head,.rc-head) :is(p,small){color:#858397!important;font-size:14px!important;line-height:1.6!important;margin:5px 0!important}
+html[data-adelia-design="studio4"] body #app .badge{font-size:12px!important;line-height:1.4!important;padding:5px 9px!important;border-radius:6px!important;background:#f1edf9!important;color:#76609f!important;display:inline-flex!important;min-height:0!important}
+html[data-adelia-design="studio4"] body #app :is(.hw-plus-tabs,.finance-tabs,.finance-periods){display:flex!important;gap:5px!important;flex-wrap:wrap!important;align-items:center!important;border:0!important;border-radius:12px!important;padding:5px!important;margin:0 0 22px!important;background:#ececf3!important;width:fit-content!important;max-width:100%!important}
+html[data-adelia-design="studio4"] body #app :is(.hw-plus-tabs,.finance-tabs,.finance-periods)>button{min-height:38px!important;padding:9px 17px!important;color:#848091!important;border:0!important;background:transparent!important;font-size:13px!important;white-space:normal!important}
+html[data-adelia-design="studio4"] body #app :is(.hw-plus-tabs,.finance-tabs,.finance-periods)>button.active{background:#fff!important;color:#554574!important;box-shadow:0 2px 7px #3630440a!important}
+html[data-adelia-design="studio4"] body #app .finance-kpis{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))!important;gap:16px!important;margin:0 0 22px!important}
+html[data-adelia-design="studio4"] body #app .finance-kpis>article{display:grid!important;align-content:start!important;gap:9px!important;background:#fff!important;color:var(--as-ink)!important;border:1px solid var(--as-line)!important;border-radius:16px!important;padding:23px!important;min-height:130px!important;box-shadow:none!important;position:relative!important;overflow:hidden!important}
+html[data-adelia-design="studio4"] body #app .finance-kpis>article:first-child{border-top:3px solid #9275dc!important}
+html[data-adelia-design="studio4"] body #app .finance-kpis :is(span,small){font-size:13px!important;line-height:1.5!important;color:#8c869b!important}
+html[data-adelia-design="studio4"] body #app .finance-kpis strong{font-size:32px!important;line-height:1.1!important;letter-spacing:-.035em!important;color:#29243e!important;font-weight:600!important}
+html[data-adelia-design="studio4"] body #app .finance-student-toolbar{padding:18px 20px!important;border:1px solid var(--as-line)!important;background:#fff!important;border-radius:14px!important;margin-bottom:20px!important;display:flex!important;align-items:center!important;gap:16px!important;flex-wrap:wrap!important}
+html[data-adelia-design="studio4"] body #app .finance-student-toolbar label{display:flex!important;align-items:center!important;gap:12px!important;font-size:13px!important;color:#898096!important}
+html[data-adelia-design="studio4"] body #app #receiptStatus{width:230px!important;max-width:100%!important}
+html[data-adelia-design="studio4"] body #app :is(.finance-grid,#receiptGrid){display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,370px),1fr))!important;gap:20px!important;align-items:start!important}
+html[data-adelia-design="studio4"] body #app .receipt-card{display:flex!important;flex-direction:column!important;gap:13px!important;min-width:0!important;width:100%!important;padding:25px!important;background:#fff!important;border:1px solid var(--as-line)!important;border-radius:18px!important;box-shadow:0 5px 20px #32234604!important;overflow-wrap:anywhere!important}
+html[data-adelia-design="studio4"] body #app .finance-card-top{display:flex!important;align-items:start!important;justify-content:space-between!important;gap:12px!important;min-width:0!important}
+html[data-adelia-design="studio4"] body #app .finance-card-top>div{min-width:0!important}
+html[data-adelia-design="studio4"] body #app .finance-card-top h3{font-size:21px!important;line-height:1.3!important;color:#29243e!important;margin:10px 0 0!important;font-weight:600!important}
+html[data-adelia-design="studio4"] body #app .finance-card-top>strong{position:static!important;flex-shrink:0!important;font-size:23px!important;line-height:1.4!important;color:#2a233d!important;margin-top:2px!important;white-space:nowrap!important}
+html[data-adelia-design="studio4"] body #app .receipt-card :is(p,small,.stage6-meta){font-size:13px!important;line-height:1.6!important;color:#90879d!important;margin:0!important}
+html[data-adelia-design="studio4"] body #app .receipt-card .stage6-meta{display:flex!important;flex-wrap:wrap!important;gap:6px!important;background:#f8f7fb!important;padding:10px 12px!important;border-radius:9px!important}
+html[data-adelia-design="studio4"] body #app .finance-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important;width:100%!important;min-width:0!important;align-items:center!important;margin:8px 0 0!important;padding:16px 0 0!important;border-top:1px solid #efedf4!important;grid-column:auto!important}
+html[data-adelia-design="studio4"] body #app .finance-actions :is(button,a){flex:1 1 135px!important;min-width:0!important;max-width:100%!important;white-space:normal!important;text-align:center!important;overflow-wrap:anywhere!important;text-decoration:none!important}
+html[data-adelia-design="studio4"] body #app .finance-actions .primary{background:#7256d8!important;border:1px solid #7256d8!important;color:white!important}
+html[data-adelia-design="studio4"] body #app .rr-panel{width:100%!important;min-width:0!important;margin-top:5px!important;padding:18px!important;background:#f9f7fe!important;border:1px solid #ece5f8!important;border-radius:12px!important}
+html[data-adelia-design="studio4"] body #app .rr-panel label{font-size:13px!important;display:grid!important;gap:7px!important;margin:12px 0!important;color:#675779!important}
+html[data-adelia-design="studio4"] body #app .rr-panel input[type=checkbox]{min-height:0!important;width:18px!important;height:18px!important}
+html[data-adelia-design="studio4"] body #app .rr-panel .rr-check{display:flex!important;align-items:center!important;gap:10px!important}
+html[data-adelia-design="studio4"] body #app .rr-panel :is(input,textarea){max-width:100%!important;width:100%!important}
+html[data-adelia-design="studio4"] body #app .rr-panel dl>div{display:flex!important;gap:12px!important;justify-content:space-between!important;flex-wrap:wrap!important}
+html[data-adelia-design="studio4"] body #app .rr-panel dd{margin:0!important;text-align:right!important}
+html[data-adelia-design="studio4"] body #app .finance-overview-toolbar{padding:22px 25px!important;display:flex!important;justify-content:space-between!important;align-items:center!important;gap:20px!important;flex-wrap:wrap!important;margin-bottom:20px!important;background:#fff!important;border:1px solid var(--as-line)!important;border-radius:16px!important}
+html[data-adelia-design="studio4"] body #app .finance-overview-toolbar h2{font-size:22px!important;margin:5px 0!important}
+html[data-adelia-design="studio4"] body #app .finance-split{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:22px!important}
+html[data-adelia-design="studio4"] body #app .finance-split>section{min-width:0!important;background:#fff!important;padding:22px!important;border:1px solid var(--as-line)!important;border-radius:16px!important}
+html[data-adelia-design="studio4"] body #app .finance-split h3{font-size:18px!important;margin:0 0 5px!important}
+html[data-adelia-design="studio4"] body #app .finance-history{border:1px solid #eeebf5!important;padding:16px!important;margin:12px 0!important;border-radius:12px!important;background:#fcfbfe!important;min-width:0!important;font-size:14px!important;gap:14px!important}
+html[data-adelia-design="studio4"] body #app .finance-history :is(small,p,span){font-size:13px!important;line-height:1.55!important;color:#8a7f98!important}
+/* The library uses its own markup instead of the old generic cards and toolbar. */
+html[data-adelia-design="studio4"] body #app .al-library{max-width:1440px;margin:auto;color:#292439;font-family:Arial,"Segoe UI",sans-serif}
+html[data-adelia-design="studio4"] body #app .al-library svg{width:21px;height:21px;flex-shrink:0;vertical-align:middle}
+html[data-adelia-design="studio4"] body #app .al-library button,html[data-adelia-design="studio4"] body #app .al-library a{display:inline-flex;align-items:center;justify-content:center;gap:9px;white-space:normal;text-decoration:none;transition:background .15s ease,transform .15s ease}
+html[data-adelia-design="studio4"] body #app .al-library button:hover,html[data-adelia-design="studio4"] body #app .al-library a:hover{filter:brightness(.98)}
+html[data-adelia-design="studio4"] body #app .al-hero{display:grid;grid-template-columns:1.1fr 1fr;min-height:280px;padding:42px 46px;background:#25223d;border:1px solid #332f4a;border-radius:23px;position:relative;overflow:hidden;color:#fff;margin-bottom:28px}
+html[data-adelia-design="studio4"] body #app .al-hero-copy{position:relative;z-index:2;align-self:center}
+html[data-adelia-design="studio4"] body #app .al-eyebrow{display:block;font-size:10px!important;font-weight:600;letter-spacing:.15em!important;text-transform:uppercase;line-height:1.5;color:#9991b2}
+html[data-adelia-design="studio4"] body #app .al-hero .al-eyebrow{color:#b1a5cc}
+html[data-adelia-design="studio4"] body #app .al-hero h2{font-size:clamp(28px,3vw,42px)!important;font-weight:500!important;line-height:1.16!important;letter-spacing:-.045em!important;margin:15px 0!important;color:#fff!important}
+html[data-adelia-design="studio4"] body #app .al-hero p{font-size:14px!important;line-height:1.75!important;color:#b8aecb!important;margin:0 0 25px!important}
+html[data-adelia-design="studio4"] body #app .al-light{background:#fff!important;color:#4d3e69!important;border:0!important;font-size:13px!important;font-weight:600!important;padding:12px 18px!important;border-radius:10px!important;min-height:43px!important}
+html[data-adelia-design="studio4"] body #app .al-hero-art{position:relative;width:100%;height:210px;align-self:center;justify-self:center}
+html[data-adelia-design="studio4"] body #app .al-hero-art>i{position:absolute;width:320px;height:220px;border:1px solid #b9a7de19;border-radius:50%;left:14%;top:8%;transform:rotate(-20deg)}
+html[data-adelia-design="studio4"] body #app .al-book{position:absolute;display:flex;flex-direction:column;border-radius:5px 16px 16px 5px;box-shadow:15px 20px 35px #08051235;border-left:7px solid #ffffff21;overflow:hidden}
+html[data-adelia-design="studio4"] body #app .al-book-back{background:#b7d4c1;width:132px;height:176px;left:20%;top:8px;transform:rotate(-14deg);padding:20px;color:#4d7261}
+html[data-adelia-design="studio4"] body #app .al-book-back span{font-size:8px;letter-spacing:.13em}.al-book-back b{font-size:70px;font-weight:400;line-height:1.8}
+html[data-adelia-design="studio4"] body #app .al-book-front{background:#a992dc;width:166px;height:206px;left:42%;top:7px;transform:rotate(10deg);padding:22px;color:#fff;z-index:1}
+html[data-adelia-design="studio4"] body #app .al-book-front span{font-size:8px;color:#ffffffbd}.al-book-front svg{margin:24px 0 16px}.al-book-front b{font-size:21px;font-weight:400;letter-spacing:-.04em;line-height:1.2}.al-book-front small{margin-top:auto;font-size:6px;letter-spacing:.1em;color:#ffffffc4}
+html[data-adelia-design="studio4"] body #app .al-workspace{display:grid;grid-template-columns:205px minmax(0,1fr);gap:30px;align-items:start}
+html[data-adelia-design="studio4"] body #app .al-sidebar{padding:15px 0;position:sticky;top:20px;min-width:0}
+html[data-adelia-design="studio4"] body #app .al-sidebar>.al-eyebrow{padding:0 13px;margin-bottom:14px}
+html[data-adelia-design="studio4"] body #app .al-sidebar nav{display:grid;gap:6px}
+html[data-adelia-design="studio4"] body #app .al-sidebar nav button{justify-content:flex-start!important;width:100%!important;gap:11px!important;background:transparent!important;color:#81768f!important;border:0!important;padding:12px 13px!important;font-weight:400!important;font-size:13px!important;min-height:45px!important}
+html[data-adelia-design="studio4"] body #app .al-sidebar nav button.active{background:#ece7f8!important;color:#6d56a5!important;font-weight:600!important}
+html[data-adelia-design="studio4"] body #app .al-subject-symbol{display:grid;place-items:center;width:23px;height:25px;background:#ede6fa;color:#8763c7;font:italic 22px Georgia,serif;border-radius:6px}
+html[data-adelia-design="studio4"] body #app .al-subject-symbol.is-green{font:12px Arial,sans-serif;background:#e8f1ec;color:#719986}
+html[data-adelia-design="studio4"] body #app .al-sidebar-note{margin:30px 6px 24px;padding:17px;background:#eeecf5;border:1px solid #e6e0f1;border-radius:12px}
+html[data-adelia-design="studio4"] body #app .al-sidebar-note b{font-size:13px;color:#675777}.al-sidebar-note p{font-size:12px;line-height:1.7;color:#9a8fa7;margin:9px 0}
+html[data-adelia-design="studio4"] body #app .al-sidebar-note button{font-size:12px!important;background:none!important;border:0!important;color:#8a6cbc!important;padding:4px 0!important;min-height:28px!important}
+html[data-adelia-design="studio4"] body #app .al-totals{display:grid;gap:9px;font-size:12px;color:#82718f;padding:0 17px}.al-totals b{font-weight:500;color:#7e6e91;margin-right:6px}
+html[data-adelia-design="studio4"] body #app .al-catalog{min-width:0}
+html[data-adelia-design="studio4"] body #app .al-catalog-heading{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;margin:9px 0 22px}
+html[data-adelia-design="studio4"] body #app .al-catalog-heading h3{font-size:25px!important;font-weight:500;letter-spacing:-.035em;color:#322b44;margin:6px 0 0!important}
+html[data-adelia-design="studio4"] body #app .al-heading-actions{display:flex;gap:9px;flex-wrap:wrap}
+html[data-adelia-design="studio4"] body #app .al-primary{background:#7758c9!important;border:1px solid #7758c9!important;color:#fff!important;font-size:13px!important;font-weight:500!important;min-height:42px!important;padding:10px 16px!important}
+html[data-adelia-design="studio4"] body #app .al-secondary{background:#fff!important;border:1px solid #e1dbe9!important;color:#8a799d!important;font-size:13px!important;font-weight:400!important;min-height:42px!important;padding:10px 16px!important}
+html[data-adelia-design="studio4"] body #app .al-search-row{display:grid;grid-template-columns:minmax(0,1fr) 155px 150px;gap:10px;margin-bottom:20px}
+html[data-adelia-design="studio4"] body #app .al-search{display:flex;align-items:center;gap:10px;min-width:0;border:1px solid #e3dfea;border-radius:10px;background:white;padding:0 12px;color:#a597b4}
+html[data-adelia-design="studio4"] body #app .al-search input{width:100%!important;border:0!important;outline:none!important;box-shadow:none!important;background:transparent!important;padding:12px 0!important;min-width:0;font-size:13px!important}
+html[data-adelia-design="studio4"] body #app .al-search:focus-within{outline:3px solid #d6c8ee;outline-offset:2px}
+html[data-adelia-design="studio4"] body #app .al-search-row select{width:100%!important;font-size:12px!important;padding:10px!important;color:#8c7c9e!important;background:#fff!important}
+html[data-adelia-design="studio4"] body #app .al-tabs{display:flex;gap:22px;border-bottom:1px solid #e7e2ee;margin-bottom:4px;overflow-x:auto}
+html[data-adelia-design="studio4"] body #app .al-tabs button{position:relative;flex-shrink:0;background:none!important;color:#82718f!important;border:0!important;border-radius:0!important;padding:12px 0!important;font-size:13px!important;min-height:45px!important;font-weight:400!important;white-space:nowrap!important}
+html[data-adelia-design="studio4"] body #app .al-tabs button.active{color:#7f5ab5!important}
+html[data-adelia-design="studio4"] body #app .al-tabs button.active:after{content:'';position:absolute;bottom:0;left:0;width:100%;height:2px;background:#9674cd;border-radius:2px}
+html[data-adelia-design="studio4"] body #app .al-tabs button span{font-size:10px!important;padding:2px 6px;border-radius:5px;background:#ede8f5;color:#9885ae}
+html[data-adelia-design="studio4"] body #app .al-results-line{display:flex;justify-content:space-between;gap:10px;min-height:34px;padding:9px 0;font-size:11px;color:#82718f}
+html[data-adelia-design="studio4"] body #app .al-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,265px),1fr));gap:18px}
+html[data-adelia-design="studio4"] body #app .al-card{display:flex;flex-direction:column;overflow:hidden;border:1px solid #e6e0ef;border-radius:15px;background:#fff;box-shadow:0 5px 16px #38234903;min-width:0;transition:box-shadow .2s,border-color .2s}
+html[data-adelia-design="studio4"] body #app .al-card:hover{border-color:#d2c4e5;box-shadow:0 12px 28px #40205d09}
+html[data-adelia-design="studio4"] body #app .al-cover{height:135px;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;padding:20px 22px;background:#efebf6;color:#a18bbd;position:relative;overflow:hidden}
+html[data-adelia-design="studio4"] body #app .al-cover:after{content:'';width:95px;height:130px;position:absolute;right:23px;top:19px;border:1px solid #b6a3ce44;border-radius:5px;transform:rotate(18deg);background:#ffffff19}
+html[data-adelia-design="studio4"] body #app .al-cover>span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;z-index:1}.al-cover svg{grid-column:2;grid-row:1/4;align-self:center;z-index:1}.al-cover>small{font-size:12px;grid-row:3;z-index:1}
+html[data-adelia-design="studio4"] body #app .al-cover.is-chemistry{background:#e8f1ec;color:#7ca58e}.al-cover.is-collection{background:#ede7e0;color:#a9957b}
+html[data-adelia-design="studio4"] body #app .al-card-content{display:flex;flex-direction:column;flex:1;padding:19px;min-width:0}
+html[data-adelia-design="studio4"] body #app .al-card-meta{display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:11px;color:#8e789d}
+html[data-adelia-design="studio4"] body #app .al-tag{display:inline-flex;align-items:center;background:#f2eef8;color:#9a83b4;padding:4px 7px;border-radius:5px;font-size:10px;line-height:1.4}
+html[data-adelia-design="studio4"] body #app :is(.al-card,.al-task) h3{font-size:17px!important;line-height:1.4!important;letter-spacing:-.02em!important;font-weight:500!important;color:#4b3c5d!important;margin:14px 0 7px!important;overflow-wrap:anywhere}
+html[data-adelia-design="studio4"] body #app :is(.al-card,.al-task) p{font-size:12px!important;line-height:1.75!important;color:#7d7089!important;margin:0 0 15px!important;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+html[data-adelia-design="studio4"] body #app .al-usage{display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:#93809f;margin:auto 0 15px}
+html[data-adelia-design="studio4"] body #app :is(.al-card,.al-task) footer{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid #f0ebf5;padding-top:12px;flex-wrap:wrap;font-size:11px;color:#a897b8}
+html[data-adelia-design="studio4"] body #app .al-open{background:none!important;border:0!important;padding:4px 0!important;min-height:30px!important;font-size:12px!important;font-weight:500!important;color:#9974bf!important}
+html[data-adelia-design="studio4"] body #app .al-open svg{width:16px;height:16px}
+html[data-adelia-design="studio4"] body #app .al-text-button{background:none!important;border:0!important;padding:4px 0!important;min-height:30px!important;font-size:11px!important;font-weight:400!important;color:#b09abd!important}
+html[data-adelia-design="studio4"] body #app .al-task-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:18px}
+html[data-adelia-design="studio4"] body #app .al-task{display:flex;flex-direction:column;min-width:0;padding:22px;border:1px solid #e5deed;border-radius:15px;background:#fff}.al-dots{color:#d3c6dc}
+html[data-adelia-design="studio4"] body #app .al-empty{display:flex;align-items:center;justify-content:center;gap:38px;min-height:330px;padding:48px 35px;border:1px dashed #e2d8ed;border-radius:17px;background:#fdfcfe}
+html[data-adelia-design="studio4"] body #app .al-empty>div:last-child{max-width:390px}.al-empty-art{width:130px;height:160px;position:relative;flex-shrink:0}.al-empty-art i{position:absolute;left:22px;top:18px;width:88px;height:118px;background:#f1eaf8;border:1px solid #ded0ec;border-radius:8px;transform:rotate(-16deg)}.al-empty-art i:nth-child(2){transform:rotate(12deg);left:30px;top:25px;background:#e9e1f2}.al-empty-art i:last-child{display:grid;place-items:center;transform:rotate(-2deg);top:17px;background:#fff;box-shadow:0 10px 25px #5d3f7010;color:#b196cb}.al-empty-art svg{width:35px!important;height:35px!important}
+html[data-adelia-design="studio4"] body #app .al-empty h3{font-size:24px!important;font-weight:400!important;line-height:1.3!important;letter-spacing:-.035em!important;color:#6a507b!important;margin:12px 0!important}
+html[data-adelia-design="studio4"] body #app .al-empty p{font-size:13px!important;line-height:1.8!important;color:#85718f!important;margin:0 0 24px!important}
+html[data-adelia-design="studio4"] body #app .al-empty-actions{display:flex;gap:9px;flex-wrap:wrap}
+html[data-adelia-design="studio4"] body #app .al-job{display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:17px;align-items:center;padding:22px;border:1px solid #e5ddeb;border-radius:13px;background:#fff;margin-bottom:12px}.al-job h3{font-size:15px;margin:0 0 5px;color:#695575}.al-job p{font-size:12px;color:#a590af;margin:0}.al-job-icon{display:grid;place-items:center;width:42px;height:46px;background:#f0e8f7;border-radius:9px;color:#ac8bc4}
+html[data-adelia-design="studio4"] body #app .al-error{padding:30px;border:1px solid #e8dbe7;border-radius:15px;background:#fffbfd}.al-error h3{font-size:18px;color:#805f7c}.al-error p{font-size:14px;color:#a28b9d}
+html[data-adelia-design="studio4"] body .al-editor{width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;border:1px solid #e7ddef;border-radius:20px;background:#fff;color:#453250;padding:32px;font:14px/1.6 Arial,sans-serif;box-shadow:0 25px 90px #23172b30}
+html[data-adelia-design="studio4"] body .al-editor::backdrop{background:#251c3c66;backdrop-filter:blur(5px)}
+html[data-adelia-design="studio4"] body .al-editor h2{font-size:23px;font-weight:500;letter-spacing:-.025em;margin:0 32px 24px 0}
+html[data-adelia-design="studio4"] body .al-editor label{display:grid;gap:7px;margin:14px 0;font-size:13px;color:#8f769b}
+html[data-adelia-design="studio4"] body .al-editor :is(input,textarea,select){width:100%;padding:11px 13px;border:1px solid #dfd0e8;border-radius:9px;min-height:44px;font:14px/1.6 Arial,sans-serif;color:#5e436d;background:#fff;box-sizing:border-box}
+html[data-adelia-design="studio4"] body .al-editor textarea{min-height:90px;resize:vertical}
+html[data-adelia-design="studio4"] body .al-editor .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+html[data-adelia-design="studio4"] body .al-editor button.primary{width:100%;border:0;border-radius:10px;background:#7758c9;color:#fff;padding:13px;font:14px Arial,sans-serif;margin-top:18px;cursor:pointer}
+html[data-adelia-design="studio4"] body .al-editor-close{position:absolute;right:18px;top:16px;width:34px;height:34px;border:0;border-radius:50%;background:#f5eff9;color:#87659a;font-size:23px;cursor:pointer}
+/* Topic handbook — larger previews, consistent toolbar and navigation. */
+html[data-adelia-design="studio4"] body #app .fx-explorer>.ux-heading{padding:28px!important;background:#29263f!important;border:1px solid #322d49!important;border-radius:19px!important;margin-bottom:22px!important;color:#fff!important}
+html[data-adelia-design="studio4"] body #app .fx-explorer>.ux-heading h2{font-size:30px!important;font-weight:500!important;line-height:1.2!important;color:#fff!important;margin:9px 0 12px!important;letter-spacing:-.04em!important}
+html[data-adelia-design="studio4"] body #app .fx-explorer>.ux-heading p{font-size:14px!important;color:#c1b7d3!important;line-height:1.7!important}
+html[data-adelia-design="studio4"] body #app .fx-explorer>.ux-heading .ux-eyebrow{font-size:11px!important;color:#b7a6d1!important}
+html[data-adelia-design="studio4"] body #app .fx-explorer>.ux-heading button{background:#fff!important;border:1px solid #fff!important;color:#5d477b!important;font-size:13px!important}
+html[data-adelia-design="studio4"] body #app .fx-search{display:grid!important;grid-template-columns:minmax(0,1fr) 200px!important;gap:15px!important;padding:20px!important;background:#fff!important;border:1px solid #e6e0ed!important;border-radius:14px!important;margin-bottom:24px!important}
+html[data-adelia-design="studio4"] body #app .fx-search label{display:grid!important;gap:8px!important;font-size:12px!important;color:#8b7d99!important;min-width:0!important}
+html[data-adelia-design="studio4"] body #app .fx-search :is(input,select){width:100%!important}
+html[data-adelia-design="studio4"] body #app .fx-layout{grid-template-columns:225px minmax(0,1fr)!important;gap:24px!important}
+html[data-adelia-design="studio4"] body #app .fx-topics{padding:12px!important;background:#fff!important;border:1px solid #e4dcec!important;border-radius:13px!important;max-height:650px!important;top:20px!important}
+html[data-adelia-design="studio4"] body #app .fx-topics :is(button,summary){font-size:13px!important;line-height:1.5!important;padding:12px 10px!important;color:#796485!important;background:transparent!important;border:0!important;width:100%!important;white-space:normal!important}
+html[data-adelia-design="studio4"] body #app .fx-topics button[aria-pressed=true]{background:#f1eaf9!important;color:#8b66ad!important}
+html[data-adelia-design="studio4"] body #app .fx-cards{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))!important;gap:20px!important}
+html[data-adelia-design="studio4"] body #app .fx-card{padding:24px!important;background:#fff!important;border:1px solid #e6deed!important;border-radius:16px!important;box-shadow:none!important;min-width:0!important}
+html[data-adelia-design="studio4"] body #app .fx-card h3{font-size:20px!important;font-weight:500!important;line-height:1.4!important;margin:18px 0 16px!important}
+html[data-adelia-design="studio4"] body #app .fx-card h3 button{font-size:20px!important;font-weight:500!important;padding:0!important;color:#4a365b!important;border:0!important;background:none!important;text-align:left!important}
+html[data-adelia-design="studio4"] body #app .fx-card>p{font-size:14px!important;line-height:1.8!important;color:#7e6d8a!important}
+html[data-adelia-design="studio4"] body #app .fx-math{background:#f5f1f9!important;border:1px solid #ebe2f2!important;border-radius:12px!important;padding:25px 12px!important;min-height:100px!important;font-size:27px!important;color:#6d4e82!important;overflow-x:auto!important}
+html[data-adelia-design="studio4"] body #app .fx-card .ux-actions{display:grid!important;grid-template-columns:1fr!important;gap:7px!important;margin-top:18px!important}
+html[data-adelia-design="studio4"] body #app .fx-card .ux-actions button{font-size:13px!important;padding:11px!important;min-height:42px!important;background:#fff!important;color:#9b78b6!important;border:1px solid #e5d7ef!important}
+html[data-adelia-design="studio4"] body #app .fx-results-head{font-size:12px!important;color:#9c89a9!important;margin-bottom:15px!important}
+html[data-adelia-design="studio4"] body #app .fx-results-head button{font-size:12px!important;border:0!important;background:none!important;color:#ad8dbc!important}
+html[data-adelia-design="studio4"] body #app :is(.fx-cards>.ux-empty,.formula-grid>.empty){grid-column:1/-1!important;min-height:300px!important;padding:55px 35px!important;text-align:center!important;background:#fdfbfe!important;border:1px dashed #dfd0e9!important;border-radius:16px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important}
+html[data-adelia-design="studio4"] body #app .fx-cards>.ux-empty h3{font-size:25px!important;font-weight:400!important;color:#765284!important;letter-spacing:-.035em!important;margin-bottom:12px!important}
+html[data-adelia-design="studio4"] body #app .fx-cards>.ux-empty p{font-size:14px!important;color:#9680a1!important;line-height:1.8!important;max-width:430px!important}
+html[data-adelia-design="studio4"] body #app :is(.fx-detail,.formula-editor,.formula-import,.pdf-upload-card){padding:30px!important;background:#fff!important;border:1px solid #e6ddec!important;border-radius:18px!important;max-width:1050px!important;margin:0 auto 25px!important}
+html[data-adelia-design="studio4"] body #app :is(.formula-editor,.formula-import,.pdf-upload-card) label{display:block!important;font-size:13px!important;color:#877191!important;margin:15px 0 7px!important}
+html[data-adelia-design="studio4"] body #app :is(.formula-editor,.formula-import,.pdf-upload-card) :is(input,textarea,select){width:100%!important}
+html[data-adelia-design="studio4"] body #app :is(.formula-editor,.formula-import,.pdf-upload-card) .form-row{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:18px!important}
+html[data-adelia-design="studio4"] body #app .pdf-drop{display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;gap:12px!important;min-height:190px!important;border:1px dashed #d7c3e7!important;background:#faf6fe!important;border-radius:15px!important;padding:30px!important;text-align:center!important}
+html[data-adelia-design="studio4"] body #app .pdf-drop b{font-size:19px!important;font-weight:500!important;color:#816098!important}
+html[data-adelia-design="studio4"] body #app .pdf-import-hero{padding:28px!important;border-radius:18px!important;background:#29263f!important;color:#fff!important;margin-bottom:22px!important}
+html[data-adelia-design="studio4"] body #app .pdf-import-hero p{font-size:14px!important;color:#c4b4d4!important;line-height:1.8!important;max-width:650px!important}
+/* Requests and trials keep action groups inside the card. */
+html[data-adelia-design="studio4"] body #app .rc-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:22px!important;align-items:start!important}
+html[data-adelia-design="studio4"] body #app .rc-col{min-width:0!important}
+html[data-adelia-design="studio4"] body #app .rc-col>h2{font-size:17px!important;color:#695174!important;margin:0 0 17px!important;padding:0 5px!important}
+html[data-adelia-design="studio4"] body #app :is(.rc-card,.rc-group){padding:23px!important;border:1px solid #e5daed!important;border-radius:17px!important;background:#fff!important;box-shadow:none!important;margin-bottom:16px!important;min-width:0!important}
+html[data-adelia-design="studio4"] body #app :is(.rc-card,.rc-group) h3{font-size:20px!important;font-weight:500!important;line-height:1.4!important;margin:12px 0!important;color:#574060!important}
+html[data-adelia-design="studio4"] body #app :is(.rc-meta,.rc-card p,.rc-group p,.rc-group-slot){font-size:13px!important;color:#947c9f!important;line-height:1.8!important;overflow-wrap:anywhere!important}
+html[data-adelia-design="studio4"] body #app :is(.rc-actions,.rc-slot-actions){display:flex!important;flex-wrap:wrap!important;gap:8px!important;align-items:center!important;margin-top:15px!important}
+html[data-adelia-design="studio4"] body #app .rc-actions button{flex:1 1 115px!important;min-width:0!important;font-size:13px!important}
+html[data-adelia-design="studio4"] body #app .rc-group-slot{padding:15px!important;background:#faf6fd!important;border:1px solid #eee3f5!important;border-radius:10px!important;margin-bottom:10px!important}
+html[data-adelia-design="studio4"] body #app .rc-empty{border:1px dashed #e4d5ee!important;background:#fcf9fe!important;padding:32px 22px!important;border-radius:14px!important;font-size:14px!important;color:#aa8eb6!important;min-height:130px!important;display:grid!important;place-items:center!important;text-align:center!important}
+html[data-adelia-design="studio4"] body #app .tb-grid{display:grid!important;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr)!important;gap:26px!important;align-items:start!important}
+html[data-adelia-design="studio4"] body #app .tb-grid>section{min-width:0!important}
+html[data-adelia-design="studio4"] body #app .tb-grid>section>h2{font-size:23px!important;font-weight:500!important;color:#5e406e!important;margin:0 0 9px!important}
+html[data-adelia-design="studio4"] body #app .tb-grid>section>p{font-size:14px!important;color:#9d83ac!important;line-height:1.8!important;margin:0 0 23px!important}
+html[data-adelia-design="studio4"] body #app .tb-card{padding:25px!important;margin-bottom:18px!important;border:1px solid #e5d7ed!important;border-radius:16px!important;background:#fff!important;box-shadow:none!important}
+html[data-adelia-design="studio4"] body #app .tb-card h3{font-size:21px!important;color:#5e426a!important;font-weight:500!important;margin:12px 0!important}
+html[data-adelia-design="studio4"] body #app .tb-meta{font-size:12px!important;color:#ad91b9!important;display:flex!important;gap:10px!important;flex-wrap:wrap!important}
+html[data-adelia-design="studio4"] body #app .tb-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important}
+html[data-adelia-design="studio4"] body #app .tb-actions button{width:auto!important;min-width:0!important;font-size:13px!important;padding:10px 13px!important}
+html[data-adelia-design="studio4"] body #app .tb-form{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;margin-top:20px!important;border-top:1px solid #eee4f4!important;padding-top:20px!important}
+html[data-adelia-design="studio4"] body #app .tb-form[hidden]{display:none!important}
+html[data-adelia-design="studio4"] body #app .tb-form :is(input,select){width:100%!important;font-size:14px!important}
+html[data-adelia-design="studio4"] body #app .tb-form>button,html[data-adelia-design="studio4"] body #app .tb-form>.tb-actions,html[data-adelia-design="studio4"] body #app .tb-form>.tb-state{grid-column:1/-1!important;justify-self:start!important}
+html[data-adelia-design="studio4"] body #app .tb-grid>section:last-child{position:sticky!important;top:25px!important}
+html[data-adelia-design="studio4"] body #app .tb-grid>section:last-child .tb-form{grid-template-columns:1fr!important}
+/* A single focused learning section instead of a tall wall of forms. */
+html[data-adelia-design="studio4"] body #learningHubPanel{width:min(1120px,100%)!important;border:1px solid #e9dff0!important;border-radius:22px!important;padding:0!important;background:#faf8fd!important;overflow:hidden!important;box-shadow:0 25px 90px #25133235!important;color:#5c416c!important;font:15px/1.6 Arial,sans-serif!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-head{padding:28px 32px!important;background:#fff!important;border-bottom:1px solid #eee4f5!important;align-items:center!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-head h2{font-size:27px!important;font-weight:500!important;letter-spacing:-.035em!important;color:#594066!important;margin:6px 0 9px!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-head :is(small,p){font-size:13px!important;color:#9471a3!important;margin:0!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-close{position:static!important;flex-shrink:0!important;width:38px!important;height:38px!important;border:1px solid #e6d9ee!important;border-radius:50%!important;background:#f7f0fc!important;color:#b08bc0!important;font-size:19px!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-student{display:flex!important;align-items:center!important;gap:18px!important;margin:22px 32px!important;font-size:13px!important;color:#7d5d8c!important;max-width:600px!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-student select{flex:1!important;min-width:0!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .as-learning-tabs{display:flex;gap:5px;overflow-x:auto;padding:0 28px;margin:0 0 22px;border-bottom:1px solid #e7d9f0;background:#fff}
+html[data-adelia-design="studio4"] body #learningHubPanel .as-learning-tabs button{flex-shrink:0;border:0!important;border-radius:0!important;background:none!important;color:#a382b5!important;font-size:13px!important;padding:15px 12px!important;min-height:50px!important;white-space:nowrap!important;border-bottom:2px solid transparent!important;font-weight:400!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .as-learning-tabs button[aria-selected=true]{color:#9565b7!important;border-bottom-color:#ad7ece!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-grid{display:block!important;padding:0 30px 30px!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-section{background:#fff!important;border:1px solid #e9ddef!important;border-radius:16px!important;padding:25px!important;min-width:0!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-section[hidden]{display:none!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-section>h3{font-size:21px!important;color:#795089!important;font-weight:500!important;margin:0 0 15px!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-empty{font-size:14px!important;line-height:1.7!important;color:#9471a3!important;padding:16px 20px!important;border-radius:11px!important;background:#faf6fd!important;border:1px dashed #e8d9ef!important;margin-bottom:24px!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-form{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:18px!important;border:0!important;background:transparent!important;padding:0!important;margin:0!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-form label{font-size:13px!important;color:#7d5d8c!important;display:grid!important;gap:8px!important;min-width:0!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-form :is(h4,p,button,.lh-form-status){grid-column:1/-1!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-form label:has(textarea){grid-column:1/-1!important}
+html[data-adelia-design="studio4"] body #learningHubPanel :is(input:not([type=checkbox]):not([type=hidden]),select,textarea){width:100%!important;min-height:45px!important;font-size:14px!important;line-height:1.6!important;padding:11px 13px!important;border:1px solid #dfcce9!important;border-radius:10px!important;background:#fff!important;color:#6d467e!important;font-family:Arial,sans-serif!important}
+html[data-adelia-design="studio4"] body #learningHubPanel input[type=hidden]{display:none!important}
+html[data-adelia-design="studio4"] body #learningHubPanel textarea{min-height:95px!important;resize:vertical!important}
+html[data-adelia-design="studio4"] body #learningHubPanel button{font-size:14px!important;border:1px solid #e2d0ed!important;border-radius:10px!important;padding:11px 16px!important;background:#fff!important;color:#855e9d!important;cursor:pointer!important}
+html[data-adelia-design="studio4"] body #learningHubPanel button.lh-primary{background:#9162c3!important;border-color:#9162c3!important;color:#fff!important;width:auto!important;justify-self:start!important;min-width:190px!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-check{display:flex!important;align-items:center!important;gap:9px!important;grid-column:1/-1!important}
+html[data-adelia-design="studio4"] body #learningHubPanel #lhStatus:not(:empty){margin:20px 30px!important;padding:14px 17px!important;background:#f0e7f8!important;border-radius:10px!important;font-size:14px!important;color:#956ab0!important}
+html[data-adelia-design="studio4"] body #learningHubPanel .lh-item{padding:20px!important;border:1px solid #e8d8ef!important;border-radius:12px!important;background:#fdfaff!important;margin:14px 0!important}
+@media(max-width:1200px){html[data-adelia-design="studio4"] body #app .al-search-row{grid-template-columns:minmax(0,1fr) 150px}html[data-adelia-design="studio4"] body #app .al-search-row #alSort{grid-column:1/-1;justify-self:end;max-width:180px}html[data-adelia-design="studio4"] body #app .rc-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:1000px){html[data-adelia-design="studio4"] body #app .al-workspace{grid-template-columns:160px minmax(0,1fr);gap:20px}html[data-adelia-design="studio4"] body #app .al-hero{padding:30px;grid-template-columns:1.3fr 1fr}.al-hero-art{transform:scale(.85);transform-origin:center}html[data-adelia-design="studio4"] body #app .finance-split{grid-template-columns:1fr!important}html[data-adelia-design="studio4"] body #app .tb-grid{grid-template-columns:1fr!important}html[data-adelia-design="studio4"] body #app .tb-grid>section:last-child{position:static!important}}
+@media(max-width:760px){html[data-adelia-design="studio4"] body #app .al-hero{grid-template-columns:1fr;padding:28px;min-height:240px}.al-hero-art{display:none}html[data-adelia-design="studio4"] body #app .al-workspace{grid-template-columns:1fr;gap:15px}.al-sidebar-note,.al-totals{display:none!important}html[data-adelia-design="studio4"] body #app .al-sidebar{position:static;padding:0}.al-sidebar>.al-eyebrow{display:none!important}html[data-adelia-design="studio4"] body #app .al-sidebar nav{display:flex;flex-wrap:wrap;gap:8px}html[data-adelia-design="studio4"] body #app .al-sidebar nav button{width:auto!important;flex:1 1 130px!important}.al-grid{grid-template-columns:1fr!important}html[data-adelia-design="studio4"] body #app .al-empty{flex-direction:column;text-align:center;padding:30px 20px;gap:12px}.al-empty-actions{justify-content:center}html[data-adelia-design="studio4"] body #app .al-tabs{gap:18px}html[data-adelia-design="studio4"] body #app .al-search-row{grid-template-columns:1fr}html[data-adelia-design="studio4"] body #app .al-search-row #alSort{grid-column:auto;justify-self:stretch;max-width:none}html[data-adelia-design="studio4"] body #app .al-job{grid-template-columns:40px minmax(0,1fr)}html[data-adelia-design="studio4"] body #app .rc-grid,html[data-adelia-design="studio4"] body #app .fx-search{grid-template-columns:1fr!important}html[data-adelia-design="studio4"] body #learningHubPanel .lh-form{grid-template-columns:1fr!important}html[data-adelia-design="studio4"] body #learningHubPanel .lh-head{padding:22px!important}html[data-adelia-design="studio4"] body #learningHubPanel .lh-head h2{font-size:23px!important}html[data-adelia-design="studio4"] body #learningHubPanel .lh-student{margin:20px!important}html[data-adelia-design="studio4"] body #learningHubPanel .lh-grid{padding:0 18px 20px!important}.al-editor .form-row{grid-template-columns:1fr!important}}
+@media(prefers-reduced-motion:reduce){.al-library *{transition:none!important}}
+
+html[data-adelia-design="studio4"] body #app .as-empty-glyph{display:grid;place-items:center;width:64px;height:74px;border:1px solid #e1d2ec;border-radius:12px;background:#f2ebf8;color:#b293c9;font:34px Georgia,serif;margin-bottom:8px}
+html[data-adelia-design="studio4"] body #app .fx-topics-toggle{display:none!important}
+html[data-adelia-design="studio4"] body #app .al-hero-art svg{width:26px;height:26px}
+html[data-adelia-design="studio4"] body #app .al-card-meta,html[data-adelia-design="studio4"] body #app .al-usage{font-size:12px!important}
+html[data-adelia-design="studio4"] body #app .al-tag{font-size:11px!important}
+html[data-adelia-design="studio4"] body #app .al-empty p{font-size:14px!important}
+html[data-adelia-design="studio4"] body #app .al-eyebrow{font-size:11px!important}
+html[data-adelia-design="studio4"] body #app .al-library .al-tabs button{width:auto!important;max-width:none!important;text-align:left!important}
+html[data-adelia-design="studio4"] body #app .al-library .al-search input{border:0!important;padding:12px 0!important;background:transparent!important;outline:0!important}
+html[data-adelia-design="studio4"] body #app .al-library .al-card-content .al-open{color:#84619f!important}
+html[data-adelia-design="studio4"] body #app .al-library .al-text-button{color:#9276a5!important}
+html[data-adelia-design="studio4"] body #app .al-library .al-card-content>p{color:#7d7089!important;font-size:13px!important}
+html[data-adelia-design="studio4"] body #app .al-library .al-tabs{flex-wrap:wrap;overflow:visible;column-gap:18px;row-gap:0}

@@ -60,14 +60,15 @@ module.exports={
       "teacher_health.css",
       "teacher_messages_polish.css",
       "teacher_lesson_context.css",
-            "desktop_lesson_workspace.css",
+      "desktop_lesson_workspace.css",
       "desktop_premium.css",
       "teacher_attention.css",
       "reliability.css",
       "experience.css",
       "teacher_student_workspace.css",
       "desktop_teacher_app.css",
-      "desktop_workspace_v3.css"
+      "desktop_workspace_v3.css",
+      "teacher_studio.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -89,7 +90,9 @@ module.exports={
       "formula_explorer.js",
       "lesson_planner.js",
       "study_experience.js",
-      "desktop_workspace_v3.js"
+      "desktop_workspace_v3.js",
+      "teacher_library_stage6.js",
+      "teacher_studio.js"
     ]
   },
   "parent": {
