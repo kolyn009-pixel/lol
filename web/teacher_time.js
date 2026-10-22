@@ -115,11 +115,28 @@
     overlay.querySelector('.teacher-timezone-save').onclick = async event => { const button = event.currentTarget; button.disabled = true; try { await save(select.value); close(); } catch (error) { overlay.querySelector('[role="status"]').textContent = error.message; button.disabled = false; } };
     document.body.appendChild(overlay); select.focus();
   }
-  async function load() {
-    const response = await fetch('/api/teacher/display-timezone', { credentials: 'same-origin', cache: 'no-store' });
-    if (response.status === 401) return;
-    if (!response.ok) throw new Error('timezone_unavailable');
-    changed((await response.json()).timezone);
+  let loading = null;
+  function load() {
+    if (loading) return loading;
+    const ctrl = new AbortController();
+    let timer;
+    const expired = new Promise((_, reject) => {
+      timer = setTimeout(() => { ctrl.abort(); reject(new Error('NETWORK_TIMEOUT')); }, 12000);
+    });
+    const request = (async () => {
+      const response = await fetch('/api/teacher/display-timezone', { credentials: 'same-origin', cache: 'no-store', signal: ctrl.signal });
+      if (response.status === 401) return;
+      if (!response.ok) throw new Error('timezone_unavailable');
+      const data = await response.json();
+      if (ctrl.signal.aborted) throw new Error('NETWORK_TIMEOUT');
+      if (!data?.timezone?.zone) throw new Error('timezone_unavailable');
+      changed(data.timezone);
+    })();
+    loading = Promise.race([request, expired]).catch(error => {
+      if (error?.name === 'AbortError') throw new Error('NETWORK_TIMEOUT');
+      throw error;
+    }).finally(() => { clearTimeout(timer); loading = null; });
+    return loading;
   }
   window.TeacherTime = { format, lessonDate, lesson, instant, schedule, dateKey, scheduleInput, label, load, save, open:async()=>{if(!value)await load();if(value)picker();}, ready:()=>value?Promise.resolve(value):load(), get preference() { return value; } };
   load().catch(() => {});

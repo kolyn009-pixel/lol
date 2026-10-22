@@ -62,6 +62,12 @@ def patch_function(source, item):
  result=''.join(lines);compile(result,item['path'],'exec')
  return result
 
+
+TEACHER_LOAD_OLD = "  async function load() {\n    const response = await fetch('/api/teacher/display-timezone', { credentials: 'same-origin', cache: 'no-store' });\n    if (response.status === 401) return;\n    if (!response.ok) throw new Error('timezone_unavailable');\n    changed((await response.json()).timezone);\n  }"
+TEACHER_LOAD_NEW = "  let loading = null;\n  function load() {\n    if (loading) return loading;\n    const ctrl = new AbortController();\n    let timer;\n    const expired = new Promise((_, reject) => {\n      timer = setTimeout(() => { ctrl.abort(); reject(new Error('NETWORK_TIMEOUT')); }, 12000);\n    });\n    const request = (async () => {\n      const response = await fetch('/api/teacher/display-timezone', { credentials: 'same-origin', cache: 'no-store', signal: ctrl.signal });\n      if (response.status === 401) return;\n      if (!response.ok) throw new Error('timezone_unavailable');\n      const data = await response.json();\n      if (ctrl.signal.aborted) throw new Error('NETWORK_TIMEOUT');\n      if (!data?.timezone?.zone) throw new Error('timezone_unavailable');\n      changed(data.timezone);\n    })();\n    loading = Promise.race([request, expired]).catch(error => {\n      if (error?.name === 'AbortError') throw new Error('NETWORK_TIMEOUT');\n      throw error;\n    }).finally(() => { clearTimeout(timer); loading = null; });\n    return loading;\n  }"
+TEACHER_OLD_WATCHDOG = "<script>\nwindow.addEventListener('load',()=>setTimeout(()=>{\n  const root=document.querySelector('#app');\n  if(!root||!root.querySelector(':scope > .loading'))return;\n  root.innerHTML='<section class=\"error\"><b>Кабинет не загрузился</b><p>Аделия не получила ответ от интерфейса преподавателя. Обновите страницу и попробуйте ещё раз.</p><button class=\"soft\" type=\"button\" id=\"teacherBootRetry\">Повторить</button></section>';\n  document.querySelector('#teacherBootRetry')?.addEventListener('click',()=>location.reload());\n},15000));\n</script>"
+TEACHER_BOOT_GUARD = "/* Embedded before stylesheets so stalled defer scripts cannot block recovery. */\n(() => {\n  'use strict';\n  if (window.AdeliaTeacherBootGuard) return;\n  window.AdeliaTeacherBootGuard = true;\n  const failed = new Set();\n  window.addEventListener('error', event => {\n    const raw = event.target?.src || event.target?.href;\n    if (!raw) return;\n    try {\n      const url = new URL(raw, location.origin);\n      if (url.origin === location.origin) failed.add(url.pathname.split('/').pop());\n    } catch (_) {}\n  }, true);\n  setTimeout(() => {\n    const root = document.querySelector('#app');\n    if (!root || !root.querySelector(':scope > .loading')) return;\n    root.innerHTML = '<section class=\"error\" style=\"padding:24px;background:#fff;border:1px solid #ded6ed;border-radius:18px;font:16px system-ui;color:#282132\"><b>Не удалось завершить загрузку кабинета</b><p>Проверьте соединение и повторите загрузку. Если проблема повторится, передайте преподавателю результат проверки ниже.</p><p data-boot-details role=\"status\"></p><div style=\"display:flex;gap:12px;flex-wrap:wrap\"><button type=\"button\" data-boot-check>Проверить соединение</button><button type=\"button\" data-boot-reload>Обновить файлы кабинета</button></div></section>';\n    const panel = root.firstElementChild;\n    const details = panel.querySelector('[data-boot-details]');\n    details.textContent = failed.size ? 'Не загрузились файлы: ' + [...failed].join(', ') : 'Загрузка интерфейса или данных не завершилась.';\n    panel.querySelector('[data-boot-check]').onclick = async event => {\n      const button = event.currentTarget;\n      button.disabled = true;\n      const ctrl = new AbortController();\n      let timer;\n      try {\n        const request = (async () => {\n          const response = await fetch('/api/health', { cache: 'no-store', credentials: 'same-origin', signal: ctrl.signal });\n          const data = await response.json();\n          if (!response.ok || data.ok !== true) throw new Error('health_failed');\n        })();\n        await Promise.race([request, new Promise((_, reject) => { timer = setTimeout(() => { ctrl.abort(); reject(new Error('timeout')); }, 5000); })]);\n        details.textContent = 'Сервер отвечает. ' + (failed.size ? 'Не загрузились файлы: ' + [...failed].join(', ') : 'Нужно повторить загрузку кабинета.');\n      } catch (_) { details.textContent = 'Проверка соединения с сервером не прошла. Попробуйте другую сеть и повторите проверку.'; }\n      finally { clearTimeout(timer); button.disabled = false; }\n    };\n    panel.querySelector('[data-boot-reload]').onclick = async event => {\n      event.currentTarget.disabled = true;\n      try {\n        if ('caches' in window) for (const name of await caches.keys()) {\n          if (!name.startsWith('adelia-')) continue;\n          const cache = await caches.open(name);\n          for (const request of await cache.keys()) {\n            const url = new URL(request.url);\n            if (url.origin === location.origin && (/^\\/app\\/teacher(?:[_.-]|\\/)/.test(url.pathname) || url.pathname === '/teacher/')) await cache.delete(request);\n          }\n        }\n      } catch (_) {}\n      const url = new URL(location.href);\n      url.searchParams.set('boot_refresh', String(Date.now()));\n      location.replace(url.href);\n    };\n  }, 18000);\n})();"
+
 def prepare(release):
  updated={}
  for item in PATCHES:
@@ -81,6 +87,24 @@ def prepare(release):
   source=source.replace(old,new)
  compile(source,str(target),'exec')
  updated['final_features/handlers.py']=source.encode()
+ target=release/'web/teacher_time.js'
+ source=target.read_text()
+ if TEACHER_LOAD_NEW not in source:
+  if source.count(TEACHER_LOAD_OLD)!=1:raise RuntimeError('Unexpected teacher timezone loader')
+  source=source.replace(TEACHER_LOAD_OLD,TEACHER_LOAD_NEW)
+ updated['web/teacher_time.js']=source.encode()
+ target=release/'web/teacher.html'
+ source=target.read_text()
+ if 'data-adelia-boot-guard="20261022"' not in source:
+  if source.count(TEACHER_OLD_WATCHDOG)!=1:raise RuntimeError('Unexpected teacher boot guard')
+  source=source.replace(TEACHER_OLD_WATCHDOG,'')
+  marker='<meta charset="utf-8">'
+  if source.count(marker)!=1:raise RuntimeError('Unexpected teacher HTML header')
+  source=source.replace(marker,marker+'<script data-adelia-boot-guard="20261022">'+TEACHER_BOOT_GUARD+'</script>')
+ import re
+ source,count=re.subn(r'teacher_time\.js\?v=[^"]+','teacher_time.js?v=20261022-boot1',source)
+ if count!=1:raise RuntimeError('Unexpected teacher time asset reference')
+ updated['web/teacher.html']=source.encode()
  return updated
 
 
@@ -158,12 +182,17 @@ print('REAL_DB_COPY_PREFLIGHT=OK')
      break
     except Exception:time.sleep(1)
    else:raise RuntimeError('Public slot API or services did not recover')
+   for relative in ('web/teacher.html','web/teacher_time.js'):
+    route='/app/'+relative.split('/')[-1]+'?v=20261022-boot1'
+    served=subprocess.check_output(['curl','--resolve','adeliatutor.ru:443:127.0.0.1','--max-time','15','-fsS','https://adeliatutor.ru'+route],timeout=20)
+    if served!=updated[relative]:raise RuntimeError('Nginx did not serve the updated teacher asset: '+relative)
   except BaseException:
    for relative in changed:replace(relative,originals[relative])
    subprocess.run(['systemctl','restart',*units],check=False,timeout=90)
    print('HOTFIX_FAILED; original files restored. Backup:',backup);raise
   print('ADJACENT_BOOKING_HOTFIX_OK')
   print('Public slot API: HTTP 200')
+  print('Teacher boot assets: OK')
   print('Backup:',backup)
 
 
