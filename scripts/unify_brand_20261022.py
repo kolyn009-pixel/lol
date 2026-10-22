@@ -20,11 +20,13 @@ ICON_TAGS=(
 class HeadParser(HTMLParser):
  def __init__(self,source):
   super().__init__(convert_charrefs=False)
-  self.source=source;self.lines=source.splitlines(keepends=True);self.edits=[];self.in_head=False;self.head_end=None
+  self.source=source;self.lines=source.splitlines(keepends=True);self.edits=[];self.in_head=False;self.head_end=None;self.html_start=None;self.body_start=None
  def source_index(self):
   line,column=self.getpos();return sum(map(len,self.lines[:line-1]))+column
  def handle_starttag(self,tag,attrs):
   attrs=dict(attrs)
+  if tag=='html':self.html_start=self.source_index()+len(self.get_starttag_text())
+  if tag in {'body','main','header','section','div'} and not self.in_head and self.body_start is None:self.body_start=self.source_index()
   if tag=='head':self.in_head=True
   if tag=='link' and self.in_head:
    rel=set(str(attrs.get('rel') or '').lower().split())
@@ -41,6 +43,10 @@ class HeadParser(HTMLParser):
 
 def transform_html(source):
  parser=HeadParser(source);parser.feed(source)
+ if parser.head_end is None and parser.html_start is not None and parser.body_start is not None:
+  # The desktop publisher emits valid HTML with an implicit head.
+  source=source[:parser.html_start]+'<head>'+source[parser.html_start:parser.body_start]+'</head>'+source[parser.body_start:]
+  parser=HeadParser(source);parser.feed(source)
  if parser.head_end is None:raise ValueError('HTML head not found')
  edits=parser.edits+[(parser.head_end,parser.head_end,ICON_TAGS)]
  for start,end,value in sorted(edits,reverse=True):source=source[:start]+value+source[end:]
@@ -58,6 +64,14 @@ def favicon(png):
  # ICO supports a PNG payload: preserve the exact source pixels.
  return struct.pack('<HHH',0,1,1)+struct.pack('<BBBBHHII',32,32,0,0,1,32,len(png),22)+png
 
+def resolve_site_file(path,roots):
+ """Preserve an alias; write its physical target only inside this site's roots."""
+ resolved=path.resolve(strict=True)
+ if not any(resolved.is_relative_to(root.resolve()) for root in roots):
+  raise RuntimeError('Site alias points outside Adelia roots: '+str(path))
+ if not resolved.is_file():raise RuntimeError('Expected a site file: '+str(path))
+ return resolved
+
 def install(commit):
  import fcntl,subprocess,tempfile,urllib.request
  if os.geteuid()!=0:raise SystemExit('Run on the Ubuntu server as root')
@@ -73,14 +87,18 @@ def install(commit):
    if png[:8]!=b'\x89PNG\r\n\x1a\n' or struct.unpack('>II',png[16:24])!=(size,size):raise ValueError('Invalid icon asset')
    pngs[size]=png;updates[release/f'web/assets/icons/adelia-mark-{size}.png']=png
   ico=favicon(pngs[32]);updates[release/'web/assets/icons/adelia-mark.ico']=ico
+  site_roots=(release/'web',public)
   for root in (release/'web',public):
    for path in root.rglob('*.html'):
-    if path.is_symlink() or path.resolve()!=path:raise RuntimeError('Refusing a symlinked HTML page: '+str(path))
+    # Retired desktop releases are rollback snapshots. The live index alias
+    # below resolves to the one active release that should be branded.
+    if root==public and path.relative_to(public).parts[:2]==('desktop-updates','releases'):continue
+    path=resolve_site_file(path,site_roots)
     # Only full HTML documents belong to this transformation.
     source=path.read_text()
-    if re.search(r'<head\b',source,re.I):updates[path]=transform_html(source).encode()
+    if re.search(r'<(?:head|html)\b',source,re.I):updates[path]=transform_html(source).encode()
    for path in root.rglob('*.webmanifest'):
-    if path.is_symlink() or path.resolve()!=path:raise RuntimeError('Refusing a symlinked manifest')
+    path=resolve_site_file(path,site_roots)
     updates[path]=transform_manifest(path.read_text()).encode()
   # Compatibility for old bookmarks and browsers which request favicon.ico themselves.
   for name,payload in {'favicon.ico':ico,'apple-touch-icon.png':pngs[180],

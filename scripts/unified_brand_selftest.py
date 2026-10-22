@@ -2,12 +2,39 @@ import importlib.util
 import json
 from pathlib import Path
 import struct
+import tempfile
 import unittest
 
 path=Path(__file__).with_name('unify_brand_20261022.py')
 spec=importlib.util.spec_from_file_location('branding',path);brand=importlib.util.module_from_spec(spec);spec.loader.exec_module(brand)
 
 class BrandTests(unittest.TestCase):
+ def test_desktop_download_page_with_implicit_head(self):
+  source='<!doctype html><html lang="ru"><meta charset="utf-8"><title>Скачать Аделию</title><style>main{padding:32px}</style><main><a href="/desktop-updates/app.dmg">Скачать</a></main></html>'
+  updated=brand.transform_html(source)
+  self.assertIn(brand.ICON_TAGS,updated)
+  self.assertIn('/desktop-updates/app.dmg',updated)
+  self.assertEqual(updated,brand.transform_html(updated))
+
+ def test_live_download_symlink_is_preserved(self):
+  with tempfile.TemporaryDirectory() as directory:
+   root=Path(directory)/'site';active=root/'desktop-updates/releases/beta/current';active.mkdir(parents=True)
+   page=active/'index.html';page.write_text('<html><title>Download</title><main>App</main></html>')
+   live=root/'desktop-updates/beta';live.symlink_to(active,target_is_directory=True)
+   alias=root/'desktop-updates/index.html';alias.symlink_to('beta/index.html')
+   target=brand.resolve_site_file(alias,(root,))
+   self.assertEqual(target,page)
+   target.write_text(brand.transform_html(target.read_text()))
+   self.assertTrue(alias.is_symlink());self.assertTrue(live.is_symlink())
+   self.assertIn(brand.ICON_TAGS,alias.read_text())
+
+ def test_foreign_site_symlink_is_refused(self):
+  with tempfile.TemporaryDirectory() as directory:
+   root=Path(directory)/'adelia';root.mkdir();other=Path(directory)/'other.html';other.write_text('Other site')
+   alias=root/'index.html';alias.symlink_to(other)
+   with self.assertRaises(RuntimeError):brand.resolve_site_file(alias,(root,))
+   self.assertEqual(other.read_text(),'Other site');self.assertTrue(alias.is_symlink())
+
  def test_all_icon_relations_replaced_with_one_family(self):
   source='''<!doctype html><html><head><meta charset="utf-8"><link rel="shortcut icon" href="/old.ico"><link rel="apple-touch-icon-precomposed" href="/old.png"><link rel="stylesheet" href="/app.css"><script>const text='<link rel="icon" href="do-not-touch">';</script></head><body><img src="/adelia-apple-touch-icon-180.png?v=old" alt="Аделия"><img src="/assets/nikolay-adelia-hero.webp"></body></html>'''
   result=brand.transform_html(source)
