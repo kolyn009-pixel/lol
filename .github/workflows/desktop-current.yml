@@ -111,3 +111,10 @@ jobs:
           fi
           gh release upload "$TAG" "$BUNDLE" --repo "$GITHUB_REPOSITORY" --clobber
           echo "DRAFT_INSTALLER_UPLOAD=OK"
+      - name: Retain installers for download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Adelia-beta3-${{ matrix.target }}
+          path: desktop/beta-bundle/${{ matrix.target }}/
+          if-no-files-found: error
+          retention-days: 14

@@ -19,6 +19,11 @@ def build_updates(root, payload):
     name='teacher_clean_runtime.js';text=current(name)
     text=replace_once(text,"function enhanceToday(){if(document.querySelector('#title')?.textContent.trim()!=='Сегодня')return;", "function enhanceToday(){if(document.querySelector('#title')?.textContent.trim()!=='Сегодня')return;if(window.adeliaDesktop?.desktop&&document.querySelector('.dashboard-lesson-card'))return;")
     updates[root/'web'/name]=text.encode()
+    name='teacher_dashboard_week.js';text=current(name)
+    if 'const subjectLabel=' not in text:
+        text=replace_once(text,'const dayNames=', "const subjectLabel=x=>({PHYSICS:'Физика',CHEMISTRY:'Химия',MATH:'Математика'}[String(x||'').toUpperCase()]||x||'Занятие');\nconst dayNames=")
+    text=text.replace("esc(x.subject||'Занятие')","esc(subjectLabel(x.subject))").replace("esc(x.subject||'')","esc(subjectLabel(x.subject))").replace("esc(next.subject||'Занятие')","esc(subjectLabel(next.subject))")
+    updates[root/'web'/name]=text.encode()
     name='install_runtime.js';text=current(name)
     start=text.index('  async function install(){');end=text.index('\n  function mount()',start)
     text=text[:start]+"  async function install(){ location.assign('/desktop-updates/'); }\n"+text[end:]
