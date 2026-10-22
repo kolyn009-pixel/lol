@@ -142,7 +142,7 @@ def apply_bot_timezone(name=None):
         pass
     return tz
 
-SLOT_STEP_MINUTES = 30
+SLOT_STEP_MINUTES = 15
 
 
 # ============================================================

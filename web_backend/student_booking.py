@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 import database
 from web_backend import availability_guard, atomic_student_booking
 
-STEP_MINUTES = 30
+STEP_MINUTES = 15
 DEFAULT_DURATION = 60
 
 

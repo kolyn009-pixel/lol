@@ -139,12 +139,12 @@ def _cascade_target(occupant, desired_end, requester_lesson_id):
     occ_start=datetime.fromisoformat(occupant['start_time']);occ_end=datetime.fromisoformat(occupant['end_time'])
     duration=occ_end-occ_start
     candidate=desired_end.replace(second=0,microsecond=0)
-    for _ in range(9):
+    for _ in range(17):
         end=candidate+duration
         if candidate.date()!=desired_end.date() or end.date()!=desired_end.date():break
         if is_inside_working_hours(candidate,end) and not find_occupant(candidate,end,exclude_lesson_ids=[requester_lesson_id,occupant['id']]):
             return candidate,end
-        candidate += timedelta(minutes=30)
+        candidate += timedelta(minutes=15)
     return None
 
 

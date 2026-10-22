@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import database
 from web_backend import availability_guard
 
-STEP_MINUTES = 30
+STEP_MINUTES = 15
 DEFAULT_DURATION = 60
 MAX_DAYS = 21
 

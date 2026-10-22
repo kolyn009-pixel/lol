@@ -3577,7 +3577,7 @@ def get_regular_recurring_slots(
     weekday,
     duration_minutes,
     anchor_date=None,
-    step_minutes=30,
+    step_minutes=15,
 ):
     """Canonical weekly recurring availability for Telegram/Web flows.
 

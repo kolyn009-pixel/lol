@@ -68,6 +68,8 @@ TEACHER_LOAD_NEW = "  let loading = null;\n  function load() {\n    if (loading)
 TEACHER_OLD_WATCHDOG = "<script>\nwindow.addEventListener('load',()=>setTimeout(()=>{\n  const root=document.querySelector('#app');\n  if(!root||!root.querySelector(':scope > .loading'))return;\n  root.innerHTML='<section class=\"error\"><b>Кабинет не загрузился</b><p>Аделия не получила ответ от интерфейса преподавателя. Обновите страницу и попробуйте ещё раз.</p><button class=\"soft\" type=\"button\" id=\"teacherBootRetry\">Повторить</button></section>';\n  document.querySelector('#teacherBootRetry')?.addEventListener('click',()=>location.reload());\n},15000));\n</script>"
 TEACHER_BOOT_GUARD = "/* Embedded before stylesheets so stalled defer scripts cannot block recovery. */\n(() => {\n  'use strict';\n  if (window.AdeliaTeacherBootGuard) return;\n  window.AdeliaTeacherBootGuard = true;\n  const failed = new Set();\n  window.addEventListener('error', event => {\n    const raw = event.target?.src || event.target?.href;\n    if (!raw) return;\n    try {\n      const url = new URL(raw, location.origin);\n      if (url.origin === location.origin) failed.add(url.pathname.split('/').pop());\n    } catch (_) {}\n  }, true);\n  setTimeout(() => {\n    const root = document.querySelector('#app');\n    if (!root || !root.querySelector(':scope > .loading')) return;\n    root.innerHTML = '<section class=\"error\" style=\"padding:24px;background:#fff;border:1px solid #ded6ed;border-radius:18px;font:16px system-ui;color:#282132\"><b>Не удалось завершить загрузку кабинета</b><p>Проверьте соединение и повторите загрузку. Если проблема повторится, передайте преподавателю результат проверки ниже.</p><p data-boot-details role=\"status\"></p><div style=\"display:flex;gap:12px;flex-wrap:wrap\"><button type=\"button\" data-boot-check>Проверить соединение</button><button type=\"button\" data-boot-reload>Обновить файлы кабинета</button></div></section>';\n    const panel = root.firstElementChild;\n    const details = panel.querySelector('[data-boot-details]');\n    details.textContent = failed.size ? 'Не загрузились файлы: ' + [...failed].join(', ') : 'Загрузка интерфейса или данных не завершилась.';\n    panel.querySelector('[data-boot-check]').onclick = async event => {\n      const button = event.currentTarget;\n      button.disabled = true;\n      const ctrl = new AbortController();\n      let timer;\n      try {\n        const request = (async () => {\n          const response = await fetch('/api/health', { cache: 'no-store', credentials: 'same-origin', signal: ctrl.signal });\n          const data = await response.json();\n          if (!response.ok || data.ok !== true) throw new Error('health_failed');\n        })();\n        await Promise.race([request, new Promise((_, reject) => { timer = setTimeout(() => { ctrl.abort(); reject(new Error('timeout')); }, 5000); })]);\n        details.textContent = 'Сервер отвечает. ' + (failed.size ? 'Не загрузились файлы: ' + [...failed].join(', ') : 'Нужно повторить загрузку кабинета.');\n      } catch (_) { details.textContent = 'Проверка соединения с сервером не прошла. Попробуйте другую сеть и повторите проверку.'; }\n      finally { clearTimeout(timer); button.disabled = false; }\n    };\n    panel.querySelector('[data-boot-reload]').onclick = async event => {\n      event.currentTarget.disabled = true;\n      try {\n        if ('caches' in window) for (const name of await caches.keys()) {\n          if (!name.startsWith('adelia-')) continue;\n          const cache = await caches.open(name);\n          for (const request of await cache.keys()) {\n            const url = new URL(request.url);\n            if (url.origin === location.origin && (/^\\/app\\/teacher(?:[_.-]|\\/)/.test(url.pathname) || url.pathname === '/teacher/')) await cache.delete(request);\n          }\n        }\n      } catch (_) {}\n      const url = new URL(location.href);\n      url.searchParams.set('boot_refresh', String(Date.now()));\n      location.replace(url.href);\n    };\n  }, 18000);\n})();"
 
+QUARTER_REPLACEMENTS = {"bot.py":[["SLOT_STEP_MINUTES = 30","SLOT_STEP_MINUTES = 15"]],"database.py":[["    step_minutes=30,","    step_minutes=15,"]],"web_backend/public_trial_slots.py":[["STEP_MINUTES = 30","STEP_MINUTES = 15"]],"web_backend/student_booking.py":[["STEP_MINUTES = 30","STEP_MINUTES = 15"]],"web_backend/onboarding_schedule_options.py":[["STEP_MINUTES = 30","STEP_MINUTES = 15"]],"final_features/slot_change.py":[["    for _ in range(9):","    for _ in range(17):"],["        candidate += timedelta(minutes=30)","        candidate += timedelta(minutes=15)"]],"web/student_self_service.js":[["step=\"1800\"","step=\"900\""]],"web/lesson/lesson_reschedule_plus.js":[["step=\"1800\"","step=\"900\""],["с шагом 30 минут","с шагом 15 минут"]],"web/lesson/index.html":[["student_self_service.js?v=20260915-lesson-rsvp","student_self_service.js?v=20261022-quarter1"],["lesson_reschedule_plus.js?v=20260917-move1","lesson_reschedule_plus.js?v=20261022-quarter1"]]}
+
 def prepare(release):
  updated={}
  for item in PATCHES:
@@ -105,6 +107,14 @@ def prepare(release):
  source,count=re.subn(r'teacher_time\.js\?v=[^"]+','teacher_time.js?v=20261022-boot1',source)
  if count!=1:raise RuntimeError('Unexpected teacher time asset reference')
  updated['web/teacher.html']=source.encode()
+ for relative,pairs in QUARTER_REPLACEMENTS.items():
+  source=updated[relative].decode() if relative in updated else (release/relative).read_text()
+  for old,new in pairs:
+   if source.count(new)==1 and old not in source:continue
+   if source.count(old)!=1 or new in source:raise RuntimeError('Unexpected 15-minute slot source: '+relative)
+   source=source.replace(old,new)
+  if relative.endswith('.py'):compile(source,relative,'exec')
+  updated[relative]=source.encode()
  return updated
 
 
@@ -148,11 +158,19 @@ from pathlib import Path
 import database
 root=Path(sys.argv[1]);database.DB_NAME=sys.argv[2]
 tree=ast.parse((root/'database.py').read_text())
-node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='is_slot_reserved')
-exec(compile(ast.Module(body=[node],type_ignores=[]),'database.py','exec'),database.__dict__)
+for name in ('is_slot_reserved','get_regular_recurring_slots'):
+ node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name==name)
+ exec(compile(ast.Module(body=[node],type_ignores=[]),'database.py','exec'),database.__dict__)
 spec=importlib.util.spec_from_file_location('web_backend.availability_guard',root/'web_backend/availability_guard.py')
 guard=importlib.util.module_from_spec(spec);sys.modules[spec.name]=guard;spec.loader.exec_module(guard)
-from web_backend.public_trial_slots import feed
+spec=importlib.util.spec_from_file_location('web_backend.public_trial_slots',root/'web_backend/public_trial_slots.py')
+slots=importlib.util.module_from_spec(spec);sys.modules[spec.name]=slots;spec.loader.exec_module(slots)
+feed=slots.feed
+assert slots.STEP_MINUTES==15
+for relative,name in [('bot.py','SLOT_STEP_MINUTES'),('web_backend/student_booking.py','STEP_MINUTES'),('web_backend/onboarding_schedule_options.py','STEP_MINUTES')]:
+ nodes=ast.parse((root/relative).read_text()).body
+ assignment=next(n for n in nodes if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id==name for t in n.targets))
+ assert ast.literal_eval(assignment.value)==15
 for zone in ('Europe/Moscow','Europe/Samara','Asia/Yekaterinburg'):
  result=feed(zone,days=14,duration_minutes=60)
  assert isinstance(result.get('items'),list)
@@ -182,8 +200,8 @@ print('REAL_DB_COPY_PREFLIGHT=OK')
      break
     except Exception:time.sleep(1)
    else:raise RuntimeError('Public slot API or services did not recover')
-   for relative in ('web/teacher.html','web/teacher_time.js'):
-    route='/app/'+relative.split('/')[-1]+'?v=20261022-boot1'
+   for relative in ('web/teacher.html','web/teacher_time.js','web/lesson/index.html','web/lesson/lesson_reschedule_plus.js','web/student_self_service.js'):
+    route='/app/'+relative.removeprefix('web/')+'?v=20261022-quarter1'
     served=subprocess.check_output(['curl','--resolve','adeliatutor.ru:443:127.0.0.1','--max-time','15','-fsS','https://adeliatutor.ru'+route],timeout=20)
     if served!=updated[relative]:raise RuntimeError('Nginx did not serve the updated teacher asset: '+relative)
   except BaseException:
@@ -193,6 +211,7 @@ print('REAL_DB_COPY_PREFLIGHT=OK')
   print('ADJACENT_BOOKING_HOTFIX_OK')
   print('Public slot API: HTTP 200')
   print('Teacher boot assets: OK')
+  print('Quarter-hour start grid: 15 minutes')
   print('Backup:',backup)
 
 

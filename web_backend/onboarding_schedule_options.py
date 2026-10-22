@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import database
 from web_backend import student_onboarding
 
-STEP_MINUTES = 30
+STEP_MINUTES = 15
 DURATION_MINUTES = 60
 DAY_KEYS = ['MON','TUE','WED','THU','FRI','SAT','SUN']
 
