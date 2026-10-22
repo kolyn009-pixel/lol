@@ -110,26 +110,29 @@ def is_inside_working_hours(start_dt: datetime, end_dt: datetime) -> bool:
 
 
 def find_occupant(start_dt: datetime, end_dt: datetime, exclude_lesson_id=None, exclude_lesson_ids=None):
-    c = database.connect()
-    marks = ",".join("?" for _ in ACTIVE_STATUSES)
-    params = [*ACTIVE_STATUSES, _iso(end_dt), _iso(start_dt)]
-    sql = f"""
-      SELECT * FROM lessons
-      WHERE lesson_status IN ({marks})
-        AND start_time < ?
-        AND end_time > ?
-    """
-    excluded=set(int(x) for x in (exclude_lesson_ids or []) if x is not None)
-    if exclude_lesson_id is not None:excluded.add(int(exclude_lesson_id))
-    if excluded:
-        placeholders=','.join('?' for _ in excluded)
-        sql += f" AND id NOT IN ({placeholders})"
-        params.extend(sorted(excluded))
-    sql += " ORDER BY start_time LIMIT 1"
-    row = c.execute(sql, params).fetchone()
-    c.close()
-    return row
+    """Find an actual overlap; touching endpoints are available."""
+    from core.lesson_time import lesson_timezone
+    tz = lesson_timezone()
 
+    def parsed(raw):
+        value = raw if isinstance(raw, datetime) else datetime.fromisoformat(str(raw))
+        return value.replace(tzinfo=tz) if value.tzinfo is None else value.astimezone(tz)
+
+    start, end = parsed(start_dt), parsed(end_dt)
+    if end <= start:
+        raise ValueError('invalid_interval')
+    excluded = {int(x) for x in (exclude_lesson_ids or []) if x is not None}
+    if exclude_lesson_id is not None:
+        excluded.add(int(exclude_lesson_id))
+    c = database.connect()
+    try:
+        marks = ",".join("?" for _ in ACTIVE_STATUSES)
+        rows = c.execute(f"SELECT * FROM lessons WHERE lesson_status IN ({marks})", ACTIVE_STATUSES).fetchall()
+    finally:
+        c.close()
+    hits = [r for r in rows if int(r['id']) not in excluded
+            and start < parsed(r['end_time']) and parsed(r['start_time']) < end]
+    return min(hits, key=lambda r: (parsed(r['start_time']), int(r['id']))) if hits else None
 
 def _cascade_target(occupant, desired_end, requester_lesson_id):
     if not occupant:return None

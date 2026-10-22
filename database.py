@@ -6303,59 +6303,29 @@ def has_student_lesson_on_date(
     )
 
 
-def is_slot_reserved(
-    start_time,
-    end_time,
-    exclude_lesson_id=None
-):
+def is_slot_reserved(start_time, end_time, exclude_lesson_id=None):
+    """Check half-open lesson intervals after normalizing schedule timestamps."""
+    from core.lesson_time import lesson_timezone
+    tz = lesson_timezone()
 
+    def parsed(raw):
+        value = raw if isinstance(raw, datetime) else datetime.fromisoformat(str(raw))
+        return value.replace(tzinfo=tz) if value.tzinfo is None else value.astimezone(tz)
+
+    start, end = parsed(start_time), parsed(end_time)
+    if end <= start:
+        raise ValueError("invalid_interval")
     conn = connect()
-
-    sql = """
-        SELECT id
-        FROM lessons
-
-        WHERE
-            lesson_status IN (
-                'PENDING',
-                'CONFIRMED',
-                'IN_PROGRESS'
-            )
-
-            AND start_time < ?
-
-            AND end_time > ?
-    """
-
-    params = [
-        end_time,
-        start_time
-    ]
-
-    if exclude_lesson_id:
-
-        sql += """
-            AND id != ?
-        """
-
-        params.append(
-            exclude_lesson_id
-        )
-
-    sql += """
-        LIMIT 1
-    """
-
-    row = conn.execute(
-        sql,
-        tuple(params)
-    ).fetchone()
-
-    conn.close()
-
-    return (
-        row is not None
-    )
+    try:
+        sql = "SELECT id,start_time,end_time FROM lessons WHERE lesson_status IN ('PENDING','CONFIRMED','IN_PROGRESS')"
+        params = []
+        if exclude_lesson_id is not None:
+            sql += " AND id != ?"
+            params.append(int(exclude_lesson_id))
+        rows = conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+    return any(start < parsed(row["end_time"]) and parsed(row["start_time"]) < end for row in rows)
 
 
 # ============================================================
