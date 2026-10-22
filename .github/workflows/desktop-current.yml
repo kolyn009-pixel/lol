@@ -71,6 +71,8 @@ jobs:
           node ../scripts/group_chat_selftest.cjs
           node ../scripts/onboarding_confirmation_selftest.cjs
           python ../scripts/learning_hub_selftest.py
+          python ../scripts/publish_adelia_release_selftest.py
+          python ../scripts/desktop_publish_selftest.py
       - name: Build native installer
         run: npm run ${{ matrix.command }} -- --publish never --config.directories.output=dist/${{ matrix.target }}
       - name: Verify and bundle artifacts

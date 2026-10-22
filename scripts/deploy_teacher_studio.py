@@ -37,7 +37,7 @@ def build_updates(root,payload,base=None):
         path=root/'web'/document
         if not path.exists():continue
         html=updates.get(path,path.read_bytes()).decode()
-        for name in CHANGED:
+        for name in CHANGED+['desktop_teacher_app.css']:
             html=re.sub(r'('+re.escape(name)+r')(?:\?[^\s"\'<>]*)?',r'\1?v=20261022-studio4',html)
         updates[path]=html.encode()
     return updates
