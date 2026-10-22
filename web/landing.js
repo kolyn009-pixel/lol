@@ -1,3 +1,19 @@
+function ensureBrandAssets(){
+ const base='/app/assets/icons/',version='?v=20261022-unified2';
+ const png=size=>base+'adelia-mark-'+size+'.png'+version;
+ document.querySelectorAll('link[rel~="icon"],link[rel="apple-touch-icon"]').forEach(link=>{
+  const rel=(link.getAttribute('rel')||'').toLowerCase();
+  if(rel.includes('apple-touch-icon')){link.href=png(180);link.type='image/png';link.sizes='180x180'}
+  else if(rel.includes('shortcut')){link.href=base+'adelia-mark.ico'+version;link.type='image/x-icon';link.removeAttribute('sizes')}
+  else{const size=link.getAttribute('sizes')==='192x192'?192:32;link.href=png(size);link.type='image/png';link.sizes=size+'x'+size}
+ });
+ document.querySelectorAll('header .brand img,footer .brand img').forEach(img=>{
+  img.src=png(180);img.removeAttribute('srcset');img.removeAttribute('data-src');
+  if(img.parentElement?.tagName==='PICTURE')img.parentElement.querySelectorAll('source').forEach(source=>source.remove());
+ });
+}
+
+ensureBrandAssets();
 function landingIcon(name,size=20){return window.AdeliaIcons.icon(name,size)}
 async function loadPrices(){const root=document.querySelector('#priceGrid');if(!root)return;try{const r=await fetch('/api/public/prices',{headers:{Accept:'application/json'}});if(!r.ok)throw 0;const data=await r.json(),items=Array.isArray(data)?data:data.items||[];root.innerHTML=items.map(x=>`<article class="price-card"><span>${escapeHtml(x.title)}</span><b>${Number(x.amount??x.hourly_rate).toLocaleString('ru-RU')} ₽</b><small>за ${Number(x.duration_minutes||60)} минут</small></article>`).join('')}catch(e){root.innerHTML='<div class="data-note">Актуальные направления и цены появятся после подключения сайта к TutorBot.</div>'}}
 async function loadReviews(){const root=document.querySelector('#reviewsGrid');if(!root)return;try{const r=await fetch('/api/public/reviews',{headers:{Accept:'application/json'}});if(!r.ok)throw 0;const data=await r.json(),items=Array.isArray(data)?data:data.items||[];root.innerHTML=items.slice(0,6).map(x=>`<article class="review-card"><div class="stars">★★★★★</div><p>${escapeHtml(x.text)}</p><footer><b>${escapeHtml(x.author||'Ученик')}</b><span>${escapeHtml(x.source||'Профи.ру')}</span></footer></article>`).join('')||'<div class="data-note">Скоро здесь появятся подтверждённые отзывы учеников.</div>'}catch(e){root.innerHTML='<div class="data-note">Отзывы с Профи.ру добавим после импорта подтверждённых отзывов.</div>'}}
@@ -10,3 +26,4 @@ const demos={schedule:{icon:'calendar',eyebrow:'Сегодня',title:'Физи�
 function renderDemo(key){const d=demos[key],root=document.querySelector('#demoScreen');if(!d||!root)return;root.innerHTML=`<div class="demo-icon">${landingIcon(d.icon,36)}</div><small>${d.eyebrow}</small><h3>${d.title}</h3><p>${d.body}</p><button>${d.action}</button>`;document.querySelectorAll('[data-demo]').forEach(b=>b.classList.toggle('active',b.dataset.demo===key))}
 function recommendDesktop(){const root=document.querySelector('#downloadRecommend');if(!root)return;const ua=navigator.userAgent||'',platform=navigator.platform||'',isMac=/Mac/i.test(platform)||/Macintosh/i.test(ua),isWin=/Win/i.test(platform)||/Windows/i.test(ua);let title='',detail='',href='',icon='';if(isWin){title='Аделия для Windows';detail='Подходит для этого компьютера';href='/desktop-updates/Adelia-latest-windows-x64.exe';icon='windows'}else if(isMac){title='Аделия для Mac';detail='Выберите версию под процессор вашего Mac ниже';icon='laptop'}else{return}root.hidden=false;root.innerHTML=`<div class="download-recommend-icon">${landingIcon(icon,26)}</div><div class="download-recommend-copy"><small>Рекомендуем для вашего устройства</small><b>${title}</b><div>${detail}</div></div>${href?`<a href="${href}">Скачать приложение</a>`:'<a href="#downloads">Выбрать версию</a>'}`}
 document.querySelectorAll('[data-demo]').forEach(b=>b.addEventListener('click',()=>renderDemo(b.dataset.demo)));renderDemo('schedule');loadPrices();loadReviews();loadOpportunities();recommendDesktop();
+
