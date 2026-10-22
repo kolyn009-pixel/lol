@@ -1,32 +1,101 @@
-name: Assemble existing Adelia beta.5 bundles
+name: Complete beta.5 installer archive
+
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - '.github/workflows/desktop-full-kit.yml'
+
 permissions:
   contents: read
+
+concurrency:
+  group: desktop-full-kit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  collect:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  installers:
+    name: ${{ matrix.label }}
+    timeout-minutes: 35
     strategy:
+      fail-fast: false
       matrix:
-        target: [windows-x64, macos-arm64, macos-x64]
+        include:
+          - os: windows-latest
+            label: Windows x64
+            target: windows-x64
+            command: dist:win
+            platform: win
+            arch: x64
+          - os: macos-latest
+            label: macOS Apple Silicon
+            target: macos-arm64
+            command: dist:mac:arm64
+            platform: mac
+            arch: arm64
+          - os: macos-latest
+            label: macOS Intel
+            target: macos-x64
+            command: dist:mac:x64
+            platform: mac
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    env:
+      ADELIA_BUILD_SHA: 5050eb35a498ccd7a7be063f40a5a883ea80018b
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
     steps:
-      - name: Fetch verified beta.5 bundle
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          mkdir -p bundles
-          name='Adelia-0.3.0-beta.5-${{ matrix.target }}-5050eb35a498.zip'
-          id=$(gh api "repos/$GH_REPO/releases/421029183/assets" --jq '.[] | select(.name == "Adelia-0.3.0-beta.5-${{ matrix.target }}-5050eb35a498.zip") | .id')
-          test -n "$id"
-          gh api "repos/$GH_REPO/releases/assets/$id" -H 'Accept: application/octet-stream' > "bundles/$name"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: beta5-complete-${{ matrix.target }}
-          path: bundles/*.zip
+          ref: 5050eb35a498ccd7a7be063f40a5a883ea80018b
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install timezone database for Windows and Python checks
+        run: python -m pip install tzdata
+      - name: Install exact desktop dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Verify desktop UI and current chats
+        run: |
+          npm run selftest
+          node ../scripts/student_chat_draft_selftest.cjs
+          node ../scripts/group_chat_selftest.cjs
+          node ../scripts/onboarding_confirmation_selftest.cjs
+          python ../scripts/learning_hub_selftest.py
+          python ../scripts/publish_adelia_release_selftest.py
+          if [ "$RUNNER_OS" != "Windows" ]; then python ../scripts/desktop_publish_selftest.py; fi
+      - name: Build native installer
+        run: npm run ${{ matrix.command }} -- --publish never --config.directories.output=dist/${{ matrix.target }}
+      - name: Verify and bundle artifacts
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          python publish_updates.py "dist/${{ matrix.target }}" "beta-bundle/${{ matrix.target }}" --platform "${{ matrix.platform }}" --arch "${{ matrix.arch }}" --channel beta --version "$VERSION" --git-sha "$ADELIA_BUILD_SHA"
+          python - "beta-bundle/${{ matrix.target }}" <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);manifest=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          assert manifest['git_sha']==os.environ['ADELIA_BUILD_SHA']
+          assert manifest['version']==json.loads(Path('package.json').read_text(encoding='utf-8'))['version']
+          for item in manifest['files']:
+              file=root/item['name']
+              assert file.stat().st_size==item['size']
+              digest=hashlib.sha512()
+              with file.open('rb') as stream:
+                  for chunk in iter(lambda:stream.read(1024*1024),b''):digest.update(chunk)
+              assert digest.hexdigest()==item['sha512']
+          print('INSTALLER_BUNDLE=OK')
+          PY
+      - name: Retain installers for download
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta5-full-${{ matrix.target }}
+          path: desktop/beta-bundle/${{ matrix.target }}/
           compression-level: 0
-          retention-days: 7
           if-no-files-found: error
+          retention-days: 7
