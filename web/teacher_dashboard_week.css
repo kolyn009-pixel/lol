@@ -1,38 +1,37 @@
 .teacher-dashboard-v2{display:grid;gap:18px}.week-overview{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.week-metric{background:#fff;border:1px solid #ece8f5;border-radius:18px;padding:16px 17px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 5px 18px rgba(58,43,97,.035)}.week-metric b{font-size:28px;line-height:1;font-weight:750;color:#2e2840}.week-metric span{font-size:12px;color:#817991}.week-metric.primary{background:linear-gradient(145deg,#6847f5,#8064f6);border-color:transparent}.week-metric.primary b,.week-metric.primary span{color:#fff}.week-metric.cancelled b{color:#a55252}.week-metric.sickness b{color:#8c6f27}.dashboard-layout{display:grid;grid-template-columns:minmax(0,1.42fr) minmax(300px,.78fr);gap:18px;align-items:start}.dashboard-main{display:grid;gap:18px}.dashboard-panel{background:#fff;border:1px solid #ece8f5;border-radius:22px;padding:20px;box-shadow:0 8px 28px rgba(58,43,97,.04)}.dashboard-panel-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}.dashboard-panel-head h2{margin:0;font-size:18px;color:#2f293f}.dashboard-panel-head p{margin:4px 0 0;font-size:12px;color:#8a8298}.dashboard-count{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:28px;padding:0 10px;border-radius:999px;background:#f3f0ff;color:#6847f5;font-size:12px;font-weight:700}.today-list{display:grid;gap:9px}.today-history-card{display:grid;grid-template-columns:66px minmax(0,1fr) auto;gap:13px;align-items:center;padding:13px 14px;border:1px solid #eeeaf4;border-radius:16px;background:#fbfafc}.today-history-card .lesson-time{font-weight:750;color:#41384f}.today-history-card .lesson-name{font-weight:700;color:#332d40}.today-history-card .lesson-meta{font-size:12px;color:#8a8298;margin-top:3px}.lesson-state{font-size:11px;font-weight:700;padding:6px 9px;border-radius:999px;background:#f1eef6;color:#71677f}.lesson-state.completed{background:#edf8f0;color:#34704a}.lesson-state.cancelled{background:#fff0f0;color:#9a4a4a}.lesson-state.sickness{background:#fff8e7;color:#8a6a24}.dashboard-panel .row{border:1px solid #eeeaf4!important;border-radius:16px!important;padding:13px 14px!important;margin:0!important;background:#fff!important}.dashboard-panel .row+.row{margin-top:9px!important}.dashboard-panel .row-main>b{font-size:14px}.dashboard-panel .badge{margin-right:4px}.dashboard-panel .teacher-quick-actions{margin-top:8px}.week-days{display:grid;gap:8px}.week-day{border:1px solid #eeeaf4;border-radius:16px;background:#fcfbfd;overflow:hidden}.week-day.today{border-color:#cfc3ff;background:#faf8ff}.week-day-head{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid #f0edf4}.week-day-name{font-weight:750;color:#363042;min-width:30px}.week-day-date{font-size:12px;color:#8c8498}.week-day-total{margin-left:auto;font-size:11px;font-weight:700;color:#756c82;background:#f1eef5;padding:4px 8px;border-radius:999px}.week-day-lessons{display:grid}.week-lesson{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 13px;border-top:1px solid #f2eff5}.week-lesson:first-child{border-top:0}.week-lesson-time{font-weight:750;font-size:13px;color:#433b50}.week-lesson-main b{display:block;font-size:13px;color:#342e40}.week-lesson-main span{display:block;margin-top:2px;font-size:11px;color:#8c8498}.week-lesson button{border:0;background:#f2efff;color:#6045cc;border-radius:10px;padding:7px 9px;font:inherit;font-size:11px;cursor:pointer}.week-lesson.is-cancelled,.week-lesson.is-sickness{opacity:.62}.week-empty{padding:13px;color:#aaa2b5;font-size:12px}.reviews-compact .row{padding:11px 12px!important}.reviews-compact .badge{font-size:10px}.dashboard-empty{padding:24px 12px;text-align:center;color:#9a92a6;font-size:13px}.dashboard-side{display:grid;gap:18px;position:sticky;top:18px}@media(max-width:1100px){.week-overview{grid-template-columns:repeat(3,minmax(0,1fr))}.dashboard-layout{grid-template-columns:1fr}.dashboard-side{position:static;grid-template-columns:1fr 1fr}}@media(max-width:720px){.teacher-dashboard-v2{gap:12px}.week-overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.week-metric{min-height:78px;padding:13px 14px;border-radius:15px}.week-metric b{font-size:24px}.week-metric.primary{grid-column:span 2}.dashboard-layout,.dashboard-main,.dashboard-side{gap:12px}.dashboard-side{grid-template-columns:1fr}.dashboard-panel{padding:14px;border-radius:18px}.dashboard-panel-head{margin-bottom:10px}.today-history-card{grid-template-columns:52px minmax(0,1fr);padding:11px 12px}.today-history-card .lesson-state{grid-column:2;justify-self:start}.week-day-head{padding:10px 11px}.week-lesson{grid-template-columns:46px minmax(0,1fr);padding:10px 11px}.week-lesson button{grid-column:2;justify-self:start}.dashboard-panel .teacher-quick-actions{width:100%}.dashboard-panel .teacher-quick-actions button{flex:1 1 calc(50% - 5px)}}
-/* Canonical dashboard lesson layout: isolate from legacy generic .row styles. */
-.teacher-dashboard-v2 .dashboard-layout{grid-template-columns:minmax(0,1.55fr) minmax(280px,.72fr)}
-.teacher-dashboard-v2 .dashboard-panel{padding:18px}
-.teacher-dashboard-v2 .today-list{gap:8px}
-.teacher-dashboard-v2 .dashboard-lesson-card.row{display:grid!important;grid-template-columns:auto minmax(150px,1fr) minmax(310px,auto)!important;grid-template-areas:"subject main actions";gap:10px 14px!important;align-items:center!important;min-height:0!important;padding:12px 13px!important;border:1px solid #ece8f4!important;border-radius:15px!important;background:#fff!important;box-shadow:none!important}
-.teacher-dashboard-v2 .dashboard-lesson-card>.dashboard-subject{grid-area:subject;align-self:center;margin:0!important;white-space:nowrap}
-.teacher-dashboard-v2 .dashboard-lesson-card>.dashboard-lesson-main{grid-area:main;min-width:0;display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:3px!important}
-.teacher-dashboard-v2 .dashboard-lesson-main>b{font-size:14px!important;line-height:1.2!important;color:#302a3d}
-.teacher-dashboard-v2 .dashboard-lesson-main>span:first-of-type{font-size:12px!important;line-height:1.35!important;color:#81798d}
-.teacher-dashboard-v2 .dashboard-lesson-main .payment-mark{font-style:normal;font-weight:700}
-.teacher-dashboard-v2 .dashboard-lesson-main .payment-mark.paid{color:#33704a}
-.teacher-dashboard-v2 .dashboard-lesson-main .payment-mark.unpaid{color:#9a6929}
-.teacher-dashboard-v2 .dashboard-lesson-main .teacher-payment-badge,
-.teacher-dashboard-v2 .dashboard-lesson-main .teacher-status-badge{margin:2px 5px 0 0!important;padding:3px 7px!important;font-size:10px!important;line-height:1.15!important}
-.teacher-dashboard-v2 .dashboard-lesson-card>.teacher-quick-actions{grid-area:actions;display:flex!important;justify-content:flex-end!important;align-items:center!important;gap:5px!important;flex-wrap:wrap!important;margin:0!important;max-width:420px}
-.teacher-dashboard-v2 .dashboard-lesson-card>.teacher-quick-actions button{padding:6px 8px!important;border-radius:9px!important;font-size:11px!important;line-height:1.15!important}
-.teacher-dashboard-v2 .dashboard-lesson-card>.teacher-quick-actions .teacher-action-note{flex-basis:100%;text-align:right;margin:2px 0 0!important}
-.teacher-dashboard-v2 .reviews-compact{min-height:150px}
-.teacher-dashboard-v2 .dashboard-side{gap:14px}
-.teacher-dashboard-v2 .dashboard-side .today-history-card{grid-template-columns:58px minmax(0,1fr);padding:11px 12px}
-.teacher-dashboard-v2 .week-metric{min-height:82px;padding:14px 15px}
-.teacher-dashboard-v2 .week-metric b{font-size:26px}
-@media(max-width:1280px){
-  .teacher-dashboard-v2 .dashboard-lesson-card.row{grid-template-columns:auto minmax(140px,1fr);grid-template-areas:"subject main" "actions actions"}
-  .teacher-dashboard-v2 .dashboard-lesson-card>.teacher-quick-actions{justify-content:flex-start!important;max-width:none}
-  .teacher-dashboard-v2 .dashboard-lesson-card>.teacher-quick-actions .teacher-action-note{text-align:left}
+/* Keep lesson content and runtime actions in explicit, non-overlapping rows. */
+#app .teacher-dashboard-v2 .dashboard-lesson-card.row {
+  display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;
+  grid-template-areas:"subject subject" "main main" "actions actions"!important;
+  gap:8px!important;padding:18px!important;min-width:0;align-items:start!important;
+  border:1px solid #e8e7ef!important;border-radius:16px!important;background:#fff!important;
 }
-@media(max-width:720px){
-  .teacher-dashboard-v2 .dashboard-lesson-card.row{grid-template-columns:1fr!important;grid-template-areas:"subject" "main" "actions";gap:7px!important;padding:11px!important}
-  .teacher-dashboard-v2 .dashboard-lesson-card>.dashboard-subject{justify-self:start}
-  .teacher-dashboard-v2 .dashboard-lesson-card>.teacher-quick-actions{width:100%!important}
-  .teacher-dashboard-v2 .dashboard-lesson-card>.teacher-quick-actions button{flex:1 1 calc(50% - 5px)}
+#app .dashboard-lesson-card>.dashboard-subject {grid-area:subject!important;position:static!important;justify-self:start;margin:0!important;line-height:1.4!important}
+#app .dashboard-lesson-card>.dashboard-lesson-main {grid-area:main!important;display:flex!important;flex-direction:column!important;align-items:flex-start;gap:6px!important;min-width:0}
+#app .dashboard-lesson-main>b {display:block;font-size:17px!important;line-height:1.4!important;white-space:normal;overflow-wrap:anywhere}
+#app .dashboard-lesson-main>span {position:static;line-height:1.5!important;font-size:12px!important}
+#app .dashboard-lesson-main .payment-mark {font-style:normal;font-weight:650}
+#app .payment-mark.paid {color:#33704a}#app .payment-mark.unpaid {color:#936321}
+#app .dashboard-lesson-main .teacher-payment-badge,#app .dashboard-lesson-main .teacher-status-badge {margin:0!important;font-size:11px!important;line-height:1.4!important;padding:3px 8px!important}
+#app .dashboard-lesson-card>.dashboard-lesson-actions,#app .dashboard-lesson-card>.teacher-quick-actions {
+  grid-area:actions!important;display:flex!important;flex-wrap:wrap!important;justify-content:flex-start!important;
+  align-items:center!important;width:100%;max-width:none;margin:6px 0 0!important;gap:8px!important;
+  padding-top:12px;border-top:1px solid #efedf4;
 }
-
+#app .dashboard-lesson-card:has(>.teacher-quick-actions)>.dashboard-lesson-actions {display:none!important}
+#app .dashboard-lesson-card>.teacher-quick-actions button,#app .dashboard-lesson-actions button,#app .teacher-action-menu summary {
+  min-height:40px;padding:9px 13px!important;font-size:13px!important;line-height:1.4!important;border-radius:10px!important;flex:0 1 auto;
+}
+#app .teacher-quick-actions .teacher-action-note {flex-basis:100%;text-align:left;margin:0!important;font-size:12px}
+.teacher-action-menu {position:relative;margin:0}
+.teacher-action-menu summary {display:flex;align-items:center;gap:12px;border:1px solid #e7e0f1;background:#fff;cursor:pointer;list-style:none;color:#62576f}
+.teacher-action-menu summary::-webkit-details-marker {display:none}
+.teacher-action-menu-items {position:absolute;top:calc(100% + 6px);left:0;z-index:30;display:grid;gap:4px;width:220px;padding:6px;background:#fff;border:1px solid #e5dfee;border-radius:12px;box-shadow:0 12px 32px #30204720}
+#app .teacher-action-menu-items button {width:100%;text-align:left;white-space:normal}
+.teacher-action-menu summary:focus-visible {outline:3px solid #c8b5eb;outline-offset:2px}
+.teacher-dashboard-v2 .dashboard-layout {grid-template-columns:minmax(0,1fr) minmax(260px,.48fr)}
+@media(max-width:1200px){.teacher-dashboard-v2 .dashboard-layout {grid-template-columns:minmax(0,1fr)}.teacher-dashboard-v2 .dashboard-side {position:static}}
+@media(max-width:720px){#app .teacher-dashboard-v2 .dashboard-lesson-card.row {padding:14px!important}.teacher-action-menu-items {left:auto;right:0}.dashboard-panel-head {flex-wrap:wrap}}
 
 .dashboard-head-actions{display:flex;align-items:center;gap:9px}.dashboard-head-actions .soft{min-height:34px;padding:7px 11px;border-radius:10px;font-size:11px}@media(max-width:760px){.dashboard-head-actions .soft{display:none}}
 
@@ -74,3 +73,4 @@
 .desktop-teacher-v2 .teacher-dashboard-v2 .dashboard-lesson-card.is-live .dashboard-subject{background:#eee9ff;color:#5c42bd}
 .desktop-teacher-v2 .teacher-dashboard-v2 .lesson-live-elapsed{color:#674bd0;font-variant-numeric:tabular-nums}
 .desktop-teacher-v2 .teacher-dashboard-v2 [data-desktop-finish]{background:#fff5f5;border-color:#ebd0d0;color:#9a4141}
+

@@ -1,1 +1,26 @@
 .receipt-card .rr-panel{grid-column:1/-1;border-top:1px solid #e5dced;margin-top:18px;padding-top:20px;min-width:0}.rr-panel h4{font-size:17px;margin:0 0 8px}.rr-panel p,.rr-panel li{font-size:13px;line-height:1.6}.rr-panel .rr-muted{color:#80738e}.rr-panel label{display:grid;gap:8px;margin:16px 0;font-size:13px;font-weight:600}.rr-panel :is(input[type=date],textarea){box-sizing:border-box;max-width:100%;padding:12px;border:1px solid #ddd2e9;border-radius:10px;background:#fff;color:#30253c;font:inherit}.rr-panel input[type=date]{width:240px;min-height:46px}.rr-panel .rr-check{display:flex;align-items:flex-start;gap:10px;line-height:1.5}.rr-check input{margin-top:3px;accent-color:#7445cd;width:18px;height:18px;flex:0 0 18px}.rr-inspection{padding:16px;background:#f8f5fc;border:1px solid #e9e0f2;border-radius:12px;margin-top:18px}.rr-inspection dl{margin:0;display:grid;gap:10px}.rr-inspection dl>div{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;font-size:12px}.rr-inspection dt{color:#81718d}.rr-inspection dd{margin:0;overflow-wrap:anywhere;font-weight:600}.rr-inspection ul{padding-left:18px;color:#8e6136}.rr-inspection pre{font:11px/1.6 monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto}.rr-inspection summary{cursor:pointer;font-size:12px;color:#7148b7}.rr-state{color:#a13c56;overflow-wrap:anywhere}.rr-panel button{min-height:44px}.rr-panel :is(button,input,textarea):focus-visible{outline:3px solid #c8b5eb;outline-offset:2px}@media(max-width:600px){.rr-panel :is(input,textarea){font-size:16px}.rr-inspection{padding:12px}.rr-inspection dl>div{grid-template-columns:1fr;gap:3px}.rr-panel .rr-approve{width:100%}}
+
+.receipt-card:has(.rr-panel:not([hidden])){grid-column:1/-1}
+#receiptGrid{grid-template-columns:minmax(0,1fr);max-width:960px;align-items:start}
+#receiptGrid .receipt-card{padding:22px;gap:10px;box-shadow:none!important}
+#receiptGrid .finance-card-top h3{font-size:20px;margin:8px 0 0}
+#receiptGrid .finance-actions{flex-wrap:wrap;align-items:center;gap:8px}
+#receiptGrid .finance-actions :is(button,a){flex:0 1 auto;min-height:40px;font-size:13px;padding:9px 13px;line-height:1.4;text-decoration:none;white-space:normal}
+#receiptGrid .rr-panel{padding-top:18px;margin-top:8px}
+#receiptGrid .rr-panel[hidden]{display:none}
+#receiptGrid .rr-panel h4{margin:0 0 6px;font-size:16px}
+#receiptGrid .rr-panel p{margin:6px 0;line-height:1.5}
+#receiptGrid .rr-panel label{margin:14px 0;line-height:1.5}
+#receiptGrid .rr-panel .rr-inspection{padding:16px;margin:16px 0;background:#f8f9fc;border-color:#e8e9ef;box-shadow:none}
+#receiptGrid .rr-inspection dl>div{grid-template-columns:minmax(120px,.6fr) minmax(0,1fr);padding:7px 0;border-bottom:1px solid #e9eaf0;font-size:13px;line-height:1.5}
+#receiptGrid .rr-inspection dl{gap:0}
+#receiptGrid .rr-inspection dl>div:last-child{border-bottom:0}
+#receiptGrid .rr-inspection ul{margin:12px 0;padding:12px 12px 12px 30px;background:#fff8eb;border-radius:8px}
+#receiptGrid .rr-inspection ul:empty{display:none}
+#receiptGrid .rr-panel textarea{width:100%;min-height:80px;font-weight:400}
+#receiptGrid .rr-panel .rr-check{display:flex;align-items:flex-start;gap:10px;font-weight:500;cursor:pointer}
+#receiptGrid .rr-check input[type=checkbox]{appearance:auto;width:18px!important;height:18px!important;min-height:18px;padding:0!important;border-radius:4px!important;margin:2px 0 0;flex:0 0 18px}
+#receiptGrid .rr-panel .rr-approve{min-height:44px;padding:10px 18px;box-shadow:none}
+#receiptGrid .rr-state:empty{display:none}
+@media(min-width:1300px){#receiptGrid .rr-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);column-gap:28px;align-items:start}#receiptGrid .rr-panel>h4{grid-column:1/-1}#receiptGrid .rr-panel>:not(h4):not(.rr-inspection){grid-column:1}#receiptGrid .rr-panel>.rr-inspection{grid-column:2;grid-row:2/9;margin:6px 0}#receiptGrid .rr-panel>.rr-state{grid-column:1/-1}}
+@media(max-width:600px){#receiptGrid .receipt-card{padding:16px}#receiptGrid .finance-actions{flex-direction:row}#receiptGrid .finance-actions :is(button,a){flex:1 1 auto}#receiptGrid .rr-inspection dl>div{grid-template-columns:1fr;gap:2px}#receiptGrid .rr-panel .rr-approve{width:100%}}
