@@ -25,7 +25,7 @@ def formula_delta(live, old, new):
     def surrounding(text):
         return ''.join(line for line in text.splitlines(True)
                        if not line.startswith('function cards(s){')
-                       and not line.lstrip().startswith("box.querySelector('[data-fx-empty-new]')"))
+                       and not line.lstrip().startswith("box.querySelector('[data-fx-empty-new]')")).rstrip() + '\n'
     if surrounding(live) not in (surrounding(old), surrounding(new)):
         raise RuntimeError('Unrecognized formula implementation; no update')
     a, b = old.splitlines(True), new.splitlines(True)
@@ -35,6 +35,8 @@ def formula_delta(live, old, new):
         before, after = ''.join(a[i:j]), ''.join(b[k:end])
         if before.startswith('function cards(s){') and after.startswith('function cards(s){'):
             continue  # the live empty state already provides richer actions
+        if not before.strip() and not after.strip():
+            continue  # terminal blank-line differences carry no code changes
         if tag != 'replace':
             raise RuntimeError('Unexpected formula patch structure')
         if after and live.count(after) == 1:
