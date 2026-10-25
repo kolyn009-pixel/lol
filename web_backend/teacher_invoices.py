@@ -127,3 +127,9 @@ def issue(lesson_id):
     result['user_id']=uid
     result['notification']=_notify_invoice(uid,lid,result,row)
     return result
+
+# BEGIN ADELIA CALENDAR WEEK 20261025
+def candidates(limit=100):
+    from web_backend.calendar_week_invoices import candidates as calendar_candidates
+    return calendar_candidates(limit)
+# END ADELIA CALENDAR WEEK 20261025
