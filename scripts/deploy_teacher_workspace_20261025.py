@@ -21,7 +21,36 @@ OPTIONAL = {'web/formula_explorer.js'}
 ASSETS = [p.removeprefix('web/') for p in FILES if not p.endswith('.html')]
 
 
+def formula_delta(live, old, new):
+    # Preserve the existing server-only empty-state buttons and their handlers.
+    def surrounding(text):
+        return ''.join(line for line in text.splitlines(True)
+                       if not line.startswith('function cards(s){')
+                       and not line.lstrip().startswith("box.querySelector('[data-fx-empty-new]')"))
+    if surrounding(live) not in (surrounding(old), surrounding(new)):
+        raise RuntimeError('Unrecognized formula implementation; no update')
+    a, b = old.splitlines(True), new.splitlines(True)
+    for tag, i, j, k, end in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == 'equal':
+            continue
+        before, after = ''.join(a[i:j]), ''.join(b[k:end])
+        if before.startswith('function cards(s){') and after.startswith('function cards(s){'):
+            continue  # the live empty state already provides richer actions
+        if tag != 'replace':
+            raise RuntimeError('Unexpected formula patch structure')
+        if after and live.count(after) == 1:
+            continue
+        if not before or live.count(before) != 1:
+            raise RuntimeError('Formula change does not match reviewed code')
+        live = live.replace(before, after, 1)
+    return live
+
+
 def delta(live, old, new, label):
+    if label == 'web/formula_explorer.js' and all(x in live for x in
+            ('data-fx-empty-new', 'data-fx-empty-import', 'data-fx-empty-reset')):
+        return formula_delta(live, old, new)
+
     if live == new:
         return live
     groups = list(difflib.SequenceMatcher(None, old.splitlines(True),
