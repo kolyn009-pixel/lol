@@ -6,7 +6,7 @@ function sections(text,items){const t=norm(text),out=new Set();for(const [re,lab
 function matching(payload,items){const h=payload.homework||{},text=[h.title,h.description,...(payload.tasks||[]).flatMap(t=>[t.topic,t.section,t.title])].join(' '),keys=sections(text,items);return items.filter(x=>(!h.subject||x.subject===h.subject)&&(keys.has(x.section)||keys.has(x.topic)));}
 async function catalog(){const r=await fetch('/api/student/formulas?limit=500&education_level=SCHOOL&level=0',{credentials:'same-origin'});if(!r.ok)throw Error('catalog');return (await r.json()).items||[];}
 async function attach(id,payload,root){
- const anchor=root.querySelector('.student-hw-head');if(!anchor)return;
+ const anchor=root.querySelector('.student-hw-head');if(!anchor||root.querySelector('.hw-formula-kit[data-homework="'+Number(id)+'"]'))return;
  const slot=document.createElement('section');slot.className='hw-formula-kit';slot.dataset.homework=String(id);slot.hidden=true;anchor.after(slot);
  try{const items=matching(payload,await catalog());if(!slot.isConnected||!root.querySelector('#studentHwBack')||!items.length)return;
  slot.hidden=false;slot.innerHTML='<div class="hw-formula-kit-head"><div><span>Подсказки к заданию</span><h3>Формулы по теме</h3><p>'+E([...new Set(items.map(x=>x.section))].join(' · '))+' · '+items.length+' формул</p></div></div><details><summary>Открыть формулы</summary><div class="hw-formula-grid">'+items.map(x=>'<article><h4>'+E(x.title)+'</h4><div class="hw-formula-math" data-fx-math="'+E(x.formula_latex)+'">'+E(x.formula_plain||x.formula_latex)+'</div><p>'+E(x.conditions||x.description)+'</p></article>').join('')+'</div></details>';
@@ -17,5 +17,31 @@ let renderer;
 async function typeset(root){if(!window.katex){if(!renderer)renderer=new Promise(resolve=>{const s=document.createElement('script');s.src='/app/vendor/katex.min.js?v=0.16.11';s.onload=()=>resolve(true);s.onerror=()=>{renderer=null;resolve(false)};document.head.append(s);});if(!await renderer)return;}if(!root.isConnected)return;root.querySelectorAll('[data-fx-math]').forEach(el=>{try{window.katex.render(el.dataset.fxMath,el,{output:'mathml',displayMode:true,throwOnError:true,trust:false,maxExpand:1000})}catch{}});}
 function preview(){const title=document.querySelector('#hwTitle'),description=document.querySelector('#hwDescription');if(!title||!description||document.querySelector('#hwFormulaHint'))return;const hint=document.createElement('p');hint.id='hwFormulaHint';hint.className='hw-formula-hint';description.after(hint);const update=()=>{const labels=sections(title.value+' '+description.value,[]);hint.textContent=labels.size?'К этому ДЗ автоматически появятся формулы: '+[...labels].join(', ')+'.':'Укажите тему в названии или инструкции, например «Термодинамика»: ученик увидит соответствующие формулы рядом с ДЗ.';};title.addEventListener('input',update);description.addEventListener('input',update);update();}
 if(document.querySelector('.teacher-shell')){new MutationObserver(preview).observe(document.querySelector('#app'),{childList:true,subtree:true});preview();}
+const studentRoot=document.querySelector('#content');
+let selectedHomework=0,watchedHeader=null;
+async function observeHomework(){
+ const header=studentRoot?.querySelector('.student-hw-head');
+ if(!header){watchedHeader=null;return;}
+ const id=Number(studentRoot.dataset.activeHomework||selectedHomework);
+ if(!Number.isSafeInteger(id)||id<=0||header===watchedHeader)return;
+ watchedHeader=header;
+ try{
+  const r=await fetch('/api/student/homework/detail?id='+id,{credentials:'same-origin'});
+  if(!r.ok)throw Error('homework');
+  const payload=await r.json();
+  if(!header.isConnected||studentRoot.querySelector('.student-hw-head')!==header)return;
+  await attach(id,payload,studentRoot);
+ }catch{
+  if(!header.isConnected)return;
+  const status=document.createElement('p');status.className='hw-formula-hint';
+  status.textContent='Формулы к заданию пока недоступны. ';
+  const retry=document.createElement('button');retry.type='button';retry.textContent='Повторить';
+  retry.onclick=()=>{status.remove();watchedHeader=null;observeHomework();};status.append(retry);header.after(status);
+ }
+}
+if(studentRoot){
+ document.addEventListener('click',e=>{const button=e.target.closest('[data-hw]');if(button)selectedHomework=Number(button.dataset.hw)||0;},true);
+ new MutationObserver(observeHomework).observe(studentRoot,{childList:true,subtree:true,attributes:true,attributeFilter:['data-active-homework']});observeHomework();
+}
 window.AdeliaHomeworkFormulas={attach,matching};
 })();

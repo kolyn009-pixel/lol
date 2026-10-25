@@ -14,7 +14,7 @@ import tempfile
 BASE = '048034e3eec757bdffcc360433ec7de81b63ac3c'
 PATCH = None
 REPO = '/opt/tutorbot'
-FILES = ['web/formula_explorer.js','web/teacher_finance.js','web/student_homework_plus.js','web/student_boot.js','web/homework_formulas.js','web/education_formula_layout.css','web/teacher.html','web/index.html']
+FILES = ['web/formula_explorer.js','web/teacher_finance.js','web/homework_formulas.js','web/education_formula_layout.css','web/teacher.html','web/index.html']
 NEW = {'web/homework_formulas.js','web/education_formula_layout.css'}
 OPTIONAL = set()
 ASSETS = ['homework_formulas.js','education_formula_layout.css','formula_explorer.js']
@@ -57,7 +57,7 @@ def delta(live, old, new, label):
 
 
 def html_versions(live, relative='web/teacher.html'):
-    assets = ASSETS + (['teacher_finance.js'] if relative == 'web/teacher.html' else ['student_boot.js'])
+    assets = ASSETS + (['teacher_finance.js'] if relative == 'web/teacher.html' else [])
     for asset in assets:
         pattern = r'(?P<q>[\"\'])/app/' + re.escape(asset) + r'(?:\?[^\"\']*)?(?P=q)'
         url = '/app/' + asset + '?v=20261025-education1'
