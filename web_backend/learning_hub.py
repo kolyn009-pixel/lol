@@ -270,3 +270,14 @@ def material_search(uid, query):
     rows=list_materials(user_id=uid,search=text(query,200),limit=100)
     return [{'id':r['id'],'title':r['title'],'description':r.get('description'),'subject':r.get('subject'),
              'url':'/api/'+('teacher' if uid is None else 'student')+'/material/file?id='+str(r['id'])} for r in rows]
+
+
+# BEGIN ADELIA FIRST LESSON PLAN 20261025
+_overview_without_first_visit = overview
+def overview(user_id, teacher=False):
+    result = _overview_without_first_visit(user_id, teacher=teacher)
+    if teacher:
+        from web_backend.first_lesson_context import first_visit
+        result['first_visit'] = first_visit(user_id)
+    return result
+# END ADELIA FIRST LESSON PLAN 20261025
