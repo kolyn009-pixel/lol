@@ -84,6 +84,23 @@ def html_update(text, path, version):
     return text.replace('</head>',''.join(additions)+'</head>',1)
 
 
+
+def messenger_delta(live, old, new, label):
+    # Preserve the exact production pause hook reviewed in the server diff.
+    hook = 'window.AdeliaTeacherMessenger={pause:stop};\n'
+    def without_hook(text):
+        return text.replace(hook, '').rstrip()
+    if live.count(hook) > 1 or without_hook(live) not in (without_hook(old), without_hook(new)):
+        raise RuntimeError('Unreviewed messenger changes: '+label)
+    if hook in live:
+        anchor = 'window.teacherMessages=show;\n'
+        if new.count(anchor) != 1:
+            raise RuntimeError('Messenger export anchor missing')
+        if hook not in new:
+            new = new.replace(anchor, anchor+hook, 1)
+    return new
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--commit',required=True)
@@ -134,7 +151,8 @@ def main():
                     if old is None:
                         continue
                     try:
-                        delta=education['delta'] if name.endswith('formula_explorer.js') else shared['delta']
+                        delta=(messenger_delta if name == 'web/teacher_messages_stage10.js' else
+                               education['delta'] if name.endswith('formula_explorer.js') else shared['delta'])
                         updates[name]=delta(live.decode(),old.decode(),target.decode(),name).encode()
                         break
                     except RuntimeError:
