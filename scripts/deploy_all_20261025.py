@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 
 REPO = '/opt/tutorbot'
-BASES = ['e4a1d07993253aaa7ae0a05b6009b2adf20c7867',
+BASES = ['f70d2e27a5e9fc5a592ab4eceb0824a73c691331','e4a1d07993253aaa7ae0a05b6009b2adf20c7867',
          '8882d5e796abb715a7916c4c7689817766bfc715',
          '4c6e2f54929cc353d97e5716128ae61df44a5733',
          '69bbcc352343aa515a5c50dbfe8514e3935ce864',
@@ -28,11 +28,11 @@ LEGACY = ['web/teacher_dashboard_week.css','web/teacher_clean_runtime.js',
           'web/teacher_receipt_review_tools.css','web/teacher_health.js',
           'web/learning_hub.js','web/formula_explorer.js','web/teacher_finance.js']
 FAMILIES = ['teacher_workspace_review','teacher_messenger_rows','education_formula_layout',
-            'weekly_invoices_chat','chat_composer','package_studio','teaching_workbench']
+            'weekly_invoices_chat','chat_composer','package_studio','teaching_workbench','visual_channels']
 CUSTOM = [f'web/{n}.css' for n in FAMILIES] + [f'web/{n}.js' for n in
     ['teacher_workspace_review','teacher_messenger_rows','homework_formulas',
-     'weekly_invoices_chat','chat_composer','package_studio','teaching_plan','teaching_workbench']]
-CUSTOM += ['web_backend/calendar_week_invoices.py','web_backend/first_lesson_context.py']
+     'weekly_invoices_chat','chat_composer','package_studio','teaching_plan','teaching_workbench','visual_channels']]
+CUSTOM += ['web_backend/calendar_week_invoices.py','web_backend/first_lesson_context.py','web_backend/lesson_delivery_status.py','web/pwa_workspace.js']
 BACKENDS = {'web_backend/teacher_invoices.py':('deploy_calendar_week_chat_20261025.py','hook_week'),
             'web_backend/lesson_link_delivery.py':('deploy_chat_delivery_20261025.py','hook_delivery'),
             'web_backend/learning_hub.py':('deploy_teaching_workbench_20261025.py','hook_plan')}
@@ -59,7 +59,7 @@ def html_update(text, path, version):
     scripts = (['formula_explorer','teacher_clean_runtime','teacher_health','learning_hub',
                 'teacher_finance','teacher_workspace_review','teacher_messenger_rows',
                 'homework_formulas','weekly_invoices_chat','chat_composer','package_studio',
-                'teaching_plan','teaching_workbench'] if path.endswith('teacher.html') else
+                'teaching_plan','teaching_workbench','visual_channels','pwa_workspace'] if path.endswith('teacher.html') else
                ['formula_explorer','homework_formulas'])
     styles = (['teacher_dashboard_week','teacher_receipt_review_tools']+FAMILIES
               if path.endswith('teacher.html') else ['education_formula_layout'])
@@ -141,6 +141,10 @@ def main():
                         continue
                 else:
                     raise RuntimeError('Code differs from reviewed versions; no files changed: '+name)
+            if name == 'web_backend/lesson_link_delivery.py':
+                marker = '# Previous channel delivery status (no automatic resend)'
+                if marker not in updates[name].decode():
+                    updates[name] += b'\n\n# Previous channel delivery status (no automatic resend)\n_status_original_individual = send_individual\ndef send_individual(lesson_id):\n    from web_backend.lesson_delivery_status import previous_individual\n    return previous_individual(_status_original_individual(lesson_id), lesson_id)\n'
             if name.endswith('.py'):
                 ast.parse(updates[name],filename=name)
             if live is not None and name.startswith('web/') and served(name)!=live:
