@@ -6,8 +6,8 @@ const path = require('path');
 
 const APP_URL = process.env.ADELIA_DESKTOP_URL || 'https://adeliatutor.ru/app/';
 const APP_ORIGIN = new URL(APP_URL).origin;
-const CHILD_ORIGINS = new Set(['https://telemost.yandex.ru']);
-const BOARD_HOSTS = new Set(['myboard.io', 'www.myboard.io']);
+const CHILD_ORIGINS = new Set(['https://telemost.yandex.ru','https://telemost.360.yandex.ru']);
+const BOARD_HOSTS = new Set(['myboard.io','www.myboard.io','app.moyadoska.com','moyadoska.com','www.moyadoska.com']);
 const UPDATE_CHECK_MS = 4 * 60 * 60 * 1000;
 const UPDATE_CHANNEL = process.env.ADELIA_UPDATE_CHANNEL === 'stable' ? 'stable' : 'beta';
 const UPDATE_TARGET = process.platform === 'win32' ? 'win-x64' : (process.platform === 'darwin' ? `macos-${process.arch}` : `linux-${process.arch}`);

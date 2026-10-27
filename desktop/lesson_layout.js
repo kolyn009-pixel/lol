@@ -37,7 +37,13 @@ function setTop(win){ if(!win||win.isDestroyed())return;try{win.setAlwaysOnTop(t
 let savedCabinet=null;
 function cabinet(){return BrowserWindow.getAllWindows().find(w=>{if(w.isDestroyed())return false;try{const u=new URL(w.webContents.getURL());return u.origin==='https://adeliatutor.ru'&&(u.pathname.startsWith('/teacher')||u.pathname==='/app/teacher.html');}catch{return false;}})||null;}
 function roomBounds(area){const gap=8,right=Math.min(560,Math.max(420,Math.round(area.width*.32))),left=area.width-right-gap,video=Math.max(270,Math.min(380,Math.round(area.height*.45)));return {board:{x:area.x,y:area.y,width:left,height:area.height},video:{x:area.x+left+gap,y:area.y,width:right,height:video},context:{x:area.x+left+gap,y:area.y+video+gap,width:right,height:area.height-video-gap}};}
-function contextMode(win,on){if(!win||win.isDestroyed())return;win.webContents.executeJavaScript(`document.documentElement.classList.toggle('adelia-lesson-context-mode',${!!on})`,true).catch(()=>{});}
+function contextMode(win,on){if(!win||win.isDestroyed())return;
+ win.webContents.executeJavaScript(`document.documentElement.classList.toggle('adelia-lesson-context-mode',${!!on})`,true).catch(()=>{});
+ const css='html.adelia-lesson-context-mode .teacher-shell>aside,html.adelia-lesson-context-mode .teacher-shell main>header,html.adelia-lesson-context-mode #app>:not(#lessonContextBlock){display:none!important}html.adelia-lesson-context-mode .teacher-shell{display:block!important}html.adelia-lesson-context-mode .teacher-shell main{margin:0!important;padding:12px!important;width:auto!important;min-width:0!important}html.adelia-lesson-context-mode #lessonContextBlock .lesson-context-grid{display:block!important}html.adelia-lesson-context-mode #lessonContextBlock .lesson-context-side,html.adelia-lesson-context-mode #lessonContextBlock .lesson-chat-card{display:none!important}';
+ if(on&&!win.adeliaContextStyle){win.adeliaContextStyle='pending';win.webContents.insertCSS(css,{cssOrigin:'user'}).then(key=>{win.adeliaContextStyle=key;}).catch(()=>{win.adeliaContextStyle=null;});}
+ if(!on&&win.adeliaContextStyle&&win.adeliaContextStyle!=='pending'){win.webContents.removeInsertedCSS(win.adeliaContextStyle).catch(()=>{});win.adeliaContextStyle=null;}
+ if(on&&!win.adeliaContextReload){win.adeliaContextReload=true;win.webContents.on('did-finish-load',()=>{win.adeliaContextStyle=null;if(savedCabinet?.win===win)contextMode(win,true);});}
+}
 function restoreCabinet(){if(!savedCabinet)return;const {win,bounds,min}=savedCabinet;savedCabinet=null;if(!win.isDestroyed()){contextMode(win,false);win.setMinimumSize(...min);win.setBounds(bounds);}}
 function apply(mode,remember=true){
   mode=MODES.has(mode)?mode:'together';
