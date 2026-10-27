@@ -57,11 +57,12 @@ def profile(owner_id):
     ensure_schema();conn=connect()
     try:
         row=conn.execute('SELECT * FROM personal_study_profiles WHERE owner_id=?',(owner_id,)).fetchone()
-        daily=row['daily_minutes'] if row else 120
+        daily=row['daily_minutes'] if row else (60 if owner_id<0 else 120)
+        if owner_id<0 and daily not in (60,90,120):daily=120
         settings=json.loads(row['settings']) if row else {}
         codes=('en','es') if owner_id<0 else ('en','de','fa')
         allocation={'en':80,'de':25,'fa':15} if daily==120 else {'en':120,'de':40,'fa':20}
-        if owner_id<0:allocation={'en':80,'es':40} if daily==120 else {'en':120,'es':60}
+        if owner_id<0:allocation={60:{'en':45,'es':15},90:{'en':70,'es':20},120:{'en':95,'es':25}}[daily]
         return {'daily_minutes':daily,'languages':{
             code:{**spec, **({'start':'Нужна диагностика','goal':'B2 · общение и самостоятельное использование','target_date':'2027-05-01'} if owner_id<0 and code=='en' else {}), **settings.get(code,{}),'minutes':allocation[code]}
             for code,spec in LANGUAGES.items() if code in codes}}
@@ -71,7 +72,7 @@ def profile(owner_id):
 
 def save_profile(owner_id,data):
     daily=data.get('daily_minutes')
-    if type(daily) is not int or daily not in (120,180):
+    if type(daily) is not int or daily not in ((60,90,120) if owner_id<0 else (120,180)):
         raise ValueError('invalid_daily_minutes')
     dates=data.get('target_dates',{})
     if not isinstance(dates,dict) or set(dates)-set(LANGUAGES):
