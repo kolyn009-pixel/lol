@@ -20,7 +20,7 @@ async function api(path='',body){
 }
 function uuid(){return globalThis.crypto?.randomUUID?.()||'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(+c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>+c/4).toString(16));}
 function safeURL(raw){try{const u=new URL(raw);return u.protocol==='https:'?u.href:'#';}catch{return '#';}}
-function canLeave(){return !dirty||confirm('Есть несохранённые ответы. Выйти без сохранения?');}
+function canLeave(){return (!dirty&&!window.AdeliaStudyVoice?.hasUnsaved())||confirm('Есть несохранённые ответы. Выйти без сохранения?');}
 function mount(){
  let box=root();if(!box){box=document.createElement('section');box.id=rootId;box.className='ss-root';box.setAttribute('aria-label','Моё обучение');document.querySelector('#app')?.after(box);}
  if(!box)return null;
@@ -200,7 +200,7 @@ document.addEventListener('click',event=>{
  const other=event.target.closest?.('aside nav [data-view], aside nav [data-learning-open], header [data-view]');
  if(other&&root()){if(busy||!canLeave()){event.preventDefault();event.stopImmediatePropagation();return;}close();}
 },true);
-window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
+window.addEventListener('beforeunload',event=>{if(dirty||window.AdeliaStudyVoice?.hasUnsaved()){event.preventDefault();event.returnValue='';}});
 window.addEventListener('adelia:teacher-login',installButton);
 window.addEventListener('adelia:desktop-ui-ready',installButton);
 function init(){installButton();if(new URL(location.href).searchParams.get('study')==='1')open();}

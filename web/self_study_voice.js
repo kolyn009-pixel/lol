@@ -1,7 +1,7 @@
 /* Device-local recordings. No audio is uploaded by this component. */
 (()=>{'use strict';
 if(window.AdeliaStudyVoice)return;
-let dispose=null;
+let dispose=null,hasUnsaved=()=>false;
 const locales={en:'en-GB',de:'de-DE',fa:'fa-IR'};
 function database(){return new Promise((resolve,reject)=>{
  const request=indexedDB.open('adelia-personal-voice',1);
@@ -21,9 +21,12 @@ function mount(node,context){
  dispose?.();if(!node)return;
  const key=String(context.owner_id)+':'+context.lesson_id;
  let stream=null,recorder=null,recognizer=null,timer=null,url=null,pending=false,closed=false;
+ let noteDirty=false,recordingDirty=false;
+ hasUnsaved=()=>!closed&&(noteDirty||recordingDirty||pending||Boolean(recognizer)||Boolean(recorder));
  let saved={blob:null,transcript:'',updated_at:null};
  node.innerHTML='<section class="ss-panel"><h3>Скажи вслух</h3><p class="ss-muted" data-voice-prompt></p><p class="ss-muted">Запиши ответ на 30–90 секунд. Прослушай: ответил ли на вопрос, связал ли мысли и где пришлось искать слова? Максимум записи — 3 минуты.</p><div class="ss-actions"><button type="button" class="ss-primary" data-voice-record>Записать ответ</button><button type="button" class="ss-secondary" data-voice-stop disabled>Остановить</button></div><div data-voice-playback></div><p class="ss-status" data-voice-status role="status"></p><details><summary>Расшифровка и заметка</summary><p class="ss-muted">Можно продиктовать короткий ответ или оставить несколько слов о трудности. Проверь распознанный текст. Браузерное распознавание может отправлять звук своему сервису и не всегда доступно.</p><div class="ss-actions"><button type="button" class="ss-secondary" data-voice-dictate>Продиктовать текст</button><button type="button" class="ss-secondary" data-voice-dictate-stop disabled>Остановить диктовку</button></div><label>Расшифровка или заметка<textarea data-voice-text rows="4" maxlength="3000" style="width:100%;padding:12px;border:1px solid #d8d1e6;border-radius:10px;margin-top:8px"></textarea></label><button type="button" class="ss-secondary" data-voice-save>Сохранить заметку</button><p class="ss-muted">По кнопке ниже расшифровка отправляется настроенному ИИ для разбора языка. Аудио не отправляется.</p><button type="button" class="ss-primary" data-voice-feedback>Разобрать расшифровку с ИИ</button><div data-voice-feedback-result></div></details><p class="ss-note">Запись и заметка хранятся только в этом браузере под твоим аккаунтом. Между устройствами не синхронизируются; очистка данных браузера удалит их. Скачай важный ответ. Разбор текста не оценивает произношение или уровень CEFR.</p></section>';
  const el=s=>node.querySelector(s),record=el('[data-voice-record]'),stop=el('[data-voice-stop]'),text=el('textarea'),dictate=el('[data-voice-dictate]'),dictateStop=el('[data-voice-dictate-stop]');
+ text.oninput=()=>{noteDirty=true;};
  el('[data-voice-prompt]').textContent=context.prompt;text.lang=context.language;text.dir=context.language==='fa'?'rtl':'auto';
  const status=s=>{if(!closed)el('[data-voice-status]').textContent=s;};
  function playback(){
@@ -48,11 +51,12 @@ function mount(node,context){
    recorder.onerror=()=>{status('Не удалось записать звук. Проверь микрофон.');halt();};
    recorder.onstop=async()=>{
     release();const blob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});recorder=null;
-    if(!closed){record.disabled=false;dictate.disabled=!Recognition;stop.disabled=true;}
-    if(!blob.size){status('Запись оказалась пустой. Попробуй снова.');return;}
-    saved.blob=blob;
-    try{await save();status('Запись сохранена на этом устройстве. Прослушай ответ.');}
+    if(!closed){record.disabled=true;dictate.disabled=true;stop.disabled=true;}
+    if(!blob.size){if(!closed){record.disabled=false;dictate.disabled=!Recognition;}status('Запись оказалась пустой. Попробуй снова.');return;}
+    saved.blob=blob;recordingDirty=true;
+    try{await save();recordingDirty=false;status('Запись сохранена на этом устройстве. Прослушай ответ.');}
     catch{status('Не удалось сохранить запись в браузере. Скачай её сейчас.');}
+    if(!closed){record.disabled=false;dictate.disabled=!Recognition;}
     playback();
    };
    recorder.start();stop.disabled=false;status('Идёт запись. Можно говорить с подсказками.');timer=setTimeout(halt,180000);
@@ -66,14 +70,14 @@ function mount(node,context){
   if(recorder||recognizer||closed)return;
   try{
    recognizer=new Recognition();recognizer.lang=locales[context.language];recognizer.continuous=true;recognizer.interimResults=false;
-   recognizer.onresult=event=>{if(closed)return;for(let i=event.resultIndex;i<event.results.length;i++)if(event.results[i].isFinal)text.value=(text.value+' '+event.results[i][0].transcript).trim().slice(0,3000);};
+   recognizer.onresult=event=>{if(closed)return;noteDirty=true;for(let i=event.resultIndex;i<event.results.length;i++)if(event.results[i].isFinal)text.value=(text.value+' '+event.results[i][0].transcript).trim().slice(0,3000);};
    recognizer.onerror=()=>status('Распознавание недоступно или не разобрало речь. Проверь язык; можно оставить короткую заметку вручную.');
    recognizer.onend=()=>{recognizer=null;clearTimeout(timer);timer=null;if(!closed){dictate.disabled=false;dictateStop.disabled=true;record.disabled=false;}};
    recognizer.start();dictate.disabled=true;dictateStop.disabled=false;record.disabled=true;status('Диктовка запущена. После остановки проверь и сохрани текст.');timer=setTimeout(()=>recognizer?.stop(),180000);
   }catch{recognizer=null;status('Не удалось запустить диктовку. Попробуй ещё раз или введи заметку.');}
  };
  dictateStop.onclick=()=>recognizer?.stop();
- el('[data-voice-save]').onclick=async()=>{saved.transcript=text.value;try{await save();status('Заметка сохранена на этом устройстве.');}catch{status('Не удалось сохранить заметку. Скопируй её перед выходом.');}};
+ el('[data-voice-save]').onclick=async()=>{saved.transcript=text.value;try{await save();noteDirty=false;status('Заметка сохранена на этом устройстве.');}catch{status('Не удалось сохранить заметку. Скопируй её перед выходом.');}};
  el('[data-voice-feedback]').onclick=async()=>{
   const button=el('[data-voice-feedback]'),transcript=text.value.trim();
   if(transcript.length<5){status('Сначала продиктуй ответ и проверь расшифровку.');return;}
@@ -99,5 +103,5 @@ function mount(node,context){
  function cleanup(){if(closed)return;closed=true;observer.disconnect();recognizer?.abort();halt();release();if(url)URL.revokeObjectURL(url);}
  dispose=cleanup;
 }
-window.AdeliaStudyVoice={mount,stop:()=>dispose?.()};
+window.AdeliaStudyVoice={mount,hasUnsaved:()=>hasUnsaved(),stop:()=>dispose?.()};
 })();
