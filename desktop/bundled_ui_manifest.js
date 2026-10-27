@@ -73,7 +73,8 @@ module.exports={
       "chat_composer.css",
       "package_studio.css",
       "teaching_workbench.css",
-      "visual_channels.css"
+      "visual_channels.css",
+      "self_study.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -104,7 +105,8 @@ module.exports={
       "package_studio.js",
       "teaching_plan.js",
       "teaching_workbench.js",
-      "visual_channels.js"
+      "visual_channels.js",
+      "self_study.js"
     ]
   },
   "parent": {
@@ -136,3 +138,4 @@ module.exports={
     ]
   }
 };
+

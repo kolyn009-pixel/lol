@@ -20,8 +20,9 @@ from web_backend.learning_hub_api import LearningHubMixin, GET_PATHS as LEARNING
 from web_backend.group_workspace_api import GroupWorkspaceMixin
 from web_backend.group_media_api import GroupMediaMixin
 from web_backend.receipt_tools_api import ReceiptToolsMixin
+from web_backend.self_study_api import SelfStudyMixin, GET_PATHS as SELF_STUDY_GET, POST_PATHS as SELF_STUDY_POST
 
-class Handler(ReceiptToolsMixin, GroupMediaMixin, GroupWorkspaceMixin, LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
+class Handler(SelfStudyMixin, ReceiptToolsMixin, GroupMediaMixin, GroupWorkspaceMixin, LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
     server_version="AdeliaWeb/7.10"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
@@ -39,6 +40,7 @@ class Handler(ReceiptToolsMixin, GroupMediaMixin, GroupWorkspaceMixin, LearningH
             except (ValueError,TypeError):return self._json(400,{'error':'invalid_request'})
 
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
+        if path in SELF_STUDY_GET:return self.self_study_route(path,q)
         if self.legal_get(path,q) or self.legal_parent_gate(path):return
         if path in LEARNING_GET:return self.learning_get(path,q)
         if self.robokassa_get(path):return
@@ -79,6 +81,7 @@ class Handler(ReceiptToolsMixin, GroupMediaMixin, GroupWorkspaceMixin, LearningH
         return super().do_GET()
     def do_POST(self):
         path=urlparse(self.path).path
+        if path in SELF_STUDY_POST:return self.self_study_route(path,write=True)
         if self.legal_post(path) or self.legal_parent_gate(path):return
         if path in LEARNING_POST:return self.learning_post(path)
         if self.robokassa_post(path):return
@@ -197,4 +200,5 @@ def main():
     group_visuals.ensure_schema()
     ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();web_push.ensure_schema();monthly_allowance.ensure_schema();print(f"Adelia web API v7.10 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=="__main__":main()
+
 
