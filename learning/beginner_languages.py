@@ -34,4 +34,7 @@ def units(language):
                        'title':title,'passage':passage,'phrases':[{'front':a,'back':meaning_a},{'front':b,'back':meaning_b}],
                        'checks':checks,'speaking':'Прочитай вслух, затем замени имя, место или обстоятельства своими. Ответь двумя-тремя фразами без подсказки.',
                        'minutes':20,'source':'Авторский начальный материал. Для произношения нужны озвученные образцы; аудио здесь пока нет.'})
+    if language=='es':
+        from learning.intensive_program import additional
+        result.extend(additional('es'))
     return result

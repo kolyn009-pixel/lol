@@ -233,6 +233,12 @@ def units(language):
 
 
 def lesson(lesson_id, include_keys=False):
+    if str(lesson_id).split('-')[0] in ('enx','dex','esx','fax'):
+        from learning.intensive_program import get
+        item=get(lesson_id)
+        if not include_keys:
+            for q in item['checks']:q.pop('answers');q.pop('explanation')
+        return item
     if str(lesson_id).startswith(('en0-','es-')):
         from learning.beginner_languages import units as basics
         code='en' if str(lesson_id).startswith('en0-') else 'es'
@@ -255,8 +261,9 @@ def lesson(lesson_id, include_keys=False):
 
 
 def catalogue():
+    from learning.intensive_program import additional
     return {language:[{'id':x['id'],'number':x['number'],'title':x['title'],'minutes':x['minutes']}
-                      for x in units(language)] for language in ('en','de','fa')}
+                      for x in units(language)+additional(language)] for language in ('en','de','fa')}
 
 
 def serial_protocol(language):

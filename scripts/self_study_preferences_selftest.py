@@ -37,7 +37,7 @@ class Tests(unittest.TestCase):
         result=fixture.study.overview(-101)
         self.assertEqual({'de'},set(result['courses']))
         self.assertTrue(all('checks' not in x for x in result['courses']['de']))
-        self.assertIn('не сформирована',result['profile']['languages']['de']['content_note'])
+        self.assertIn('не сформирован',result['profile']['languages']['de']['content_note'])
 
     def test_goals_and_optional_dates(self):
         prefs.save(-101,self.config);p=fixture.study.profile(-101)

@@ -123,7 +123,8 @@ def overview(owner_id):
         band=diagnostic['working_band'] if diagnostic else None
         foundation=basics('en')
         start=0 if band in (None,'A1') else 3 if band=='A2' else 6
-        english=foundation[start:]+courses['en'][:8]
+        from learning.intensive_program import additional
+        english=foundation[start:]+courses['en'][:8]+[x for x in additional('en') if x['band']=='B2']
         courses={'en':english,'es':basics('es')}
         courses={code:[{key:item[key] for key in ('id','number','title','minutes')} for item in items] for code,items in courses.items()}
         roadmap={
