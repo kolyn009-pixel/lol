@@ -4,6 +4,7 @@ const {spawn}=require('node:child_process');
 const assert=require('node:assert/strict');
 const path=require('node:path');
 const readline=require('node:readline');
+const fs=require('node:fs/promises');
 
 (async()=>{
  const server=spawn('python',[path.join(__dirname,'self_study_selftest.py'),'--serve'],{stdio:['ignore','pipe','pipe']});
@@ -13,7 +14,7 @@ const readline=require('node:readline');
   const {port}=await ready,url=`http://127.0.0.1:${port}`;
   browser=await chromium.launch({headless:true});
   const context=await browser.newContext();await context.addCookies([{name:'role',value:'teacher',url}]);
-  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const page=await context.newPage(),errors=[];page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'/teacher/');await page.locator('[data-self-study]').click();
   await page.locator('[data-ss-language="en"]').waitFor();
   assert.equal(await page.locator('.ss-unit').count(),12);
@@ -42,6 +43,39 @@ const readline=require('node:readline');
   await page.getByRole('button',{name:'К программе',exact:true}).click();
   await page.locator('[data-ss-language="en"]').waitFor();
   assert.match(await page.locator('.ss-unit').first().innerText(),/4\/4/);
+  // New lesson expressions are recalled, revealed, then scheduled separately.
+  await page.locator('[data-ss-review]').click();
+  await page.locator('[data-ss-card-form] [name=answer]').fill('struggle to');
+  await page.getByRole('button',{name:'Проверить выражение',exact:true}).click();
+  await page.locator('[data-ss-rating=good]').click();
+  await page.locator('[data-ss-card-form] [name=answer]').fill('used to');
+  await page.getByRole('button',{name:'Проверить выражение',exact:true}).click();
+  await page.getByText('Вспомнил верно',{exact:true}).waitFor();
+  await page.locator('[data-ss-back]').click();await page.locator('[data-ss-review]').click();
+  await page.getByText('Вспомнил верно',{exact:true}).waitFor(); // persisted reveal
+  await page.locator('[data-ss-rating=hard]').click();
+  await page.locator('[data-ss-card-form] [name=answer]').fill('wrong');
+  await page.getByRole('button',{name:'Проверить выражение',exact:true}).click();
+  assert.equal(await page.locator('[data-ss-rating=good]').isDisabled(),true);
+  await page.locator('[data-ss-rating=again]').click();
+  await page.getByText('На сейчас всё готово',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'К программе',exact:true}).click();
+  await page.locator('[data-ss-checkpoint]').click();
+  await page.getByLabel('Some visitors worked during the day.',{exact:true}).check();
+  await page.locator('[name=r0]').fill('used to');
+  await page.locator('[data-ss-checkpoint-save]').click();
+  await page.getByText('Ответы сохранены. Можно продолжить позже.',{exact:true}).waitFor();
+  await page.locator('[data-ss-back]').click();await page.locator('[data-ss-checkpoint]').click();
+  assert.equal(await page.locator('[name=r0]').inputValue(),'used to');
+  await page.getByLabel('There were fewer noise complaints.',{exact:true}).check();
+  await page.getByLabel('Whether learning improved.',{exact:true}).check();
+  await page.locator('[name=r1]').fill('first');await page.locator('[name=r2]').fill('depend on');
+  await page.getByRole('button',{name:'Завершить контрольную',exact:true}).click();
+  await page.getByText('Контрольная сохранена',{exact:false}).waitFor();
+  assert.equal(await page.locator('.ss-feedback[data-correct=true]').count(),6);
+  await page.getByRole('button',{name:'К программе',exact:true}).click();
+  await page.getByText('Следующий новый вариант:',{exact:false}).waitFor();
+  assert.match(await page.locator('[data-ss-checkpoint-panel]').innerText(),/Чтение/);
   await page.locator('[data-ss-language="de"]').click();assert.equal(await page.locator('.ss-unit').count(),8);
   await page.locator('[data-ss-language="fa"]').click();assert.equal(await page.locator('.ss-unit').count(),8);
   await page.locator('.ss-primary[data-ss-lesson]').click();
@@ -65,11 +99,15 @@ const readline=require('node:readline');
   await page.setViewportSize({width:390,height:844});await page.locator('[data-self-study]').click();
   await page.locator('[data-ss-language="en"]').waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  if(process.env.ADELIA_BROWSER_TEST_ARTIFACT_DIR){
+   await fs.mkdir(process.env.ADELIA_BROWSER_TEST_ARTIFACT_DIR,{recursive:true});
+   await page.screenshot({path:path.join(process.env.ADELIA_BROWSER_TEST_ARTIFACT_DIR,'self-study-mobile.png'),fullPage:true});
+  }
   // Session denial is visible and does not render another user's course.
   await context.clearCookies();await page.reload();await page.getByRole('alert').waitFor();
   assert.match(await page.getByRole('alert').innerText(),/Войди в кабинет/);
   assert.equal(await page.locator('.ss-unit').count(),0);
   assert.deepEqual(errors,[]);
-  console.log('PASS: teacher launch, budget, dates, draft restore, grading, history, 3 languages, RTL, XSS, existing-render isolation, navigation, mobile layout and auth denial.');
+  console.log('PASS: teacher launch, budget, dates, drafts, grading, spaced review/reveal recovery, checkpoint drafts/results, history, 3 languages, RTL, XSS, existing-render isolation, navigation, mobile layout and auth denial.');
  }finally{await browser?.close();server.kill('SIGTERM');}
 })().catch(e=>{console.error(e);process.exitCode=1;});

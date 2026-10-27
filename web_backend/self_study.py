@@ -121,7 +121,7 @@ def overview(owner_id):
     return {'owner_id':int(owner_id),'profile':p,'courses':courses,'roadmap':ROADMAP,
             'resources':RESOURCES,'history':list(reversed(attempts[-30:])),
             'measurement_note':'Процент — результат конкретных заданий. Повторные попытки учитываются отдельно. Это не оценка CEFR.',
-            'release_stage':1}
+            'release_stage':2}
 
 
 def _answers(data,item,complete=False):

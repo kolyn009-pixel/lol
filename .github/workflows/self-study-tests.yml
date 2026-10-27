@@ -1,0 +1,40 @@
+name: Personal study checks
+on:
+  push:
+    branches: [feat/personal-language-study-stage1-20261027]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Server and scheduling tests
+        run: |
+          python scripts/self_study_selftest.py
+          python scripts/self_study_practice_selftest.py
+          python -m py_compile learning/language_program.py learning/language_checkpoints.py web_backend/self_study.py web_backend/self_study_practice.py web_backend/self_study_api.py web_backend/api_v7.py
+          node --check web/self_study.js
+      - name: Install browser test dependencies outside the project
+        run: |
+          npm install --prefix "$RUNNER_TEMP/self-study-ui" --no-package-lock --no-save playwright@1.56.1
+          node "$RUNNER_TEMP/self-study-ui/node_modules/playwright/cli.js" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/self-study-ui/node_modules" >> "$GITHUB_ENV"
+      - name: Browser journeys
+        env:
+          ADELIA_BROWSER_TEST_ARTIFACT_DIR: ${{ runner.temp }}/self-study-artifacts
+        run: node scripts/self_study_ui_selftest.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: self-study-browser
+          path: ${{ runner.temp }}/self-study-artifacts
+          if-no-files-found: ignore
