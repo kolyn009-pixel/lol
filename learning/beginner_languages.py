@@ -8,6 +8,14 @@ DATA={
   ('Опыт','I have lived here for two years. I moved here in 2024. I have never studied abroad, but I would like to try.', 'for two years','в течение двух лет','I would like to','я хотела бы'),
   ('Выбор и причины','This course is cheaper than that one. However, the other course has more practice. I will choose it because I need to speak more.', 'cheaper than','дешевле, чем','because','потому что'),
  ],
+ 'de':[
+  ('Знакомство','Hallo. Ich heiße Anna. Ich komme aus Russland. Ich lerne Deutsch.', 'Ich heiße Anna','Меня зовут Анна','Ich lerne Deutsch','Я учу немецкий'),
+  ('Попросить повторить','Entschuldigung, ich verstehe nicht. Können Sie das bitte wiederholen? Bitte sprechen Sie langsamer.', 'Ich verstehe nicht','Я не понимаю','Bitte sprechen Sie langsamer','Говорите помедленнее, пожалуйста'),
+  ('Где я живу','Ich wohne in Moskau. Meine Wohnung ist klein. Der Bahnhof ist in der Nähe.', 'Ich wohne in Moskau','Я живу в Москве','in der Nähe','рядом'),
+  ('В кафе','Guten Tag. Einen Kaffee, bitte. Mit Milch? Ja, bitte. Vielen Dank.', 'Einen Kaffee, bitte','Кофе, пожалуйста','Vielen Dank','Большое спасибо'),
+  ('Мой день','Ich arbeite am Morgen. Am Abend lerne ich Deutsch. Morgen habe ich frei.', 'am Morgen','утром','am Abend','вечером'),
+  ('Узнать дорогу','Entschuldigung, wo ist der Bahnhof? Gehen Sie geradeaus. Der Bahnhof ist links.', 'Wo ist der Bahnhof','Где находится вокзал','Gehen Sie geradeaus','Идите прямо'),
+ ],
  'es':[
   ('Знакомство','Hola. Me llamo Ana. Soy estudiante. Vivo en Moscú. Estoy aprendiendo español.', 'Hola','Привет','Me llamo Ana','Меня зовут Ана'),
   ('Попросить повторить','Perdón, no entiendo. ¿Puede repetir, por favor? Más despacio, por favor. Gracias.', 'No entiendo','Я не понимаю','Más despacio, por favor','Помедленнее, пожалуйста'),
@@ -30,7 +38,7 @@ def units(language):
                'options':[a,b] if j==0 else [b,a],'answers':[expression],'explanation':expression+' — '+meaning},
               {'id':f'd{j}','kind':'recall','prompt':'Вспомни выражение: '+meaning,'answers':[expression],
                'explanation':'Используй выражение из материала: '+expression}])
-        result.append({'id':('en0' if language=='en' else 'es')+f'-{i:02}', 'language':language,'number':i,
+        result.append({'id':{'en':'en0','de':'de0','es':'es'}[language]+f'-{i:02}', 'language':language,'number':i,
                        'title':title,'passage':passage,'phrases':[{'front':a,'back':meaning_a},{'front':b,'back':meaning_b}],
                        'checks':checks,'speaking':'Прочитай вслух, затем замени имя, место или обстоятельства своими. Ответь двумя-тремя фразами без подсказки.',
                        'minutes':20,'source':'Авторский начальный материал. Для произношения нужны озвученные образцы; аудио здесь пока нет.'})

@@ -239,9 +239,9 @@ def lesson(lesson_id, include_keys=False):
         if not include_keys:
             for q in item['checks']:q.pop('answers');q.pop('explanation')
         return item
-    if str(lesson_id).startswith(('en0-','es-')):
+    if str(lesson_id).startswith(('en0-','de0-','es-')):
         from learning.beginner_languages import units as basics
-        code='en' if str(lesson_id).startswith('en0-') else 'es'
+        code={'en0':'en','de0':'de','es':'es'}[str(lesson_id).split('-')[0]]
         item=next((x for x in basics(code) if x['id']==lesson_id),None)
         if item is None:raise ValueError('lesson_not_found')
         if not include_keys:

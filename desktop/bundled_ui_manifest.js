@@ -110,7 +110,10 @@ module.exports={
       "self_study_voice.js",
       "self_study_scenes.js",
       "self_study_settings.js",
-      "self_study_intensive.js"
+      "self_study_intensive.js",
+      "self_study_day.js",
+      "self_study_onboarding.js",
+      "self_study_vocabulary.js"
     ]
   },
   "parent": {

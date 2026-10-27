@@ -14,6 +14,21 @@ const fs=require('node:fs/promises');
   const {port}=await ready,url=`http://127.0.0.1:${port}`;
   browser=await chromium.launch({headless:true});
   const context=await browser.newContext();await context.addCookies([{name:'role',value:'teacher',url}]);
+  async function completeFamilyPlacement(page){
+   await page.locator('[data-placement-required]').first().waitFor();
+   while(await page.locator('[data-placement-required]').count()){
+    await page.locator('[data-placement-required]').first().click();
+    while(true){
+     await page.locator('[data-placement-form]').waitFor();
+     await page.locator('[data-placement-form] input[value="unknown"]').check();
+     const submit=page.locator('[data-placement-form] button[type=submit]');
+     const last=(await submit.innerText()).includes('Получить маршрут');
+     await submit.click();if(last)break;
+    }
+    await page.getByRole('heading',{name:/Сначала выберем точку старта|Результаты и ближайшие цели/}).waitFor();
+   }
+   await page.locator('[data-onboarding-done]').click();
+  }
   const page=await context.newPage(),errors=[];page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'/teacher/');await page.locator('[data-self-study]').click();
   await page.locator('[data-ss-language="en"]').waitFor();
@@ -123,6 +138,7 @@ const fs=require('node:fs/promises');
   assert.equal(await page.locator('.ss-unit').count(),0);
   await context.addCookies([{name:'role',value:'student',url}]);
   await page.goto(url+'/app/self-study.html#invite='+studentToken);
+  await completeFamilyPlacement(page);
   await page.locator('[data-ss-language="es"]').waitFor();
   assert.equal(await page.locator('[data-ss-language="de"]').count(),0);
   await page.locator('[data-ss-entry]').click();
@@ -135,6 +151,7 @@ const fs=require('node:fs/promises');
   await page.locator('[data-ss-language="es"]').click();assert.equal(await page.locator('.ss-unit').count(),11);
   await context.clearCookies();await context.addCookies([{name:'role',value:'parent',url}]);
   await page.goto(url+'/app/self-study.html?role=parent#invite='+parentToken);
+  await completeFamilyPlacement(page);
   await page.locator('[data-ss-language="en"]').waitFor();
   assert.equal(await page.locator('#studyBack').getAttribute('href'),'/app/parent/');
   await page.locator('[data-ss-settings]').click();
@@ -151,6 +168,19 @@ const fs=require('node:fs/promises');
   await page.getByRole('heading',{name:'Цель и цикл практики',exact:true}).waitFor();
   await page.locator('[data-intensive-writing]').fill('Quiero cambiar la hora.');
   await page.getByText('Черновик и самопроверка сохранены на этом устройстве.',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'← К программе',exact:true}).click();
+  await page.locator('[data-day-start="5"]').click();
+  await page.locator('[data-day-next]').waitFor();
+  await page.locator('[data-day-pause]').click();
+  await page.getByRole('heading',{name:'Можно продолжить, когда удобно',exact:true}).waitFor();
+  await page.reload();await page.locator('[data-day-resume]').click();
+  await page.getByRole('button',{name:'Продолжить',exact:true}).click();
+  await page.locator('[data-day-next]').click();
+  await page.locator('[data-day-lesson]').waitFor();
+  await page.locator('[data-day-next]').click();
+  await page.getByText('Сначала выполни задания этого урока и сохрани проверку.',{exact:true}).waitFor();
+  await page.locator('[data-day-lesson]').click();
+  await page.getByRole('button',{name:'Проверить ответы',exact:true}).waitFor();
   assert.deepEqual(errors,[]);
   console.log('PASS: teacher launch, budget, dates, drafts, grading, spaced review/reveal recovery, checkpoint drafts/results, history, 3 languages, RTL, XSS, existing-render isolation, navigation, mobile layout and auth denial.');
  }finally{await browser?.close();server.kill('SIGTERM');}

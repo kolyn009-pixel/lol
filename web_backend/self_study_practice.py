@@ -65,7 +65,10 @@ def _id(value):
 def record_lesson(conn,owner_id,item,results):
     """Runs inside the caller's transaction; schema must exist before BEGIN."""
     current=stamp()
+    from web_backend.self_study import normalise
+    existing_vocab={normalise(r['answer']) for r in conn.execute("SELECT answer FROM personal_study_cards WHERE owner_id=? AND language=? AND source='vocabulary'",(owner_id,item['language']))}
     for index,phrase in enumerate(item['phrases']):
+        if normalise(phrase['front']) in existing_vocab:continue
         conn.execute('''INSERT OR IGNORE INTO personal_study_cards
           (owner_id,language,lesson_id,source,source_key,prompt,answer,due_at)
           VALUES(?,?,?,'phrase',?,?,?,?)''',

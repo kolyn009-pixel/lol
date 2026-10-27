@@ -118,11 +118,11 @@ def overview(owner_id):
     roadmap=ROADMAP
     if owner_id<0 and not p.get('preferences'):
         from learning.beginner_languages import units as basics
-        from web_backend.self_study_entry import result as entry_result
-        diagnostic=entry_result(owner_id)
+        from web_backend.self_study_placement import result as placement_result
+        diagnostic=placement_result(owner_id,'en')
         band=diagnostic['working_band'] if diagnostic else None
         foundation=basics('en')
-        start=0 if band in (None,'A1') else 3 if band=='A2' else 6
+        start=0 if band in (None,'A0','A1') else 3 if band=='A2' else 6
         from learning.intensive_program import additional
         english=foundation[start:]+courses['en'][:8]+[x for x in additional('en') if x['band']=='B2']
         courses={'en':english,'es':basics('es')}

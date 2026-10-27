@@ -4,9 +4,9 @@ from web_backend import self_study_access as access
 from web_backend import self_study_practice as practice
 
 ROOT='/api/teacher/self-study'
-GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences'}
+GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal'}
 
 GET_PATHS |= {p.replace('/teacher/','/student/') for p in list(GET_PATHS)}
 POST_PATHS |= {p.replace('/teacher/','/student/') for p in list(POST_PATHS)}
@@ -38,9 +38,26 @@ class SelfStudyMixin:
                 if not access.is_member(owner,role):raise PermissionError('family_access_required')
                 owner=access.study_identity(role,owner)
             elif not access.is_manager(owner):raise PermissionError('family_owner_required')
+            # Family onboarding is enforced by the server, including direct API links.
+            ungated={ROOT,ROOT+'/profile',ROOT+'/entry',ROOT+'/entry/submit',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/placement/submit'}
+            if student and path not in ungated and not any(path.startswith(ROOT+'/'+prefix) for prefix in ('access','preferences')):
+                from web_backend.self_study_placement import status as placement_status
+                if placement_status(owner)['pending']:raise ValueError('placement_required')
             if not write:
                 q=query or {}
-                if path==ROOT+'/preferences':
+                if path==ROOT+'/placement/status':
+                    from web_backend.self_study_placement import status
+                    payload=status(owner)
+                elif path==ROOT+'/placement':
+                    from web_backend.self_study_placement import get
+                    payload=get(owner,q.get('language',['en'])[0])
+                elif path==ROOT+'/vocabulary':
+                    from web_backend.self_study_vocabulary import status
+                    payload=status(owner,q.get('language',['en'])[0])
+                elif path==ROOT+'/day':
+                    from web_backend.self_study_day import current
+                    payload=current(owner,q.get('language',['en'])[0])
+                elif path==ROOT+'/preferences':
                     from web_backend.self_study_preferences import questionnaire
                     payload=questionnaire(owner)
                 elif path==ROOT+'/access':payload=access.overview(owner)
@@ -51,7 +68,10 @@ class SelfStudyMixin:
                 elif path==ROOT+'/practice':payload=practice.practice(owner,q.get('language',['en'])[0])
                 elif path==ROOT+'/checkpoint/status':payload=practice.checkpoint_status(owner,q.get('language',['en'])[0])
                 elif path==ROOT+'/checkpoint':payload=practice.get_checkpoint(owner,int(q.get('id',['0'])[0]))
-                elif path==ROOT:payload=self_study.overview(owner)
+                elif path==ROOT:
+                    payload=self_study.overview(owner)
+                    from web_backend.self_study_placement import status
+                    payload['placement']=status(owner)
                 elif path==ROOT+'/scenes':
                     from web_backend.self_study_scenes import list_scenes
                     payload=list_scenes(owner,q.get('language',['en'])[0])
@@ -60,7 +80,22 @@ class SelfStudyMixin:
                 data=self._body()
                 if not isinstance(data,dict):
                     return self._json(400,{'error':'invalid_json'})
-                if path==ROOT+'/preferences/save':
+                if path==ROOT+'/placement/submit':
+                    from web_backend.self_study_placement import submit
+                    payload=submit(owner,data)
+                elif path==ROOT+'/vocabulary/start':
+                    from web_backend.self_study_vocabulary import start
+                    payload=start(owner,data)
+                elif path==ROOT+'/vocabulary/goal':
+                    from web_backend.self_study_vocabulary import save_goal
+                    payload=save_goal(owner,data)
+                elif path==ROOT+'/day/start':
+                    from web_backend.self_study_day import start
+                    payload=start(owner,data)
+                elif path==ROOT+'/day/update':
+                    from web_backend.self_study_day import update
+                    payload=update(owner,data)
+                elif path==ROOT+'/preferences/save':
                     from web_backend.self_study_preferences import save
                     payload=save(owner,data)
                 elif path==ROOT+'/access/invite':payload=access.issue(owner,data)
@@ -88,12 +123,12 @@ class SelfStudyMixin:
             return self._json(403,{'error':str(exc) if str(exc) in {'family_access_required','family_owner_required','invalid_family_invite'} else 'family_access_required'})
         except (ValueError,TypeError,KeyError) as exc:
             # Known validation codes only; no user answers or provider details in logs.
-            allowed={'invalid_language','lesson_not_found','invalid_answers','answer_all_questions',
+            allowed={'placement_required','invalid_word_goal','invalid_language','lesson_not_found','invalid_answers','answer_all_questions',
                      'invalid_request_id','request_conflict','invalid_daily_minutes',
                      'invalid_target_dates','invalid_target_date','invalid_id','invalid_version',
                      'card_not_found','stale_review','card_not_due','invalid_rating','review_not_found',
                      'checkpoint_not_found','no_new_checkpoints','checkpoint_not_due','checkpoint_finished',
-                     'invalid_preferences','invalid_family_account','diagnostic_incomplete','invalid_transcript','feedback_consent_required','invalid_scene','invalid_scene_time',
+                     'invalid_session_minutes','invalid_timezone','invalid_session','session_not_found','session_changed','session_paused','practice_result_required','review_result_required','reflection_required','invalid_preferences','invalid_family_account','diagnostic_incomplete','invalid_transcript','feedback_consent_required','invalid_scene','invalid_scene_time',
                      'invalid_scene_phrases','scene_not_found'}
             error=str(exc)
             return self._json(400,{'error':error if error in allowed else 'invalid_request'})

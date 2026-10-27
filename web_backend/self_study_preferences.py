@@ -133,12 +133,18 @@ def owned_resource(owner,resource_id):
 
 def adapt(owner,p,attempts):
     from learning.beginner_languages import units as basics
-    from web_backend.self_study_entry import result as entry_result
+    from web_backend.self_study_placement import result as placement_result
     cfg=p['preferences'];all_courses=catalogue();all_courses['es']=basics('es')
-    courses={};roadmap={};diagnostic=entry_result(owner)
+    courses={};roadmap={}
     for code in cfg['courses']:
         level=cfg['levels'][code]
-        if code=='en' and diagnostic:level=diagnostic['working_band']
+        diagnostic=placement_result(owner,code)
+        if diagnostic:
+            level=diagnostic['working_band']
+            p['languages'][code]['start']='Рабочий ориентир '+level+' · чтение/грамматика'
+            if level=='B2' and cfg['levels'][code]=='C1':
+                level='C1'
+                p['languages'][code]['start']='B2: стартовая проверка пройдена; C1 по самооценке — пробуем сложные задания, уровень не подтверждён'
         items=all_courses[code]
         if code=='en':
             start=0 if level in ('unknown','A0','A1') else 3 if level=='A2' else 6
@@ -146,6 +152,8 @@ def adapt(owner,p,attempts):
             if level=='C1':
                 from learning.intensive_program import additional
                 items=[x for x in additional('en') if x['band']=='C1']+all_courses['en'][8:12]
+        if code=='de' and level in ('unknown','A0','A1','A2'):
+            items=basics('de')+items
         if code=='de' and level=='C1':
             from learning.intensive_program import additional
             items=additional('de')
@@ -153,7 +161,9 @@ def adapt(owner,p,attempts):
         roadmap[code]=[['Точка старта',p['languages'][code]['start'],'Диагностика уточняет уровень; самооценка не подтверждает CEFR.'],
                        ['Ближайшие недели',cfg['goals'][code],'Короткие занятия по интересам, повторения и пересказ.'],
                        ['Каждые четыре недели','Проверить результат на новом материале','Знакомые повторы учитывать отдельно.']]
-        p['languages'][code]['content_note']='Добавлен первый интенсивный блок с целями, речью, коротким письмом и переносом. Полный курс до целевого уровня ещё не сформирован.'
+        p['languages'][code]['content_note']=('Есть шесть начальных модулей немецкого; переход от них к B1 ещё требует дополнительного материала. ' if code=='de' and level in ('A0','A1','A2','unknown') else '')+'Добавлен первый интенсивный блок с целями, речью, коротким письмом и переносом. Полный курс до целевого уровня ещё не сформирован.'
+        if code=='es' and level in ('B1','B2','C1'):
+            p['languages'][code]['content_note']='Испанские модули пока начальные: можно повторить основу, но для твоего стартового результата нужны новые материалы более высокого уровня. Это ещё не подходящий полный маршрут.'
         recent=[a for a in attempts if a['language']==code][-3:]
         accuracy=sum(a['correct'] for a in recent)/sum(a['total'] for a in recent) if recent else None
         p['languages'][code]['practice_focus']=('Снизь сложность: разбор примера и короткие ответы с опорой.' if accuracy is not None and accuracy<.6 else
