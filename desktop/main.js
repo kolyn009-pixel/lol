@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, shell, session, dialog, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, shell, session, dialog, ipcMain, screen, Tray, Menu, nativeImage, net } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -249,6 +249,7 @@ function createTray() {
 }
 
 async function installDownloadedUpdate() {
+ if(macDmgUpdater)return macDmgUpdater.install();
  if(updateState.status!=='downloaded')return false;
  if(lessonWindows.size>0){sendUpdateState({status:'downloaded',message:'Завершите занятие перед установкой обновления.'});return false;}
  // An individual lesson can remain active after its video windows are closed.
@@ -261,7 +262,9 @@ async function installDownloadedUpdate() {
  autoUpdater.quitAndInstall(false,true);return true;
 }
 
+let macDmgUpdater=null;
 function setupAutoUpdates() {
+ if(macDmgUpdater){const check=()=>macDmgUpdater.check();setTimeout(check,15000);updateTimer=setInterval(check,UPDATE_CHECK_MS);return;}
   autoUpdater.autoDownload=false; autoUpdater.autoInstallOnAppQuit=false;
   autoUpdater.channel=UPDATE_CHANNEL;
   autoUpdater.allowPrerelease=UPDATE_CHANNEL==='beta';
@@ -304,6 +307,13 @@ if (!gotSingleInstanceLock) {
   app.on('open-url', (event, url) => { event.preventDefault(); handleDeepLink(url); });
 
   app.whenReady().then(async()=>{
+    if(process.platform==='darwin'&&app.isPackaged){
+      macDmgUpdater=require('./mac_dmg_updates').create({app,dialog,shell,net,getWindow:()=>mainWindow,sendState:sendUpdateState,baseURL:UPDATE_BASE_URL,arch:process.arch,hasLesson:async()=>{
+        if(lessonWindows.size>0)return true;
+        try{return mainWindow&&!mainWindow.isDestroyed()?await mainWindow.webContents.executeJavaScript("Boolean(document.querySelector('#finishNow,#finishLiveLesson,.lesson-finish-primary'))",true):false;}catch{return true;}
+      }});
+      if(await macDmgUpdater.startup())return;
+    }
     if (process.platform === 'win32') app.setAppUserModelId('ru.adeliatutor.desktop');
     if (app.isPackaged) app.setAsDefaultProtocolClient(PROTOCOL);
     else if (process.defaultApp && process.argv[1]) app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
@@ -335,7 +345,7 @@ if (!gotSingleInstanceLock) {
     ipcMain.handle('adelia:device-check-close',(event)=>{if(!deviceCheckWindow||event.sender!==deviceCheckWindow.webContents)return false;deviceCheckWindow.close();return true;});
     ipcMain.handle('adelia:open-about',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;return openAboutWindow();});
     ipcMain.handle('adelia:about-info',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;return {version:app.getVersion(),channel:UPDATE_CHANNEL==='beta'?'Beta':'Stable',platform:process.platform,arch:process.arch,updateTarget:UPDATE_TARGET,buildSha:buildSha(),packaged:app.isPackaged,updateState};});
-    ipcMain.handle('adelia:about-check-updates',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;if(!app.isPackaged)return sendUpdateState({status:'current'});if(lessonWindows.size>0)return sendUpdateState({status:'error',message:'Завершите текущее занятие перед проверкой обновления.'});try{sendUpdateState({status:'checking'});await autoUpdater.checkForUpdates();return updateState}catch(err){return sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'})}});
+    ipcMain.handle('adelia:about-check-updates',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;if(!app.isPackaged)return sendUpdateState({status:'current'});if(lessonWindows.size>0)return sendUpdateState({status:'error',message:'Завершите текущее занятие перед проверкой обновления.'});try{sendUpdateState({status:'checking'});if(macDmgUpdater)await macDmgUpdater.check();else await autoUpdater.checkForUpdates();return updateState}catch(err){return sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'})}});
     ipcMain.handle('adelia:about-install-update',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents||updateState.status!=='downloaded')return false;return installDownloadedUpdate();});
     ipcMain.handle('adelia:about-close',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return false;aboutWindow.close();return true;});
 
