@@ -141,6 +141,13 @@ def overview(owner_id):
     if p.get('preferences'):
         from web_backend.self_study_preferences import adapt
         courses,roadmap,personal_resources=adapt(owner_id,p,attempts)
+    from web_backend import self_study_routes as route_service
+    routes={code:route_service.state(owner_id,code,p,attempts) for code in courses}
+    for code,route in routes.items():
+        if route['enabled']:
+            sequenced=route_service.course(route)
+            if sequenced:courses[code]=sequenced
+            p['languages'][code]['content_note']='Последовательные стартовые блоки с переходом по новому тексту. Это ещё не полный объём каждого уровня; аудирование, речь и письмо проверяются отдельно.'
     for code,items in courses.items():
         for item in items:
             records=[a for a in attempts if a['lesson_id']==item['id']]
@@ -156,7 +163,7 @@ def overview(owner_id):
     return {'owner_id':int(owner_id),'profile':p,'courses':courses,'roadmap':roadmap,
             'resources':personal_resources if personal_resources is not None else ([r for r in RESOURCES if r['language'] in p['languages'] and r['id'] not in ('landman','schwarzes-gold','billion-dollar-code')] if owner_id<0 else RESOURCES),'history':list(reversed(attempts[-30:])),
             'measurement_note':'Процент — результат конкретных заданий. Повторные попытки учитываются отдельно. Это не оценка CEFR.',
-            'release_stage':2}
+            'release_stage':3,'routes':routes}
 
 
 def _answers(data,item,complete=False):

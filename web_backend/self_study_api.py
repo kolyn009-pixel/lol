@@ -4,9 +4,9 @@ from web_backend import self_study_access as access
 from web_backend import self_study_practice as practice
 
 ROOT='/api/teacher/self-study'
-GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary'}
+GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary',ROOT+'/route',ROOT+'/route/check'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal',ROOT+'/route/activate',ROOT+'/route/check'}
 
 GET_PATHS |= {p.replace('/teacher/','/student/') for p in list(GET_PATHS)}
 POST_PATHS |= {p.replace('/teacher/','/student/') for p in list(POST_PATHS)}
@@ -45,7 +45,13 @@ class SelfStudyMixin:
                 if placement_status(owner)['pending']:raise ValueError('placement_required')
             if not write:
                 q=query or {}
-                if path==ROOT+'/placement/status':
+                if path==ROOT+'/route':
+                    from web_backend.self_study_routes import view
+                    payload=view(owner,q.get('language',['en'])[0])
+                elif path==ROOT+'/route/check':
+                    from web_backend.self_study_routes import get_check
+                    payload=get_check(owner,q.get('language',['en'])[0],q.get('band',[''])[0])
+                elif path==ROOT+'/placement/status':
                     from web_backend.self_study_placement import status
                     payload=status(owner)
                 elif path==ROOT+'/placement':
@@ -80,7 +86,13 @@ class SelfStudyMixin:
                 data=self._body()
                 if not isinstance(data,dict):
                     return self._json(400,{'error':'invalid_json'})
-                if path==ROOT+'/placement/submit':
+                if path==ROOT+'/route/activate':
+                    from web_backend.self_study_routes import activate
+                    payload=activate(owner,data.get('language'))
+                elif path==ROOT+'/route/check':
+                    from web_backend.self_study_routes import submit_check
+                    payload=submit_check(owner,data)
+                elif path==ROOT+'/placement/submit':
                     from web_backend.self_study_placement import submit
                     payload=submit(owner,data)
                 elif path==ROOT+'/vocabulary/start':
@@ -123,7 +135,7 @@ class SelfStudyMixin:
             return self._json(403,{'error':str(exc) if str(exc) in {'family_access_required','family_owner_required','invalid_family_invite'} else 'family_access_required'})
         except (ValueError,TypeError,KeyError) as exc:
             # Known validation codes only; no user answers or provider details in logs.
-            allowed={'placement_required','invalid_word_goal','invalid_language','lesson_not_found','invalid_answers','answer_all_questions',
+            allowed={'route_materials_missing','route_check_locked','placement_required','invalid_word_goal','invalid_language','lesson_not_found','invalid_answers','answer_all_questions',
                      'invalid_request_id','request_conflict','invalid_daily_minutes',
                      'invalid_target_dates','invalid_target_date','invalid_id','invalid_version',
                      'card_not_found','stale_review','card_not_due','invalid_rating','review_not_found',

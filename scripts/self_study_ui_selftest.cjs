@@ -149,7 +149,7 @@ const fs=require('node:fs/promises');
   await page.getByRole('button',{name:'Открыть программу',exact:true}).click();
   await page.locator('[data-ss-language="es"]').waitFor();
   assert.match(await page.locator('.ss-primary[data-ss-lesson]').getAttribute('data-ss-lesson'),/^en0-/);
-  await page.locator('[data-ss-language="es"]').click();assert.equal(await page.locator('.ss-unit').count(),11);
+  await page.locator('[data-ss-language="es"]').click();assert.equal(await page.locator('.ss-unit').count(),23);
   await context.clearCookies();await context.addCookies([{name:'role',value:'parent',url}]);
   await page.goto(url+'/app/self-study.html?role=parent#invite='+parentToken);
   await completeFamilyPlacement(page);

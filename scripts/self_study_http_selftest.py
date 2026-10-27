@@ -72,6 +72,8 @@ class Tests(unittest.TestCase):
         for role in ('student','parent'):
             self.configure_and_place(role)
             state=self.api(role=role);self.assertEqual([],state['placement']['pending'])
+            route=self.api('/route?language=es',role=role);self.assertTrue(route['enabled']);self.assertEqual('A1',route['current_band'])
+            error=self.api('/route/check?language=es&band=A2',role=role,expected=400);self.assertEqual('route_check_locked',error['error'])
             s=self.api('/day/start',role=role,body={'language':'es','minutes':5,'timezone':'Europe/Moscow'})['session']
             self.assertEqual('es-01',s['lesson_id'])
             def update(session,action='advance',**extra):

@@ -61,10 +61,15 @@ def start(owner,data):
     cfg=state['profile'].get('preferences')
     if owner<0 and diagnostic(owner,language) is None:
         return {'action':'diagnostic','note':'Сначала стартовая проверка выбранного языка, чтобы выбрать начальную точку.'}
+    route=state.get('routes',{}).get(language)
+    if route and route['enabled'] and route['next_action']!='lesson':
+        return {'action':'route_check' if route['next_action']=='check' else 'route_review','language':language,
+                'band':route['current_band'],'note':'Открой маршрут: следующий шаг — проверка блока или его итог, а не повторное назначение старого урока.'}
     course=state['courses'][language]
     unfinished=[item for item in course if not item['passed']]
     draft=next((item for item in unfinished if item['draft']),None)
-    chosen=draft or (unfinished[0] if unfinished else course[0])
+    route_next=next((item for item in course if route and route['enabled'] and item['id']==route['next_lesson']),None)
+    chosen=route_next or draft or (unfinished[0] if unfinished else course[0])
     exhausted=not unfinished
     has_review=practice(owner,language)['due']>0
     plan=_plan(minutes,has_review)

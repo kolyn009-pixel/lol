@@ -107,17 +107,17 @@ DATA={
 ]}
 
 
-def additional(language):
+def build(language,specs,prefix='x'):
     result=[]
-    for i,(title,band,passage,questions,drills,phrases,transfer) in enumerate(DATA[language],1):
+    for i,(title,band,passage,questions,drills,phrases,transfer) in enumerate(specs,1):
         checks=[]
         for j,(prompt,answer,other) in enumerate(questions):
             checks.append({'id':f'q{j}','kind':'choice','prompt':prompt,'options':[other,answer] if j%2 else [answer,other],
                            'answers':[answer],'explanation':'Опора в тексте: '+answer})
         for j,(prompt,answer,why) in enumerate(drills):
             checks.append({'id':f'd{j}','kind':'recall','prompt':prompt,'answers':[answer],'explanation':why})
-        if language=='en' and i==5:checks[2]['answers'].append('provided that')
-        result.append({'id':f'{language}x-{i:02}','language':language,'number':100+i,'title':title,'band':band,
+        if prefix=='x' and language=='en' and i==5:checks[2]['answers'].append('provided that')
+        result.append({'id':f'{language}{prefix}-{i:02}','language':language,'number':100+i,'title':title,'band':band,
                        'passage':passage,'phrases':[{'front':a,'back':b} for a,b in phrases],'checks':checks,
                        'speaking':transfer,'minutes':25,'source':'Оригинальное задание Аделии. Не официальный материал Cambridge.',
                        'objective':'После блока: '+transfer,
@@ -132,6 +132,9 @@ def additional(language):
                          {'stage':'Проверить и повторить','minutes':5,'task':'Сверь ответ с целью, разбери обратную связь и повтори с одним изменением ситуации.'}],
                        'block_note':'Три встречи с модулем: понимание; применение через день; перенос на новую ситуацию через неделю. Часы не гарантируют уровень.'})
     return deepcopy(result)
+
+
+def additional(language):return build(language,DATA[language])
 
 
 def get(lesson_id):

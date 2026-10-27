@@ -19,7 +19,7 @@ async function mount(host,options){
  host.querySelectorAll('[data-day-start]').forEach(b=>b.onclick=async()=>{
   if(!options.canLeave())return;host.querySelectorAll('button').forEach(x=>x.disabled=true);
   try{const result=await api('/start',{language:options.language,minutes:Number(b.dataset.dayStart),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'Europe/Moscow'});if(token!==revision||!host.isConnected)return;
-   if(result.action==='diagnostic'){options.diagnostic();return;}session=result.session;render(result.note);
+   if(result.action==='diagnostic'){options.diagnostic();return;}if(['route_check','route_review'].includes(result.action)){options.route();return;}session=result.session;render(result.note);
   }catch(e){if(host.isConnected)host.querySelector('[data-day-widget-status]').textContent=e.message;}
   finally{if(host.isConnected)host.querySelectorAll('button').forEach(x=>x.disabled=false);}
  });

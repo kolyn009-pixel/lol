@@ -233,6 +233,12 @@ def units(language):
 
 
 def lesson(lesson_id, include_keys=False):
+    if str(lesson_id).split('-')[0] in ('enb','deb','esb','fab'):
+        from learning.route_bridges import get
+        item=get(lesson_id)
+        if not include_keys:
+            for q in item['checks']:q.pop('answers');q.pop('explanation')
+        return item
     if str(lesson_id).split('-')[0] in ('enx','dex','esx','fax'):
         from learning.intensive_program import get
         item=get(lesson_id)

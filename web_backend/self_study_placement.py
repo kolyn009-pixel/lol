@@ -81,4 +81,8 @@ def submit(owner,data):
           DO UPDATE SET answers=excluded.answers,result=excluded.result,updated_at=excluded.updated_at''',
           (owner,language,json.dumps(answers),json.dumps(out,ensure_ascii=False),out['assessed_at']));conn.commit()
     finally:conn.close()
+    from web_backend.self_study import profile
+    if language in profile(owner)['languages']:
+        from web_backend.self_study_routes import activate
+        activate(owner,language,recalibrate=True)
     return out

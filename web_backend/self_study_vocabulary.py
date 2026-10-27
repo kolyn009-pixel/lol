@@ -28,10 +28,16 @@ def _context(owner,language):
     if language not in state['courses']:raise ValueError('invalid_language')
     sync_lessons(owner);ensure_schema()
     bank={}
+    route=state.get('routes',{}).get(language)
+    permitted={item['id'] for node in route['stages'] if node['status'] in ('review','learning','complete','check_ready') for item in node['lessons']} if route and route['enabled'] else None
+    potential=set()
     for unit in state['courses'][language]:
         for phrase in lesson(unit['id'])['phrases']:
+            potential.add(normalise(phrase['front']))
+            if permitted is not None and unit['id'] not in permitted:continue
             bank.setdefault(normalise(phrase['front']),{'front':phrase['front'],'back':phrase['back']})
-    return state['profile']['languages'][language],bank
+    spec={**state['profile']['languages'][language],'word_target_default':min(30,len(potential))}
+    return spec,bank
 
 
 def _snapshot(conn,owner,language,spec,bank):
@@ -39,7 +45,7 @@ def _snapshot(conn,owner,language,spec,bank):
     today=clock().date();day=today.isoformat()
     row=conn.execute('SELECT target,deadline FROM personal_study_word_goals WHERE owner_id=? AND language=?',(owner,language)).fetchone()
     default_date=min(spec.get('target_date') or '2036-12-31',(today+timedelta(days=28)).isoformat())
-    target,deadline=(row['target'],row['deadline']) if row else (min(30,len(bank)),default_date)
+    target,deadline=(row['target'],row['deadline']) if row else (spec['word_target_default'],default_date)
     existing=conn.execute("SELECT answer FROM personal_study_cards WHERE owner_id=? AND language=? AND source!='error'",(owner,language)).fetchall()
     known={normalise(x['answer']) for x in existing};available=[(key,value) for key,value in bank.items() if key not in known]
     due=conn.execute('SELECT COUNT(*) FROM personal_study_cards WHERE owner_id=? AND language=? AND due_at<=?',(owner,language,clock().isoformat(timespec='seconds'))).fetchone()[0]
