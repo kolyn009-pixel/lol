@@ -34,8 +34,8 @@ async function resume(){
 function render(note=''){
  const opts=context,s=session,root=opts.root();if(!root)return;opts.enter();
  const completed=s.status==='FINISHED',stage=s.plan[s.step],item=s.material;
- root.innerHTML=`<div class="ss-heading"><button class="ss-secondary" data-day-home>← К программе</button><span class="ss-pill">${esc(s.language.toUpperCase())} · план ${s.minutes} мин</span></div><section class="ss-panel"><h2>${completed?'Занятие завершено':s.status==='PAUSED'?'Можно продолжить, когда удобно':esc(stage.title)}</h2><p class="ss-muted">${esc(note||s.note)}</p><progress max="${s.plan.length}" value="${s.step}" aria-label="Этапы занятия"></progress><ol>${s.plan.map((p,i)=>`<li>${i<s.step?'✓ ':''}${esc(p.title)} · около ${p.minutes} мин</li>`).join('')}</ol><div data-day-body></div><div class="ss-actions"><button class="ss-secondary" data-day-pause ${completed||s.status==='PAUSED'?'hidden':''}>Сохранить паузу</button><button class="ss-secondary" data-day-refresh ${completed?'hidden':''}>Обновить занятие</button></div><p class="ss-status" data-day-status role="status"></p></section>`;
- root.querySelector('[data-day-home]').onclick=opts.back;
+ root.innerHTML=`<div class="ss-heading"><button class="ss-secondary" data-day-home>← К программе</button><span class="ss-pill">${esc(s.language.toUpperCase())} · план ${s.minutes} мин</span></div><section class="ss-panel"><h2>${completed?'Занятие завершено':s.status==='PAUSED'?'Можно продолжить, когда удобно':esc(stage.title)}</h2><p class="ss-muted">${esc(note||s.note)}</p><progress max="${s.plan.length}" value="${s.step}" aria-label="Этапы занятия"></progress><ol>${s.plan.map((p,i)=>`<li>${i<s.step?'✓ ':''}${esc(p.title)} · около ${p.minutes} мин</li>`).join('')}</ol><div data-day-body></div><div class="ss-actions"><button class="ss-secondary" data-day-lite ${completed?'hidden':''}>Сократить оставшееся до 5 минут</button><button class="ss-secondary" data-day-pause ${completed||s.status==='PAUSED'?'hidden':''}>Сохранить паузу</button><button class="ss-secondary" data-day-refresh ${completed?'hidden':''}>Обновить занятие</button></div><p class="ss-status" data-day-status role="status"></p></section>`;
+ root.querySelector('[data-day-home]').onclick=opts.back;root.querySelector('[data-day-lite]').onclick=()=>advance('shorten',undefined,5);
  root.querySelector('[data-day-pause]').onclick=()=>advance('pause');root.querySelector('[data-day-refresh]').onclick=resume;
  const body=root.querySelector('[data-day-body]');
  if(completed){const result=s.evidence.find(x=>x.type==='checked_task');body.innerHTML=`<h3>Что получилось</h3><p>${result?`Проверенные задания: ${result.correct}/${result.total}.`:'Здесь нет нового результата проверки.'}</p><p class="ss-muted">Устное применение — самооценка, не подтверждение уровня. ${result&&result.correct/result.total<.75?'В следующий раз начни с объяснений к ошибкам.':'Следующий шаг подберётся по сохранённой программе.'}</p><button class="ss-primary" data-day-done>Готово на сегодня</button>`;body.querySelector('button').onclick=opts.back;return;}
@@ -55,12 +55,18 @@ function render(note=''){
   window.AdeliaStudyVoice?.mount(body.querySelector('[data-day-voice]'),{owner_id:opts.owner_id,lesson_id:item.id,language:s.language,prompt:item.transfer||item.speaking});
  }
 }
-async function advance(action,reflection){
+async function advance(action,reflection,minutes){
  if(!session||!context.canLeave())return;const root=context.root(),token=revision;
  root.querySelectorAll('button').forEach(x=>x.disabled=true);context.busy(true);
- try{const d=await api('/update',{session_id:session.id,version:session.version,action,reflection});if(token!==revision)return;session=d.session;render();}
+ try{const d=await api('/update',{session_id:session.id,version:session.version,action,reflection,minutes});if(token!==revision)return;session=d.session;render();}
  catch(e){if(root.isConnected)root.querySelector('[data-day-status]').textContent=e.message;}
  finally{context.busy(false);if(root.isConnected)root.querySelectorAll('button').forEach(x=>x.disabled=false);}
 }
-window.AdeliaStudyDay={mount,resume,hasSession:id=>Boolean(session&&(!id||session.lesson_id===id)&&session.status!=='FINISHED')};
+async function quick(minutes){
+ if(!context||!context.canLeave())return;const opts=context,token=++revision;
+ try{const d=await api('/start',{language:opts.language,minutes,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'Europe/Moscow'});if(token!==revision)return;
+ if(d.action==='diagnostic'){opts.diagnostic();return;}if(['route_check','route_review'].includes(d.action)){opts.route();return;}
+ session=d.session;const shortened=await api('/update',{session_id:session.id,version:session.version,action:'shorten',minutes});if(token!==revision)return;session=shortened.session;render();
+ }catch(e){alert(e.message);}}
+window.AdeliaStudyDay={mount,resume,quick,hasSession:id=>Boolean(session&&(!id||session.lesson_id===id)&&session.status!=='FINISHED')};
 })();

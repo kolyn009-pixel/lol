@@ -1,7 +1,7 @@
 /* Device-local recordings. No audio is uploaded by this component. */
 (()=>{'use strict';
 if(window.AdeliaStudyVoice)return;
-let dispose=null,hasUnsaved=()=>false;
+let dispose=null,hasUnsaved=()=>false;const pendingWrites=new Set();
 const locales={en:'en-GB',de:'de-DE',fa:'fa-IR',es:'es-ES'};
 function database(){return new Promise((resolve,reject)=>{
  const request=indexedDB.open('adelia-personal-voice',1);
@@ -36,7 +36,7 @@ function mount(node,context){
   url=URL.createObjectURL(saved.blob);const audio=document.createElement('audio');audio.controls=true;audio.src=url;audio.style.width='100%';audio.style.marginTop='16px';
   const a=document.createElement('a');a.href=url;a.download=context.lesson_id+'-answer.'+(saved.blob.type.includes('mp4')?'m4a':'webm');a.textContent='Скачать запись';a.className='ss-secondary';box.append(audio,a);
  }
- async function save(){saved.updated_at=new Date().toISOString();await storage(key,saved,true);}
+ async function save(){saved.updated_at=new Date().toISOString();const p=storage(key,saved,true);pendingWrites.add(p);try{await p;}finally{pendingWrites.delete(p);}}
  function release(){stream?.getTracks().forEach(t=>t.stop());stream=null;clearTimeout(timer);timer=null;}
  function halt(){if(recorder&&recorder.state!=='inactive')recorder.stop();else release();}
  record.onclick=async()=>{
@@ -50,7 +50,7 @@ function mount(node,context){
    recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};
    recorder.onerror=()=>{status('Не удалось записать звук. Проверь микрофон.');halt();};
    recorder.onstop=async()=>{
-    release();const blob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});recorder=null;
+    release();if(closed){recorder=null;return;}const blob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});recorder=null;
     if(!closed){record.disabled=true;dictate.disabled=true;stop.disabled=true;}
     if(!blob.size){if(!closed){record.disabled=false;dictate.disabled=!Recognition;}status('Запись оказалась пустой. Попробуй снова.');return;}
     saved.blob=blob;recordingDirty=true;
@@ -103,5 +103,9 @@ function mount(node,context){
  function cleanup(){if(closed)return;closed=true;observer.disconnect();recognizer?.abort();halt();release();if(url)URL.revokeObjectURL(url);}
  dispose=cleanup;
 }
-window.AdeliaStudyVoice={mount,hasUnsaved:()=>hasUnsaved(),stop:()=>dispose?.()};
+async function clearOwn(owner){
+ if(!Number.isSafeInteger(owner))throw Error('invalid_owner');dispose?.();await Promise.allSettled([...pendingWrites]);const db=await database();let count=0;
+ try{await new Promise((resolve,reject)=>{const tx=db.transaction('answers','readwrite'),req=tx.objectStore('answers').openCursor();req.onsuccess=()=>{const c=req.result;if(!c)return;if(String(c.key).startsWith(String(owner)+':')){c.delete();count++;}c.continue();};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}finally{db.close();}return count;
+}
+window.AdeliaStudyVoice={mount,clearOwn,hasUnsaved:()=>hasUnsaved(),stop:()=>dispose?.()};
 })();

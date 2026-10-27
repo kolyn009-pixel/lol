@@ -36,6 +36,9 @@ jobs:
           python scripts/self_study_listening_selftest.py
           python scripts/self_study_conversation_selftest.py
           python scripts/self_study_skills_selftest.py
+          python scripts/self_study_comfort_selftest.py
+          node scripts/self_study_local_privacy_selftest.cjs
+          node --check web/self_study_comfort.js
           node --check web/self_study_skills.js
           node --check web/self_study_conversation.js
           node --check web/self_study_listening.js

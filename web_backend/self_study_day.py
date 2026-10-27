@@ -96,7 +96,7 @@ def start(owner,data):
 def update(owner,data):
     sid,version=data.get('session_id'),data.get('version');action=data.get('action')
     if type(sid) is not int or type(version) is not int:raise ValueError('invalid_session')
-    if action not in ('advance','skip_review','pause','resume'):raise ValueError('invalid_session')
+    if action not in ('advance','skip_review','pause','resume','shorten'):raise ValueError('invalid_session')
     ensure_schema();conn=connect()
     try:
         conn.execute('BEGIN IMMEDIATE')
@@ -105,7 +105,16 @@ def update(owner,data):
         if row['version']!=version:raise ValueError('session_changed')
         if row['status']=='FINISHED':return {'session':_payload(row)}
         step=row['step'];plan=json.loads(row['plan']);evidence=json.loads(row['evidence']);status=row['status']
-        if action=='pause':status='PAUSED'
+        if action=='shorten':
+            minutes=data.get('minutes')
+            remaining=sum(p['minutes'] for p in plan[step:])
+            if type(minutes) is not int or minutes not in (5,10):raise ValueError('invalid_short_minutes')
+            budget=min(minutes,remaining);parts=plan[step:]
+            # Preserve every prerequisite and completed step; shorten estimates only.
+            allocation=[max(1,budget//len(parts)) for _ in parts];allocation[-1]+=budget-sum(allocation)
+            for p,n in zip(parts,allocation):p['minutes']=n
+            status='ACTIVE'
+        elif action=='pause':status='PAUSED'
         elif action=='resume':status='ACTIVE'
         else:
             if status=='PAUSED':raise ValueError('session_paused')
@@ -129,8 +138,8 @@ def update(owner,data):
                 record['reflection']=reflection
             evidence.append(record);step+=1
             if step>=len(plan):status='FINISHED'
-        conn.execute('''UPDATE personal_study_sessions SET step=?,status=?,version=version+1,evidence=?,updated_at=?
-          WHERE id=?''',(step,status,json.dumps(evidence,ensure_ascii=False),datetime.now(timezone.utc).isoformat(timespec='seconds'),sid))
+        conn.execute('''UPDATE personal_study_sessions SET step=?,status=?,version=version+1,evidence=?,updated_at=?,plan=?,minutes=?
+          WHERE id=?''',(step,status,json.dumps(evidence,ensure_ascii=False),datetime.now(timezone.utc).isoformat(timespec='seconds'),json.dumps(plan,ensure_ascii=False),sum(p['minutes'] for p in plan),sid))
         updated=conn.execute('SELECT * FROM personal_study_sessions WHERE id=?',(sid,)).fetchone();conn.commit()
         return {'session':_payload(updated)}
     except Exception:conn.rollback();raise

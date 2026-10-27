@@ -4,9 +4,9 @@ from web_backend import self_study_access as access
 from web_backend import self_study_practice as practice
 
 ROOT='/api/teacher/self-study'
-GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary',ROOT+'/route',ROOT+'/route/check',ROOT+'/listening',ROOT+'/conversation',ROOT+'/skills',ROOT+'/skills/task'}
+GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary',ROOT+'/route',ROOT+'/route/check',ROOT+'/listening',ROOT+'/conversation',ROOT+'/skills',ROOT+'/skills/task',ROOT+'/comfort'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal',ROOT+'/route/activate',ROOT+'/route/check',ROOT+'/listening/start',ROOT+'/listening/submit',ROOT+'/conversation/start',ROOT+'/conversation/answer',ROOT+'/skills/start',ROOT+'/skills/sample'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal',ROOT+'/route/activate',ROOT+'/route/check',ROOT+'/listening/start',ROOT+'/listening/submit',ROOT+'/conversation/start',ROOT+'/conversation/answer',ROOT+'/skills/start',ROOT+'/skills/sample',ROOT+'/comfort/save'}
 
 GET_PATHS |= {p.replace('/teacher/','/student/') for p in list(GET_PATHS)}
 POST_PATHS |= {p.replace('/teacher/','/student/') for p in list(POST_PATHS)}
@@ -45,7 +45,10 @@ class SelfStudyMixin:
                 if placement_status(owner)['pending']:raise ValueError('placement_required')
             if not write:
                 q=query or {}
-                if path==ROOT+'/skills':
+                if path==ROOT+'/comfort':
+                    from web_backend.self_study_comfort import report
+                    payload=report(owner,q.get('language',['en'])[0])
+                elif path==ROOT+'/skills':
                     from web_backend.self_study_skills import report
                     payload=report(owner,q.get('language',['en'])[0])
                 elif path==ROOT+'/skills/task':
@@ -98,7 +101,10 @@ class SelfStudyMixin:
                 data=self._body()
                 if not isinstance(data,dict):
                     return self._json(400,{'error':'invalid_json'})
-                if path==ROOT+'/skills/start':
+                if path==ROOT+'/comfort/save':
+                    from web_backend.self_study_comfort import save
+                    payload=save(owner,data)
+                elif path==ROOT+'/skills/start':
                     from web_backend.self_study_skills import cycle
                     payload=cycle(owner,data.get('language'),start=True)
                 elif path==ROOT+'/skills/sample':
@@ -165,7 +171,7 @@ class SelfStudyMixin:
             return self._json(403,{'error':str(exc) if str(exc) in {'family_access_required','family_owner_required','invalid_family_invite'} else 'family_access_required'})
         except (ValueError,TypeError,KeyError) as exc:
             # Known validation codes only; no user answers or provider details in logs.
-            allowed={'invalid_skill','skill_cycle_required','skill_forms_exhausted','skill_form_changed','invalid_skill_sample','conversation_not_found','invalid_conversation','conversation_changed','conversation_finished','listening_not_found','invalid_listening','listening_first_required','route_materials_missing','route_check_locked','placement_required','invalid_word_goal','invalid_language','lesson_not_found','invalid_answers','answer_all_questions',
+            allowed={'invalid_short_minutes','invalid_skill','skill_cycle_required','skill_forms_exhausted','skill_form_changed','invalid_skill_sample','conversation_not_found','invalid_conversation','conversation_changed','conversation_finished','listening_not_found','invalid_listening','listening_first_required','route_materials_missing','route_check_locked','placement_required','invalid_word_goal','invalid_language','lesson_not_found','invalid_answers','answer_all_questions',
                      'invalid_request_id','request_conflict','invalid_daily_minutes',
                      'invalid_target_dates','invalid_target_date','invalid_id','invalid_version',
                      'card_not_found','stale_review','card_not_due','invalid_rating','review_not_found',
