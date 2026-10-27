@@ -13,6 +13,13 @@ _recent={}
 
 def context_for(item_id,owner=None):
     if not isinstance(item_id,str):raise ValueError('lesson_not_found')
+    if item_id.startswith('skill:'):
+        from web_backend.self_study_skills import task
+        parts=item_id.split(':')
+        if len(parts)!=4:raise ValueError('lesson_not_found')
+        t=task(owner,parts[1],parts[2])
+        if t['form_id']!=parts[3]:raise ValueError('lesson_not_found')
+        return parts[1],t['prompt']
     if item_id.startswith('conversation:'):
         from web_backend.self_study_conversation import get
         from learning.conversation_program import scenario,prompt

@@ -35,6 +35,8 @@ jobs:
           python scripts/self_study_routes_selftest.py
           python scripts/self_study_listening_selftest.py
           python scripts/self_study_conversation_selftest.py
+          python scripts/self_study_skills_selftest.py
+          node --check web/self_study_skills.js
           node --check web/self_study_conversation.js
           node --check web/self_study_listening.js
           node --check web/self_study_routes.js

@@ -116,7 +116,8 @@ module.exports={
       "self_study_vocabulary.js",
       "self_study_routes.js",
       "self_study_listening.js",
-      "self_study_conversation.js"
+      "self_study_conversation.js",
+      "self_study_skills.js"
     ]
   },
   "parent": {
