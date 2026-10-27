@@ -1,6 +1,6 @@
 {
   "name": "adelia-desktop",
-  "version": "0.3.0-beta.8",
+  "version": "0.3.0-beta.9",
   "private": true,
   "description": "Аделия — приложение для обучения и преподавания",
   "main": "bootstrap.js",
@@ -65,7 +65,8 @@
       "build/icon.icns",
       "build/icon.ico",
       "build/icon-macos.png",
-      "mac_dmg_updates.js"
+      "mac_dmg_updates.js",
+      "lesson_room.js"
     ],
     "directories": {
       "output": "dist",

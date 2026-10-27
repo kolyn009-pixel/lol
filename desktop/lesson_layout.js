@@ -46,6 +46,7 @@ function contextMode(win,on){if(!win||win.isDestroyed())return;
 }
 function restoreCabinet(){if(!savedCabinet)return;const {win,bounds,min}=savedCabinet;savedCabinet=null;if(!win.isDestroyed()){contextMode(win,false);win.setMinimumSize(...min);win.setBounds(bounds);}}
 function apply(mode,remember=true){
+  const room=require('./lesson_room').getActive();if(room?.active)return room.setMode(mode);
   mode=MODES.has(mode)?mode:'together';
   const m=meeting(),b=board();
   if(mode!=='teacher-room')restoreCabinet();
@@ -99,8 +100,9 @@ function apply(mode,remember=true){
   if(remember)rememberMode(mode==='dual-screen'&&!displays.secondary?'together':mode);
   return state(mode==='dual-screen'&&!displays.secondary?'together':mode);
 }
-function toggleVideo(){const m=meeting();if(!m)return state();if(m.isVisible())return apply('hide-video');const restore=preferredMode()==='hide-video'?'together':preferredMode();return apply(restore);}
+function toggleVideo(){const room=require('./lesson_room').getActive();if(room?.active)return room.toggleVideo();const m=meeting();if(!m)return state();if(m.isVisible())return apply('hide-video');const restore=preferredMode()==='hide-video'?'together':preferredMode();return apply(restore);}
 function state(mode){
+  const room=require('./lesson_room').getActive();if(room?.active)return room.state();
   const m=meeting(),b=board(),displays=lessonDisplays();
   return {active:!!(m||b),meetingOpen:!!m,meetingVisible:!!(m&&m.isVisible()),boardOpen:!!b,boardVisible:!!(b&&b.isVisible()),mode:mode||activeMode||preferredMode(),displayCount:screen.getAllDisplays().length,dualScreenAvailable:!!displays.secondary,shortcuts:SHORTCUTS};
 }
