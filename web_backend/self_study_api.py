@@ -5,7 +5,7 @@ from web_backend import self_study_practice as practice
 ROOT='/api/teacher/self-study'
 GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback'}
 
 
 class SelfStudyMixin:
@@ -37,6 +37,9 @@ class SelfStudyMixin:
                 elif path==ROOT+'/checkpoint/start':payload=practice.start_checkpoint(owner,data)
                 elif path==ROOT+'/checkpoint/draft':payload=practice.save_checkpoint(owner,data)
                 elif path==ROOT+'/checkpoint/submit':payload=practice.save_checkpoint(owner,data,complete=True)
+                elif path==ROOT+'/speech/feedback':
+                    from web_backend.self_study_feedback import feedback
+                    payload=feedback(owner,data)
                 else:return self._json(404,{'error':'not_found'})
             return self._json(200,payload)
         except (ValueError,TypeError,KeyError) as exc:
@@ -45,9 +48,15 @@ class SelfStudyMixin:
                      'invalid_request_id','request_conflict','invalid_daily_minutes',
                      'invalid_target_dates','invalid_target_date','invalid_id','invalid_version',
                      'card_not_found','stale_review','card_not_due','invalid_rating','review_not_found',
-                     'checkpoint_not_found','no_new_checkpoints','checkpoint_not_due','checkpoint_finished'}
+                     'checkpoint_not_found','no_new_checkpoints','checkpoint_not_due','checkpoint_finished',
+                     'invalid_transcript','feedback_consent_required'}
             error=str(exc)
             return self._json(400,{'error':error if error in allowed else 'invalid_request'})
+        except RuntimeError as exc:
+            code=str(exc)
+            if code in {'ai_not_configured','ai_unavailable','ai_invalid_response','feedback_rate_limited'}:
+                return self._json(429 if code=='feedback_rate_limited' else 503,{'error':code})
+            return self._json(500,{'error':'server_error'})
         except Exception as exc:
             print('[self-study]',type(exc).__name__,flush=True)
             return self._json(500,{'error':'server_error'})

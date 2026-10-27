@@ -21,6 +21,7 @@ jobs:
         run: |
           python scripts/self_study_selftest.py
           python scripts/self_study_practice_selftest.py
+          python scripts/self_study_feedback_selftest.py
           python -m py_compile learning/language_program.py learning/language_checkpoints.py web_backend/self_study.py web_backend/self_study_practice.py web_backend/self_study_api.py web_backend/api_v7.py
           node --check web/self_study.js
           node --check web/self_study_voice.js

@@ -22,7 +22,7 @@ function mount(node,context){
  const key=String(context.owner_id)+':'+context.lesson_id;
  let stream=null,recorder=null,recognizer=null,timer=null,url=null,pending=false,closed=false;
  let saved={blob:null,transcript:'',updated_at:null};
- node.innerHTML='<section class="ss-panel"><h3>Скажи вслух</h3><p class="ss-muted" data-voice-prompt></p><p class="ss-muted">Запиши ответ на 30–90 секунд. Прослушай: ответил ли на вопрос, связал ли мысли и где пришлось искать слова? Максимум записи — 3 минуты.</p><div class="ss-actions"><button type="button" class="ss-primary" data-voice-record>Записать ответ</button><button type="button" class="ss-secondary" data-voice-stop disabled>Остановить</button></div><div data-voice-playback></div><p class="ss-status" data-voice-status role="status"></p><details><summary>Расшифровка и заметка</summary><p class="ss-muted">Можно продиктовать короткий ответ или оставить несколько слов о трудности. Проверь распознанный текст. Браузерное распознавание может отправлять звук своему сервису и не всегда доступно.</p><div class="ss-actions"><button type="button" class="ss-secondary" data-voice-dictate>Продиктовать текст</button><button type="button" class="ss-secondary" data-voice-dictate-stop disabled>Остановить диктовку</button></div><label>Расшифровка или заметка<textarea data-voice-text rows="4" maxlength="3000" style="width:100%;padding:12px;border:1px solid #d8d1e6;border-radius:10px;margin-top:8px"></textarea></label><button type="button" class="ss-secondary" data-voice-save>Сохранить заметку</button></details><p class="ss-note">Запись и заметка хранятся только в этом браузере под твоим аккаунтом. Между устройствами не синхронизируются; очистка данных браузера удалит их. Скачай важный ответ. Автоматической оценки речи и произношения пока нет.</p></section>';
+ node.innerHTML='<section class="ss-panel"><h3>Скажи вслух</h3><p class="ss-muted" data-voice-prompt></p><p class="ss-muted">Запиши ответ на 30–90 секунд. Прослушай: ответил ли на вопрос, связал ли мысли и где пришлось искать слова? Максимум записи — 3 минуты.</p><div class="ss-actions"><button type="button" class="ss-primary" data-voice-record>Записать ответ</button><button type="button" class="ss-secondary" data-voice-stop disabled>Остановить</button></div><div data-voice-playback></div><p class="ss-status" data-voice-status role="status"></p><details><summary>Расшифровка и заметка</summary><p class="ss-muted">Можно продиктовать короткий ответ или оставить несколько слов о трудности. Проверь распознанный текст. Браузерное распознавание может отправлять звук своему сервису и не всегда доступно.</p><div class="ss-actions"><button type="button" class="ss-secondary" data-voice-dictate>Продиктовать текст</button><button type="button" class="ss-secondary" data-voice-dictate-stop disabled>Остановить диктовку</button></div><label>Расшифровка или заметка<textarea data-voice-text rows="4" maxlength="3000" style="width:100%;padding:12px;border:1px solid #d8d1e6;border-radius:10px;margin-top:8px"></textarea></label><button type="button" class="ss-secondary" data-voice-save>Сохранить заметку</button><p class="ss-muted">По кнопке ниже расшифровка отправляется настроенному ИИ для разбора языка. Аудио не отправляется.</p><button type="button" class="ss-primary" data-voice-feedback>Разобрать расшифровку с ИИ</button><div data-voice-feedback-result></div></details><p class="ss-note">Запись и заметка хранятся только в этом браузере под твоим аккаунтом. Между устройствами не синхронизируются; очистка данных браузера удалит их. Скачай важный ответ. Разбор текста не оценивает произношение или уровень CEFR.</p></section>';
  const el=s=>node.querySelector(s),record=el('[data-voice-record]'),stop=el('[data-voice-stop]'),text=el('textarea'),dictate=el('[data-voice-dictate]'),dictateStop=el('[data-voice-dictate-stop]');
  el('[data-voice-prompt]').textContent=context.prompt;text.lang=context.language;text.dir=context.language==='fa'?'rtl':'auto';
  const status=s=>{if(!closed)el('[data-voice-status]').textContent=s;};
@@ -74,6 +74,25 @@ function mount(node,context){
  };
  dictateStop.onclick=()=>recognizer?.stop();
  el('[data-voice-save]').onclick=async()=>{saved.transcript=text.value;try{await save();status('Заметка сохранена на этом устройстве.');}catch{status('Не удалось сохранить заметку. Скопируй её перед выходом.');}};
+ el('[data-voice-feedback]').onclick=async()=>{
+  const button=el('[data-voice-feedback]'),transcript=text.value.trim();
+  if(transcript.length<5){status('Сначала продиктуй ответ и проверь расшифровку.');return;}
+  button.disabled=true;const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),30000);
+  status('Разбираю расшифровку…');
+  try{
+   const response=await fetch('/api/teacher/self-study/speech/feedback',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({lesson_id:context.lesson_id,transcript,consent:true}),signal:controller.signal});
+   const result=await response.json();
+   if(!response.ok){const messages={ai_not_configured:'ИИ ещё не настроен на сервере. Запись и самостоятельная практика доступны.',feedback_rate_limited:'Слишком много запросов. Подожди минуту.',ai_invalid_response:'ИИ вернул неполный разбор. Попробуй позже.'};throw Error(messages[result.error]||'ИИ сейчас недоступен. Ответ и запись остаются у тебя.');}
+   if(closed)return;
+   const box=el('[data-voice-feedback-result]');box.replaceChildren();
+   for(const [key,title] of [['strengths','Что получилось'],['corrections','Что поправить'],['next_try','Повторная попытка']]){
+    const heading=document.createElement('h4');heading.textContent=title;box.append(heading);
+    for(const value of result[key]){const p=document.createElement('p');p.textContent=value;box.append(p);}
+   }
+   const note=document.createElement('p');note.className='ss-muted';note.textContent=result.note;box.append(note);status('Разбор готов. Попробуй ответить ещё раз своими словами.');
+  }catch(error){status(error.name==='AbortError'?'Время ожидания вышло. Можно попробовать позже.':error.message);}
+  finally{clearTimeout(deadline);if(!closed)button.disabled=false;}
+ };
  record.disabled=true;dictate.disabled=true;text.disabled=true;
  storage(key).then(value=>{if(closed||!value)return;saved=value;text.value=saved.transcript||'';playback();}).catch(()=>status('Хранилище браузера недоступно. Запись можно будет скачать.')).finally(()=>{if(!closed){record.disabled=false;dictate.disabled=!Recognition;text.disabled=false;}});
  const observer=new MutationObserver(()=>{if(!node.isConnected)cleanup();});observer.observe(document.body,{childList:true,subtree:true});
