@@ -48,6 +48,7 @@ async function open(){
 const languageTabs=()=>`<div class="ss-tabs" aria-label="Язык">${Object.entries(snapshot.profile.languages).map(([code,item])=>`<button type="button" class="ss-tab" data-ss-language="${code}" aria-pressed="${language===code}">${esc(item.name)}</button>`).join('')}</div>`;
 function openSettings(goalSuggestions){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudySettings?.open(root(),{profile:snapshot.profile,goalSuggestions,back:open,dirty:value=>{dirty=value;},busy:value=>{busy=value;}});}
 function onboardingOptions(){return {owner_id:snapshot.owner_id,back:open,settings:openSettings,completed:async()=>{await open();showPlacement();},busy:value=>{busy=value;}};}
+function openConversation(){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudyConversation?.open(root(),{language,owner_id:snapshot.owner_id,back:open,canLeave,dirty:v=>{dirty=v;},busy:v=>{busy=v;}});}
 function openListening(){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudyListening?.open(root(),{language,back:open,canLeave,dirty:v=>{dirty=v;},busy:v=>{busy=v;}});}
 function openRoute(){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudyRoutes?.open(root(),{language,back:open,lesson:loadLesson,canLeave,dirty:v=>{dirty=v;},busy:v=>{busy=v;}});}
 function showPlacement(){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudyOnboarding?.home(root(),onboardingOptions(),snapshot.placement);}
@@ -62,7 +63,7 @@ function renderHome(){
  ${snapshot.owner_id>0?'<div class="ss-actions"><button class="ss-secondary" data-ss-family>Семья · доступ к языкам</button></div>':''}
  ${(snapshot.owner_id<0&&snapshot.profile.languages.en)?'<div class="ss-actions" style="margin-bottom:18px"><button class="ss-primary" data-ss-entry>Проверить английский и обновить маршрут</button></div>':''}
  ${["en","de","es"].includes(language)?'<div class="ss-actions" style="margin-bottom:18px"><button class="ss-secondary" data-ss-scenes>Журнал сцен и выражений</button></div>':''}
-<div class="ss-actions"><button class="ss-secondary" data-ss-listening>Аудирование · реальные записи</button></div>
+<div class="ss-actions"><button class="ss-secondary" data-ss-conversation>Разговорные ситуации</button><button class="ss-secondary" data-ss-listening>Аудирование · реальные записи</button></div>
 <section class="ss-panel" data-route-widget></section>
 <section class="ss-panel" data-day-widget></section>
  <section class="ss-panel" data-vocabulary-widget></section>
@@ -74,6 +75,7 @@ function renderHome(){
  <section class="ss-panel ss-full"><h3>История проверок</h3><p class="ss-muted">Первая попытка и повторы видны отдельно в карточках модулей. Здесь — последние сохранённые проверки выбранного языка.</p><div class="ss-history-wrap"><table class="ss-history"><thead><tr><th>Дата</th><th>Модуль</th><th>Результат</th></tr></thead><tbody>${snapshot.history.filter(x=>x.language===language).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString('ru-RU'))}</td><td>${esc(course.find(y=>y.id===x.lesson_id)?.title||x.lesson_id)}</td><td>${x.correct}/${x.total}</td></tr>`).join('')||'<tr><td colspan="3">Пока нет проверок. Начни с первого модуля.</td></tr>'}</tbody></table></div></section></div>`;
  bindHome();loadPracticePanels();
  box.querySelector('[data-ss-listening]').onclick=openListening;
+ box.querySelector('[data-ss-conversation]').onclick=openConversation;
  window.AdeliaStudyRoutes?.mount(box.querySelector('[data-route-widget]'),{language,open:openRoute});
  window.AdeliaStudyDay?.mount(box.querySelector('[data-day-widget]'),{language,minutes:Math.min(p.minutes,p.session_minutes||p.minutes),owner_id:snapshot.owner_id,root,canLeave:()=>!busy&&canLeave(),enter:()=>{generation++;dirty=false;currentLesson=null;},back:open,route:openRoute,diagnostic:loadEntry,review:loadPractice,lesson:loadLesson,busy:value=>{busy=value;}});
  box.querySelector('[data-ss-settings]').onclick=()=>openSettings();

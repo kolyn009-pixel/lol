@@ -13,6 +13,14 @@ _recent={}
 
 def context_for(item_id,owner=None):
     if not isinstance(item_id,str):raise ValueError('lesson_not_found')
+    if item_id.startswith('conversation:'):
+        from web_backend.self_study_conversation import get
+        from learning.conversation_program import scenario,prompt
+        parts=item_id.split(':')
+        if len(parts)!=3:raise ValueError('lesson_not_found')
+        session=get(owner,int(parts[1]));turn=int(parts[2])
+        if not 0<=turn<3 or turn>session['turn']:raise ValueError('lesson_not_found')
+        return session['language'],prompt(scenario(session['scenario_id']),session['answers'],turn)
     if item_id.startswith('scene:'):
         from web_backend.self_study_scenes import get_scene,resource
         item=get_scene(owner,int(item_id[6:]));show=resource(item['resource_id'],owner)

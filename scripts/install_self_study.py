@@ -19,7 +19,7 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 SOURCE=Path(__file__).resolve().parents[1]
-MODULES=['learning/listening_program.py','web_backend/self_study_listening.py','web/self_study_listening.js','learning/route_bridges.py','learning/language_routes.py','web_backend/self_study_routes.py','web/self_study_routes.js','learning/family_placement.py','web_backend/self_study_placement.py','web_backend/self_study_vocabulary.py','web/self_study_onboarding.js','web/self_study_vocabulary.js','web_backend/self_study_day.py','web/self_study_day.js','learning/intensive_program.py','web/self_study_intensive.js','web_backend/self_study_preferences.py','web/self_study_settings.js','web_backend/self_study_access.py','learning/beginner_languages.py','learning/entry_diagnostic.py','web_backend/self_study_entry.py','web/self-study.html','learning/language_program.py','learning/language_checkpoints.py',
+MODULES=['learning/conversation_program.py','web_backend/self_study_conversation.py','web/self_study_conversation.js','learning/listening_program.py','web_backend/self_study_listening.py','web/self_study_listening.js','learning/route_bridges.py','learning/language_routes.py','web_backend/self_study_routes.py','web/self_study_routes.js','learning/family_placement.py','web_backend/self_study_placement.py','web_backend/self_study_vocabulary.py','web/self_study_onboarding.js','web/self_study_vocabulary.js','web_backend/self_study_day.py','web/self_study_day.js','learning/intensive_program.py','web/self_study_intensive.js','web_backend/self_study_preferences.py','web/self_study_settings.js','web_backend/self_study_access.py','learning/beginner_languages.py','learning/entry_diagnostic.py','web_backend/self_study_entry.py','web/self-study.html','learning/language_program.py','learning/language_checkpoints.py',
          'web_backend/self_study.py','web_backend/self_study_practice.py',
          'web_backend/self_study_feedback.py','web_backend/self_study_scenes.py',
          'web_backend/self_study_api.py','web/self_study.js','web/self_study.css',
@@ -48,7 +48,7 @@ def patch_api(text):
 
 def patch_html(text):
     if text.count('</head>')!=1 or text.count('</body>')!=1:raise RuntimeError('Unrecognised teacher HTML')
-    for name in ['self_study.css','self_study.js','self_study_voice.js','self_study_scenes.js','self_study_settings.js','self_study_intensive.js','self_study_day.js','self_study_onboarding.js','self_study_vocabulary.js','self_study_routes.js','self_study_listening.js']:
+    for name in ['self_study.css','self_study.js','self_study_voice.js','self_study_scenes.js','self_study_settings.js','self_study_intensive.js','self_study_day.js','self_study_onboarding.js','self_study_vocabulary.js','self_study_routes.js','self_study_listening.js','self_study_conversation.js']:
         pattern=(r'<link\b[^>]*href=[\"\']/app/'+re.escape(name)+r'(?:\?[^\"\']*)?[\"\'][^>]*>' if name.endswith('.css') else
                  r'<script\b[^>]*src=[\"\']/app/'+re.escape(name)+r'(?:\?[^\"\']*)?[\"\'][^>]*>\s*</script>')
         text,count=re.subn(pattern,'',text)
