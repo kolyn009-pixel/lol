@@ -1,9 +1,13 @@
 """Private mandatory family entry checks. OWNER routes may opt in."""
 from datetime import datetime,timedelta,timezone
 import json
+from zoneinfo import ZoneInfo
 from database import connect
 from learning.family_placement import questions,assess
 from learning.language_program import LANGUAGES
+
+
+def clock():return datetime.now(timezone.utc)
 
 
 def ensure_schema():
@@ -18,13 +22,17 @@ def ensure_schema():
 def result(owner,language):
     if language not in LANGUAGES:raise ValueError('invalid_language')
     ensure_schema();conn=connect()
-    try:row=conn.execute('SELECT result FROM personal_study_placement WHERE owner_id=? AND language=?',(owner,language)).fetchone()
+    try:row=conn.execute('SELECT result,updated_at FROM personal_study_placement WHERE owner_id=? AND language=?',(owner,language)).fetchone()
     finally:conn.close()
-    if row:return json.loads(row[0])
+    if row:return {**json.loads(row[0]),'assessed_at':row['updated_at']}
     if language=='en':
         from web_backend.self_study_entry import result as previous
         old=previous(owner)
-        if old:return {**old,'language':'en','legacy':True}
+        if old:
+            conn=connect()
+            try:stamp=conn.execute('SELECT updated_at FROM personal_study_entry WHERE owner_id=?',(owner,)).fetchone()[0]
+            finally:conn.close()
+            return {**old,'language':'en','legacy':True,'assessed_at':stamp}
     return None
 
 
@@ -33,9 +41,11 @@ def recommendations(owner,language,output):
     p=profile(owner);minutes=p['languages'].get(language,{}).get('minutes',15)
     level=output['working_band'];next_band={'A0':'A1','A1':'A2','A2':'B1','B1':'B2','B2':'C1'}.get(level,'C1')
     weeks=4
+    assessed=datetime.fromisoformat(output['assessed_at']) if output.get('assessed_at') else clock()
+    review_date=assessed.astimezone(ZoneInfo('Europe/Moscow')).date()+timedelta(weeks=weeks)
     texts={'A0':'Представиться и провести простой диалог с опорами','A1':'Обсудить знакомую бытовую ситуацию','A2':'Пересказать короткую историю и объяснить планы','B1':'Объяснить мнение и поддержать разговор на знакомую тему','B2':'Разобрать сложный текст и защитить позицию с примерами'}
     return {'working_band':level,'suggested_next_band':next_band,'daily_minutes':minutes,
-            'goal':texts.get(level,texts['B2']),'review_date':(datetime.now(timezone.utc).date()+timedelta(weeks=weeks)).isoformat(),
+            'goal':texts.get(level,texts['B2']),'review_date':review_date.isoformat(),'review_due':clock().astimezone(ZoneInfo('Europe/Moscow')).date()>=review_date,
             'note':'Предлагаем цель на четыре недели. Следующий уровень — направление работы; срок достижения уточняется по новым заданиям и всем четырём навыкам.',
             'advanced_check_needed':level=='B2','course_choice':'Начни с выбранного языка; при малом бюджете сделай его главным, а остальные оставь для короткой практики.'}
 
@@ -63,11 +73,12 @@ def submit(owner,data):
     if language=='en':
         from web_backend.self_study_entry import submit as english_submit
         english_submit(owner,{'answers':answers})
-    out.update(language=language,recommendation=recommendations(owner,language,out))
+    out.update(language=language,assessed_at=clock().isoformat())
+    out['recommendation']=recommendations(owner,language,out)
     ensure_schema();conn=connect()
     try:
         conn.execute('''INSERT INTO personal_study_placement VALUES(?,?,?,?,?) ON CONFLICT(owner_id,language)
           DO UPDATE SET answers=excluded.answers,result=excluded.result,updated_at=excluded.updated_at''',
-          (owner,language,json.dumps(answers),json.dumps(out,ensure_ascii=False),datetime.now(timezone.utc).isoformat()));conn.commit()
+          (owner,language,json.dumps(answers),json.dumps(out,ensure_ascii=False),out['assessed_at']));conn.commit()
     finally:conn.close()
     return out

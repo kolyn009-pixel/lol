@@ -36,7 +36,7 @@ database=ModuleType('database');database.connect=connect
 sys.modules['database']=database
 from learning.language_program import LANGUAGES, RESOURCES, catalogue, lesson
 from web_backend import self_study as study
-from web_backend.self_study_api import SelfStudyMixin, ROOT as API_ROOT
+from web_backend.self_study_api import SelfStudyMixin, ROOT as API_ROOT, GET_PATHS
 
 
 def correct_body(lesson_id='en-01',request_id=None):
@@ -218,7 +218,8 @@ class BrowserFixture(SelfStudyMixin,BaseHTTPRequestHandler):
         return self.self_study_route(urlparse(self.path).path,write=True)
     def do_GET(self):
         parsed=urlparse(self.path)
-        if parsed.path.startswith(API_ROOT):return self.self_study_route(parsed.path,parse_qs(parsed.query))
+        if parsed.path in GET_PATHS:return self.self_study_route(parsed.path,parse_qs(parsed.query))
+        if parsed.path.startswith('/api/'):return self._json(404,{'error':'not_found'})
         if parsed.path=='/app/self-study.html':
             body=(ROOT/'web/self-study.html').read_bytes();ctype='text/html; charset=utf-8'
         elif parsed.path in ('/app/self_study.css','/app/self_study.js','/app/self_study_voice.js','/app/self_study_scenes.js','/app/self_study_settings.js','/app/self_study_intensive.js','/app/self_study_day.js','/app/self_study_onboarding.js','/app/self_study_vocabulary.js'):

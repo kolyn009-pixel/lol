@@ -9,7 +9,8 @@ const fs=require('node:fs/promises');
 (async()=>{
  const server=spawn('python',[path.join(__dirname,'self_study_selftest.py'),'--serve'],{stdio:['ignore','pipe','pipe']});
  const ready=new Promise((resolve,reject)=>{const lines=readline.createInterface({input:server.stdout});lines.once('line',s=>{try{resolve(JSON.parse(s));}catch(e){reject(e);}});server.once('error',reject);server.once('exit',c=>reject(Error('Fixture exited '+c)));});
- let browser;
+ let browser,page;
+ const errors=[];
  try{
   const {port}=await ready,url=`http://127.0.0.1:${port}`;
   browser=await chromium.launch({headless:true});
@@ -29,7 +30,7 @@ const fs=require('node:fs/promises');
    }
    await page.locator('[data-onboarding-done]').click();
   }
-  const page=await context.newPage(),errors=[];page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));
+  page=await context.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'/teacher/');await page.locator('[data-self-study]').click();
   await page.locator('[data-ss-language="en"]').waitFor();
   assert.equal(await page.locator('.ss-unit').count(),18);
@@ -134,7 +135,7 @@ const fs=require('node:fs/promises');
   const parentInvitation=await page.request.post(url+'/api/teacher/self-study/access/invite',{headers:{Origin:url},data:{account_role:'parent',account_id:101}});
   const parentToken=(await parentInvitation.json()).token;
   await context.clearCookies();await page.reload();await page.getByRole('alert').waitFor();
-  assert.match(await page.getByRole('alert').innerText(),/Войди в кабинет/);
+  assert.match(await page.getByRole('alert').innerText(),/Войди в свой кабинет/);
   assert.equal(await page.locator('.ss-unit').count(),0);
   await context.addCookies([{name:'role',value:'student',url}]);
   await page.goto(url+'/app/self-study.html#invite='+studentToken);
@@ -183,5 +184,11 @@ const fs=require('node:fs/promises');
   await page.getByRole('button',{name:'Проверить ответы',exact:true}).waitFor();
   assert.deepEqual(errors,[]);
   console.log('PASS: teacher launch, budget, dates, drafts, grading, spaced review/reveal recovery, checkpoint drafts/results, history, 3 languages, RTL, XSS, existing-render isolation, navigation, mobile layout and auth denial.');
+ }catch(error){
+  if(page&&process.env.ADELIA_BROWSER_TEST_ARTIFACT_DIR){
+   const dir=process.env.ADELIA_BROWSER_TEST_ARTIFACT_DIR;
+   try{await fs.mkdir(dir,{recursive:true});await page.screenshot({path:path.join(dir,'failure.png'),fullPage:true});await fs.writeFile(path.join(dir,'failure.html'),await page.content());await fs.writeFile(path.join(dir,'failure.txt'),String(error)+'\nPage errors: '+JSON.stringify(errors));}catch(artifactError){console.error('Could not save failure artifacts:',artifactError.message);}
+  }
+  throw error;
  }finally{await browser?.close();server.kill('SIGTERM');}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,4 +1,6 @@
 import unittest
+from unittest.mock import patch
+from datetime import datetime,timezone,timedelta
 from uuid import uuid4
 import self_study_selftest as fixture
 from learning.family_placement import questions,assess
@@ -48,6 +50,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(4,len(placement.status(self.owner)['pending']))
         placement.submit(self.owner,{'language':'es','answers':answers('es')})
         self.assertEqual({'en','de','fa'},set(placement.status(self.owner)['pending']))
+
+    def test_goal_review_date_is_anchored_to_actual_assessment(self):
+        now=datetime(2026,10,27,12,tzinfo=timezone.utc)
+        prefs.save(self.owner,config(['es']))
+        with patch.object(placement,'clock',return_value=now):
+            initial=placement.submit(self.owner,{'language':'es','answers':answers('es')})['recommendation']
+        with patch.object(placement,'clock',return_value=now+timedelta(days=30)):
+            later=placement.status(self.owner)['results']['es']['recommendation']
+        self.assertEqual(initial['review_date'],later['review_date']);self.assertTrue(later['review_due'])
 
     def test_owner_is_exempt_but_can_take_test(self):
         self.assertFalse(placement.status(abs(self.owner))['required']);self.assertEqual([],placement.status(abs(self.owner))['pending'])
