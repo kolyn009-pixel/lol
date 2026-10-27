@@ -11,8 +11,12 @@ _active=set()
 _recent={}
 
 
-def context_for(item_id):
+def context_for(item_id,owner=None):
     if not isinstance(item_id,str):raise ValueError('lesson_not_found')
+    if item_id.startswith('scene:'):
+        from web_backend.self_study_scenes import get_scene,resource
+        item=get_scene(owner,int(item_id[6:]));show=resource(item['resource_id'])
+        return item['language'],'Перескажи выбранную сцену '+show['title']+'. Заметка пользователя (не проверенные факты): '+item['summary']
     if item_id.startswith('series:'):
         item=next((x for x in RESOURCES if x['id']==item_id[7:] and x.get('study_tasks')),None)
         if not item:raise ValueError('lesson_not_found')
@@ -35,7 +39,7 @@ def validate_feedback(raw):
 
 
 def feedback(owner,data):
-    language,prompt=context_for(data.get('lesson_id'))
+    language,prompt=context_for(data.get('lesson_id'),owner)
     text=data.get('transcript')
     if not isinstance(text,str) or not 5<=len(text.strip())<=3000:raise ValueError('invalid_transcript')
     if data.get('consent') is not True:raise ValueError('feedback_consent_required')

@@ -3,9 +3,9 @@ from web_backend import self_study
 from web_backend import self_study_practice as practice
 
 ROOT='/api/teacher/self-study'
-GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint'}
+GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save'}
 
 
 class SelfStudyMixin:
@@ -24,6 +24,9 @@ class SelfStudyMixin:
                 elif path==ROOT+'/checkpoint/status':payload=practice.checkpoint_status(owner,q.get('language',['en'])[0])
                 elif path==ROOT+'/checkpoint':payload=practice.get_checkpoint(owner,int(q.get('id',['0'])[0]))
                 elif path==ROOT:payload=self_study.overview(owner)
+                elif path==ROOT+'/scenes':
+                    from web_backend.self_study_scenes import list_scenes
+                    payload=list_scenes(owner,q.get('language',['en'])[0])
                 else:return self._json(404,{'error':'not_found'})
             else:
                 data=self._body()
@@ -40,6 +43,9 @@ class SelfStudyMixin:
                 elif path==ROOT+'/speech/feedback':
                     from web_backend.self_study_feedback import feedback
                     payload=feedback(owner,data)
+                elif path==ROOT+'/scenes/save':
+                    from web_backend.self_study_scenes import save_scene
+                    payload=save_scene(owner,data)
                 else:return self._json(404,{'error':'not_found'})
             return self._json(200,payload)
         except (ValueError,TypeError,KeyError) as exc:
@@ -49,7 +55,8 @@ class SelfStudyMixin:
                      'invalid_target_dates','invalid_target_date','invalid_id','invalid_version',
                      'card_not_found','stale_review','card_not_due','invalid_rating','review_not_found',
                      'checkpoint_not_found','no_new_checkpoints','checkpoint_not_due','checkpoint_finished',
-                     'invalid_transcript','feedback_consent_required'}
+                     'invalid_transcript','feedback_consent_required','invalid_scene','invalid_scene_time',
+                     'invalid_scene_phrases','scene_not_found'}
             error=str(exc)
             return self._json(400,{'error':error if error in allowed else 'invalid_request'})
         except RuntimeError as exc:

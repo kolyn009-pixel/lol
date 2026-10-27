@@ -107,7 +107,8 @@ module.exports={
       "teaching_workbench.js",
       "visual_channels.js",
       "self_study.js",
-      "self_study_voice.js"
+      "self_study_voice.js",
+      "self_study_scenes.js"
     ]
   },
   "parent": {
