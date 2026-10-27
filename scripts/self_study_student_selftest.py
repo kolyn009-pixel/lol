@@ -13,7 +13,10 @@ class Student(fixture.FakeHandler):
 
 class Tests(unittest.TestCase):
     def setUp(self):
+        from web_backend import self_study_access as access
+        access.ensure_schema()
         fixture.study.ensure_schema();entry.ensure_schema();conn=fixture.connect()
+        conn.execute("INSERT OR REPLACE INTO personal_study_memberships VALUES('student:101',101,1,'2026-10-27')")
         for table in ('personal_study_profiles','personal_study_attempts','personal_study_entry','personal_study_drafts'):
             conn.execute('DELETE FROM '+table)
         conn.commit();conn.close()

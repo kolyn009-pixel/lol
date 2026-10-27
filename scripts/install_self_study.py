@@ -19,7 +19,7 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 SOURCE=Path(__file__).resolve().parents[1]
-MODULES=['learning/beginner_languages.py','learning/entry_diagnostic.py','web_backend/self_study_entry.py','web/self-study.html','learning/language_program.py','learning/language_checkpoints.py',
+MODULES=['web_backend/self_study_access.py','learning/beginner_languages.py','learning/entry_diagnostic.py','web_backend/self_study_entry.py','web/self-study.html','learning/language_program.py','learning/language_checkpoints.py',
          'web_backend/self_study.py','web_backend/self_study_practice.py',
          'web_backend/self_study_feedback.py','web_backend/self_study_scenes.py',
          'web_backend/self_study_api.py','web/self_study.js','web/self_study.css',

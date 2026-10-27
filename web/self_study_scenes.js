@@ -5,7 +5,7 @@ const tc=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 function seconds(s){if(!/^\d{1,4}:[0-5]\d$/.test(s))throw Error('Таймкод укажи как минуты:секунды, например 12:30.');const [m,t]=s.split(':').map(Number);return m*60+t;}
 async function api(path,body){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
- try{const r=await fetch((document.body.dataset.studyRole==='student'?'/api/student/self-study':'/api/teacher/self-study')+'/scenes'+path,{credentials:'same-origin',cache:'no-store',signal:controller.signal,...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(r.status===401?'Войди в кабинет преподавателя.':'Не удалось сохранить или загрузить сцену. Проверь поля и попробуй ещё раз.');return d;}
+ try{const r=await fetch(('/api/'+(['student','parent'].includes(document.body.dataset.studyRole)?document.body.dataset.studyRole:'teacher')+'/self-study')+'/scenes'+path,{credentials:'same-origin',cache:'no-store',signal:controller.signal,...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(r.status===401?'Войди в кабинет преподавателя.':'Не удалось сохранить или загрузить сцену. Проверь поля и попробуй ещё раз.');return d;}
  catch(e){if(e.name==='AbortError')throw Error('Сервер отвечает долго. Повтори запрос: запись не продублируется.');throw e;}finally{clearTimeout(timer);}
 }
 async function open(root,options){

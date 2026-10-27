@@ -31,6 +31,7 @@ def connect():
     return conn
 
 
+conn=connect();conn.executescript("CREATE TABLE admin_accounts(telegram_id INTEGER PRIMARY KEY,role TEXT,active INTEGER); INSERT INTO admin_accounts VALUES(9,'OWNER',1),(101,'OWNER',1),(202,'OWNER',1);");conn.commit();conn.close()
 database=ModuleType('database');database.connect=connect
 sys.modules['database']=database
 from learning.language_program import LANGUAGES, RESOURCES, catalogue, lesson
@@ -199,6 +200,9 @@ class BrowserFixture(SelfStudyMixin,BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def _teacher(self):
         return {'id':101,'admin_telegram_id':101,'role':'teacher'} if 'role=teacher' in self.headers.get('Cookie','') else None
+    def _auth(self):
+        role='parent' if 'role=parent' in self.headers.get('Cookie','') else 'student' if 'role=student' in self.headers.get('Cookie','') else 'teacher'
+        return {'id':101,'role':role}
     def _student(self):
         return {'id':101,'role':'student'} if 'role=student' in self.headers.get('Cookie','') else None
     def _same_origin_write(self):
@@ -228,6 +232,7 @@ class BrowserFixture(SelfStudyMixin,BaseHTTPRequestHandler):
 
 if __name__=='__main__':
     if '--serve' in sys.argv:
+        conn=connect();conn.executescript("CREATE TABLE users(id INTEGER PRIMARY KEY,name TEXT,active INTEGER);INSERT INTO users VALUES(101,'Ученица',1);CREATE TABLE parent_accounts(id INTEGER PRIMARY KEY,name TEXT,active INTEGER);INSERT INTO parent_accounts VALUES(101,'Родитель',1);");conn.commit();conn.close()
         server=ThreadingHTTPServer(('127.0.0.1',0),BrowserFixture)
         print(json.dumps({'port':server.server_port}),flush=True)
         try:server.serve_forever()

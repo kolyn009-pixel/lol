@@ -3,7 +3,7 @@
 if(window.AdeliaSelfStudy)return;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rootId='selfStudyRoot';
-const labels={diagnostic_incomplete:'Ответь на все вопросы или выбери «Не знаю».',unauthorized:'Войди в кабинет преподавателя, затем открой «Моё обучение».',cross_origin_forbidden:'Не удалось подтвердить запрос. Обнови страницу.',answer_all_questions:'Ответь на все вопросы перед проверкой.',invalid_daily_minutes:'Выбери один из доступных режимов времени.',invalid_target_date:'Проверь дату цели.',invalid_answers:'Проверь ответы.',request_conflict:'Эта попытка уже сохранена с другими ответами. Открой урок заново.',lesson_not_found:'Этот урок не найден.',server_error:'Сервер не смог сохранить данные. Попробуй ещё раз.'};
+const labels={family_access_required:'Доступ к языкам только по семейному приглашению. Открой персональную ссылку от владельца.',family_owner_required:'Управлять языковыми приглашениями может только владелец.',invalid_family_invite:'Ссылка недействительна, отозвана или предназначена другому аккаунту.',invalid_family_account:'Выбери существующий аккаунт.',diagnostic_incomplete:'Ответь на все вопросы или выбери «Не знаю».',unauthorized:'Войди в кабинет преподавателя, затем открой «Моё обучение».',cross_origin_forbidden:'Не удалось подтвердить запрос. Обнови страницу.',answer_all_questions:'Ответь на все вопросы перед проверкой.',invalid_daily_minutes:'Выбери один из доступных режимов времени.',invalid_target_date:'Проверь дату цели.',invalid_answers:'Проверь ответы.',request_conflict:'Эта попытка уже сохранена с другими ответами. Открой урок заново.',lesson_not_found:'Этот урок не найден.',server_error:'Сервер не смог сохранить данные. Попробуй ещё раз.'};
 Object.assign(labels,{stale_review:'Карточка уже обновлена на другом устройстве. Вернись к повторению.',card_not_due:'Для этой карточки повторение ещё не наступило.',card_not_found:'Карточка не найдена.',review_not_found:'Результат повторения не найден.',checkpoint_not_due:'Следующая работа с новым текстом пока недоступна.',no_new_checkpoints:'Все три новых варианта выполнены. Можно повторять знакомые.',checkpoint_finished:'Эта работа уже завершена. Вернись к программе.',checkpoint_not_found:'Контрольная работа не найдена.'});
 let snapshot=null,language='en',currentLesson=null,generation=0,busy=false,dirty=false,submitId=null,lastPayload=null;
 const root=()=>document.getElementById(rootId);
@@ -11,7 +11,7 @@ const status=text=>{const el=root()?.querySelector('[data-ss-status]');if(el)el.
 async function api(path='',body){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
  try{
-  const response=await fetch((document.body.dataset.studyRole==='student'?'/api/student/self-study':'/api/teacher/self-study')+path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal});
+  const response=await fetch(('/api/'+(['student','parent'].includes(document.body.dataset.studyRole)?document.body.dataset.studyRole:'teacher')+'/self-study')+path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw Error(labels[data.error]||'Не удалось выполнить действие. Обнови страницу и повтори.');
   return data;
@@ -37,7 +37,12 @@ async function open(){
  dirty=false;currentLesson=null;const box=mount();if(!box)return;const version=++generation;
  box.innerHTML='<p class="ss-loading" role="status">Загружаю программу и результаты…</p>';
  const url=new URL(location.href);url.searchParams.set('study','1');history.replaceState(null,'',url);
- try{const data=await api();if(version!==generation)return;snapshot=data;renderHome();}
+ try{
+  if(['student','parent'].includes(document.body.dataset.studyRole)&&location.hash.startsWith('#invite=')){
+   await api('/access/accept',{token:decodeURIComponent(location.hash.slice(8))});
+   const clean=new URL(location.href);clean.hash='';history.replaceState(null,'',clean);
+  }
+  const data=await api();if(version!==generation)return;snapshot=data;renderHome();}
  catch(error){if(version===generation)errorView(error,open);}
 }
 const languageTabs=()=>`<div class="ss-tabs" aria-label="Язык">${Object.entries(snapshot.profile.languages).map(([code,item])=>`<button type="button" class="ss-tab" data-ss-language="${code}" aria-pressed="${language===code}">${esc(item.name)}</button>`).join('')}</div>`;
@@ -46,6 +51,7 @@ function renderHome(){
  const p=snapshot.profile.languages[language],course=snapshot.courses[language],next=course.find(x=>x.id===p.next_lesson),all=p.completed===p.total;
  box.innerHTML=`<section class="ss-hero"><div><span class="ss-eyebrow">Личная программа</span><h2>Понимать. Вспоминать. Применять.</h2><p>${snapshot.owner_id<0?'Английский — цель B2 к маю. Испанский — с нуля. Начни с диагностики английского.':'Английский для аспирантуры — главный приоритет. Немецкий и фарси получают своё время каждый день.'}</p></div><div class="ss-budget" aria-label="Время на все языки">${(snapshot.owner_id<0?[60,90,120]:[120,180]).map(n=>`<button type="button" data-ss-budget="${n}" aria-pressed="${snapshot.profile.daily_minutes===n}">${n===60?'1 час':n===90?'1,5 часа':n/60+' часа'}</button>`).join('')}</div></section>
  ${languageTabs()}
+ ${snapshot.owner_id>0?'<div class="ss-actions"><button class="ss-secondary" data-ss-family>Семья · доступ к языкам</button></div>':''}
  ${snapshot.owner_id<0?'<div class="ss-actions" style="margin-bottom:18px"><button class="ss-primary" data-ss-entry>Проверить английский и обновить маршрут</button></div>':''}
  ${["en","de"].includes(language)?'<div class="ss-actions" style="margin-bottom:18px"><button class="ss-secondary" data-ss-scenes>Журнал сцен и выражений</button></div>':''}
  <div class="ss-grid"><section class="ss-panel"><span class="ss-eyebrow">${all?'Следующий цикл':'Продолжить обучение'}</span><h3>${esc(next.title)}</h3><div class="ss-meta"><span class="ss-pill">${p.minutes} мин в день</span><span class="ss-muted">${esc(p.start)}</span></div><p class="ss-muted">${all?'Стартовые модули пройдены. Повтори их на новых примерах и используй внешние материалы.':'Материал → четыре задания → разбор ответов → устное применение с опорами.'}</p><div class="ss-actions"><button type="button" class="ss-primary" data-ss-lesson="${next.id}">${next.draft?'Продолжить сохранённое':all?'Вернуться к практике':'Начать занятие'}</button></div><progress max="${p.total}" value="${p.completed}" aria-label="Пройдено стартовых модулей"></progress><p class="ss-muted">${p.completed} из ${p.total} стартовых модулей · последнее выполнение не ниже 75%</p><div class="ss-note">${esc(snapshot.measurement_note)} Стартовые модули не заменяют полный курс до C1.</div></section>
@@ -54,6 +60,7 @@ function renderHome(){
  <section class="ss-panel"><h3>Маршрут подготовки</h3><ol class="ss-roadmap">${snapshot.roadmap[language].map(step=>`<li><small class="ss-eyebrow">${esc(step[0])}</small><strong>${esc(step[1])}</strong><span>${esc(step[2])}</span></li>`).join('')}</ol><p class="ss-muted">Даты маршрута рассчитаны на старт осенью 2026. При изменении дедлайна этапы нужно пересмотреть.</p><details><summary>Видео и сериалы для программы</summary>${snapshot.resources.filter(x=>x.language===language).map(x=>`<article class="ss-reference"><h4>${esc(x.title)}</h4><span class="ss-pill">${esc(x.level)}</span><p>${esc(x.why)}</p><p class="ss-muted">${esc(x.caution)}</p>${x.study_tasks?`<details><summary>Как заниматься по этому сериалу</summary><ol>${x.study_tasks.map(t=>`<li>${esc(t)}</li>`).join('')}</ol><p class="ss-muted">Подготовительный словарь — не цитаты из сериала и не подтверждение наличия слов в конкретной сцене.</p><div class="ss-phrases">${x.starter_terms.map(([a,b])=>`<div class="ss-phrase"><b>${esc(a)}</b><span>${esc(b)}</span></div>`).join('')}</div><button type="button" class="ss-secondary" data-ss-series-speak="${esc(x.id)}">Пересказать сцену голосом</button><p><b>Опоры для ответа:</b></p>${x.speaking_frames.map(t=>`<p>${esc(t)}</p>`).join('')}</details>`:''}<a href="${esc(safeURL(x.url))}" target="_blank" rel="noopener noreferrer">Открыть официальный источник ↗</a></article>`).join('')}<p class="ss-muted">Сцены и выражения сохраняются в журнале. Просмотр — на сервисе правообладателя, встроенного плеера нет.</p></details></section>
  <section class="ss-panel ss-full"><h3>История проверок</h3><p class="ss-muted">Первая попытка и повторы видны отдельно в карточках модулей. Здесь — последние сохранённые проверки выбранного языка.</p><div class="ss-history-wrap"><table class="ss-history"><thead><tr><th>Дата</th><th>Модуль</th><th>Результат</th></tr></thead><tbody>${snapshot.history.filter(x=>x.language===language).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString('ru-RU'))}</td><td>${esc(course.find(y=>y.id===x.lesson_id)?.title||x.lesson_id)}</td><td>${x.correct}/${x.total}</td></tr>`).join('')||'<tr><td colspan="3">Пока нет проверок. Начни с первого модуля.</td></tr>'}</tbody></table></div></section></div>`;
  bindHome();loadPracticePanels();
+ box.querySelector('[data-ss-family]')?.addEventListener('click',openFamily);
  box.querySelector('[data-ss-entry]')?.addEventListener('click',loadEntry);
  box.querySelector('[data-ss-scenes]')?.addEventListener('click',()=>{if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudyScenes?.open(root(),{language,resources:snapshot.resources,owner_id:snapshot.owner_id,back:open,dirty:value=>{dirty=value;},busy:value=>{busy=value;}});});
  box.querySelectorAll('[data-ss-series-speak]').forEach(b=>b.onclick=()=>{if(busy||!canLeave())return;const item=snapshot.resources.find(x=>x.id===b.dataset.ssSeriesSpeak);dirty=false;generation++;root().innerHTML='<button class="ss-secondary" data-ss-home>← К программе</button>';root().querySelector('button').onclick=open;mountVoice({id:'series:'+item.id,language:item.language,speaking:item.study_tasks.join(' \n')});});
@@ -202,6 +209,29 @@ async function loadEntry(){
  root().innerHTML=`<section class="ss-panel"><h2>Начальная точка: ${esc(result.working_band)}</h2><p>${esc(result.note)}</p><p>Чтение: ${result.reading.correct}/${result.reading.total}</p><h3>Отдельно проверить речь</h3>${result.speaking_tasks.map(t=>`<p>${esc(t)}</p>`).join('')}<p>Маршрут английского обновлён по результату. Цель — B2 к 1 мая; достижимость зависит от базы и времени на практику.</p><button class="ss-primary" data-entry-home>Открыть программу</button></section>`;root().querySelector('button').onclick=open;
  }catch(error){if(version===generation)status(error.message);}finally{busy=false;if(version===generation)formBusy(false);}};
  }catch(error){if(version===generation)errorView(error,loadEntry);}
+}
+async function openFamily(){
+ if(busy||!canLeave())return;dirty=false;const version=++generation;
+ root().innerHTML='<p class="ss-loading">Загружаю семейный доступ…</p>';
+ try{
+  const d=await api('/access');if(version!==generation)return;
+  const accountLabel=a=>`${a.name} · ${a.role==='parent'?'родитель':'ученик'} · ID ${a.id}`;
+  root().innerHTML=`<button class="ss-secondary" data-family-back>← К программе</button><section class="ss-panel"><h2>Семья · только языковые курсы</h2><p class="ss-muted">Выбери существующий аккаунт. Приглашение действует 7 дней и подходит только этому аккаунту. Рабочие роли, занятия, оплаты и боты не меняются.</p><form data-family-form><label>Кому открыть языки<select name="account" required>${d.accounts.map(a=>`<option value="${a.role}:${a.id}">${esc(accountLabel(a))}</option>`).join('')}</select></label><button class="ss-primary" type="submit">Создать персональную ссылку</button><p data-ss-status role="status"></p></form><div data-family-link></div><h3>Доступ к языкам</h3>${d.members.map(m=>{const [role,id]=m.account_key.split(':');const account=d.accounts.find(a=>a.role===role&&String(a.id)===id);return `<article class="ss-reference"><b>${esc(account?accountLabel(account):m.account_key)}</b><p>${m.active?'Языки доступны':'Доступ к языкам отозван'}</p>${m.active?`<button class="ss-secondary" data-family-revoke="${esc(m.account_key)}">Отозвать языковой доступ</button>`:''}</article>`;}).join('')||'<p>Пока никто не активировал приглашение.</p>'}</section>`;
+  root().querySelector('[data-family-back]').onclick=open;
+  root().querySelector('form').onsubmit=async event=>{
+   event.preventDefault();if(busy)return;const [role,id]=new FormData(event.currentTarget).get('account').split(':');busy=true;formBusy(true);status('Создаю ссылку…');
+   try{const result=await api('/access/invite',{account_role:role,account_id:Number(id)});if(version!==generation)return;
+    const url=new URL('/app/self-study.html',location.origin);if(role==='parent')url.searchParams.set('role','parent');url.hash='invite='+result.token;
+    const box=root().querySelector('[data-family-link]');box.replaceChildren();const label=document.createElement('p');label.textContent='Для '+result.name+'. Войти нужно под этим аккаунтом. Скопируй ссылку сейчас; повторное создание отменит прежнюю.';const input=document.createElement('input');input.type='text';input.readOnly=true;input.value=url.href;const copy=document.createElement('button');copy.type='button';copy.className='ss-secondary';copy.textContent='Скопировать';copy.onclick=async()=>{try{await navigator.clipboard.writeText(url.href);copy.textContent='Скопировано';}catch{input.focus();input.select();copy.textContent='Скопируй выделенную ссылку';}};box.append(label,input,copy);status('Приглашение создано. Его можно отправить выбранному человеку.');
+   }catch(error){status(error.message);}finally{busy=false;if(version===generation)formBusy(false);}
+  };
+  root().querySelectorAll('[data-family-revoke]').forEach(button=>button.onclick=async()=>{
+   if(busy||!confirm('Отозвать только языковой доступ? Рабочий кабинет останется доступен.'))return;
+   const [role,id]=button.dataset.familyRevoke.split(':');busy=true;button.disabled=true;
+   try{await api('/access/revoke',{account_role:role,account_id:Number(id)});busy=false;await openFamily();}
+   catch(error){status(error.message);button.disabled=false;}finally{busy=false;}
+  });
+ }catch(error){if(version===generation)errorView(error,openFamily);}
 }
 function installButton(){
  const nav=document.querySelector('.teacher-shell aside nav');if(!nav||nav.querySelector('[data-self-study]'))return;
