@@ -20,8 +20,14 @@ async function inject(win){
  const done=await win.webContents.executeJavaScript(`Boolean(window.${marker})`,true).catch(()=>false);
  if(done)return true;
  await win.webContents.executeJavaScript(`document.documentElement.classList.add('adelia-desktop','adelia-desktop-${role}');document.body&&document.body.classList.add('adelia-desktop','adelia-desktop-${role}')`,true);
- for(const name of manifest[role].css)await win.webContents.insertCSS(source(name));
- for(const name of manifest[role].js)await win.webContents.executeJavaScript(source(name),true);
+ for(const name of manifest[role].css){
+  const present=await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('link[rel=stylesheet]')).some(el=>new URL(el.href).pathname===${JSON.stringify('/app/'+name)}&&el.sheet)`,true);
+  if(!present)await win.webContents.insertCSS(source(name));
+ }
+ for(const name of manifest[role].js){
+  const present=await win.webContents.executeJavaScript(`Array.from(document.scripts).some(el=>el.src&&new URL(el.src).pathname===${JSON.stringify('/app/'+name)})`,true);
+  if(!present)await win.webContents.executeJavaScript(source(name),true);
+ }
  if(role==='teacher'){
  const brandIcon=fs.readFileSync(path.join(__dirname,'build','icon-macos.png')).toString('base64');
  await win.webContents.executeJavaScript(`

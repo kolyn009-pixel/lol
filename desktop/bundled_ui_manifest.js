@@ -20,7 +20,8 @@ module.exports={
       "student_receipts.css",
       "desktop_premium.css",
       "reliability.css",
-      "experience.css"
+      "experience.css",
+      "education_formula_layout.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -42,7 +43,8 @@ module.exports={
       "student_next_step.js",
       "formula_explorer.js",
       "lesson_planner.js",
-      "study_experience.js"
+      "study_experience.js",
+      "homework_formulas.js"
     ]
   },
   "teacher": {
@@ -63,7 +65,15 @@ module.exports={
       "desktop_premium.css",
       "teacher_attention.css",
       "reliability.css",
-      "experience.css"
+      "experience.css",
+      "teacher_workspace_review.css",
+      "teacher_messenger_rows.css",
+      "education_formula_layout.css",
+      "weekly_invoices_chat.css",
+      "chat_composer.css",
+      "package_studio.css",
+      "teaching_workbench.css",
+      "visual_channels.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -85,7 +95,16 @@ module.exports={
       "teacher_attention.js",
       "formula_explorer.js",
       "lesson_planner.js",
-      "study_experience.js"
+      "study_experience.js",
+      "teacher_workspace_review.js",
+      "teacher_messenger_rows.js",
+      "homework_formulas.js",
+      "weekly_invoices_chat.js",
+      "chat_composer.js",
+      "package_studio.js",
+      "teaching_plan.js",
+      "teaching_workbench.js",
+      "visual_channels.js"
     ]
   },
   "parent": {
