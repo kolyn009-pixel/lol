@@ -19,7 +19,7 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 SOURCE=Path(__file__).resolve().parents[1]
-MODULES=['learning/language_program.py','learning/language_checkpoints.py',
+MODULES=['learning/beginner_languages.py','learning/entry_diagnostic.py','web_backend/self_study_entry.py','web/self-study.html','learning/language_program.py','learning/language_checkpoints.py',
          'web_backend/self_study.py','web_backend/self_study_practice.py',
          'web_backend/self_study_feedback.py','web_backend/self_study_scenes.py',
          'web_backend/self_study_api.py','web/self_study.js','web/self_study.css',
@@ -72,6 +72,14 @@ def candidates(root):
         result[name]=data
     result['web_backend/api_v7.py']=patch_api((root/'web_backend/api_v7.py').read_text()).encode()
     result['web/teacher.html']=patch_html((root/'web/teacher.html').read_text()).encode()
+    if (root/'web/index.html').exists():
+        student_html=(root/'web/index.html').read_text()
+        link='<a class="shell-action" href="/app/self-study.html">Моё обучение · языки</a>'
+        if '/app/self-study.html' not in student_html:
+            anchor='<h2 id="profileSheetTitle">Профиль</h2>'
+            if student_html.count(anchor)!=1:raise RuntimeError('Student entry needs review')
+            student_html=student_html.replace(anchor,anchor+link,1)
+        result['web/index.html']=student_html.encode()
     for name,data in result.items():
         if name.endswith('.py'):ast.parse(data,filename=name)
         # Reject symlinks escaping the selected live release.

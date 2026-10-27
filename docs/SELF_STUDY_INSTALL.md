@@ -32,6 +32,7 @@ python scripts/self_study_practice_selftest.py
 python scripts/self_study_feedback_selftest.py
 python scripts/self_study_scenes_selftest.py
 python scripts/self_study_install_selftest.py
+python scripts/self_study_student_selftest.py
 node scripts/self_study_ui_selftest.cjs
 ```
 
@@ -84,3 +85,11 @@ python scripts/install_self_study.py --root "$LIVE_RELEASE" --service "$WEB_SERV
 
 Новые web-assets также включены в desktop manifest для следующей сборки приложения.
 Сборка установщиков и выпуск новой версии приложения этой командой не выполняются.
+
+## Ученический режим
+
+В ученическом кабинете добавляется ссылка на /app/self-study.html. Она использует
+обычную сессию ученика, а не права преподавателя. Проверь отдельным входом: видны
+английский и испанский, диагностика меняет только собственный маршрут, учитель
+по-прежнему видит свои три языка и прежние результаты. Новые desktop-исключения
+попадут в следующую сборку; установленное приложение нужно проверить отдельно.

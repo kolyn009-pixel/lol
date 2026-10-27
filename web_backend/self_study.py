@@ -59,10 +59,12 @@ def profile(owner_id):
         row=conn.execute('SELECT * FROM personal_study_profiles WHERE owner_id=?',(owner_id,)).fetchone()
         daily=row['daily_minutes'] if row else 120
         settings=json.loads(row['settings']) if row else {}
+        codes=('en','es') if owner_id<0 else ('en','de','fa')
         allocation={'en':80,'de':25,'fa':15} if daily==120 else {'en':120,'de':40,'fa':20}
+        if owner_id<0:allocation={'en':80,'es':40} if daily==120 else {'en':120,'es':60}
         return {'daily_minutes':daily,'languages':{
-            code:{**spec, **settings.get(code,{}),'minutes':allocation[code]}
-            for code,spec in LANGUAGES.items()}}
+            code:{**spec, **({'start':'Нужна диагностика','goal':'B2 · общение и самостоятельное использование','target_date':'2027-05-01'} if owner_id<0 and code=='en' else {}), **settings.get(code,{}),'minutes':allocation[code]}
+            for code,spec in LANGUAGES.items() if code in codes}}
     finally:
         conn.close()
 
@@ -77,7 +79,7 @@ def save_profile(owner_id,data):
     # Validate the entire request before mutating the existing profile.
     settings={}
     current=profile(owner_id)
-    for code in LANGUAGES:
+    for code in current['languages']:
         raw=dates.get(code,current['languages'][code]['target_date'])
         if not isinstance(raw,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',raw):
             raise ValueError('invalid_target_date')
@@ -106,6 +108,27 @@ def overview(owner_id):
     finally:
         conn.close()
     courses=catalogue()
+    roadmap=ROADMAP
+    if owner_id<0:
+        from learning.beginner_languages import units as basics
+        from web_backend.self_study_entry import result as entry_result
+        diagnostic=entry_result(owner_id)
+        band=diagnostic['working_band'] if diagnostic else None
+        foundation=basics('en')
+        start=0 if band in (None,'A1') else 3 if band=='A2' else 6
+        english=foundation[start:]+courses['en'][:8]
+        courses={'en':english,'es':basics('es')}
+        courses={code:[{key:item[key] for key in ('id','number','title','minutes')} for item in items] for code,items in courses.items()}
+        roadmap={
+          'en':[['После диагностики','Восстановить нужную базу','Точка старта по чтению и грамматике; отдельно проверить речь и аудирование.'],
+                ['До февраля','Укрепить A2–B1','Короткие диалоги, рассказы о событиях, понимание новых записей.'],
+                ['Март–апрель','Работать над B2','Обсуждение мнений, аргументация, новые материалы и контроль каждые четыре недели.']],
+          'es':[['Первые недели','Звуки и знакомство','Приветствие, имя, простые вопросы; слушать образцы носителей.'],
+                ['Далее до мая','Бытовая база','Еда, время, дорога, рассказ о себе. Цель B2 относится к английскому.']]}
+        p['diagnostic']=diagnostic
+        p['diagnostic_required']=diagnostic is None
+        p['languages']['en']['start']=('Рабочий ориентир '+band+' · грамматика/чтение') if band else 'Нужна диагностика'
+
     for code,items in courses.items():
         for item in items:
             records=[a for a in attempts if a['lesson_id']==item['id']]
@@ -118,8 +141,8 @@ def overview(owner_id):
         p['languages'][code]['next_lesson']=(remaining or items)[0]['id']
         p['languages'][code]['completed']=sum(i['passed'] for i in items)
         p['languages'][code]['total']=len(items)
-    return {'owner_id':int(owner_id),'profile':p,'courses':courses,'roadmap':ROADMAP,
-            'resources':RESOURCES,'history':list(reversed(attempts[-30:])),
+    return {'owner_id':int(owner_id),'profile':p,'courses':courses,'roadmap':roadmap,
+            'resources':([r for r in RESOURCES if r['language'] in p['languages'] and r['id'] not in ('landman','schwarzes-gold','billion-dollar-code')] if owner_id<0 else RESOURCES),'history':list(reversed(attempts[-30:])),
             'measurement_note':'Процент — результат конкретных заданий. Повторные попытки учитываются отдельно. Это не оценка CEFR.',
             'release_stage':2}
 

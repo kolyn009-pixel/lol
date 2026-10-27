@@ -2,7 +2,7 @@
 (()=>{'use strict';
 if(window.AdeliaStudyVoice)return;
 let dispose=null,hasUnsaved=()=>false;
-const locales={en:'en-GB',de:'de-DE',fa:'fa-IR'};
+const locales={en:'en-GB',de:'de-DE',fa:'fa-IR',es:'es-ES'};
 function database(){return new Promise((resolve,reject)=>{
  const request=indexedDB.open('adelia-personal-voice',1);
  request.onupgradeneeded=()=>request.result.createObjectStore('answers');
@@ -84,7 +84,7 @@ function mount(node,context){
   button.disabled=true;const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),30000);
   status('Разбираю расшифровку…');
   try{
-   const response=await fetch('/api/teacher/self-study/speech/feedback',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({lesson_id:context.lesson_id,transcript,consent:true}),signal:controller.signal});
+   const response=await fetch((document.body.dataset.studyRole==='student'?'/api/student/self-study':'/api/teacher/self-study')+'/speech/feedback',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({lesson_id:context.lesson_id,transcript,consent:true}),signal:controller.signal});
    const result=await response.json();
    if(!response.ok){const messages={ai_not_configured:'ИИ ещё не настроен на сервере. Запись и самостоятельная практика доступны.',feedback_rate_limited:'Слишком много запросов. Подожди минуту.',ai_invalid_response:'ИИ вернул неполный разбор. Попробуй позже.'};throw Error(messages[result.error]||'ИИ сейчас недоступен. Ответ и запись остаются у тебя.');}
    if(closed)return;

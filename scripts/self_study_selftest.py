@@ -199,6 +199,8 @@ class BrowserFixture(SelfStudyMixin,BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def _teacher(self):
         return {'id':101,'admin_telegram_id':101,'role':'teacher'} if 'role=teacher' in self.headers.get('Cookie','') else None
+    def _student(self):
+        return {'id':101,'role':'student'} if 'role=student' in self.headers.get('Cookie','') else None
     def _same_origin_write(self):
         return self.headers.get('Origin')=='http://'+self.headers['Host']
     def _body(self):
@@ -213,7 +215,9 @@ class BrowserFixture(SelfStudyMixin,BaseHTTPRequestHandler):
     def do_GET(self):
         parsed=urlparse(self.path)
         if parsed.path.startswith(API_ROOT):return self.self_study_route(parsed.path,parse_qs(parsed.query))
-        if parsed.path in ('/app/self_study.css','/app/self_study.js','/app/self_study_voice.js','/app/self_study_scenes.js'):
+        if parsed.path=='/app/self-study.html':
+            body=(ROOT/'web/self-study.html').read_bytes();ctype='text/html; charset=utf-8'
+        elif parsed.path in ('/app/self_study.css','/app/self_study.js','/app/self_study_voice.js','/app/self_study_scenes.js'):
             body=(ROOT/'web'/Path(parsed.path).name).read_bytes()
             ctype='text/css' if parsed.path.endswith('.css') else 'text/javascript'
         else:

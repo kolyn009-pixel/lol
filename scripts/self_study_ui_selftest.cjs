@@ -117,6 +117,18 @@ const fs=require('node:fs/promises');
   await context.clearCookies();await page.reload();await page.getByRole('alert').waitFor();
   assert.match(await page.getByRole('alert').innerText(),/Войди в кабинет/);
   assert.equal(await page.locator('.ss-unit').count(),0);
+  await context.addCookies([{name:'role',value:'student',url}]);
+  await page.goto(url+'/app/self-study.html');
+  await page.locator('[data-ss-language="es"]').waitFor();
+  assert.equal(await page.locator('[data-ss-language="de"]').count(),0);
+  await page.locator('[data-ss-entry]').click();
+  await page.locator('[data-entry-form]').waitFor();
+  for(const radio of await page.locator('[data-entry-form] input[value="unknown"]').all())await radio.check();
+  await page.getByRole('button',{name:'Получить маршрут',exact:true}).click();
+  await page.getByRole('button',{name:'Открыть программу',exact:true}).click();
+  await page.locator('[data-ss-language="es"]').waitFor();
+  assert.match(await page.locator('.ss-primary[data-ss-lesson]').getAttribute('data-ss-lesson'),/^en0-/);
+  await page.locator('[data-ss-language="es"]').click();assert.equal(await page.locator('.ss-unit').count(),8);
   assert.deepEqual(errors,[]);
   console.log('PASS: teacher launch, budget, dates, drafts, grading, spaced review/reveal recovery, checkpoint drafts/results, history, 3 languages, RTL, XSS, existing-render isolation, navigation, mobile layout and auth denial.');
  }finally{await browser?.close();server.kill('SIGTERM');}

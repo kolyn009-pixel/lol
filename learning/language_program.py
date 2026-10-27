@@ -2,6 +2,7 @@
 from copy import deepcopy
 
 LANGUAGES = {
+    'es': {'name':'Испанский','locale':'es-ES','start':'С нуля','goal':'База для бытового общения','target_date':'2027-05-01','minutes':40},
     'en': {'name': 'Английский', 'locale': 'en-GB', 'start': 'B1 · самооценка', 'goal': 'C1 · аспирантура', 'target_date': '2027-09-01', 'minutes': 80},
     'de': {'name': 'Немецкий', 'locale': 'de-DE', 'start': 'B1 · самооценка', 'goal': 'Уверенное самостоятельное общение', 'target_date': '2027-05-31', 'minutes': 25},
     'fa': {'name': 'Фарси', 'locale': 'fa-IR', 'start': 'Начальный', 'goal': 'Бытовой разговор', 'target_date': '2027-05-31', 'minutes': 15},
@@ -232,6 +233,14 @@ def units(language):
 
 
 def lesson(lesson_id, include_keys=False):
+    if str(lesson_id).startswith(('en0-','es-')):
+        from learning.beginner_languages import units as basics
+        code='en' if str(lesson_id).startswith('en0-') else 'es'
+        item=next((x for x in basics(code) if x['id']==lesson_id),None)
+        if item is None:raise ValueError('lesson_not_found')
+        if not include_keys:
+            for q in item['checks']:q.pop('answers');q.pop('explanation')
+        return item
     language = str(lesson_id).split('-')[0]
     if language not in LANGUAGES:
         raise ValueError('lesson_not_found')
@@ -247,7 +256,7 @@ def lesson(lesson_id, include_keys=False):
 
 def catalogue():
     return {language:[{'id':x['id'],'number':x['number'],'title':x['title'],'minutes':x['minutes']}
-                      for x in units(language)] for language in LANGUAGES}
+                      for x in units(language)] for language in ('en','de','fa')}
 
 
 def serial_protocol(language):

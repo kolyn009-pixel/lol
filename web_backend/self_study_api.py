@@ -3,23 +3,32 @@ from web_backend import self_study
 from web_backend import self_study_practice as practice
 
 ROOT='/api/teacher/self-study'
-GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes'}
+GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit'}
 
+GET_PATHS |= {p.replace('/teacher/','/student/') for p in list(GET_PATHS)}
+POST_PATHS |= {p.replace('/teacher/','/student/') for p in list(POST_PATHS)}
 
 class SelfStudyMixin:
     def self_study_route(self,path,query=None,write=False):
-        auth=self._teacher()
+        student=path.startswith('/api/student/')
+        auth=(getattr(self,'_student',lambda:None)() if student else self._teacher())
+        path=path.replace('/api/student/','/api/teacher/',1) if student else path
         if not auth:
             return self._json(401,{'error':'unauthorized'})
         if write and not self._same_origin_write():
             return self._json(403,{'error':'cross_origin_forbidden'})
         try:
             owner=int(auth['admin_telegram_id'] if 'admin_telegram_id' in auth else auth['id'])
+            if owner<=0:raise ValueError('invalid_request')
+            if student:owner=-owner
             if not write:
                 q=query or {}
-                if path==ROOT+'/lesson':payload=self_study.get_lesson(owner,q.get('id',[''])[0])
+                if path==ROOT+'/entry':
+                    from web_backend.self_study_entry import get
+                    payload=get(owner)
+                elif path==ROOT+'/lesson':payload=self_study.get_lesson(owner,q.get('id',[''])[0])
                 elif path==ROOT+'/practice':payload=practice.practice(owner,q.get('language',['en'])[0])
                 elif path==ROOT+'/checkpoint/status':payload=practice.checkpoint_status(owner,q.get('language',['en'])[0])
                 elif path==ROOT+'/checkpoint':payload=practice.get_checkpoint(owner,int(q.get('id',['0'])[0]))
@@ -32,7 +41,10 @@ class SelfStudyMixin:
                 data=self._body()
                 if not isinstance(data,dict):
                     return self._json(400,{'error':'invalid_json'})
-                if path==ROOT+'/profile':payload=self_study.save_profile(owner,data)
+                if path==ROOT+'/entry/submit':
+                    from web_backend.self_study_entry import submit
+                    payload=submit(owner,data)
+                elif path==ROOT+'/profile':payload=self_study.save_profile(owner,data)
                 elif path==ROOT+'/draft':payload=self_study.save_draft(owner,data)
                 elif path==ROOT+'/submit':payload=self_study.submit(owner,data)
                 elif path==ROOT+'/review/answer':payload=practice.answer_card(owner,data)
@@ -55,7 +67,7 @@ class SelfStudyMixin:
                      'invalid_target_dates','invalid_target_date','invalid_id','invalid_version',
                      'card_not_found','stale_review','card_not_due','invalid_rating','review_not_found',
                      'checkpoint_not_found','no_new_checkpoints','checkpoint_not_due','checkpoint_finished',
-                     'invalid_transcript','feedback_consent_required','invalid_scene','invalid_scene_time',
+                     'diagnostic_incomplete','invalid_transcript','feedback_consent_required','invalid_scene','invalid_scene_time',
                      'invalid_scene_phrases','scene_not_found'}
             error=str(exc)
             return self._json(400,{'error':error if error in allowed else 'invalid_request'})

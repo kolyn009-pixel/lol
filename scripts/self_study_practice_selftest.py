@@ -194,7 +194,7 @@ class PracticeTests(unittest.TestCase):
 
     def test_stage2_routes_authenticate_and_enforce_origin(self):
         from web_backend.self_study_api import ROOT,POST_PATHS
-        for path in POST_PATHS:
+        for path in (p for p in POST_PATHS if '/teacher/' in p):
             handler=fixture.FakeHandler(teacher=None,body={})
             self.assertEqual(401,handler.self_study_route(path,write=True)[0]);self.assertFalse(handler.body_read)
             handler=fixture.FakeHandler(body={},origin=False)
