@@ -21,14 +21,17 @@ def ensure_schema():
     finally:conn.close()
 
 
-def resource(resource_id):
+def resource(resource_id,owner=None):
     item=next((x for x in RESOURCES if x['id']==resource_id and x.get('study_tasks')),None)
+    if not item and owner is not None:
+        from web_backend.self_study_preferences import owned_resource,EXTRA
+        item=owned_resource(owner,resource_id) or next((x for x in EXTRA if x['id']==resource_id),None)
     if not item:raise ValueError('invalid_scene')
     return item
 
 
-def validate(data):
-    item=resource(data.get('resource_id'))
+def validate(data,owner=None):
+    item=resource(data.get('resource_id'),owner)
     for key in ('season','episode'):
         if type(data.get(key)) is not int or not 1<=data[key]<=999:raise ValueError('invalid_scene')
     start,end=data.get('start_seconds'),data.get('end_seconds')
@@ -78,7 +81,7 @@ def get_scene(owner,scene_id):
 
 
 def save_scene(owner,data):
-    item,clean,req=validate(data);ensure_schema();conn=connect()
+    item,clean,req=validate(data,owner);ensure_schema();conn=connect()
     try:
         conn.execute('BEGIN IMMEDIATE')
         old=conn.execute('SELECT * FROM personal_study_scenes WHERE owner_id=? AND request_id=?',(owner,req)).fetchone()

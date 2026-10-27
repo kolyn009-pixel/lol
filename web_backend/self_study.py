@@ -63,16 +63,20 @@ def profile(owner_id):
         codes=('en','es') if owner_id<0 else ('en','de','fa')
         allocation={'en':80,'de':25,'fa':15} if daily==120 else {'en':120,'de':40,'fa':20}
         if owner_id<0:allocation={60:{'en':45,'es':15},90:{'en':70,'es':20},120:{'en':95,'es':25}}[daily]
-        return {'daily_minutes':daily,'languages':{
+        base={'daily_minutes':daily,'languages':{
             code:{**spec, **({'start':'Нужна диагностика','goal':'B2 · общение и самостоятельное использование','target_date':'2027-05-01'} if owner_id<0 and code=='en' else {}), **settings.get(code,{}),'minutes':allocation[code]}
             for code,spec in LANGUAGES.items() if code in codes}}
+        from web_backend.self_study_preferences import customise_profile
+        return customise_profile(owner_id,base)
     finally:
         conn.close()
 
 
 def save_profile(owner_id,data):
     daily=data.get('daily_minutes')
-    if type(daily) is not int or daily not in ((60,90,120) if owner_id<0 else (120,180)):
+    from web_backend.self_study_preferences import MINUTES,stored
+    allowed=MINUTES if stored(owner_id) else ((60,90,120) if owner_id<0 else (120,180))
+    if type(daily) is not int or daily not in allowed:
         raise ValueError('invalid_daily_minutes')
     dates=data.get('target_dates',{})
     if not isinstance(dates,dict) or set(dates)-set(LANGUAGES):
@@ -82,6 +86,8 @@ def save_profile(owner_id,data):
     current=profile(owner_id)
     for code in current['languages']:
         raw=dates.get(code,current['languages'][code]['target_date'])
+        if raw=='' and current.get('preferences'):
+            settings[code]={'target_date':''};continue
         if not isinstance(raw,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',raw):
             raise ValueError('invalid_target_date')
         parsed=date.fromisoformat(raw)
@@ -110,7 +116,7 @@ def overview(owner_id):
         conn.close()
     courses=catalogue()
     roadmap=ROADMAP
-    if owner_id<0:
+    if owner_id<0 and not p.get('preferences'):
         from learning.beginner_languages import units as basics
         from web_backend.self_study_entry import result as entry_result
         diagnostic=entry_result(owner_id)
@@ -130,6 +136,10 @@ def overview(owner_id):
         p['diagnostic_required']=diagnostic is None
         p['languages']['en']['start']=('Рабочий ориентир '+band+' · грамматика/чтение') if band else 'Нужна диагностика'
 
+    personal_resources=None
+    if p.get('preferences'):
+        from web_backend.self_study_preferences import adapt
+        courses,roadmap,personal_resources=adapt(owner_id,p,attempts)
     for code,items in courses.items():
         for item in items:
             records=[a for a in attempts if a['lesson_id']==item['id']]
@@ -143,7 +153,7 @@ def overview(owner_id):
         p['languages'][code]['completed']=sum(i['passed'] for i in items)
         p['languages'][code]['total']=len(items)
     return {'owner_id':int(owner_id),'profile':p,'courses':courses,'roadmap':roadmap,
-            'resources':([r for r in RESOURCES if r['language'] in p['languages'] and r['id'] not in ('landman','schwarzes-gold','billion-dollar-code')] if owner_id<0 else RESOURCES),'history':list(reversed(attempts[-30:])),
+            'resources':personal_resources if personal_resources is not None else ([r for r in RESOURCES if r['language'] in p['languages'] and r['id'] not in ('landman','schwarzes-gold','billion-dollar-code')] if owner_id<0 else RESOURCES),'history':list(reversed(attempts[-30:])),
             'measurement_note':'Процент — результат конкретных заданий. Повторные попытки учитываются отдельно. Это не оценка CEFR.',
             'release_stage':2}
 

@@ -15,12 +15,14 @@ def context_for(item_id,owner=None):
     if not isinstance(item_id,str):raise ValueError('lesson_not_found')
     if item_id.startswith('scene:'):
         from web_backend.self_study_scenes import get_scene,resource
-        item=get_scene(owner,int(item_id[6:]));show=resource(item['resource_id'])
+        item=get_scene(owner,int(item_id[6:]));show=resource(item['resource_id'],owner)
         return item['language'],'Перескажи выбранную сцену '+show['title']+'. Заметка пользователя (не проверенные факты): '+item['summary']
     if item_id.startswith('series:'):
-        item=next((x for x in RESOURCES if x['id']==item_id[7:] and x.get('study_tasks')),None)
+        from web_backend.self_study_scenes import resource
+        try:item=resource(item_id[7:],owner)
+        except ValueError:item=None
         if not item:raise ValueError('lesson_not_found')
-        return item['language'],'Пересказ выбранной пользователем сцены '+item['title']+'. '+ ' '.join(item['study_tasks'])
+        return item['language'],'Пересказ выбранной пользователем сцены '+item['title']+'. '+ ' '.join(item.get('study_tasks',['Назови участников, их цели и конфликт. Перескажи сцену.']))
     item=lesson(item_id)
     return item['language'],item['speaking']
 

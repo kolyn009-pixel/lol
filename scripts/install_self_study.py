@@ -19,7 +19,7 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 SOURCE=Path(__file__).resolve().parents[1]
-MODULES=['web_backend/self_study_access.py','learning/beginner_languages.py','learning/entry_diagnostic.py','web_backend/self_study_entry.py','web/self-study.html','learning/language_program.py','learning/language_checkpoints.py',
+MODULES=['web_backend/self_study_preferences.py','web/self_study_settings.js','web_backend/self_study_access.py','learning/beginner_languages.py','learning/entry_diagnostic.py','web_backend/self_study_entry.py','web/self-study.html','learning/language_program.py','learning/language_checkpoints.py',
          'web_backend/self_study.py','web_backend/self_study_practice.py',
          'web_backend/self_study_feedback.py','web_backend/self_study_scenes.py',
          'web_backend/self_study_api.py','web/self_study.js','web/self_study.css',
@@ -48,7 +48,7 @@ def patch_api(text):
 
 def patch_html(text):
     if text.count('</head>')!=1 or text.count('</body>')!=1:raise RuntimeError('Unrecognised teacher HTML')
-    for name in ['self_study.css','self_study.js','self_study_voice.js','self_study_scenes.js']:
+    for name in ['self_study.css','self_study.js','self_study_voice.js','self_study_scenes.js','self_study_settings.js']:
         pattern=(r'<link\b[^>]*href=[\"\']/app/'+re.escape(name)+r'(?:\?[^\"\']*)?[\"\'][^>]*>' if name.endswith('.css') else
                  r'<script\b[^>]*src=[\"\']/app/'+re.escape(name)+r'(?:\?[^\"\']*)?[\"\'][^>]*>\s*</script>')
         text,count=re.subn(pattern,'',text)

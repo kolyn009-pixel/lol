@@ -4,9 +4,9 @@ from web_backend import self_study_access as access
 from web_backend import self_study_practice as practice
 
 ROOT='/api/teacher/self-study'
-GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access'}
+GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save'}
 
 GET_PATHS |= {p.replace('/teacher/','/student/') for p in list(GET_PATHS)}
 POST_PATHS |= {p.replace('/teacher/','/student/') for p in list(POST_PATHS)}
@@ -40,7 +40,10 @@ class SelfStudyMixin:
             elif not access.is_manager(owner):raise PermissionError('family_owner_required')
             if not write:
                 q=query or {}
-                if path==ROOT+'/access':payload=access.overview(owner)
+                if path==ROOT+'/preferences':
+                    from web_backend.self_study_preferences import questionnaire
+                    payload=questionnaire(owner)
+                elif path==ROOT+'/access':payload=access.overview(owner)
                 elif path==ROOT+'/entry':
                     from web_backend.self_study_entry import get
                     payload=get(owner)
@@ -57,7 +60,10 @@ class SelfStudyMixin:
                 data=self._body()
                 if not isinstance(data,dict):
                     return self._json(400,{'error':'invalid_json'})
-                if path==ROOT+'/access/invite':payload=access.issue(owner,data)
+                if path==ROOT+'/preferences/save':
+                    from web_backend.self_study_preferences import save
+                    payload=save(owner,data)
+                elif path==ROOT+'/access/invite':payload=access.issue(owner,data)
                 elif path==ROOT+'/access/revoke':payload=access.revoke(owner,data)
                 elif path==ROOT+'/entry/submit':
                     from web_backend.self_study_entry import submit
@@ -87,7 +93,7 @@ class SelfStudyMixin:
                      'invalid_target_dates','invalid_target_date','invalid_id','invalid_version',
                      'card_not_found','stale_review','card_not_due','invalid_rating','review_not_found',
                      'checkpoint_not_found','no_new_checkpoints','checkpoint_not_due','checkpoint_finished',
-                     'invalid_family_account','diagnostic_incomplete','invalid_transcript','feedback_consent_required','invalid_scene','invalid_scene_time',
+                     'invalid_preferences','invalid_family_account','diagnostic_incomplete','invalid_transcript','feedback_consent_required','invalid_scene','invalid_scene_time',
                      'invalid_scene_phrases','scene_not_found'}
             error=str(exc)
             return self._json(400,{'error':error if error in allowed else 'invalid_request'})

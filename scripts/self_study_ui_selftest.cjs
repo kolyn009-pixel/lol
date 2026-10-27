@@ -137,6 +137,16 @@ const fs=require('node:fs/promises');
   await page.goto(url+'/app/self-study.html?role=parent#invite='+parentToken);
   await page.locator('[data-ss-language="en"]').waitFor();
   assert.equal(await page.locator('#studyBack').getAttribute('href'),'/app/parent/');
+  await page.locator('[data-ss-settings]').click();
+  await page.locator('[data-settings-form]').waitFor();
+  await page.locator('input[name=courses][value=en]').uncheck();
+  await page.locator('select[name=priority]').selectOption('es');
+  await page.locator('select[name=daily_minutes]').selectOption('30');
+  await page.locator('input[name=topics][value=travel]').check();
+  await page.getByRole('button',{name:'Сохранить и обновить программу',exact:true}).click();
+  await page.locator('[data-ss-language="es"]').waitFor();
+  assert.equal(await page.locator('[data-ss-language="en"]').count(),0);
+  assert.match(await page.locator('#selfStudyRoot').innerText(),/30 мин в день/);
   assert.deepEqual(errors,[]);
   console.log('PASS: teacher launch, budget, dates, drafts, grading, spaced review/reveal recovery, checkpoint drafts/results, history, 3 languages, RTL, XSS, existing-render isolation, navigation, mobile layout and auth denial.');
  }finally{await browser?.close();server.kill('SIGTERM');}

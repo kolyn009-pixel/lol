@@ -108,7 +108,8 @@ module.exports={
       "visual_channels.js",
       "self_study.js",
       "self_study_voice.js",
-      "self_study_scenes.js"
+      "self_study_scenes.js",
+      "self_study_settings.js"
     ]
   },
   "parent": {
