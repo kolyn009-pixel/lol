@@ -2,6 +2,13 @@ name: Adelia desktop installers
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'fix/teacher-dashboard-receipts-layout-20261025'
+    paths:
+      - 'desktop/**'
+      - 'web/**'
+      - '.github/workflows/desktop-current.yml'
   pull_request:
     paths:
       - 'desktop/**'
@@ -82,7 +89,7 @@ jobs:
           from pathlib import Path
           root=Path(sys.argv[1]);manifest=json.loads((root/'manifest.json').read_text())
           assert manifest['git_sha']==os.environ['ADELIA_BUILD_SHA']
-          assert manifest['version']=='0.3.0-beta.2'
+          assert manifest['version']==json.loads(Path('package.json').read_text())['version']
           for item in manifest['files']:
               file=root/item['name']
               assert file.stat().st_size==item['size']
@@ -96,7 +103,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          BUNDLE="Adelia-beta2-${{ matrix.target }}-${ADELIA_BUILD_SHA:0:12}.zip"
+          VERSION=$(node -p "require('./package.json').version")
+          BUNDLE="Adelia-${VERSION}-${{ matrix.target }}-${ADELIA_BUILD_SHA:0:12}.zip"
           python - "beta-bundle/${{ matrix.target }}" "$BUNDLE" <<'PY'
           import sys,zipfile
           from pathlib import Path
@@ -105,9 +113,9 @@ jobs:
               for file in root.iterdir():
                   if file.is_file():archive.write(file,file.name)
           PY
-          TAG="desktop-beta2-${ADELIA_BUILD_SHA:0:12}"
+          TAG="desktop-${VERSION}-${ADELIA_BUILD_SHA:0:12}"
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$ADELIA_BUILD_SHA" --title "Аделия 0.3.0-beta.2" --notes "Проверенные установщики Windows x64, macOS Intel и Apple Silicon. Бета-сборки без цифровой подписи. Исходный коммит: $ADELIA_BUILD_SHA." || gh release view "$TAG" --repo "$GITHUB_REPOSITORY"
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$ADELIA_BUILD_SHA" --title "Аделия ${VERSION}" --notes "Проверенные установщики Windows x64, macOS Intel и Apple Silicon. Бета-сборки без цифровой подписи. Исходный коммит: $ADELIA_BUILD_SHA." || gh release view "$TAG" --repo "$GITHUB_REPOSITORY"
           fi
           gh release upload "$TAG" "$BUNDLE" --repo "$GITHUB_REPOSITORY" --clobber
           echo "DRAFT_INSTALLER_UPLOAD=OK"

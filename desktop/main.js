@@ -248,8 +248,21 @@ function createTray() {
   refreshTrayMenu();
 }
 
+async function installDownloadedUpdate() {
+ if(updateState.status!=='downloaded')return false;
+ if(lessonWindows.size>0){sendUpdateState({status:'downloaded',message:'Завершите занятие перед установкой обновления.'});return false;}
+ // An individual lesson can remain active after its video windows are closed.
+ try {
+  if(mainWindow&&!mainWindow.isDestroyed()){
+   const running=await mainWindow.webContents.executeJavaScript("Boolean(document.querySelector('#finishNow,#finishLiveLesson,.lesson-finish-primary'))",true);
+   if(running||lessonWindows.size>0){sendUpdateState({status:'downloaded',message:'Завершите занятие перед установкой обновления.'});return false;}
+  }
+ }catch{sendUpdateState({status:'downloaded',message:'Не удалось проверить состояние урока. Повторите после завершения занятия.'});return false;}
+ autoUpdater.quitAndInstall(false,true);return true;
+}
+
 function setupAutoUpdates() {
-  autoUpdater.autoDownload=false; autoUpdater.autoInstallOnAppQuit=true;
+  autoUpdater.autoDownload=false; autoUpdater.autoInstallOnAppQuit=false;
   autoUpdater.channel=UPDATE_CHANNEL;
   autoUpdater.allowPrerelease=UPDATE_CHANNEL==='beta';
   autoUpdater.setFeedURL({provider:'generic',url:UPDATE_BASE_URL,channel:UPDATE_CHANNEL});
@@ -259,7 +272,7 @@ function setupAutoUpdates() {
   autoUpdater.on('error',err=>sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'}));
   if (!app.isPackaged) { sendUpdateState({status:'current'}); return; }
   autoUpdater.on('update-available', async info => { sendUpdateState({status:'available',version:info.version}); if(updateBusy)return; updateBusy=true; try { const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Доступно обновление Аделии',message:`Доступна новая версия ${info.version}.`,detail:'Скачать обновление сейчас? Можно продолжать пользоваться приложением во время загрузки.',buttons:['Скачать','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0) await autoUpdater.downloadUpdate(); } catch(_){} finally{updateBusy=false;} });
-  autoUpdater.on('update-downloaded', async info => { sendUpdateState({status:'downloaded',version:info.version,percent:100}); const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Обновление готово',message:`Версия ${info.version} загружена.`,detail:'Перезапустить Аделию и установить обновление сейчас?',buttons:['Перезапустить и обновить','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0){closeLessonWindows();autoUpdater.quitAndInstall(false,true);} });
+  autoUpdater.on('update-downloaded', async info => { sendUpdateState({status:'downloaded',version:info.version,percent:100}); const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Обновление готово',message:`Версия ${info.version} загружена.`,detail:'Перезапустить Аделию и установить обновление сейчас?',buttons:['Перезапустить и обновить','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0)await installDownloadedUpdate(); });
   const check=()=>{if(updateBusy||lessonWindows.size>0)return;autoUpdater.checkForUpdates().catch(()=>{});}; setTimeout(check,15000); updateTimer=setInterval(check,UPDATE_CHECK_MS);
 }
 
@@ -323,7 +336,7 @@ if (!gotSingleInstanceLock) {
     ipcMain.handle('adelia:open-about',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;return openAboutWindow();});
     ipcMain.handle('adelia:about-info',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;return {version:app.getVersion(),channel:UPDATE_CHANNEL==='beta'?'Beta':'Stable',platform:process.platform,arch:process.arch,updateTarget:UPDATE_TARGET,buildSha:buildSha(),packaged:app.isPackaged,updateState};});
     ipcMain.handle('adelia:about-check-updates',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;if(!app.isPackaged)return sendUpdateState({status:'current'});if(lessonWindows.size>0)return sendUpdateState({status:'error',message:'Завершите текущее занятие перед проверкой обновления.'});try{sendUpdateState({status:'checking'});await autoUpdater.checkForUpdates();return updateState}catch(err){return sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'})}});
-    ipcMain.handle('adelia:about-install-update',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents||updateState.status!=='downloaded')return false;closeLessonWindows();autoUpdater.quitAndInstall(false,true);return true;});
+    ipcMain.handle('adelia:about-install-update',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents||updateState.status!=='downloaded')return false;return installDownloadedUpdate();});
     ipcMain.handle('adelia:about-close',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return false;aboutWindow.close();return true;});
 
     createTray();
