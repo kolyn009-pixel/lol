@@ -149,8 +149,10 @@ class SelfStudyMixin:
                 elif path==ROOT+'/access/invite':payload=access.issue(owner,data)
                 elif path==ROOT+'/access/revoke':payload=access.revoke(owner,data)
                 elif path==ROOT+'/entry/submit':
-                    from web_backend.self_study_entry import submit
-                    payload=submit(owner,data)
+                    from web_backend.self_study_placement import submit
+                    from web_backend.self_study_entry import result as legacy_result
+                    updated=submit(owner,{'language':'en','answers':data.get('answers')})
+                    payload={**legacy_result(owner),**updated}
                 elif path==ROOT+'/profile':payload=self_study.save_profile(owner,data)
                 elif path==ROOT+'/draft':payload=self_study.save_draft(owner,data)
                 elif path==ROOT+'/submit':payload=self_study.submit(owner,data)

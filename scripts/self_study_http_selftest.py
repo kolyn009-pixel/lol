@@ -119,6 +119,41 @@ class Tests(unittest.TestCase):
     def test_cross_origin_post_is_rejected(self):
         self.assertEqual('cross_origin_forbidden',self.api('/access/invite',body={'account_role':'student','account_id':101},expected=403,origin=False)['error'])
 
+    def test_budget_and_dates_refresh_complete_overview(self):
+        self.api('/profile',body={'daily_minutes':180,'target_dates':{'en':'2027-09-15'}})
+        state=self.api();self.assertEqual(120,state['profile']['languages']['en']['minutes'])
+        self.assertEqual('2027-09-15',state['profile']['languages']['en']['target_date'])
+        self.assertTrue(any(x['id']==state['profile']['languages']['en']['next_lesson'] for x in state['courses']['en']))
+
+    def test_old_english_entry_updates_new_route_and_preserves_legacy_report(self):
+        self.configure_and_place('student','en')
+        from learning.family_placement import questions
+        answers={q['id']:q['answer'] for q in questions('en',True)}
+        result=self.api('/entry/submit',role='student',body={'answers':answers})
+        self.assertEqual('B2',result['working_band']);self.assertIn('reading',result);self.assertIn('speaking_tasks',result)
+        state=self.api(role='student');self.assertEqual('B2',state['placement']['results']['en']['working_band'])
+        self.assertEqual('B2',self.api('/route?language=en',role='student')['start_band'])
+
+    def test_new_features_complete_family_journey_over_http(self):
+        for role in ('student','parent'):
+            self.configure_and_place(role)
+            c=self.api('/conversation/start',role=role,body={'scenario_id':'es-meeting','request_id':str(uuid4())})
+            for turn in range(3):
+                c=self.api('/conversation/answer',role=role,body={'session_id':c['id'],'version':c['version'],'request_id':str(uuid4()),'text':'Podemos practicar mañana.','intention':'agree','reflection':'with_help' if turn==2 else None})
+            self.assertTrue(c['finished'])
+            self.api('/skills/start',role=role,body={'language':'es'})
+            task=self.api('/skills/task?language=es&skill=writing',role=role)
+            self.api('/skills/sample',role=role,body={'language':'es','skill':'writing','form_id':task['form_id'],'request_id':str(uuid4()),'text':'¿Podemos empezar a las siete?','rubric':{k:True for k in task['rubric']}})
+            report=self.api('/skills?language=es',role=role);self.assertEqual(1,len(report['writing']['samples']));self.assertEqual(1,report['speaking']['completed_conversations'])
+            s=self.api('/listening/start',role=role,body={'source_id':'rtve-ministerio','request_id':str(uuid4())})
+            for phase in ('first','second'):s=self.api('/listening/submit',role=role,body={'session_id':s['id'],'phase':phase,'heard':True,'reference':'serie 1, 00:30–01:00','note':'Escucho una pregunta sobre el tiempo.'})
+            self.assertEqual('self_report',s['first']['type'])
+            self.api('/comfort/save',role=role,body={'minutes':10})
+            self.assertEqual(10,self.api('/comfort?language=es',role=role)['short_minutes'])
+            day=self.api('/day/start',role=role,body={'language':'es','minutes':25})['session']
+            short=self.api('/day/update',role=role,body={'session_id':day['id'],'version':day['version'],'action':'shorten','minutes':5})['session']
+            self.assertEqual(5,short['minutes']);self.assertEqual(day['lesson_id'],short['lesson_id']);self.assertEqual(0,short['step'])
+
     def test_every_learning_asset_is_served_as_javascript(self):
         from pathlib import Path
         for path in (fixture.ROOT/'web').glob('self_study*.js'):
