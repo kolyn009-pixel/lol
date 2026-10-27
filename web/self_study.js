@@ -83,7 +83,7 @@ function renderLesson(){
  const form=box.querySelector('form');
  form.oninput=()=>{dirty=true;if(lastPayload){submitId=uuid();lastPayload=null;}status('Есть несохранённые изменения.');};
  box.querySelector('[data-ss-save]').onclick=saveDraft;
- form.onsubmit=e=>{e.preventDefault();submitLesson();};
+ form.onsubmit=e=>{e.preventDefault();submitLesson();};mountVoice(item);
 }
 function collect(){return Object.fromEntries(new FormData(root().querySelector('[data-ss-check]')));}
 function formBusy(value){root()?.querySelectorAll('form input,form button,[data-ss-back]').forEach(x=>x.disabled=value);}
@@ -103,7 +103,7 @@ async function submitLesson(){
 }
 function renderResult(result){
  const item=currentLesson;root().innerHTML=`<section class="ss-panel"><span class="ss-eyebrow">Результат сохранён</span><h2>${esc(item.title)}</h2><div class="ss-result">${result.correct}<span class="ss-muted"> / ${result.total}</span></div><p>${result.passed?'Можно двигаться дальше. Попробуй применить выражения в своей ситуации.':'Вернись к объяснениям ниже и попробуй ещё раз после перерыва.'}</p><p class="ss-muted">${esc(result.note)} · попытка ${result.attempt_number}. Результат относится только к этим заданиям.</p>${result.results.map(x=>`<article class="ss-feedback" data-correct="${x.correct}"><b>${x.correct?'✓ Верно':'Нужно повторить'} · ${esc(x.prompt)}</b><p>Твой ответ: <bdi>${esc(x.submitted)}</bdi></p>${!x.correct?`<p>Ожидаемый ответ: <bdi>${esc(x.expected)}</bdi></p>`:''}<p>${esc(x.explanation)}</p></article>`).join('')}<div class="ss-note"><b>Теперь вслух:</b> ${esc(item.speaking)}</div><div class="ss-actions"><button type="button" class="ss-primary" data-ss-home>К программе</button><button type="button" class="ss-secondary" data-ss-again>Повторить модуль</button></div></section>`;
- root().querySelector('[data-ss-home]').onclick=open;root().querySelector('[data-ss-again]').onclick=()=>loadLesson(item.id);
+ root().querySelector('[data-ss-home]').onclick=open;root().querySelector('[data-ss-again]').onclick=()=>loadLesson(item.id);mountVoice(item);
 }
 const errorStates={OPEN:'Повторить',PRACTICING:'Закрепляется',RESOLVED:'Закреплено в разные дни'};
 const when=value=>value?new Date(value).toLocaleString('ru-RU'):'';
@@ -186,6 +186,7 @@ function renderCheckpointResult(result){
  root().innerHTML=`<section class="ss-panel"><span class="ss-eyebrow">Контрольная сохранена · ${result.fresh?'первая работа с текстом':'повтор знакомого варианта'}</span><h2>${esc(result.form_id)}</h2><div class="ss-result">${result.correct} / ${result.total}</div><div class="ss-meta"><span class="ss-pill">Чтение ${result.skills.comprehension.correct}/3</span><span class="ss-pill">Воспроизведение ${result.skills.recall.correct}/3</span></div><p class="ss-muted">Сравнивай первые работы на разных текстах отдельно от повторов. На три вопроса по навыку влияет случайность; этот результат не определяет CEFR.</p>${result.results.map(x=>`<article class="ss-feedback" data-correct="${x.correct}"><b>${x.correct?'✓ Верно':'Повторить'} · ${esc(x.prompt)}</b><p>Твой ответ: <bdi>${esc(x.submitted)}</bdi></p>${x.correct?'':`<p>Ожидаемый ответ: <bdi>${esc(x.expected)}</bdi></p>`}<p>${esc(x.explanation)}</p></article>`).join('')}<button class="ss-primary" data-ss-home>К программе</button></section>`;
  root().querySelector('[data-ss-home]').onclick=open;
 }
+function mountVoice(item){const box=document.createElement('div');box.style.marginTop='18px';root().appendChild(box);window.AdeliaStudyVoice?.mount(box,{owner_id:snapshot.owner_id,lesson_id:item.id,language:item.language,prompt:item.speaking});}
 function installButton(){
  const nav=document.querySelector('.teacher-shell aside nav');if(!nav||nav.querySelector('[data-self-study]'))return;
  const button=document.createElement('button');button.type='button';button.dataset.selfStudy='';button.innerHTML='<span class="ico">◈</span><span>Моё обучение</span>';
