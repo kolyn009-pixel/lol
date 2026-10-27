@@ -89,7 +89,7 @@ def report(owner,language):
   samples=[{**dict(r),'rubric':json.loads(r['rubric'])} for r in conn.execute('SELECT id,skill,form_id,text,rubric,created_at FROM personal_study_skill_samples WHERE owner_id=? AND language=? ORDER BY id',(owner,language))]
  finally:conn.close()
  return {'language':language,'cycle':c,'reading':{'new_controls':controls,'first_by_band':list(first.values()),'latest':reading[-1] if reading else None,'note':'Новый текст плюс языковые конструкции. Разные ступени напрямую не сравниваются; повторы не являются независимым ростом.'},
- 'listening':{'attempts':listening,'note':'Проверяемые вопросы есть только для конкретного EN-диалога. Факт прослушивания отмечает учащийся; знакомые записи выделены.'},
+ 'listening':{'attempts':listening,'note':'Проверяемые вопросы есть для отдельных EN-записей; покрытие остальных языков пока неполное. Факт прослушивания отмечает учащийся; знакомые записи выделены.'},
  'speaking':{'completed_conversations':len(conversations),'samples':[s for s in samples if s['skill']=='speaking'],'verification':'self_report','note':'Расшифровки и самооценка не подтверждают качество речи или произношение.'},
  'writing':{'samples':[s for s in samples if s['skill']=='writing'],'verification':'self_report','note':'Сохранённые тексты и самооценка. Независимой проверки письма пока нет.'},
  'note':'Четыре отдельных вида данных, без общего балла и автоматического CEFR. Отсутствие проверки означает пробел, а не нулевой уровень. Два варианта образцов; затем нужно новое наполнение.'}

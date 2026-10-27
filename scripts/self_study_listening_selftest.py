@@ -48,4 +48,9 @@ class Tests(unittest.TestCase):
   self.assertEqual(403,f.FakeHandler(origin=False).self_study_route(ROOT+'/listening/start',write=True)[0])
   self.assertEqual(200,f.FakeHandler().self_study_route(ROOT+'/listening',{'language':['en']})[0])
 
+ def test_b2_science_recording_has_checked_questions_with_hidden_keys(self):
+  public=source('bc-experiment');self.assertEqual('checked',public['mode']);self.assertTrue(all('answer' not in q for q in public['checks']))
+  private=source('bc-experiment',True);session=listen.start(self.owner,{'source_id':'bc-experiment','request_id':str(uuid4())});result=listen.submit(self.owner,{'session_id':session['id'],'phase':'first','heard':True,'answers':{q['id']:q['answer'] for q in private['checks']}});self.assertEqual(2,result['first']['correct'])
+ def test_beginner_german_recording_stays_self_report(self):
+  self.assertEqual('guided',source('goethe-a1')['mode']);self.assertNotIn('checks',source('goethe-a1'))
 if __name__=='__main__':unittest.main()

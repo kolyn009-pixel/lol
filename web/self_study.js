@@ -47,7 +47,8 @@ async function open(){
 }
 const languageTabs=()=>`<div class="ss-tabs" aria-label="Язык">${Object.entries(snapshot.profile.languages).map(([code,item])=>`<button type="button" class="ss-tab" data-ss-language="${code}" aria-pressed="${language===code}">${esc(item.name)}</button>`).join('')}</div>`;
 function openSettings(goalSuggestions){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudySettings?.open(root(),{profile:snapshot.profile,goalSuggestions,back:open,dirty:value=>{dirty=value;},busy:value=>{busy=value;}});}
-function onboardingOptions(){return {owner_id:snapshot.owner_id,back:open,settings:openSettings,completed:async()=>{await open();showPlacement();},busy:value=>{busy=value;}};}
+function onboardingOptions(){return {owner_id:snapshot.owner_id,back:open,settings:openSettings,pilot:openPilot,completed:async()=>{await open();showPlacement();},busy:value=>{busy=value;}};}
+function openPilot(){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudyPilot?.open(root(),{back:open,canLeave,dirty:v=>{dirty=v;},busy:v=>{busy=v;}});}
 function openSkills(){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudySkills?.open(root(),{language,owner_id:snapshot.owner_id,back:open,reading:openRoute,listening:openListening,canLeave,dirty:v=>{dirty=v;},busy:v=>{busy=v;}});}
 function openConversation(){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudyConversation?.open(root(),{language,owner_id:snapshot.owner_id,back:open,canLeave,dirty:v=>{dirty=v;},busy:v=>{busy=v;}});}
 function openListening(){if(busy||!canLeave())return;dirty=false;generation++;window.AdeliaStudyListening?.open(root(),{language,back:open,canLeave,dirty:v=>{dirty=v;},busy:v=>{busy=v;}});}
@@ -64,7 +65,7 @@ function renderHome(){
  ${snapshot.owner_id>0?'<div class="ss-actions"><button class="ss-secondary" data-ss-family>Семья · доступ к языкам</button></div>':''}
  ${(snapshot.owner_id<0&&snapshot.profile.languages.en)?'<div class="ss-actions" style="margin-bottom:18px"><button class="ss-primary" data-ss-entry>Проверить английский и обновить маршрут</button></div>':''}
  ${["en","de","es"].includes(language)?'<div class="ss-actions" style="margin-bottom:18px"><button class="ss-secondary" data-ss-scenes>Журнал сцен и выражений</button></div>':''}
-<div class="ss-actions"><button class="ss-secondary" data-ss-skills>Прогресс · четыре навыка</button><button class="ss-secondary" data-ss-conversation>Разговорные ситуации</button><button class="ss-secondary" data-ss-listening>Аудирование · реальные записи</button></div>
+<div class="ss-actions"><button class="ss-secondary" data-ss-pilot>Моя пробная неделя</button><button class="ss-secondary" data-ss-skills>Прогресс · четыре навыка</button><button class="ss-secondary" data-ss-conversation>Разговорные ситуации</button><button class="ss-secondary" data-ss-listening>Аудирование · реальные записи</button></div>
 <section class="ss-panel" data-comfort-widget></section>
 <section class="ss-panel" data-route-widget></section>
 <section class="ss-panel" data-day-widget></section>
@@ -80,6 +81,7 @@ function renderHome(){
  box.querySelector('[data-ss-listening]').onclick=openListening;
  box.querySelector('[data-ss-conversation]').onclick=openConversation;
  box.querySelector('[data-ss-skills]').onclick=openSkills;
+ box.querySelector('[data-ss-pilot]').onclick=openPilot;
  window.AdeliaStudyRoutes?.mount(box.querySelector('[data-route-widget]'),{language,open:openRoute});
  window.AdeliaStudyDay?.mount(box.querySelector('[data-day-widget]'),{language,minutes:Math.min(p.minutes,p.session_minutes||p.minutes),owner_id:snapshot.owner_id,root,canLeave:()=>!busy&&canLeave(),enter:()=>{generation++;dirty=false;currentLesson=null;},back:open,route:openRoute,diagnostic:loadEntry,review:loadPractice,lesson:loadLesson,busy:value=>{busy=value;}});
  box.querySelector('[data-ss-settings]').onclick=()=>openSettings();

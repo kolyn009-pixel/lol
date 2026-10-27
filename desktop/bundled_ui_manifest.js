@@ -118,7 +118,8 @@ module.exports={
       "self_study_listening.js",
       "self_study_conversation.js",
       "self_study_skills.js",
-      "self_study_comfort.js"
+      "self_study_comfort.js",
+      "self_study_pilot.js"
     ]
   },
   "parent": {

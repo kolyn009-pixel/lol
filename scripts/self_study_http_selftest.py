@@ -154,6 +154,16 @@ class Tests(unittest.TestCase):
             short=self.api('/day/update',role=role,body={'session_id':day['id'],'version':day['version'],'action':'shorten','minutes':5})['session']
             self.assertEqual(5,short['minutes']);self.assertEqual(day['lesson_id'],short['lesson_id']);self.assertEqual(0,short['step'])
 
+    def test_pilot_is_private_and_available_before_placement(self):
+        self.invite('parent');self.invite('student')
+        self.assertFalse(self.api('/pilot',role='parent')['started'])
+        state=self.api('/pilot/start',role='parent',body={});self.assertTrue(state['started'])
+        body={'day':1,'version':0,'ease':4,'effort':2,'minutes':10,'note':'Коротко и удобно.'}
+        first=self.api('/pilot/feedback',role='parent',body=body)
+        self.assertEqual(first,self.api('/pilot/feedback',role='parent',body=body))
+        self.assertFalse(self.api('/pilot',role='student')['started'])
+        self.assertEqual('pilot_day_unavailable',self.api('/pilot/feedback',role='parent',expected=400,body={**body,'day':2})['error'])
+
     def test_every_learning_asset_is_served_as_javascript(self):
         from pathlib import Path
         for path in (fixture.ROOT/'web').glob('self_study*.js'):

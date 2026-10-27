@@ -672,3 +672,6 @@ JS-проверка использует имитацию IndexedDB, не зам
 
 
 Последующая приёмка и исправления: [SELF_STUDY_ACCEPTANCE.md](SELF_STUDY_ACCEPTANCE.md).
+
+
+Подготовка установки, боты и недельный пилот: [SELF_STUDY_ROLLOUT.md](SELF_STUDY_ROLLOUT.md).

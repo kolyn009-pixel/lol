@@ -4,9 +4,9 @@ from web_backend import self_study_access as access
 from web_backend import self_study_practice as practice
 
 ROOT='/api/teacher/self-study'
-GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary',ROOT+'/route',ROOT+'/route/check',ROOT+'/listening',ROOT+'/conversation',ROOT+'/skills',ROOT+'/skills/task',ROOT+'/comfort'}
+GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary',ROOT+'/route',ROOT+'/route/check',ROOT+'/listening',ROOT+'/conversation',ROOT+'/skills',ROOT+'/skills/task',ROOT+'/comfort',ROOT+'/pilot'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal',ROOT+'/route/activate',ROOT+'/route/check',ROOT+'/listening/start',ROOT+'/listening/submit',ROOT+'/conversation/start',ROOT+'/conversation/answer',ROOT+'/skills/start',ROOT+'/skills/sample',ROOT+'/comfort/save'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal',ROOT+'/route/activate',ROOT+'/route/check',ROOT+'/listening/start',ROOT+'/listening/submit',ROOT+'/conversation/start',ROOT+'/conversation/answer',ROOT+'/skills/start',ROOT+'/skills/sample',ROOT+'/comfort/save',ROOT+'/pilot/start',ROOT+'/pilot/feedback'}
 
 GET_PATHS |= {p.replace('/teacher/','/student/') for p in list(GET_PATHS)}
 POST_PATHS |= {p.replace('/teacher/','/student/') for p in list(POST_PATHS)}
@@ -39,13 +39,16 @@ class SelfStudyMixin:
                 owner=access.study_identity(role,owner)
             elif not access.is_manager(owner):raise PermissionError('family_owner_required')
             # Family onboarding is enforced by the server, including direct API links.
-            ungated={ROOT,ROOT+'/profile',ROOT+'/entry',ROOT+'/entry/submit',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/placement/submit'}
+            ungated={ROOT,ROOT+'/profile',ROOT+'/entry',ROOT+'/entry/submit',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/placement/submit',ROOT+'/pilot',ROOT+'/pilot/start',ROOT+'/pilot/feedback'}
             if student and path not in ungated and not any(path.startswith(ROOT+'/'+prefix) for prefix in ('access','preferences')):
                 from web_backend.self_study_placement import status as placement_status
                 if placement_status(owner)['pending']:raise ValueError('placement_required')
             if not write:
                 q=query or {}
-                if path==ROOT+'/comfort':
+                if path==ROOT+'/pilot':
+                    from web_backend.self_study_pilot import status
+                    payload=status(owner)
+                elif path==ROOT+'/comfort':
                     from web_backend.self_study_comfort import report
                     payload=report(owner,q.get('language',['en'])[0])
                 elif path==ROOT+'/skills':
@@ -101,7 +104,13 @@ class SelfStudyMixin:
                 data=self._body()
                 if not isinstance(data,dict):
                     return self._json(400,{'error':'invalid_json'})
-                if path==ROOT+'/comfort/save':
+                if path==ROOT+'/pilot/start':
+                    from web_backend.self_study_pilot import start
+                    payload=start(owner)
+                elif path==ROOT+'/pilot/feedback':
+                    from web_backend.self_study_pilot import save
+                    payload=save(owner,data)
+                elif path==ROOT+'/comfort/save':
                     from web_backend.self_study_comfort import save
                     payload=save(owner,data)
                 elif path==ROOT+'/skills/start':
@@ -173,7 +182,7 @@ class SelfStudyMixin:
             return self._json(403,{'error':str(exc) if str(exc) in {'family_access_required','family_owner_required','invalid_family_invite'} else 'family_access_required'})
         except (ValueError,TypeError,KeyError) as exc:
             # Known validation codes only; no user answers or provider details in logs.
-            allowed={'invalid_short_minutes','invalid_skill','skill_cycle_required','skill_forms_exhausted','skill_form_changed','invalid_skill_sample','conversation_not_found','invalid_conversation','conversation_changed','conversation_finished','listening_not_found','invalid_listening','listening_first_required','route_materials_missing','route_check_locked','placement_required','invalid_word_goal','invalid_language','lesson_not_found','invalid_answers','answer_all_questions',
+            allowed={'pilot_day_unavailable','pilot_changed','invalid_pilot_feedback','invalid_short_minutes','invalid_skill','skill_cycle_required','skill_forms_exhausted','skill_form_changed','invalid_skill_sample','conversation_not_found','invalid_conversation','conversation_changed','conversation_finished','listening_not_found','invalid_listening','listening_first_required','route_materials_missing','route_check_locked','placement_required','invalid_word_goal','invalid_language','lesson_not_found','invalid_answers','answer_all_questions',
                      'invalid_request_id','request_conflict','invalid_daily_minutes',
                      'invalid_target_dates','invalid_target_date','invalid_id','invalid_version',
                      'card_not_found','stale_review','card_not_due','invalid_rating','review_not_found',
