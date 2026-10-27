@@ -20,7 +20,7 @@ function check(ok,label){console.log(`${ok?'OK':'FAIL'} ${label}`);if(!ok)failed
 function parseJs(name,source){try{new vm.Script(source,{filename:name});check(true,`syntax ${name}`)}catch(e){console.error(e.stack||e);check(false,`syntax ${name}`)}}
 for(const [n,s] of Object.entries({bootstrap:files.bootstrap,main:files.main,preload:files.preload,workspace:files.workspace,desktop_ux:files.ux,lesson_layout:files.layout,role_startup:files.role,system_polish:files.system,network_ux:files.network,diagnostics:files.diagnostics,report:files.report,report_preload:files.reportPreload,device_check:files.deviceCheck,device_check_preload:files.deviceCheckPreload,about:files.about,about_preload:files.aboutPreload,generate_assets:files.iconSync,start:files.startJs,teacher_lesson_flow:web.individual,teacher_group_live12:web.group,teacher_event_live13:web.event,teacher_telemost_settings:web.telemostSettings,teacher_dashboard_week:web.teacherDashboard,pwa:web.pwa,student_service_worker:web.studentSw}))parseJs(`${n}.js`,s);
 
-check(pkg.version==='0.3.0-beta.2','desktop beta package version');
+check(/^0\\.3\\.0-beta\\.\\d+$/.test(pkg.version),'desktop beta package version');
 check(pkg.main==='bootstrap.js','desktop bootstrap entry');
 check(pkg.build?.appId==='ru.adeliatutor.desktop','stable app id');
 check(pkg.build?.asar===true,'asar enabled');
@@ -134,7 +134,7 @@ check(readRepo('web/desktop_teacher_density.js').includes("linear-gradient(135de
 check(files.startCss.includes('prefers-reduced-motion'),'start screen respects reduced motion');
 check(files.offline.includes('Нет подключения')&&files.offline.includes('Аделия продолжит проверять соединение')&&files.offline.includes('Проверить подключение'),'branded offline screen');
 check(files.network.includes("loadFile(offlineFile())")&&files.network.includes('setInterval'),'offline reconnect loop');
-check(files.network.includes("removeAllListeners('update-available')")&&files.network.includes('downloadUpdate'),'polished updater flow');
+check(!files.network.includes('quitAndInstall')&&!files.network.includes('removeAllListeners')&&files.main.includes('installDownloadedUpdate'),'single updater owner preserves lesson safety');
 check(files.system.includes('setUserTasks'),'Windows quick actions');
 check(files.system.includes('app.dock.setMenu'),'macOS dock actions');
 check(files.system.includes('download-progress')&&files.system.includes('setProgressBar'),'native update progress');
