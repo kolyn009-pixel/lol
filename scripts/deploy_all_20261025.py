@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 
 REPO = '/opt/tutorbot'
-BASES = ['75a121810b4efe0317538387f7fe1edff770a2f0','b587e77c42eb873685cefcfae48739ca5206f3f4','13a0cf56eb4e63864dcc14ba2acbc410c3475c97','5e576e817c2567b12e19da83ed9e2489d226972c','f70d2e27a5e9fc5a592ab4eceb0824a73c691331','e4a1d07993253aaa7ae0a05b6009b2adf20c7867',
+BASES = ['4f73797606803755f9e7ab32acd1f6c5a6de8fb0','75a121810b4efe0317538387f7fe1edff770a2f0','b587e77c42eb873685cefcfae48739ca5206f3f4','13a0cf56eb4e63864dcc14ba2acbc410c3475c97','5e576e817c2567b12e19da83ed9e2489d226972c','f70d2e27a5e9fc5a592ab4eceb0824a73c691331','e4a1d07993253aaa7ae0a05b6009b2adf20c7867',
          '8882d5e796abb715a7916c4c7689817766bfc715',
          '4c6e2f54929cc353d97e5716128ae61df44a5733',
          '69bbcc352343aa515a5c50dbfe8514e3935ce864',
@@ -24,7 +24,7 @@ BASES = ['75a121810b4efe0317538387f7fe1edff770a2f0','b587e77c42eb873685cefcfae48
          '9ac1c56bf383bf1ffc5a4c84d6850453dbd547eb',
          'ad7c84152d597cdd630390f7fa4097ccb1545474',
          'e18d5d566d26bf720368f49089e0b847362ec77f']
-LEGACY = ['web/teacher_post_lesson.js','web/teacher_messages_stage10.js','web/teacher_dashboard_week.css','web/teacher_clean_runtime.js',
+LEGACY = ['web/desktop_lesson_workspace.js','web/teacher_lesson_flow.js','web/teacher_post_lesson.js','web/teacher_messages_stage10.js','web/teacher_dashboard_week.css','web/teacher_clean_runtime.js',
           'web/teacher_receipt_review_tools.css','web/teacher_health.js',
           'web/learning_hub.js','web/formula_explorer.js','web/teacher_finance.js']
 FAMILIES = ['teacher_workspace_review','teacher_messenger_rows','education_formula_layout',
@@ -56,7 +56,7 @@ def module(ref, name):
 
 
 def html_update(text, path, version):
-    scripts = (['teacher_post_lesson','teacher_messages_stage10','formula_explorer','teacher_clean_runtime','teacher_health','learning_hub',
+    scripts = (['desktop_lesson_workspace','teacher_lesson_flow','teacher_post_lesson','teacher_messages_stage10','formula_explorer','teacher_clean_runtime','teacher_health','learning_hub',
                 'teacher_finance','teacher_workspace_review','teacher_messenger_rows',
                 'homework_formulas','weekly_invoices_chat','chat_composer','package_studio',
                 'teaching_plan','teaching_workbench','visual_channels','pwa_workspace'] if path.endswith('teacher.html') else

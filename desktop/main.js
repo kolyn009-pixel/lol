@@ -115,7 +115,8 @@ async function maybeOfferAutostart() {
 }
 
 function trackLessonWindow(win, kind) {
-  lessonWindows.add(win);
+  lessonWindows.add(win);win.adeliaLessonKind=kind;
+  win.webContents.on('page-title-updated',event=>event.preventDefault());
   win.on('closed', () => {
     lessonWindows.delete(win);
     if (kind === 'meeting' && meetingWindow === win) meetingWindow = null;
@@ -134,6 +135,7 @@ function lessonDisplay() {
 }
 function tileLessonWindows() {
   if (!meetingWindow || meetingWindow.isDestroyed() || !boardWindow || boardWindow.isDestroyed()) return;
+  try { const layout=require('./lesson_layout');layout.apply(layout.state().mode,false);return; } catch (_) {}
   const area = lessonDisplay().workArea;
   const gap = 8;
   if (area.width >= 1280) {
