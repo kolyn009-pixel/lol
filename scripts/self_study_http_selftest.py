@@ -93,6 +93,28 @@ class Tests(unittest.TestCase):
             self.assertEqual(2,result['first']['correct'])
             self.assertIn('saved_at',result['first'])
 
+    def test_workshop_all_roles_and_private_tutor_over_http(self):
+        from unittest.mock import patch
+        from web_backend import self_study_tutor as tutor
+        from learning.listening_program import SOURCES
+        first=None
+        for role in ('teacher','student','parent'):
+            language='en' if role=='teacher' else 'es'
+            if role!='teacher':self.configure_and_place(role,language)
+            m=self.api('/support?lesson_id='+('en-01' if role=='teacher' else 'es-01'),role=role)
+            self.assertNotIn('answer',m['drill'])
+            self.api('/repair?language='+language,role=role)
+            week=self.api('/weekly?language='+language,role=role);self.assertEqual(0,week['first_modules'])
+            key='studio-'+language+'-a1'
+            session=self.api('/listening/start',role=role,body={'source_id':key,'request_id':str(uuid4())})
+            self.api('/listening/submit',role=role,body={'session_id':session['id'],'phase':'first','heard':True,'answers':{q['id']:q['answer'] for q in SOURCES[key]['checks']}})
+            conversation=self.api('/tutor/start',role=role,body={'scenario_id':language+'-meeting','request_id':str(uuid4())})
+            with patch.object(tutor,'generate',return_value={'reply':'Thanks. When?','corrections':[],'retry_frame':'Tomorrow.'}):
+                self.api('/tutor/answer',role=role,body={'session_id':conversation['id'],'version':conversation['version'],'text':'A short reply','consent':True,'request_id':str(uuid4())})
+            if first is None:first=conversation['id']
+            else:self.api('/tutor/session?id='+str(first),role=role,expected=400)
+            self.assertEqual(1,self.api('/weekly?language='+language,role=role)['tutor_turns'])
+
     def test_complete_family_session_and_reload(self):
         for role in ('student','parent'):
             self.configure_and_place(role)

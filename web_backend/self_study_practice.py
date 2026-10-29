@@ -121,8 +121,9 @@ def _reveal(row,card):
 def practice(owner_id,language):
     _lang(language);sync_lessons(owner_id);conn=connect()
     try:
-        rows=conn.execute('''SELECT * FROM personal_study_cards WHERE owner_id=? AND language=? AND due_at<=?
-          ORDER BY CASE source WHEN 'error' THEN 0 ELSE 1 END,due_at,id LIMIT 20''',(owner_id,language,stamp())).fetchall()
+        rows=conn.execute('''SELECT c.* FROM personal_study_cards c WHERE c.owner_id=? AND c.language=? AND c.due_at<=?
+          ORDER BY CASE c.source WHEN 'error' THEN 0 ELSE 1 END,
+          COALESCE((SELECT e.wrong_count FROM personal_study_errors e WHERE e.owner_id=c.owner_id AND e.lesson_id=c.lesson_id AND e.check_id=c.source_key AND c.source='error'),0) DESC,c.due_at,c.id LIMIT 20''',(owner_id,language,stamp())).fetchall()
         items=[]
         for card in rows:
             pending=conn.execute('''SELECT * FROM personal_study_reviews WHERE owner_id=? AND card_id=?

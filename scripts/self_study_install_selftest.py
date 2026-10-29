@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import contextlib
 import io
+import json
 from unittest.mock import patch
 import install_self_study as install
 
@@ -51,6 +52,23 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'health failed'):self.run_install()
         self.assertEqual(old,(self.root/'web_backend/api_v7.py').read_bytes())
         self.assertFalse((self.root/'web/self_study.js').exists())
+
+    @patch.object(install,'restart')
+    @patch.object(install,'health')
+    def test_upgrade_managed_previous_version_preserves_work_files(self,health,restart):
+        self.run_install()
+        old=b'/* previously installed language UI */'
+        (self.root/'web/self_study_workshop.js').write_bytes(old)
+        marker=json.loads((self.root/install.MARKER).read_text())
+        marker['hashes']['web/self_study_workshop.js']=install.digest(old)
+        (self.root/install.MARKER).write_text(json.dumps(marker))
+        (self.root/'web/work-untouched.js').write_text('existing work')
+        backup=self.run_install()
+        self.assertEqual(old,(backup/'files/web/self_study_workshop.js').read_bytes())
+        self.assertEqual('existing work',(self.root/'web/work-untouched.js').read_text())
+        self.assertEqual((install.SOURCE/'web/self_study_workshop.js').read_bytes(),(self.root/'web/self_study_workshop.js').read_bytes())
+        self.assertTrue((self.root/'web_backend/self_study_tutor.py').exists())
+        self.assertTrue((self.root/'web_backend/self_study_series.py').exists())
 
     def test_unreviewed_api_is_rejected_before_writes(self):
         (self.root/'web_backend/api_v7.py').write_text('class Other: pass')

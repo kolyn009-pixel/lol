@@ -13,6 +13,13 @@ _recent={}
 
 def context_for(item_id,owner=None):
     if not isinstance(item_id,str):raise ValueError('lesson_not_found')
+    if item_id.startswith('tutor:'):
+        from web_backend.self_study_tutor import get
+        parts=item_id.split(':')
+        if len(parts)!=3:raise ValueError('lesson_not_found')
+        state=get(owner,int(parts[1]));version=int(parts[2])
+        if not 1<=version<=state['version']:raise ValueError('lesson_not_found')
+        return state['language'],state['opening'] if version==1 else state['turns'][version-2]['response']['reply']
     if item_id.startswith('skill:'):
         from web_backend.self_study_skills import task
         parts=item_id.split(':')

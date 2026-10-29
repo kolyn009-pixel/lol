@@ -1,7 +1,7 @@
 /* Device-local recordings. No audio is uploaded by this component. */
 (()=>{'use strict';
 if(window.AdeliaStudyVoice)return;
-let dispose=null,hasUnsaved=()=>false;const pendingWrites=new Set();
+let dispose=null,hasUnsaved=()=>false,hasCapture=()=>false;const pendingWrites=new Set();
 const locales={en:'en-GB',de:'de-DE',fa:'fa-IR',es:'es-ES'};
 function database(){return new Promise((resolve,reject)=>{
  const request=indexedDB.open('adelia-personal-voice',1);
@@ -22,6 +22,7 @@ function mount(node,context){
  const key=String(context.owner_id)+':'+context.lesson_id;
  let stream=null,recorder=null,recognizer=null,timer=null,url=null,pending=false,closed=false;
  let noteDirty=false,recordingDirty=false;
+ hasCapture=()=>!closed&&(pending||Boolean(recorder)||Boolean(recognizer));
  hasUnsaved=()=>!closed&&(noteDirty||recordingDirty||pending||Boolean(recognizer)||Boolean(recorder));
  let saved={blob:null,transcript:'',updated_at:null};
  node.innerHTML='<section class="ss-panel"><h3>Скажи вслух</h3><p class="ss-muted" data-voice-prompt></p><p class="ss-muted">Запиши ответ на 30–90 секунд. Прослушай: ответил ли на вопрос, связал ли мысли и где пришлось искать слова? Максимум записи — 3 минуты.</p><div class="ss-actions"><button type="button" class="ss-primary" data-voice-record>Записать ответ</button><button type="button" class="ss-secondary" data-voice-stop disabled>Остановить</button></div><div data-voice-playback></div><p class="ss-status" data-voice-status role="status"></p><details><summary>Расшифровка и заметка</summary><p class="ss-muted">Можно продиктовать короткий ответ или оставить несколько слов о трудности. Проверь распознанный текст. Браузерное распознавание может отправлять звук своему сервису и не всегда доступно.</p><div class="ss-actions"><button type="button" class="ss-secondary" data-voice-dictate>Продиктовать текст</button><button type="button" class="ss-secondary" data-voice-dictate-stop disabled>Остановить диктовку</button></div><label>Расшифровка или заметка<textarea data-voice-text rows="4" maxlength="3000" style="width:100%;padding:12px;border:1px solid #d8d1e6;border-radius:10px;margin-top:8px"></textarea></label><button type="button" class="ss-secondary" data-voice-save>Сохранить заметку</button><p class="ss-muted">По кнопке ниже расшифровка отправляется настроенному ИИ для разбора языка. Аудио не отправляется.</p><button type="button" class="ss-primary" data-voice-feedback>Разобрать расшифровку с ИИ</button><div data-voice-feedback-result></div></details><p class="ss-note">Запись и заметка хранятся только в этом браузере под твоим аккаунтом. Между устройствами не синхронизируются; очистка данных браузера удалит их. Скачай важный ответ. Разбор текста не оценивает произношение или уровень CEFR.</p></section>';
@@ -107,5 +108,5 @@ async function clearOwn(owner){
  if(!Number.isSafeInteger(owner))throw Error('invalid_owner');dispose?.();await Promise.allSettled([...pendingWrites]);const db=await database();let count=0;
  try{await new Promise((resolve,reject)=>{const tx=db.transaction('answers','readwrite'),req=tx.objectStore('answers').openCursor();req.onsuccess=()=>{const c=req.result;if(!c)return;if(String(c.key).startsWith(String(owner)+':')){c.delete();count++;}c.continue();};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}finally{db.close();}return count;
 }
-window.AdeliaStudyVoice={mount,clearOwn,hasUnsaved:()=>hasUnsaved(),stop:()=>dispose?.()};
+window.AdeliaStudyVoice={mount,clearOwn,hasUnsaved:()=>hasUnsaved(),isCapturing:()=>hasCapture(),stop:()=>dispose?.()};
 })();

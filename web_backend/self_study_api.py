@@ -4,9 +4,9 @@ from web_backend import self_study_access as access
 from web_backend import self_study_practice as practice
 
 ROOT='/api/teacher/self-study'
-GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary',ROOT+'/route',ROOT+'/route/check',ROOT+'/listening',ROOT+'/conversation',ROOT+'/skills',ROOT+'/skills/task',ROOT+'/comfort',ROOT+'/pilot',ROOT+'/support'}
+GET_PATHS={ROOT,ROOT+'/lesson',ROOT+'/practice',ROOT+'/checkpoint/status',ROOT+'/checkpoint',ROOT+'/scenes',ROOT+'/entry',ROOT+'/access',ROOT+'/preferences',ROOT+'/day',ROOT+'/placement',ROOT+'/placement/status',ROOT+'/vocabulary',ROOT+'/route',ROOT+'/route/check',ROOT+'/listening',ROOT+'/conversation',ROOT+'/skills',ROOT+'/skills/task',ROOT+'/comfort',ROOT+'/pilot',ROOT+'/support',ROOT+'/repair',ROOT+'/weekly',ROOT+'/tutor',ROOT+'/tutor/session',ROOT+'/series-plan'}
 POST_PATHS={ROOT+'/profile',ROOT+'/draft',ROOT+'/submit',ROOT+'/review/answer',ROOT+'/review/rate',
-            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal',ROOT+'/route/activate',ROOT+'/route/check',ROOT+'/listening/start',ROOT+'/listening/submit',ROOT+'/conversation/start',ROOT+'/conversation/answer',ROOT+'/skills/start',ROOT+'/skills/sample',ROOT+'/comfort/save',ROOT+'/pilot/start',ROOT+'/pilot/feedback',ROOT+'/support/submit'}
+            ROOT+'/checkpoint/start',ROOT+'/checkpoint/draft',ROOT+'/checkpoint/submit',ROOT+'/speech/feedback',ROOT+'/scenes/save',ROOT+'/entry/submit',ROOT+'/access/invite',ROOT+'/access/revoke',ROOT+'/access/accept',ROOT+'/preferences/save',ROOT+'/day/start',ROOT+'/day/update',ROOT+'/placement/submit',ROOT+'/vocabulary/start',ROOT+'/vocabulary/goal',ROOT+'/route/activate',ROOT+'/route/check',ROOT+'/listening/start',ROOT+'/listening/submit',ROOT+'/conversation/start',ROOT+'/conversation/answer',ROOT+'/skills/start',ROOT+'/skills/sample',ROOT+'/comfort/save',ROOT+'/pilot/start',ROOT+'/pilot/feedback',ROOT+'/support/submit',ROOT+'/tutor/start',ROOT+'/tutor/answer',ROOT+'/series-plan/start',ROOT+'/series-plan/advance'}
 
 GET_PATHS |= {p.replace('/teacher/','/student/') for p in list(GET_PATHS)}
 POST_PATHS |= {p.replace('/teacher/','/student/') for p in list(POST_PATHS)}
@@ -48,6 +48,21 @@ class SelfStudyMixin:
                 if path==ROOT+'/support':
                     from web_backend.self_study_support import material
                     payload=material(owner,q.get('lesson_id',[''])[0],q.get('check_id',[None])[0])
+                elif path==ROOT+'/repair':
+                    from web_backend.self_study_support import repair
+                    payload=repair(owner,q.get('language',['en'])[0])
+                elif path==ROOT+'/weekly':
+                    from web_backend.self_study_weekly import report
+                    payload=report(owner,q.get('language',['en'])[0])
+                elif path==ROOT+'/tutor':
+                    from web_backend.self_study_tutor import catalog
+                    payload=catalog(owner,q.get('language',['en'])[0])
+                elif path==ROOT+'/tutor/session':
+                    from web_backend.self_study_tutor import get
+                    payload=get(owner,int(q.get('id',['0'])[0]))
+                elif path==ROOT+'/series-plan':
+                    from web_backend.self_study_series import current
+                    payload=current(owner,q.get('language',['en'])[0])
                 elif path==ROOT+'/pilot':
                     from web_backend.self_study_pilot import status
                     payload=status(owner)
@@ -110,6 +125,18 @@ class SelfStudyMixin:
                 if path==ROOT+'/support/submit':
                     from web_backend.self_study_support import submit
                     payload=submit(owner,data)
+                elif path==ROOT+'/tutor/start':
+                    from web_backend.self_study_tutor import start
+                    payload=start(owner,data)
+                elif path==ROOT+'/tutor/answer':
+                    from web_backend.self_study_tutor import answer
+                    payload=answer(owner,data)
+                elif path==ROOT+'/series-plan/start':
+                    from web_backend.self_study_series import start
+                    payload=start(owner,data)
+                elif path==ROOT+'/series-plan/advance':
+                    from web_backend.self_study_series import advance
+                    payload=advance(owner,data)
                 elif path==ROOT+'/pilot/start':
                     from web_backend.self_study_pilot import start
                     payload=start(owner)
