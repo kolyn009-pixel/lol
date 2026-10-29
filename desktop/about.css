@@ -11,3 +11,6 @@ h1{font-size:26px}header p{font-size:13px}
 .actions button{min-height:43px;font-size:12px}
 .actions button:focus-visible,#close:focus-visible{outline:3px solid rgba(101,71,212,.28);outline-offset:2px}
 footer{font-size:11px;color:#625b70}
+
+/* Release readability and responsive update screen. */
+.about{border-radius:23px;border-color:#e6e0ed;box-shadow:0 24px 80px #3a294b16}header p{font-size:13px;line-height:1.5}.version span{font-size:10px}.version b{font-size:14px}.status b{font-size:15px}.status p{font-size:13px;line-height:1.6}.actions button{font-size:12px;min-height:43px;padding:9px 15px}.release-notes{margin-top:18px;padding:16px 18px;background:#faf8fc;border:1px solid #ece6f2;border-radius:15px}.release-notes h2{margin:0 0 9px;font-size:15px;color:#6c577d}.release-notes ul{padding-left:18px;margin:0;color:#92829f;font-size:12px;line-height:1.8}button:focus-visible{outline:3px solid #b4a0dd;outline-offset:3px}@media(max-width:550px){body{padding:12px}.about{padding:19px}.version{grid-template-columns:1fr}.version>div{display:flex;justify-content:space-between;align-items:center;padding:10px 13px}.version b{margin:0}.actions{flex-wrap:wrap}.actions button{flex:1}}

@@ -21,7 +21,8 @@ module.exports={
       "desktop_premium.css",
       "reliability.css",
       "experience.css",
-      "education_formula_layout.css"
+      "education_formula_layout.css",
+      "release_ui.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -44,7 +45,8 @@ module.exports={
       "formula_explorer.js",
       "lesson_planner.js",
       "study_experience.js",
-      "homework_formulas.js"
+      "homework_formulas.js",
+      "release_ui.js"
     ]
   },
   "teacher": {
@@ -73,7 +75,8 @@ module.exports={
       "chat_composer.css",
       "package_studio.css",
       "teaching_workbench.css",
-      "visual_channels.css"
+      "visual_channels.css",
+      "release_ui.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -104,7 +107,8 @@ module.exports={
       "package_studio.js",
       "teaching_plan.js",
       "teaching_workbench.js",
-      "visual_channels.js"
+      "visual_channels.js",
+      "release_ui.js"
     ]
   },
   "parent": {
@@ -118,7 +122,8 @@ module.exports={
       "desktop_parent_app.css",
       "desktop_premium.css",
       "reliability.css",
-      "experience.css"
+      "experience.css",
+      "release_ui.css"
     ],
     "js": [
       "reliability.js",
@@ -132,7 +137,8 @@ module.exports={
       "parent/next_step.js",
       "formula_explorer.js",
       "lesson_planner.js",
-      "study_experience.js"
+      "study_experience.js",
+      "release_ui.js"
     ]
   }
 };

@@ -6,6 +6,15 @@ for adelia_tool in git node npm python3 docker; do
 done
 node -e 'if(Number(process.versions.node.split(".")[0])<22)process.exit(1)' || { echo 'Node.js 22 or newer is required.' >&2; exit 4; }
 docker info >/dev/null 2>&1 || { echo 'Start Docker Desktop, then run this command again.' >&2; exit 5; }
+adelia_image="${ADELIA_WINDOWS_BUILDER_IMAGE:-electronuserland/builder:wine}"
+# Check Docker Hub before spending time on both Mac builds.
+adelia_pulled=false
+for adelia_attempt in 1 2 3; do
+ if docker pull --platform linux/amd64 "$adelia_image"; then adelia_pulled=true; break; fi
+ echo "Windows builder download failed (attempt $adelia_attempt of 3)."
+ if [[ "$adelia_attempt" != 3 ]]; then sleep 3; fi
+done
+[[ "$adelia_pulled" == true ]] || { echo 'Docker Hub is unavailable. No application builds were started.' >&2; exit 8; }
 adelia_repo="$(cd "$(dirname "$0")/.." && pwd)"
 [[ -z "$(git -C "$adelia_repo" status --porcelain --untracked-files=no)" ]] || { echo 'Build checkout has modified tracked source files. Use a separate clean checkout.' >&2; exit 6; }
 adelia_sha="$(git -C "$adelia_repo" rev-parse HEAD)"
@@ -27,8 +36,6 @@ for adelia_arch in x64 arm64; do
  npm run "dist:mac:$adelia_arch" -- --publish never "--config.directories.output=dist/local-macos-$adelia_arch"
  python3 publish_updates.py "dist/local-macos-$adelia_arch" "$adelia_output/macos-$adelia_arch" --platform mac --arch "$adelia_arch" --channel beta --version "$adelia_version" --git-sha "$adelia_sha"
 done
-adelia_image="${ADELIA_WINDOWS_BUILDER_IMAGE:-electronuserland/builder:wine}"
-docker pull --platform linux/amd64 "$adelia_image"
 adelia_digest="$(docker image inspect "$adelia_image" --format '{{index .RepoDigests 0}}')"
 [[ "$adelia_digest" == *@sha256:* ]] || { echo 'Unable to pin Windows builder image digest.' >&2; exit 8; }
 printf '%s\n' "$adelia_digest" > "$adelia_output/windows-builder-image.txt"
