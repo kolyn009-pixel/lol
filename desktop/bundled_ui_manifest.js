@@ -73,7 +73,8 @@ module.exports={
       "chat_composer.css",
       "package_studio.css",
       "teaching_workbench.css",
-      "visual_channels.css"
+      "visual_channels.css",
+      "self_study.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -104,7 +105,22 @@ module.exports={
       "package_studio.js",
       "teaching_plan.js",
       "teaching_workbench.js",
-      "visual_channels.js"
+      "visual_channels.js",
+      "self_study.js",
+      "self_study_voice.js",
+      "self_study_scenes.js",
+      "self_study_settings.js",
+      "self_study_intensive.js",
+      "self_study_day.js",
+      "self_study_onboarding.js",
+      "self_study_vocabulary.js",
+      "self_study_routes.js",
+      "self_study_listening.js",
+      "self_study_conversation.js",
+      "self_study_skills.js",
+      "self_study_comfort.js",
+      "self_study_pilot.js",
+      "self_study_workshop.js"
     ]
   },
   "parent": {
@@ -136,3 +152,4 @@ module.exports={
     ]
   }
 };
+

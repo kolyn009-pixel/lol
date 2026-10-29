@@ -1,0 +1,77 @@
+name: Personal study checks
+on:
+  push:
+    branches: [feat/personal-language-study-stage1-20261027]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Server and scheduling tests
+        run: |
+          python scripts/self_study_selftest.py
+          python scripts/self_study_practice_selftest.py
+          python scripts/self_study_feedback_selftest.py
+          python scripts/self_study_scenes_selftest.py
+          python scripts/self_study_install_selftest.py
+          python scripts/self_study_student_selftest.py
+          python scripts/self_study_access_selftest.py
+          python scripts/self_study_preferences_selftest.py
+          python scripts/self_study_intensive_selftest.py
+          python scripts/self_study_day_selftest.py
+          python scripts/self_study_placement_selftest.py
+          python scripts/self_study_vocabulary_selftest.py
+          python scripts/self_study_http_selftest.py
+          python scripts/self_study_routes_selftest.py
+          python scripts/self_study_listening_selftest.py
+          python scripts/self_study_conversation_selftest.py
+          python scripts/self_study_skills_selftest.py
+          python scripts/self_study_comfort_selftest.py
+          python scripts/self_study_pilot_selftest.py
+          python scripts/self_study_workshop_selftest.py
+          node --check web/self_study_workshop.js
+          node scripts/self_study_workshop_ui_selftest.cjs
+          python scripts/self_study_bot_selftest.py
+          python scripts/self_study_delivery_selftest.py
+          node --check web/self_study_pilot.js
+          node scripts/self_study_local_privacy_selftest.cjs
+          node scripts/self_study_budget_ui_selftest.cjs
+          node --check web/self_study_comfort.js
+          node --check web/self_study_skills.js
+          node --check web/self_study_conversation.js
+          node --check web/self_study_listening.js
+          node --check web/self_study_routes.js
+          python -m py_compile learning/language_program.py learning/language_checkpoints.py web_backend/self_study.py web_backend/self_study_practice.py web_backend/self_study_api.py web_backend/api_v7.py
+          node --check web/self_study.js
+          node --check web/self_study_voice.js
+          node --check web/self_study_scenes.js
+          node --check web/self_study_settings.js
+          node --check web/self_study_intensive.js
+          node --check web/self_study_day.js
+          node --check web/self_study_onboarding.js
+          node --check web/self_study_vocabulary.js
+      - name: Install browser test dependencies outside the project
+        run: |
+          npm install --prefix "$RUNNER_TEMP/self-study-ui" --no-package-lock --no-save playwright@1.56.1
+          node "$RUNNER_TEMP/self-study-ui/node_modules/playwright/cli.js" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/self-study-ui/node_modules" >> "$GITHUB_ENV"
+      - name: Browser journeys
+        env:
+          ADELIA_BROWSER_TEST_ARTIFACT_DIR: ${{ runner.temp }}/self-study-artifacts
+        run: node scripts/self_study_ui_selftest.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: self-study-browser
+          path: ${{ runner.temp }}/self-study-artifacts
+          if-no-files-found: ignore

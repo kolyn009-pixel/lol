@@ -5,6 +5,7 @@ const root=path.join(__dirname,'role_assets');
 let installed=false;
 function source(name){return fs.readFileSync(path.join(root,name),'utf8')}
 function roleFor(pathname){
+  if(pathname==='/app/self-study.html')return null; // standalone authenticated study workspace
   if(pathname.startsWith('/teacher')||pathname==='/app/teacher.html')return 'teacher';
   if(pathname.startsWith('/app/parent'))return 'parent';
   if(pathname.startsWith('/app'))return 'student';
@@ -78,3 +79,4 @@ function install(){
  });
 }
 module.exports={install};
+
