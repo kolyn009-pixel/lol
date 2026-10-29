@@ -67,3 +67,14 @@ These checks are not a substitute for a native visual and end-to-end check.
 Do not call this release verified for live calls or all platforms before those
 checks. Publishing should use all three manifests with the same version and SHA;
 no desktop feed or client auto-update is changed by the website installer.
+
+## Mobile navigation hotfix
+
+At <=900px the teacher sidebar uses a closed-by-default off-canvas drawer. The
+existing menu button and menu-open state are reused; capture-phase routing
+prevents a legacy click handler from toggling twice. Backdrop, Escape and menu
+selection close the drawer; background main content is inert while it is open.
+A wider viewport clears inert/menu state. Explicit install instructions remain
+available, while all three legacy install-promotion overlays are hidden. Shared
+asset query versions are refreshed by the installer, including already-added tags.
+DOM checks cover these transitions; an actual iPhone visual check remains needed.
