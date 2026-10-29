@@ -55,7 +55,7 @@ class Tests(unittest.TestCase):
   class Stop(Exception):pass
   class H:
    def __init__(self,*args,**kwargs):self.args=args;self.kwargs=kwargs
-  tg.InlineKeyboardButton=H;tg.InlineKeyboardMarkup=H;ext.CommandHandler=H;ext.CallbackQueryHandler=H;ext.ApplicationHandlerStop=Stop
+  tg.Update=H;tg.BotCommand=H;tg.BotCommandScopeChat=H;tg.BotCommandScopeAllPrivateChats=H;tg.BotCommandScopeDefault=H;ext.TypeHandler=H;tg.InlineKeyboardButton=H;tg.InlineKeyboardMarkup=H;ext.CommandHandler=H;ext.CallbackQueryHandler=H;ext.ApplicationHandlerStop=Stop
   with patch.dict(sys.modules,{'telegram':tg,'telegram.ext':ext}):
    import importlib.util
    spec=importlib.util.spec_from_file_location('family_test',f.ROOT/'handlers/self_study_family.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -65,7 +65,40 @@ class Tests(unittest.TestCase):
    update.effective_chat.type='private'
    with self.assertRaises(Stop):asyncio.run(m.language_entry(update,SimpleNamespace(args=[])))
    message.reply_text.assert_awaited_once()
-   app=SimpleNamespace(bot_data={},add_handler=lambda *a,**k:calls.append((a,k)));calls=[];m.install(app);m.install(app);self.assertEqual(2,len(calls))
+   app=SimpleNamespace(bot_data={},add_handler=lambda *a,**k:calls.append((a,k)));calls=[];m.install(app);m.install(app);self.assertEqual(3,len(calls))
+ def menu_fixture(self):
+  import importlib.util
+  tg=ModuleType('telegram');ext=ModuleType('telegram.ext')
+  class Item:
+   def __init__(self,command=None,description=None):self.command=command;self.description=description
+  for key in ('Update','BotCommand','BotCommandScopeChat','BotCommandScopeAllPrivateChats','BotCommandScopeDefault','InlineKeyboardButton','InlineKeyboardMarkup'):setattr(tg,key,Item)
+  for key in ('CommandHandler','CallbackQueryHandler','ApplicationHandlerStop','TypeHandler'):setattr(ext,key,Item)
+  with patch.dict(sys.modules,{'telegram':tg,'telegram.ext':ext}):
+   spec=importlib.util.spec_from_file_location('family_menu_test',f.ROOT/'handlers/self_study_family.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+  update=SimpleNamespace(effective_chat=SimpleNamespace(type='private',id=777),effective_user=SimpleNamespace(id=777,language_code='ru'))
+  context=SimpleNamespace(bot=SimpleNamespace(get_my_commands=AsyncMock(),set_my_commands=AsyncMock(),delete_my_commands=AsyncMock()),chat_data={})
+  return m,update,context,Item
+ def test_menu_adds_to_effective_commands_for_member_only(self):
+  m,u,c,Item=self.menu_fixture();start=Item('start','Начать');c.bot.get_my_commands.side_effect=[[],[],[],[],[start]]
+  with patch.object(m,'identities',return_value=[{'role':'parent'}]):asyncio.run(m.sync_language_menu(u,c))
+  args=c.bot.set_my_commands.call_args;self.assertEqual(['start','languages'],[x.command for x in args.args[0]]);self.assertEqual(777,args.kwargs['scope'].command);self.assertEqual('ru',args.kwargs['language_code'])
+ def test_menu_nonmember_no_change_and_group_no_queries(self):
+  m,u,c,_=self.menu_fixture();c.bot.get_my_commands.return_value=[]
+  with patch.object(m,'identities',return_value=[]):asyncio.run(m.sync_language_menu(u,c))
+  c.bot.set_my_commands.assert_not_awaited();c.bot.delete_my_commands.assert_not_awaited();c.bot.get_my_commands.reset_mock();u.effective_chat.type='group';asyncio.run(m.sync_language_menu(u,c));c.bot.get_my_commands.assert_not_awaited()
+ def test_menu_revoke_removes_only_managed_entry(self):
+  m,u,c,Item=self.menu_fixture();c.bot.get_my_commands.return_value=[Item('start','Start'),Item('languages',m.MENU_DESCRIPTION)]
+  with patch.object(m,'identities',return_value=[]):asyncio.run(m.sync_language_menu(u,c))
+  self.assertEqual(['start'],[x.command for x in c.bot.set_my_commands.call_args.args[0]])
+ def test_menu_failure_does_not_interrupt_work(self):
+  m,u,c,_=self.menu_fixture();c.bot.get_my_commands.side_effect=RuntimeError('offline')
+  with patch.object(m,'identities',return_value=[{}]):asyncio.run(m.sync_language_menu(u,c))
+  c.bot.set_my_commands.assert_not_awaited()
+ def test_menu_deduplicates_and_throttles(self):
+  m,u,c,Item=self.menu_fixture();c.bot.get_my_commands.return_value=[Item('start','Start'),Item('languages',m.MENU_DESCRIPTION)]
+  with patch.object(m,'identities',return_value=[{}]):
+   asyncio.run(m.sync_language_menu(u,c));asyncio.run(m.sync_language_menu(u,c))
+  c.bot.get_my_commands.assert_awaited_once();c.bot.set_my_commands.assert_not_awaited()
  def test_vk_patch_idempotent_and_rejects_unknown_layout(self):
   text='def handle_message(message):\n    return app.work(message)\n';patched=install.patch_vk(text)
   self.assertEqual(patched,install.patch_vk(patched));self.assertIn('return app.work(message)',patched)
