@@ -20,7 +20,7 @@ def catalog(owner,language):
   rows=[_payload(r) for r in conn.execute('SELECT * FROM personal_study_listening WHERE owner_id=? ORDER BY id DESC LIMIT 100',(owner,)) if SOURCES[r['source_id']]['language']==language]
  finally:conn.close()
  return {'sources':[source(k) for k,v in SOURCES.items() if v['language']==language],'sessions':rows,
- 'note':'Запись воспроизводится на сайте издателя. Прослушивание без текста отмечаешь ты; сервис не контролирует чужую вкладку. Это учебная практика, не независимый экзамен аудирования.'}
+ 'note':'Есть записи издателей и отдельная авторская студия с синтезом речи устройства. Тип материала указан в карточке. Первое и повторное прослушивания сохраняются отдельно; это практика, не экзамен.'}
 
 
 def _payload(row):
@@ -72,8 +72,10 @@ def submit(owner,data):
   result['phase']=phase
   previous=row[phase+'_result']
   if previous:
-   if json.loads(previous)!=result:raise ValueError('request_conflict')
+   old=json.loads(previous);old.pop('saved_at',None)
+   if old!=result:raise ValueError('request_conflict')
    return _payload(row)
+  result['saved_at']=datetime.now(timezone.utc).isoformat()
   conn.execute('UPDATE personal_study_listening SET '+phase+'_result=? WHERE id=?',(json.dumps(result,ensure_ascii=False),sid));conn.commit()
   return _payload(conn.execute('SELECT * FROM personal_study_listening WHERE id=?',(sid,)).fetchone())
  except Exception:conn.rollback();raise

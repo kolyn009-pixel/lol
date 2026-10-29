@@ -30,6 +30,10 @@ SOURCES['goethe-a1']={'language':'de','title':'Goethe-Zertifikat A1 · Hören','
  'review':'Сверь с решениями и транскрипцией в PDF у издателя. Найди, какую деталь не расслышал. Повтори тот же фрагмент. Здесь сохраняется саморазбор, не официальный результат экзамена.'}
 
 
+from learning.listening_workshop import sources as studio_sources
+SOURCES.update(studio_sources())
+
+
 def source(identifier,keys=False,reveal=False):
  if identifier not in SOURCES:raise ValueError('listening_not_found')
  out=deepcopy(SOURCES[identifier]);out['id']=identifier

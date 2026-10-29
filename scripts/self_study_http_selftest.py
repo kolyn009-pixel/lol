@@ -80,6 +80,19 @@ class Tests(unittest.TestCase):
             self.assertEqual(75,self.api(role=role)['profile']['daily_minutes'])
         self.assertEqual(75,self.api(role='teacher')['profile']['daily_minutes'])
 
+    def test_pass1_help_and_synthesis_for_all_roles(self):
+        from learning.listening_program import SOURCES
+        for role in ('teacher','student','parent'):
+            language='en' if role=='teacher' else 'es'
+            if role!='teacher':self.configure_and_place(role,language)
+            lid='en-01' if role=='teacher' else 'es-01'
+            m=self.api('/support?lesson_id='+lid,role=role);self.assertNotIn('answer',m['drill'])
+            key='studio-'+language+'-a1'
+            session=self.api('/listening/start',role=role,body={'source_id':key,'request_id':str(uuid4())})
+            result=self.api('/listening/submit',role=role,body={'session_id':session['id'],'phase':'first','heard':True,'answers':{q['id']:q['answer'] for q in SOURCES[key]['checks']}})
+            self.assertEqual(2,result['first']['correct'])
+            self.assertIn('saved_at',result['first'])
+
     def test_complete_family_session_and_reload(self):
         for role in ('student','parent'):
             self.configure_and_place(role)

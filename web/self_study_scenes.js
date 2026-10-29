@@ -10,10 +10,11 @@ async function api(path,body){
 }
 async function open(root,options){
  const shows=options.resources.filter(x=>x.language===options.language&&x.study_tasks);
- if(!shows.length)return;
+ if(!shows.length){root.innerHTML='<section class="ss-panel"><h3>Добавь свой сериал</h3><p>В настройках программы укажи название и язык, затем вернись в журнал.</p><button class="ss-secondary">К программе</button></section>';root.querySelector('button').onclick=options.back;return;}
  root.innerHTML=`<div class="ss-heading"><button class="ss-secondary" data-scenes-back>← К программе</button><h2>Журнал сцен</h2></div><section class="ss-panel"><p class="ss-muted">Выбери сцену на 2–5 минут. После просмотра назови конфликт, вспомни до трёх выражений и перескажи своими словами. Поля сюжета и понимания — самоотчёт.</p><form data-scene-form class="ss-goals"><label>Сериал<select name="resource_id">${shows.map(x=>`<option value="${esc(x.id)}">${esc(x.title)}</option>`).join('')}</select></label><div class="ss-phrases"><label>Сезон<input name="season" type="number" min="1" max="999" value="1" required></label><label>Серия<input name="episode" type="number" min="1" max="999" value="1" required></label></div><div class="ss-phrases"><label>Начало · мин:сек<input name="start" type="text" value="0:00" required></label><label>Конец · мин:сек<input name="end" type="text" value="3:00" required></label></div><label>Что понял?<select name="comprehension"><option value="little">Пока мало</option><option value="gist">Основной смысл</option><option value="details">Смысл и детали</option></select></label><label>Кто чего добивается? Короткая заметка, можно по-русски<textarea name="summary" maxlength="1500" rows="3"></textarea></label><p class="ss-muted">Выражения необязательны. Запиши точно по субтитрам; проверь смысл. Завтра они появятся в повторении.</p>${[0,1,2].map(i=>`<div class="ss-phrases"><label>Выражение ${i+1}<input name="expression${i}" type="text" maxlength="200" dir="auto"></label><label>Значение<input name="meaning${i}" type="text" maxlength="200"></label></div>`).join('')}<button type="submit" class="ss-primary">Сохранить сцену</button><p class="ss-status" data-scenes-status role="status"></p></form></section><section class="ss-panel" style="margin-top:18px"><h3>Сохранённые сцены</h3><div data-scenes-list role="status">Загружаю…</div></section><div data-scenes-voice></div>`;
  const form=root.querySelector('form'),out=root.querySelector('[data-scenes-status]'),list=root.querySelector('[data-scenes-list]');
  let requestId=crypto.randomUUID(),saving=false,version=0;
+ if(options.resource_id)form.querySelector('[name=resource_id]').value=options.resource_id;
  root.querySelector('[data-scenes-back]').onclick=options.back;
  form.oninput=()=>{requestId=crypto.randomUUID();options.dirty(true);};
  async function refresh(){
@@ -32,7 +33,8 @@ async function open(root,options){
    const body={resource_id:values.resource_id,season:Number(values.season),episode:Number(values.episode),start_seconds:seconds(values.start),end_seconds:seconds(values.end),summary:values.summary,comprehension:values.comprehension,phrases,request_id:requestId};
    if(body.end_seconds<=body.start_seconds||body.end_seconds-body.start_seconds>900)throw Error('Конец должен быть позже начала. Для разбора выбери не более 15 минут.');
    saving=true;options.busy(true);form.querySelectorAll('input,select,textarea,button').forEach(x=>x.disabled=true);out.textContent='Сохраняю…';
-   await api('/save',body);if(!form.isConnected)return;
+   const saved=await api('/save',body);if(!form.isConnected)return;
+   if(options.onSaved){options.dirty(false);await options.onSaved(saved.scene);return;}
    options.dirty(false);requestId=crypto.randomUUID();form.reset();out.textContent='Сцена сохранена. Выражения назначены на завтра; самооценка не меняет баллы контрольных.';await refresh();
   }catch(e){if(out.isConnected)out.textContent=e.message;}
   finally{saving=false;options.busy(false);if(form.isConnected)form.querySelectorAll('input,select,textarea,button').forEach(x=>x.disabled=false);}

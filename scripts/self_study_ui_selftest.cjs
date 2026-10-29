@@ -93,7 +93,7 @@ const fs=require('node:fs/promises');
   await page.getByRole('button',{name:'К программе',exact:true}).click();
   await page.getByText('Следующий новый вариант:',{exact:false}).waitFor();
   assert.match(await page.locator('[data-ss-checkpoint-panel]').innerText(),/Чтение/);
-  await page.locator('[data-ss-scenes]').click();
+  await page.locator('[data-ss-scenes-launch]').click();
   await page.locator('[name=start]').fill('2:00');await page.locator('[name=end]').fill('4:30');
   await page.locator('[name=summary]').fill('Разговор о договорённости.');
   await page.locator('[name=expression0]').fill('at stake');await page.locator('[name=meaning0]').fill('на кону');
