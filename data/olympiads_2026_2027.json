@@ -1,6 +1,6 @@
 {
   "season": "2026/2027",
-  "verified_at": "2026-10-29T07:14:02+00:00",
+  "verified_at": "2026-10-29T07:55:57+00:00",
   "items": [
     {
       "id": "2026-2027-6-chemistry",
@@ -76,7 +76,10 @@
       "subject": "CHEMISTRY",
       "level": 3,
       "official_url": "https://dovuz.urfu.ru",
-      "registry_url": "https://rsr-olymp.ru/"
+      "registry_url": "https://rsr-olymp.ru/",
+      "grade_min": 8,
+      "grade_max": 11,
+      "grade_source": "https://dovuz.urfu.ru/olymps/izumrud"
     },
     {
       "id": "2026-2027-22-physics",
@@ -219,7 +222,10 @@
       "subject": "CHEMISTRY",
       "level": 3,
       "official_url": "https://olymp-online.mipt.ru",
-      "registry_url": "https://rsr-olymp.ru/"
+      "registry_url": "https://rsr-olymp.ru/",
+      "grade_min": 7,
+      "grade_max": 11,
+      "grade_source": "https://chem-olymp.mipt.ru/"
     },
     {
       "id": "2026-2027-39-physics",
@@ -339,7 +345,10 @@
       "subject": "PHYSICS",
       "level": 1,
       "official_url": "https://olymp.mephi.ru",
-      "registry_url": "https://rsr-olymp.ru/"
+      "registry_url": "https://rsr-olymp.ru/",
+      "grade_min": 7,
+      "grade_max": 11,
+      "grade_source": "https://olymp.mephi.ru/rosatom/stages/final"
     },
     {
       "id": "2026-2027-55-physics",
@@ -389,7 +398,10 @@
       "subject": "PHYSICS",
       "level": 3,
       "official_url": "https://dovuz.sfu-kras.ru",
-      "registry_url": "https://rsr-olymp.ru/"
+      "registry_url": "https://rsr-olymp.ru/",
+      "grade_min": 7,
+      "grade_max": 11,
+      "grade_source": "https://dovuz.sfu.ru/abiturientu-sfu/olimpiady/belchonok/2026-2027-uchebnyy-god/"
     },
     {
       "id": "2026-2027-60-chemistry",
@@ -399,7 +411,10 @@
       "subject": "CHEMISTRY",
       "level": 2,
       "official_url": "https://dovuz.sfu-kras.ru",
-      "registry_url": "https://rsr-olymp.ru/"
+      "registry_url": "https://rsr-olymp.ru/",
+      "grade_min": 8,
+      "grade_max": 11,
+      "grade_source": "https://dovuz.sfu.ru/abiturientu-sfu/olimpiady/belchonok/2026-2027-uchebnyy-god/"
     }
   ],
   "events": [
@@ -551,6 +566,614 @@
         "format": "OFFLINE",
         "source_url": "https://moschem.olimpiada.ru/news/492",
         "evidence": ""
+      }
+    ],
+    [
+      "2026-2027-38-chemistry",
+      {
+        "stage_key": "qualifier",
+        "title": "Отборочный этап",
+        "kind": "QUALIFIER",
+        "start_at": "2026-12-15",
+        "end_at": "2027-01-10",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://chem-olymp.mipt.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "15\\s+декабря\\s+2026\\s*[-—–]\\s*10\\s+января\\s+2027"
+      }
+    ],
+    [
+      "2026-2027-38-chemistry",
+      {
+        "stage_key": "final",
+        "title": "Заключительный этап",
+        "kind": "FINAL",
+        "start_at": "2027-02-21",
+        "end_at": "2027-02-21",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "OFFLINE",
+        "source_url": "https://chem-olymp.mipt.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "21\\s+февраля\\s+2027"
+      }
+    ],
+    [
+      "2026-2027-52-physics",
+      {
+        "stage_key": "final",
+        "title": "Заключительный этап · физика",
+        "kind": "FINAL",
+        "start_at": "2027-02-06",
+        "end_at": "2027-02-06",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "OFFLINE",
+        "source_url": "https://olymp.mephi.ru/rosatom/stages/final",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "Физика\\s*:\\s*6\\s+февраля\\s+2027"
+      }
+    ],
+    [
+      "2026-2027-60-physics",
+      {
+        "stage_key": "qualifier",
+        "title": "Отборочный этап",
+        "kind": "QUALIFIER",
+        "start_at": "2026-10-01T09:00:00+07:00",
+        "end_at": "2027-01-12T17:00:00+07:00",
+        "precision": "TIME",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://dovuz.sfu.ru/abiturientu-sfu/olimpiady/belchonok/2026-2027-uchebnyy-god/otborochnyy-etap/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "1\\s+октября\\s+2026\\s+года.{0,15}09:00.{0,30}12\\s+января\\s+2027\\s+года.{0,15}17:00"
+      }
+    ],
+    [
+      "2026-2027-60-physics",
+      {
+        "stage_key": "qualifier-results",
+        "title": "Результаты отбора",
+        "kind": "RESULTS",
+        "start_at": "2027-01-18T17:00:00+07:00",
+        "end_at": null,
+        "precision": "TIME",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://dovuz.sfu.ru/abiturientu-sfu/olimpiady/belchonok/2026-2027-uchebnyy-god/otborochnyy-etap/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "18\\s+января\\s+2027\\s+года.{0,15}17:00"
+      }
+    ],
+    [
+      "2026-2027-60-physics",
+      {
+        "stage_key": "final",
+        "title": "Заключительный этап",
+        "kind": "FINAL",
+        "start_at": "2027-02-07",
+        "end_at": "2027-02-07",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "OFFLINE",
+        "source_url": "https://dovuz.sfu.ru/abiturientu-sfu/olimpiady/belchonok/2026-2027-uchebnyy-god/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "7\\s+февраля\\s+2027\\s+года.{0,50}физика"
+      }
+    ],
+    [
+      "2026-2027-60-chemistry",
+      {
+        "stage_key": "qualifier",
+        "title": "Отборочный этап",
+        "kind": "QUALIFIER",
+        "start_at": "2026-10-01T09:00:00+07:00",
+        "end_at": "2027-01-12T17:00:00+07:00",
+        "precision": "TIME",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://dovuz.sfu.ru/abiturientu-sfu/olimpiady/belchonok/2026-2027-uchebnyy-god/otborochnyy-etap/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "1\\s+октября\\s+2026\\s+года.{0,15}09:00.{0,30}12\\s+января\\s+2027\\s+года.{0,15}17:00"
+      }
+    ],
+    [
+      "2026-2027-60-chemistry",
+      {
+        "stage_key": "qualifier-results",
+        "title": "Результаты отбора",
+        "kind": "RESULTS",
+        "start_at": "2027-01-18T17:00:00+07:00",
+        "end_at": null,
+        "precision": "TIME",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://dovuz.sfu.ru/abiturientu-sfu/olimpiady/belchonok/2026-2027-uchebnyy-god/otborochnyy-etap/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "18\\s+января\\s+2027\\s+года.{0,15}17:00"
+      }
+    ],
+    [
+      "2026-2027-60-chemistry",
+      {
+        "stage_key": "final",
+        "title": "Заключительный этап",
+        "kind": "FINAL",
+        "start_at": "2027-02-14",
+        "end_at": "2027-02-14",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "OFFLINE",
+        "source_url": "https://dovuz.sfu.ru/abiturientu-sfu/olimpiady/belchonok/2026-2027-uchebnyy-god/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "14\\s+февраля\\s+2027\\s+года.{0,50}химия"
+      }
+    ],
+    [
+      "2026-2027-43-physics",
+      {
+        "stage_key": "registration",
+        "title": "Регистрация на отбор",
+        "kind": "REGISTRATION",
+        "start_at": "2026-10-10",
+        "end_at": "2026-12-01",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "10\\s+октября\\s*[-–—]\\s*1\\s+декабря\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-43-physics",
+      {
+        "stage_key": "qualifier",
+        "title": "Отборочный этап",
+        "kind": "QUALIFIER",
+        "start_at": "2026-10-20",
+        "end_at": "2026-12-01",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "20\\s+октября\\s*[-–—]\\s*1\\s+декабря\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-43-physics",
+      {
+        "stage_key": "qualifier-results",
+        "title": "Результаты отбора",
+        "kind": "RESULTS",
+        "start_at": "2026-12-25",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "25\\s+декабря\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-43-physics",
+      {
+        "stage_key": "final-registration",
+        "title": "Начало регистрации на финал",
+        "kind": "REGISTRATION",
+        "start_at": "2026-12-30",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "30\\s+декабря\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-43-physics",
+      {
+        "stage_key": "final-results",
+        "title": "Итоговые результаты",
+        "kind": "RESULTS",
+        "start_at": "2027-04-05",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "5\\s+апреля\\s+2027"
+      }
+    ],
+    [
+      "2026-2027-43-chemistry",
+      {
+        "stage_key": "registration",
+        "title": "Регистрация на отбор",
+        "kind": "REGISTRATION",
+        "start_at": "2026-10-10",
+        "end_at": "2026-12-01",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "10\\s+октября\\s*[-–—]\\s*1\\s+декабря\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-43-chemistry",
+      {
+        "stage_key": "qualifier",
+        "title": "Отборочный этап",
+        "kind": "QUALIFIER",
+        "start_at": "2026-10-20",
+        "end_at": "2026-12-01",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "20\\s+октября\\s*[-–—]\\s*1\\s+декабря\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-43-chemistry",
+      {
+        "stage_key": "qualifier-results",
+        "title": "Результаты отбора",
+        "kind": "RESULTS",
+        "start_at": "2026-12-25",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "25\\s+декабря\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-43-chemistry",
+      {
+        "stage_key": "final-registration",
+        "title": "Начало регистрации на финал",
+        "kind": "REGISTRATION",
+        "start_at": "2026-12-30",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "30\\s+декабря\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-43-chemistry",
+      {
+        "stage_key": "final-results",
+        "title": "Итоговые результаты",
+        "kind": "RESULTS",
+        "start_at": "2027-04-05",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://sch-olymp.spbu.ru/",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "5\\s+апреля\\s+2027"
+      }
+    ],
+    [
+      "2026-2027-23-physics",
+      {
+        "stage_key": "registration",
+        "title": "Регистрация на отбор",
+        "kind": "REGISTRATION",
+        "start_at": "2026-10-06",
+        "end_at": "2026-11-23",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "6\\s+ОКТЯБРЯ\\s+ПО\\s+23\\s+НОЯБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-physics",
+      {
+        "stage_key": "qualifier",
+        "title": "Период отбора · сеанс уточнить в ЛК",
+        "kind": "QUALIFIER",
+        "start_at": "2026-10-26",
+        "end_at": "2026-11-23",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "26\\s+ОКТЯБРЯ\\s+ПО\\s+23\\s+НОЯБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-physics",
+      {
+        "stage_key": "qualifier-rating",
+        "title": "Рейтинговые списки",
+        "kind": "RESULTS",
+        "start_at": "2026-12-01",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "1\\s+ДЕКАБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-physics",
+      {
+        "stage_key": "qualifier-appeal",
+        "title": "Апелляция отбора",
+        "kind": "APPEAL",
+        "start_at": "2026-12-02",
+        "end_at": "2026-12-04",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "2\\s+ДЕКАБРЯ\\s+ПО\\s+4\\s+ДЕКАБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-physics",
+      {
+        "stage_key": "final-registration",
+        "title": "Регистрация на финал",
+        "kind": "REGISTRATION",
+        "start_at": "2026-12-25",
+        "end_at": "2026-12-30",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "25\\s+ДЕКАБРЯ\\s+2026\\s+г.{0,15}ПО\\s+30\\s+ДЕКАБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-chemistry",
+      {
+        "stage_key": "registration",
+        "title": "Регистрация на отбор",
+        "kind": "REGISTRATION",
+        "start_at": "2026-10-06",
+        "end_at": "2026-11-23",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "6\\s+ОКТЯБРЯ\\s+ПО\\s+23\\s+НОЯБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-chemistry",
+      {
+        "stage_key": "qualifier",
+        "title": "Период отбора · сеанс уточнить в ЛК",
+        "kind": "QUALIFIER",
+        "start_at": "2026-10-26",
+        "end_at": "2026-11-23",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "26\\s+ОКТЯБРЯ\\s+ПО\\s+23\\s+НОЯБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-chemistry",
+      {
+        "stage_key": "qualifier-rating",
+        "title": "Рейтинговые списки",
+        "kind": "RESULTS",
+        "start_at": "2026-12-01",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "1\\s+ДЕКАБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-chemistry",
+      {
+        "stage_key": "qualifier-appeal",
+        "title": "Апелляция отбора",
+        "kind": "APPEAL",
+        "start_at": "2026-12-02",
+        "end_at": "2026-12-04",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "2\\s+ДЕКАБРЯ\\s+ПО\\s+4\\s+ДЕКАБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-23-chemistry",
+      {
+        "stage_key": "final-registration",
+        "title": "Регистрация на финал",
+        "kind": "REGISTRATION",
+        "start_at": "2026-12-25",
+        "end_at": "2026-12-30",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://malun.kpfu.ru/priem-v-universitet/otborochnyy-etap",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "25\\s+ДЕКАБРЯ\\s+2026\\s+г.{0,15}ПО\\s+30\\s+ДЕКАБРЯ\\s+2026"
+      }
+    ],
+    [
+      "2026-2027-19-chemistry",
+      {
+        "stage_key": "registration",
+        "title": "Регистрация",
+        "kind": "REGISTRATION",
+        "start_at": "2026-09-01",
+        "end_at": "2027-01-19",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://dovuz.urfu.ru/olymps/izumrud",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "1\\s+сентября\\s*[-—–]\\s*19\\s+января"
+      }
+    ],
+    [
+      "2026-2027-19-chemistry",
+      {
+        "stage_key": "qualifier",
+        "title": "Отборочный этап",
+        "kind": "QUALIFIER",
+        "start_at": "2026-09-01",
+        "end_at": "2027-01-19",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://dovuz.urfu.ru/olymps/izumrud",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "1\\s+сентября\\s*[-—–]\\s*19\\s+января"
+      }
+    ],
+    [
+      "2026-2027-19-chemistry",
+      {
+        "stage_key": "final-registration",
+        "title": "Подготовка к финалу · выбор площадки",
+        "kind": "REGISTRATION",
+        "start_at": "2027-01-20",
+        "end_at": "2027-01-24",
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://dovuz.urfu.ru/olymps/izumrud",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "20\\s+января\\s*[-—–]\\s*24\\s+января"
+      }
+    ],
+    [
+      "2026-2027-19-chemistry",
+      {
+        "stage_key": "final-results",
+        "title": "Итоги олимпиады",
+        "kind": "RESULTS",
+        "start_at": "2027-03-27",
+        "end_at": null,
+        "precision": "DATE",
+        "status": "CONFIRMED",
+        "format": "ONLINE",
+        "source_url": "https://dovuz.urfu.ru/olymps/izumrud",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "27\\s+марта"
+      }
+    ],
+    [
+      "2026-2027-36-physics",
+      {
+        "stage_key": "qualifier-1",
+        "title": "Отборочный этап · сеанс 1",
+        "kind": "QUALIFIER",
+        "start_at": "2026-11-21T11:00:00+03:00",
+        "end_at": null,
+        "precision": "TIME",
+        "status": "TENTATIVE",
+        "format": "ONLINE",
+        "source_url": "https://www.energy-hope.ru/actual/grafik.html",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "21\\s+ноября\\s+2026.{0,160}ФИЗИКА"
+      }
+    ],
+    [
+      "2026-2027-36-physics",
+      {
+        "stage_key": "qualifier-2",
+        "title": "Отборочный этап · сеанс 2",
+        "kind": "QUALIFIER",
+        "start_at": "2026-11-29T11:00:00+03:00",
+        "end_at": null,
+        "precision": "TIME",
+        "status": "TENTATIVE",
+        "format": "ONLINE",
+        "source_url": "https://www.energy-hope.ru/actual/grafik.html",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "29\\s+ноября\\s+2026.{0,160}ФИЗИКА"
+      }
+    ],
+    [
+      "2026-2027-36-physics",
+      {
+        "stage_key": "final",
+        "title": "Заключительный этап",
+        "kind": "FINAL",
+        "start_at": "2027-03-14T11:00:00+03:00",
+        "end_at": null,
+        "precision": "TIME",
+        "status": "TENTATIVE",
+        "format": "OFFLINE",
+        "source_url": "https://www.energy-hope.ru/actual/grafik.html",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "14\\s+марта\\s+2027.{0,160}ФИЗИКА"
+      }
+    ],
+    [
+      "2026-2027-6-chemistry",
+      {
+        "stage_key": "session-1",
+        "title": "Второй тур · вариант даты",
+        "kind": "QUALIFIER",
+        "start_at": "2026-11-13",
+        "end_at": "2026-11-13",
+        "precision": "DATE",
+        "status": "TENTATIVE",
+        "format": "ONLINE",
+        "source_url": "https://olymp.hse.ru/mmo/timetable1",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "13\\.11\\.2026.{0,60}Химия"
+      }
+    ],
+    [
+      "2026-2027-6-chemistry",
+      {
+        "stage_key": "session-2",
+        "title": "Второй тур · вариант даты",
+        "kind": "QUALIFIER",
+        "start_at": "2026-11-17",
+        "end_at": "2026-11-17",
+        "precision": "DATE",
+        "status": "TENTATIVE",
+        "format": "ONLINE",
+        "source_url": "https://olymp.hse.ru/mmo/timetable1",
+        "evidence": "Проверено по расписанию организатора 29.10.2026.",
+        "verification_pattern": "17\\.11\\.2026.{0,60}Химия"
       }
     ]
   ]

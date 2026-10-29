@@ -39,7 +39,7 @@ class Tests(unittest.TestCase):
     def test_seed_idempotent_and_preserves_legacy(self):
         src.seed();c=connect()
         self.assertEqual(c.execute('SELECT COUNT(*) FROM olympiad_catalog').fetchone()[0],39)
-        self.assertEqual(c.execute('SELECT COUNT(*) FROM olympiad_events').fetchone()[0],10)
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM olympiad_events').fetchone()[0],48)
         self.assertEqual(c.execute('SELECT price FROM lessons').fetchone()[0],1800)
         c.close()
 
@@ -114,6 +114,33 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(src.parse_registry(html,'2026/2027')),30)
         with self.assertRaises(ValueError):src.parse_registry(html.replace('2026/27','2025/26'),'2026/2027')
         with self.assertRaises(ValueError):src.parse_registry(html.replace('https://olymp.msu.ru/','https://unapproved.example/'),'2026/2027')
+
+    def test_verified_dates_and_source_change_guard(self):
+        url='https://chem-olymp.mipt.ru/'
+        html='<h1>Физтех по химии</h1><p>Отборочный 15 декабря 2026 — 10 января 2027</p><p>Заключительный 21 февраля 2027</p>'
+        self.assertEqual(len(src.parse_verified(html,'2026/2027',url)),2)
+        with self.assertRaisesRegex(ValueError,'organizer_dates_changed'):
+            src.parse_verified(html.replace('21 февраля','22 февраля'),'2026/2027',url)
+        with self.assertRaises(ValueError):src.parse_verified(html,'2027/2028',url)
+        result=st.overview('student',1)
+        self.assertEqual(sum(bool(x['events']) for x in result['items']),15)
+
+    def test_next_season_dates_and_subscription_rollover(self):
+        html='<p>Отборочный 15 декабря 2027 — 10 января 2028</p><p>Заключительный Очно 21 февраля 2028</p>'
+        out=src.parse_chem_year(html,'2027/2028')
+        self.assertEqual(out[0][0],'2027-2028-38-chemistry')
+        self.assertEqual(out[0][1]['start_at'],'2027-12-15')
+        with self.assertRaises(ValueError):src.parse_chem_year(html,'2028/2029')
+        ros=src.parse_rosatom_year('<h1>2027-2028</h1><p>Физика: 6 февраля 2028</p>','2027/2028')
+        self.assertEqual(ros[0][1]['start_at'],'2028-02-06')
+        st.subscribe('student',1,self.oid,['WEB','VK'])
+        item=dict(next(x for x in st.overview('student',1)['items'] if x['id']==self.oid))
+        item.update(id='2027-2028-35-physics',season='2027/2028')
+        st.upsert_catalog([item])
+        self.assertEqual(st.rollover_subscriptions('2027/2028'),1)
+        st.subscribe('student',1,item['id'],[])
+        self.assertEqual(st.rollover_subscriptions('2027/2028'),0)
+        c=connect();self.assertFalse(c.execute('SELECT 1 FROM olympiad_subscriptions WHERE olympiad_id=?',(item['id'],)).fetchone());c.close()
 
     def test_ssrf_date_and_channel_validation(self):
         for url in ['http://olymp.msu.ru/','https://127.0.0.1/','https://olymp.msu.ru.evil.test/','https://olymp.msu.ru:444/','https://u:p@olymp.msu.ru/']:

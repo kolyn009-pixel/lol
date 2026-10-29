@@ -24,7 +24,7 @@ SPBU='https://distolymp2.spbu.ru/olymp/'
 MOSCHEM='https://moschem.olimpiada.ru/news/492'
 SEED=Path(__file__).resolve().parents[1]/'data/olympiads_2026_2027.json'
 MONTHS={v:i+1 for i,v in enumerate(('января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'))}
-ALLOWED_HOSTS={'rsr-olymp.ru','olymp.msu.ru','distolymp2.spbu.ru','moschem.olimpiada.ru',
+ALLOWED_HOSTS={'chem-olymp.mipt.ru','dovuz.sfu.ru','sch-olymp.spbu.ru','energy-hope.ru','rsr-olymp.ru','olymp.msu.ru','distolymp2.spbu.ru','moschem.olimpiada.ru',
  'olymp.hse.ru','www.sechenov.ru','sesc.nsu.ru','olymp.mephi.ru','dovuz.urfu.ru',
  'v-olymp.ru','malun.kpfu.ru','olymp.psu.ru','olympiads.mccme.ru','olimpiadakurchatov.ru',
  'www.energy-hope.ru','pvg.mk.ru','olymp-online.mipt.ru','olymp.bmstu.ru',
@@ -45,6 +45,8 @@ def allowed_event_url(url,item):
         return False
     host=urlparse(url).hostname
     allowed={urlparse(item['official_url']).hostname}
+    extras={38:{'chem-olymp.mipt.ru'} if item['subject']=='CHEMISTRY' else set(),60:{'dovuz.sfu.ru'},43:{'sch-olymp.spbu.ru'},36:{'www.energy-hope.ru','energy-hope.ru'}}
+    allowed |= extras.get(item['registry_number'],set())
     if item['registry_number']==26 and item['subject']=='CHEMISTRY':
         allowed.add('moschem.olimpiada.ru')
     return host in allowed
@@ -81,7 +83,7 @@ def fetch(url):
 class Page(HTMLParser):
     def __init__(self,html):
         super().__init__(convert_charrefs=True)
-        self.parts=[];self.rows=[];self.row=None;self.cell=None;self.skip=0
+        self.parts=[];self.rows=[];self.links=[];self.row=None;self.cell=None;self.skip=0
         self.feed(html)
 
     def handle_starttag(self,tag,attrs):
@@ -92,6 +94,7 @@ class Page(HTMLParser):
             self.row=[]
         if tag in {'td','th'} and self.row is not None:
             self.cell={'parts':[],'href':None,'rowspan':int(attrs.get('rowspan','1'))}
+        if tag=='a' and attrs.get('href'):self.links.append(attrs['href'])
         if tag=='a' and self.cell is not None and not self.cell['href']:
             self.cell['href']=attrs.get('href')
         if tag in {'br','p','div','li','tr','h1','h2','h3','h4','td','th'}:
@@ -203,7 +206,7 @@ def parse_msu_profile(html,year):
     m=re.search(r'Регистрация\s+До\s+(\d{1,2})\s+([а-я]+)\s+(20\d{2})\s+(\d{1,2}:\d{2})',t,re.I)
     if not m or m[3]!=year.split('/')[0]:raise ValueError('msu_registration_changed')
     end=_date(m[1],m[2],m[3])+'T'+m[4]+':00+03:00'
-    url='https://olymp.msu.ru/rus/event/'+('11026/' if subject=='PHYSICS' else '11029/')
+    url=MSU
     # Preserve a separately verified opening instant, rather than inferring it.
     oid=store.identity(year,35,subject);c=database.connect()
     try:r=c.execute("SELECT start_at FROM olympiad_events WHERE olympiad_id=? AND stage_key='registration'",(oid,)).fetchone()
@@ -231,11 +234,61 @@ def parse_moschem(html,year):
 ADAPTERS={'msu':parse_msu,'msu-profile':parse_msu_profile,'spbu':parse_spbu,'moschem':parse_moschem}
 
 
+def parse_chem_year(html,year):
+    t=Page(html).text;a,b=year.split('/')
+    m=re.search(r'(\d{1,2})\s+([а-я]+)\s+'+a+r'\s*[-—–]\s*(\d{1,2})\s+([а-я]+)\s+'+b,t,re.I)
+    if not m:raise ValueError('chem_current_schedule_missing')
+    first=_date(m[1],m[2],a);last=_date(m[3],m[4],b)
+    # The official page has an explicit final stage after the qualifier.
+    final=re.search(r'Заключительный.{0,100}?(\d{1,2})\s+([а-я]+)\s+'+b,t,re.I)
+    if not final:raise ValueError('chem_current_final_missing')
+    day=_date(final[1],final[2],b);oid=store.identity(year,38,'CHEMISTRY');url='https://chem-olymp.mipt.ru/'
+    return [(oid,_event('qualifier','Отборочный этап','QUALIFIER',first,last,format='ONLINE',source=url)),
+            (oid,_event('final','Заключительный этап','FINAL',day,day,format='OFFLINE',source=url))]
+
+
+def parse_rosatom_year(html,year):
+    t=Page(html).text;a,b=year.split('/')
+    if not re.search(a+r'\s*[-–/]\s*(?:'+b+'|'+b[-2:]+')',t):raise ValueError('rosatom_season_missing')
+    m=re.search(r'Физика\s*:\s*(\d{1,2})\s+([а-я]+)\s+'+b,t,re.I)
+    if not m:raise ValueError('rosatom_current_final_missing')
+    day=_date(m[1],m[2],b);url='https://olymp.mephi.ru/rosatom/stages/final'
+    return [(store.identity(year,52,'PHYSICS'),_event('final','Заключительный этап · физика','FINAL',day,day,format='OFFLINE',source=url))]
+
+
+def configure_source(item):
+    n=item['registry_number'];sub=item['subject'];oid=item['id']
+    if n==35:link_source(oid,MSU,'msu')
+    elif n==14:link_source(oid,SPBU,'spbu')
+    elif n==38 and sub=='CHEMISTRY':link_source(oid,'https://chem-olymp.mipt.ru/','chem-year')
+    elif n==52 and sub=='PHYSICS':link_source(oid,'https://olymp.mephi.ru/rosatom/stages/final','rosatom-year')
+    else:link_source(oid,item['official_url'])
+
+
+def parse_verified(html,year,url):
+    """Revalidate reviewed exact dates; changed/missing facts require review.
+
+    This adapter does not invent replacement dates. Each event has its own
+    source-specific date expression, checked on the current organizer page.
+    """
+    data=json.loads(SEED.read_text(encoding='utf-8'))
+    if data['season']!=year:raise ValueError('verified_schedule_season_expired')
+    text=Page(html).text
+    if not all(y in text for y in year.split('/')):raise ValueError('verified_schedule_year_missing')
+    events=[(oid,e) for oid,e in data['events'] if e['source_url']==url and e.get('verification_pattern')]
+    if not events:raise ValueError('verified_schedule_missing')
+    for oid,e in events:
+        if not re.search(e['verification_pattern'],text,re.I):
+            raise ValueError('organizer_dates_changed_review_required')
+    return events
+
+
 def link_source(oid,url,adapter='review'):
     if not safe_url(url):raise ValueError('source_host_not_approved')
     c=database.connect()
     try:
         c.execute('INSERT OR IGNORE INTO olympiad_sources(url,adapter) VALUES(?,?)',(url,adapter))
+        if adapter in {'verified','chem-year','rosatom-year'}:c.execute('UPDATE olympiad_sources SET adapter=? WHERE url=?',(adapter,url))
         c.execute('INSERT OR IGNORE INTO olympiad_source_links VALUES(?,?)',(oid,url))
         c.commit()
     finally:c.close()
@@ -256,11 +309,22 @@ def seed():
         link_source(oid,url,adapter)
         if number==35:
             link_source(oid,'https://olymp.msu.ru/rus/event/'+('11026/' if item['subject']=='PHYSICS' else '11029/'),'msu-profile')
+    for item in data['items']:
+        if item.get('grade_min'):
+            c=database.connect()
+            try:
+                c.execute('UPDATE olympiad_catalog SET grade_min=?,grade_max=?,grade_source=? WHERE id=? AND grade_min IS NULL',(item['grade_min'],item['grade_max'],item['grade_source'],item['id']));c.commit()
+            finally:c.close()
     for oid,event in data['events']:
+        if event.get('verification_pattern'):
+            link_source(oid,event['source_url'],'verified')
         c=database.connect()
         try:exists=c.execute('SELECT 1 FROM olympiad_events WHERE olympiad_id=? AND stage_key=?',(oid,event['stage_key'])).fetchone()
         finally:c.close()
         if not exists:store.save_event(oid,event,checked=datetime.fromisoformat(data['verified_at']),notify=False)
+
+
+ADAPTERS.update({'chem-year':parse_chem_year,'rosatom-year':parse_rosatom_year})
 
 
 def refresh(fetcher=fetch):
@@ -269,11 +333,13 @@ def refresh(fetcher=fetch):
         items=parse_registry(fetcher(REGISTRY),year)
         store.upsert_catalog(items,authoritative=True)
         for item in items:
+            configure_source(item)
             # Preserve explicitly selected schedule adapters for seeded entries.
             c=database.connect()
             try:exists=c.execute('SELECT 1 FROM olympiad_source_links WHERE olympiad_id=?',(item['id'],)).fetchone()
             finally:c.close()
             if not exists:link_source(item['id'],item['official_url'])
+        store.rollover_subscriptions(year)
         registry_error=None
     except Exception as exc:
         registry_error=type(exc).__name__+': '+str(exc)[:180]
@@ -292,8 +358,17 @@ def refresh(fetcher=fetch):
             digest=hashlib.sha256(text.encode()).hexdigest()
             changed=bool(source['content_hash'] and source['content_hash']!=digest)
             parser=ADAPTERS.get(source['adapter'])
-            events=parser(html,year) if parser else []
+            events=parse_verified(html,year,source['url']) if source['adapter']=='verified' else parser(html,year) if parser else []
+            if source['adapter']=='msu-profile':
+                for _,event in events:event['source_url']=source['url']
             for oid,event in events:store.save_event(oid,event)
+            if source['adapter']=='msu':
+                for row in Page(html).rows:
+                    if not row:continue
+                    code={'физика':'PHYSICS','химия':'CHEMISTRY'}.get(row[0]['text'].casefold())
+                    target=urljoin(MSU,row[0]['href'] or '')
+                    if code and row[0]['href'] and urlparse(target).hostname=='olymp.msu.ru':
+                        link_source(store.identity(year,35,code),target,'msu-profile')
         except Exception as exc:
             error=type(exc).__name__+': '+str(exc)[:180]
         review=bool(error or (changed and source['adapter']=='review'))

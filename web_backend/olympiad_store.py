@@ -63,6 +63,9 @@ def ensure_schema():
           role TEXT NOT NULL,entity_id INTEGER NOT NULL,olympiad_id TEXT NOT NULL,
           channels_json TEXT NOT NULL,created_at TEXT NOT NULL,
           PRIMARY KEY(role,entity_id,olympiad_id));
+        CREATE TABLE IF NOT EXISTS olympiad_season_transfers(
+          role TEXT NOT NULL,entity_id INTEGER NOT NULL,old_id TEXT NOT NULL,new_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,PRIMARY KEY(role,entity_id,old_id,new_id));
         CREATE TABLE IF NOT EXISTS olympiad_recommendations(
           user_id INTEGER NOT NULL,olympiad_id TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',
           goal INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,
@@ -346,3 +349,34 @@ def enqueue_reminders(current=None):
         return count
     finally:
         c.close()
+
+
+def rollover_subscriptions(year):
+    """Carry opt-in channels once per season; never restore an unsubscribed row.
+
+    Recommendations and preparation goals are intentionally season-specific.
+    Only current active students and teacher subscriptions are eligible.
+    """
+    ensure_schema();c=database.connect();count=0
+    try:
+        c.execute('BEGIN IMMEDIATE')
+        rows=c.execute("""SELECT s.*,o.registry_number,o.subject,n.id new_id FROM olympiad_subscriptions s
+          JOIN olympiad_catalog o ON o.id=s.olympiad_id
+          JOIN olympiad_catalog n ON n.registry_number=o.registry_number AND n.subject=o.subject
+          WHERE n.season=? AND n.active=1 AND o.season=?
+          AND (s.role='teacher' OR EXISTS(SELECT 1 FROM users u WHERE u.id=s.entity_id AND u.active=1))""",
+          (year,str(int(year.split('/')[0])-1)+'/'+year.split('/')[0])).fetchall()
+        for row in rows:
+            created=c.execute('INSERT OR IGNORE INTO olympiad_season_transfers VALUES(?,?,?,?,?)',
+                (row['role'],row['entity_id'],row['olympiad_id'],row['new_id'],stamp())).rowcount
+            if not created:continue
+            inserted=c.execute('INSERT OR IGNORE INTO olympiad_subscriptions VALUES(?,?,?,?,?)',
+                (row['role'],row['entity_id'],row['new_id'],row['channels_json'],stamp())).rowcount
+            count+=inserted
+            if inserted:
+                item=catalog_item(c,row['new_id'])
+                _notice(c,row['role'],row['entity_id'],row['new_id'],'season:'+row['new_id'],
+                    '🏆 '+item['title']+' · сезон '+year+'\nОтслеживание продолжено. Новые даты появятся после публикации организатором.',
+                    json.loads(row['channels_json']),stamp())
+        c.commit();return count
+    finally:c.close()

@@ -104,3 +104,29 @@ https://olymp.msu.ru/rus/event/11026/
 https://olymp.msu.ru/rus/event/11029/
 https://distolymp2.spbu.ru/olymp/
 https://moschem.olimpiada.ru/news/492
+
+
+## Verified dates expansion and annual rollover
+
+The boot calendar now contains 48 stage/deadline/result entries for 15 subject
+profiles. Added official schedules: MIPT chemistry, Rosatom physics, Belchonok,
+SPbU, KFU, Izumrud, and explicitly tentative HSE / Energy Hope dates.
+Date-only entries preserve the organizer's precision; no class-specific session
+start time is applied to all pupils. Belchonok UTC+7 times are converted by the UI.
+
+Current exact source facts are revalidated daily. If a reviewed date expression
+no longer matches, the source becomes a review item; replacement dates are not
+guessed. Fully structured next-season date extraction currently covers the
+existing MSU/SPbU-Internet adapters, MIPT chemistry and Rosatom physics. The other
+reviewed date adapters are season-specific and require a new reviewed schedule
+when organizers publish the next year. Complete automatic extraction for every
+organizer is not claimed.
+
+The academic season switches on August 1 in Europe/Moscow. The daily registry
+check requires the new season explicitly, imports its own levels/membership and
+configures supported permanent source adapters. MSU profile links are discovered
+from its current schedule. Until the registry or schedules are published, no
+previous-season dates are substituted. Existing opted-in subscriptions carry to
+the same registry number/subject once per season, only for active students or
+teachers. An unsubscribe is never reversed by subsequent refreshes. Old learning
+goals/recommendations remain season-specific. Retired contests are not carried.
