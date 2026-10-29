@@ -9,7 +9,11 @@ from learning.language_program import LANGUAGES, RESOURCES, catalogue
 TOPICS={'travel':'Путешествия','oil':'Нефть и энергетика','technology':'Технологии','science':'Наука','sport':'Спорт','history':'История','everyday':'Повседневная жизнь','art':'Искусство','nature':'Природа'}
 GENRES={'drama':'Драма','comedy':'Комедия','adventure':'Приключения','documentary':'Документальное','romance':'Отношения'}
 FORMATS={'speaking':'Разговор','video':'Видео и сериалы','reading':'Чтение','short':'Короткие задания'}
-MINUTES=(15,20,30,45,60,90,120,180)
+MINUTES=(15,20,30,45,60,90,120,150,180)
+
+def valid_minutes(value,count=1):
+    return type(value) is int and max(15,5*count)<=value<=180
+
 LEVELS=('unknown','A0','A1','A2','B1','B2','C1')
 TAGS={'landman':({'oil','everyday'},{'drama'},'adult'),
       'schwarzes-gold':({'oil','history'},{'drama'},'adult'),
@@ -50,7 +54,7 @@ def questionnaire(owner):
 def save(owner,data):
     codes=data.get('courses');priority=data.get('priority');minutes=data.get('daily_minutes')
     if not isinstance(codes,list) or not 1<=len(codes)<=4 or any(c not in LANGUAGES for c in codes) or len(set(codes))!=len(codes):raise ValueError('invalid_preferences')
-    if priority not in codes or type(minutes) is not int or minutes not in MINUTES or minutes<5*len(codes):raise ValueError('invalid_preferences')
+    if priority not in codes or not valid_minutes(minutes,len(codes)):raise ValueError('invalid_preferences')
     age=data.get('age_group')
     if age not in ('child','teen','adult'):raise ValueError('invalid_preferences')
     clean={'courses':codes,'priority':priority,'daily_minutes':minutes,'age_group':age}
@@ -92,13 +96,16 @@ def save(owner,data):
 
 def customise_profile(owner,base):
     cfg=stored(owner)
-    base['budget_options']=list(MINUTES) if cfg else ([60,90,120] if owner<0 else [120,180])
+    count=len(cfg['courses']) if cfg else len(base['languages'])
+    base['budget_min_minutes']=max(15,5*count)
+    base['budget_max_minutes']=180
+    base['budget_options']=[n for n in MINUTES if n>=base['budget_min_minutes']]
     if not cfg:return base
     # The ordinary profile endpoint can change the budget after the survey.
     conn=connect()
     try:row=conn.execute('SELECT daily_minutes,settings FROM personal_study_profiles WHERE owner_id=?',(owner,)).fetchone()
     finally:conn.close()
-    minutes=row[0] if row and row[0] in MINUTES else cfg['daily_minutes']
+    minutes=row[0] if row and valid_minutes(row[0],len(cfg['courses'])) else cfg['daily_minutes']
     codes=cfg['courses'];allocation={c:minutes//len(codes) for c in codes}
     if len(codes)>1:
         priority_minutes=min(minutes-5*(len(codes)-1),max(minutes//len(codes),round(minutes*.6)))

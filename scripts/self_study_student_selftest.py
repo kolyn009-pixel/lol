@@ -40,12 +40,12 @@ class Tests(unittest.TestCase):
             self.assertEqual(english,p['languages']['en']['minutes'])
             self.assertEqual(spanish,p['languages']['es']['minutes'])
             self.assertEqual(minutes,english+spanish)
-        with self.assertRaises(ValueError):fixture.study.save_profile(-101,{'daily_minutes':180})
-        with self.assertRaises(ValueError):fixture.study.save_profile(101,{'daily_minutes':60})
+        self.assertEqual(180,fixture.study.save_profile(-101,{'daily_minutes':180})['daily_minutes'])
+        self.assertEqual(60,fixture.study.save_profile(101,{'daily_minutes':60})['daily_minutes'])
 
-    def test_previous_student_three_hour_budget_reads_as_two_hours(self):
+    def test_previous_student_three_hour_budget_is_preserved(self):
         conn=fixture.connect();conn.execute("INSERT INTO personal_study_profiles VALUES(-101,180,'{}','2026-10-27')");conn.commit();conn.close()
-        self.assertEqual(120,fixture.study.profile(-101)['daily_minutes'])
+        self.assertEqual(180,fixture.study.profile(-101)['daily_minutes'])
         self.assertEqual(120,fixture.study.profile(101)['daily_minutes'])
 
     def test_question_bank_does_not_reveal_answers(self):

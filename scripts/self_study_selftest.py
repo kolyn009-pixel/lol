@@ -88,7 +88,7 @@ class Tests(unittest.TestCase):
         self.assertEqual('2027-09-15',study.profile(101)['languages']['en']['target_date'])
 
     def test_bad_settings_do_not_partially_write(self):
-        for body in ({'daily_minutes':True},{'daily_minutes':121},
+        for body in ({'daily_minutes':True},{'daily_minutes':181},
                      {'daily_minutes':180,'target_dates':{'en':'2027-02-30'}},
                      {'daily_minutes':180,'target_dates':{'xx':'2027-01-01'}},
                      {'daily_minutes':180,'target_dates':{'en':123}}):

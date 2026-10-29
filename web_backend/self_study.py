@@ -58,11 +58,15 @@ def profile(owner_id):
     try:
         row=conn.execute('SELECT * FROM personal_study_profiles WHERE owner_id=?',(owner_id,)).fetchone()
         daily=row['daily_minutes'] if row else (60 if owner_id<0 else 120)
-        if owner_id<0 and daily not in (60,90,120):daily=120
+        from web_backend.self_study_preferences import valid_minutes
+        if not valid_minutes(daily):daily=120
         settings=json.loads(row['settings']) if row else {}
         codes=('en','es') if owner_id<0 else ('en','de','fa')
-        allocation={'en':80,'de':25,'fa':15} if daily==120 else {'en':120,'de':40,'fa':20}
-        if owner_id<0:allocation={60:{'en':45,'es':15},90:{'en':70,'es':20},120:{'en':95,'es':25}}[daily]
+        weights={'en':3,'es':1} if owner_id<0 else {'en':80,'de':25,'fa':15}
+        allocation={code:max(5,round(daily*weights[code]/sum(weights.values()))) for code in codes if code!='en'}
+        allocation['en']=daily-sum(allocation.values())
+        if owner_id<0 and daily in (60,90,120):allocation={60:{'en':45,'es':15},90:{'en':70,'es':20},120:{'en':95,'es':25}}[daily]
+        if owner_id>0 and daily==180:allocation={'en':120,'de':40,'fa':20}
         base={'daily_minutes':daily,'languages':{
             code:{**spec, **({'start':'Нужна диагностика','goal':'B2 · общение и самостоятельное использование','target_date':'2027-05-01'} if owner_id<0 and code=='en' else {}), **settings.get(code,{}),'minutes':allocation[code]}
             for code,spec in LANGUAGES.items() if code in codes}}
@@ -74,16 +78,15 @@ def profile(owner_id):
 
 def save_profile(owner_id,data):
     daily=data.get('daily_minutes')
-    from web_backend.self_study_preferences import MINUTES,stored
-    allowed=MINUTES if stored(owner_id) else ((60,90,120) if owner_id<0 else (120,180))
-    if type(daily) is not int or daily not in allowed:
+    from web_backend.self_study_preferences import valid_minutes
+    current=profile(owner_id)
+    if not valid_minutes(daily,len(current['languages'])):
         raise ValueError('invalid_daily_minutes')
     dates=data.get('target_dates',{})
     if not isinstance(dates,dict) or set(dates)-set(LANGUAGES):
         raise ValueError('invalid_target_dates')
     # Validate the entire request before mutating the existing profile.
     settings={}
-    current=profile(owner_id)
     for code in current['languages']:
         raw=dates.get(code,current['languages'][code]['target_date'])
         if raw=='' and current.get('preferences'):

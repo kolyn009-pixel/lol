@@ -160,7 +160,7 @@ const fs=require('node:fs/promises');
   await page.locator('[data-settings-form]').waitFor();
   await page.locator('input[name=courses][value=en]').uncheck();
   await page.locator('select[name=priority]').selectOption('es');
-  await page.locator('select[name=daily_minutes]').selectOption('30');
+  await page.locator('input[name=daily_minutes]').fill('30');
   await page.locator('input[name=topics][value=travel]').check();
   await page.getByRole('button',{name:'Сохранить и обновить программу',exact:true}).click();
   await page.locator('[data-ss-language="es"]').waitFor();

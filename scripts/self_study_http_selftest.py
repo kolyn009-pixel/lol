@@ -68,6 +68,18 @@ class Tests(unittest.TestCase):
             q=self.api('/placement?language=es',role=role)['questions'];self.assertEqual(16,len(q))
             self.assertTrue(self.api('/placement/status',role=role)['required'])
 
+    def test_custom_daily_time_for_owner_parent_and_student(self):
+        for role in ('teacher','student','parent'):
+            if role!='teacher':self.invite(role)
+            original=self.api(role=role)['profile']['daily_minutes']
+            self.api('/profile',role=role,body={'daily_minutes':75})
+            p=self.api(role=role)['profile']
+            self.assertEqual(75,p['daily_minutes'])
+            self.assertEqual(75,sum(x['minutes'] for x in p['languages'].values()))
+            self.api('/profile',role=role,body={'daily_minutes':181},expected=400)
+            self.assertEqual(75,self.api(role=role)['profile']['daily_minutes'])
+        self.assertEqual(75,self.api(role='teacher')['profile']['daily_minutes'])
+
     def test_complete_family_session_and_reload(self):
         for role in ('student','parent'):
             self.configure_and_place(role)

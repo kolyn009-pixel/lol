@@ -32,6 +32,31 @@ class Tests(unittest.TestCase):
         fixture.study.save_profile(-101,{'daily_minutes':45})
         self.assertEqual(45,fixture.study.profile(-101)['daily_minutes'])
 
+    def test_personal_minutes_for_all_identities_and_exact_allocation(self):
+        for owner in (101,-101,-1000000000101):
+            for minutes in (15,20,30,45,60,75,105,121,150,180):
+                p=fixture.study.save_profile(owner,{'daily_minutes':minutes})
+                self.assertEqual(minutes,fixture.study.profile(owner)['daily_minutes'])
+                self.assertEqual(minutes,sum(x['minutes'] for x in p['languages'].values()))
+                self.assertTrue(all(x['minutes']>=5 for x in p['languages'].values()))
+                self.assertIn(30,p['budget_options'])
+
+    def test_custom_survey_time_and_minimum_for_four_languages(self):
+        prefs.save(-101,{**self.config,'daily_minutes':105})
+        p=fixture.study.profile(-101)
+        self.assertEqual(105,p['daily_minutes'])
+        self.assertEqual(105,sum(x['minutes'] for x in p['languages'].values()))
+        self.assertEqual(20,p['budget_min_minutes'])
+        self.assertNotIn(15,p['budget_options'])
+        with self.assertRaises(ValueError):fixture.study.save_profile(-101,{'daily_minutes':15})
+        with self.assertRaises(ValueError):prefs.save(-101,{**self.config,'daily_minutes':15})
+        self.assertEqual(105,fixture.study.profile(-101)['daily_minutes'])
+
+    def test_invalid_custom_minutes_do_not_change_budget(self):
+        for minutes in (True,False,0,-10,14,181,30.5,'60',None):
+            with self.assertRaises(ValueError):fixture.study.save_profile(101,{'daily_minutes':minutes})
+        self.assertEqual(120,fixture.study.profile(101)['daily_minutes'])
+
     def test_selected_courses_only_and_no_answer_keys(self):
         prefs.save(-101,{**self.config,'courses':['de'],'priority':'de','custom_series':[]})
         result=fixture.study.overview(-101)
