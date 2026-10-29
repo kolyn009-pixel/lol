@@ -17,7 +17,7 @@ import subprocess
 import sys
 import time
 
-FILES=['web_backend/olympiad_store.py','web_backend/olympiad_sources.py',
+FILES=['web_backend/olympiad_journey.py','web_backend/olympiad_store.py','web_backend/olympiad_sources.py',
        'web_backend/olympiad_api.py','web_backend/olympiad_worker.py',
        'data/olympiads_2026_2027.json','web/olympiads.js','web/olympiads.css']
 RECORD='olympiads_install.json'
@@ -66,10 +66,10 @@ def hook_html(text):
         if '/app/'+name in text:
             # Invalidate the browser cache while preserving the existing HTML tag.
             pattern=r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?'
-            text=re.sub(pattern,lambda m:m[1]+'?v=20261029-olympiads2',text)
+            text=re.sub(pattern,lambda m:m[1]+'?v=20261029-olympiads3',text)
             continue
-        asset=('<link rel="stylesheet" href="/app/olympiads.css?v=20261029-olympiads2">'
-               if tag=='link' else '<script defer src="/app/olympiads.js?v=20261029-olympiads2"></script>')
+        asset=('<link rel="stylesheet" href="/app/olympiads.css?v=20261029-olympiads3">'
+               if tag=='link' else '<script defer src="/app/olympiads.js?v=20261029-olympiads3"></script>')
         text=text.replace('</head>',asset+'</head>',1)
     return text
 

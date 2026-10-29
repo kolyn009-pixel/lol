@@ -1,10 +1,12 @@
 """Role-scoped olympiad endpoints; no arbitrary recipient or fetch URL input."""
-from web_backend import olympiad_store as store
+from web_backend import olympiad_store as store, olympiad_journey as journey
 
 GET_PATHS={f'/api/{r}/olympiads' for r in ('teacher','student')}
-GET_PATHS|={'/api/teacher/olympiads/history'}
+GET_PATHS|={'/api/teacher/olympiads/history','/api/teacher/olympiads/candidates'}
+GET_PATHS|={f'/api/{r}/olympiads/journey' for r in ('teacher','student')}
 POST_PATHS={f'/api/{r}/olympiads/subscribe' for r in ('teacher','student')}
-POST_PATHS|={f'/api/teacher/olympiads/{x}' for x in ('recommend','event','review')}
+POST_PATHS|={f'/api/teacher/olympiads/{x}' for x in ('recommend','event','review','resource')}
+POST_PATHS|={f'/api/{r}/olympiads/{a}' for r in ('teacher','student') for a in ('progress','result')}
 
 
 def available_channels(role,uid):
@@ -35,7 +37,20 @@ class OlympiadMixin:
     def olympiad_get(self,path,q):
         try:
             role,uid=self._olympiad_owner(path)
-            if path.endswith('/history'):
+            if path.endswith('/journey'):
+                target=int(q.get('user_id',['0'])[0]) if role=='teacher' else uid
+                result=journey.overview(target,q.get('olympiad_id',[None])[0])
+            elif path.endswith('/candidates'):
+                if role!='teacher':raise PermissionError('unauthorized')
+                import database
+                store.ensure_schema();c=database.connect()
+                try:
+                    target=int(q.get('user_id',['0'])[0]);journey.user(c,target)
+                    item=store.catalog_item(c,q.get('olympiad_id',[''])[0]);tables={r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                    result={'formulas':[dict(r) for r in c.execute('SELECT id,title,topic FROM formula_book WHERE subject=? AND active=1 ORDER BY topic,title LIMIT 500',(item['subject'],))] if 'formula_book' in tables else [],
+                        'homework':[dict(r) for r in c.execute('SELECT id,title FROM homework WHERE user_id=? AND subject=? ORDER BY id DESC LIMIT 100',(target,item['subject']))] if 'homework' in tables else []}
+                finally:c.close()
+            elif path.endswith('/history'):
                 import database,json
                 store.ensure_schema();c=database.connect()
                 try:
@@ -59,7 +74,14 @@ class OlympiadMixin:
             data=self._body()
             if not isinstance(data,dict):raise ValueError('invalid_json')
             oid=str(data.get('olympiad_id') or '')
-            if path.endswith('/subscribe'):
+            if path.endswith(('/progress','/result','/resource')):
+                target=int(data.get('user_id') or 0) if role=='teacher' else uid
+                if path.endswith('/progress'):result=journey.save_progress(target,oid,data)
+                elif path.endswith('/result'):result=journey.save_result(target,oid,data,role=='teacher')
+                else:
+                    if role!='teacher':raise PermissionError('unauthorized')
+                    result=journey.save_resource(target,oid,data)
+            elif path.endswith('/subscribe'):
                 channels=data.get('channels')
                 available=available_channels(role,uid)
                 if not isinstance(channels,list) or any(x not in available for x in channels):raise ValueError('channel_not_available')

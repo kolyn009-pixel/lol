@@ -130,3 +130,21 @@ previous-season dates are substituted. Existing opted-in subscriptions carry to
 the same registry number/subject once per season, only for active students or
 teachers. An unsubscribe is never reversed by subsequent refreshes. Old learning
 goals/recommendations remain season-specific. Retired contests are not carried.
+
+
+## Calendar and student journey extension
+
+Month/week/upcoming agenda, Today and period navigation, Moscow calendar-day
+conversion, explicit start/deadline markers and event details are available.
+The mobile default is the upcoming agenda. Teacher/student preparation uses
+student-scoped manual milestones and notes, without registering the student
+with an organizer. Teachers can attach past-paper HTTPS links, active formulas
+from the subject handbook and homework already assigned to that student.
+References are revalidated when displayed. No answer keys are exposed.
+Results are archived by season with score/total, award, certificate HTTPS link
+and notes. Teacher verification can only be set by an authenticated teacher;
+a student change clears verification. This release links diplomas rather than
+uploading diploma files. Existing subject plans and assignments are unchanged.
+Backend isolated tests cover owner separation, resource validation and result
+verification. DOM tests cover the three calendar modes and event popup; native
+visual rendering and live student sessions remain deployment checks.

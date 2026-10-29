@@ -26,9 +26,13 @@ async function check(teacher){
  document.querySelector('[data-oy-tab="calendar"]').click();
  assert.equal(document.querySelectorAll('.oy-weekday').length,7);
  assert(document.querySelectorAll('.oy-day').length>=28);
+ document.querySelector('[data-oy-mode=week]').click();assert.equal(document.querySelectorAll('.oy-day').length,7);
+ document.querySelector('[data-oy-mode=agenda]').click();assert(document.querySelector('.oy-agenda'));
+ document.querySelector('[data-oy-mode=month]').click();
+ const item=document.querySelector('[data-oy-event]');if(item){item.click();assert(document.querySelector('.oy-event-detail'));assert(document.querySelector('.oy-action-link'));document.querySelector('[data-oy-dismiss]').click();}
  document.querySelector('[data-oy-tab="updates"]').click();assert(document.querySelector('.oy-updates'));
  document.querySelector('[data-oy-tab="mine"]').click();assert.equal(document.querySelectorAll('.oy-card').length,0);
  document.querySelector('[data-oy-close]').click();assert(!document.querySelector('.oy-shell'));
  assert(calls[0].url.startsWith('/api/'+(teacher?'teacher':'student')+'/olympiads'));
 }
-(async()=>{await check(true);await check(false);console.log('Teacher/student navigation, cards, escaping, subscription controls, calendar and close: OK');})().catch(e=>{console.error(e);process.exitCode=1;});
+(async()=>{await check(true);await check(false);console.log('Teacher/student cards, escaping, subscriptions, month/week/agenda and event dialog: OK');})().catch(e=>{console.error(e);process.exitCode=1;});

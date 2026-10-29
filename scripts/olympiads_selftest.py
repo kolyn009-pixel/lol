@@ -16,7 +16,7 @@ tmp=tempfile.TemporaryDirectory();db=Path(tmp.name)/'test.sqlite'
 def connect():
     c=sqlite3.connect(db,timeout=10);c.row_factory=sqlite3.Row;return c
 sys.modules['database']=types.SimpleNamespace(connect=connect)
-from web_backend import olympiad_store as st,olympiad_sources as src,olympiad_worker as worker
+from web_backend import olympiad_store as st,olympiad_sources as src,olympiad_worker as worker,olympiad_journey as journey
 from web_backend.olympiad_api import OlympiadMixin
 spec=importlib.util.spec_from_file_location('olympiad_installer',ROOT/'scripts/install_olympiads.py')
 installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
@@ -141,6 +141,24 @@ class Tests(unittest.TestCase):
         st.subscribe('student',1,item['id'],[])
         self.assertEqual(st.rollover_subscriptions('2027/2028'),0)
         c=connect();self.assertFalse(c.execute('SELECT 1 FROM olympiad_subscriptions WHERE olympiad_id=?',(item['id'],)).fetchone());c.close()
+
+    def test_journey_scope_resources_and_result_verification(self):
+        journey.save_progress(1,self.oid,{'steps':['prepare','registered'],'note':'Механика'})
+        self.assertEqual(journey.overview(2,self.oid)['progress']['steps'],[])
+        self.assertEqual(journey.overview(1,self.oid)['progress']['steps'],['prepare','registered'])
+        journey.save_resource(1,self.oid,{'kind':'LINK','title':'Архив задач','url':'https://olymp.msu.ru/'})
+        self.assertEqual(len(journey.overview(1,self.oid)['resources']),1)
+        self.assertEqual(journey.overview(2,self.oid)['resources'],[])
+        c=connect();c.execute('CREATE TABLE homework(id INTEGER PRIMARY KEY,user_id INTEGER,title TEXT,status TEXT,deadline TEXT)');c.execute("INSERT INTO homework VALUES(7,2,'Задачи','ASSIGNED',NULL)");c.commit();c.close()
+        with self.assertRaisesRegex(ValueError,'homework_not_assigned'):
+            journey.save_resource(1,self.oid,{'kind':'HOMEWORK','reference_id':7})
+        with self.assertRaises(ValueError):journey.save_resource(1,self.oid,{'kind':'LINK','title':'X','url':'javascript:alert(1)'})
+        journey.save_result(1,self.oid,{'stage':'Финал','score':90,'total':100,'award':'PRIZE','verified':True},teacher=True)
+        result=journey.overview(1)['results'][0];self.assertEqual(result['verified'],1)
+        self.assertEqual(journey.overview(2)['results'],[])
+        journey.save_result(1,self.oid,{'stage':'Финал','score':95,'total':100,'award':'PRIZE','verified':True},teacher=False)
+        self.assertEqual(journey.overview(1)['results'][0]['verified'],0)
+        with self.assertRaises(ValueError):journey.save_result(1,self.oid,{'stage':'X','score':101,'total':100})
 
     def test_ssrf_date_and_channel_validation(self):
         for url in ['http://olymp.msu.ru/','https://127.0.0.1/','https://olymp.msu.ru.evil.test/','https://olymp.msu.ru:444/','https://u:p@olymp.msu.ru/']:
