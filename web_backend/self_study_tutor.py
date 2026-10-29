@@ -18,7 +18,8 @@ def ensure_schema():
 def provider_ready():
  try:
   from ai_assistant import providers
-  return bool(providers.active_provider())
+  from web_backend.self_study_ai import active_provider
+  return bool(active_provider())
  except (ImportError,RuntimeError):return False
 
 
@@ -77,7 +78,8 @@ def start(owner,data):
 
 def generate(owner,context):
  from ai_assistant import providers
- provider=providers.active_provider()
+ from web_backend.self_study_ai import active_provider
+ provider=active_provider()
  if not provider:raise RuntimeError('ai_not_configured')
  with limits._lock:
   current=time.monotonic();recent=[t for t in limits._recent.get(owner,[]) if current-t<60]

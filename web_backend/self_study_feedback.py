@@ -69,7 +69,8 @@ def feedback(owner,data):
     if data.get('consent') is not True:raise ValueError('feedback_consent_required')
     # No automatic provider fallback/retries: cap cost and time for one click.
     from ai_assistant import providers
-    provider=providers.active_provider()
+    from web_backend.self_study_ai import active_provider
+    provider=active_provider()
     if not provider:raise RuntimeError('ai_not_configured')
     with _lock:
         current=time.monotonic()

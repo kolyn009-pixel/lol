@@ -39,6 +39,7 @@ jobs:
           python scripts/self_study_comfort_selftest.py
           python scripts/self_study_pilot_selftest.py
           python scripts/self_study_workshop_selftest.py
+          python scripts/self_study_ai_selftest.py
           node --check web/self_study_workshop.js
           node scripts/self_study_workshop_ui_selftest.cjs
           python scripts/self_study_bot_selftest.py

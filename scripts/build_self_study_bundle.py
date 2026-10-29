@@ -5,7 +5,7 @@ from install_self_study import MODULES,SOURCE
 
 
 def files():
- names=set(MODULES)|{'scripts/install_self_study.py','scripts/install_self_study_bot.py','scripts/self_study_server_probe.py','scripts/build_self_study_bundle.py','web_backend/self_study_bot.py','handlers/self_study_family.py','vk_adapter/self_study_family.py','web_backend/api_v7.py','desktop/bundled_ui_manifest.js'}
+ names=set(MODULES)|{'scripts/configure_self_study_ai.py','scripts/install_self_study.py','scripts/install_self_study_bot.py','scripts/self_study_server_probe.py','scripts/build_self_study_bundle.py','web_backend/self_study_bot.py','handlers/self_study_family.py','vk_adapter/self_study_family.py','web_backend/api_v7.py','desktop/bundled_ui_manifest.js'}
  names|={str(p.relative_to(SOURCE)) for pattern in ('self_study_*selftest.py','self_study_*selftest.cjs') for p in (SOURCE/'scripts').glob(pattern)}
  names|={str(p.relative_to(SOURCE)) for p in (SOURCE/'docs').glob('SELF_STUDY*.md')}
  result={}
