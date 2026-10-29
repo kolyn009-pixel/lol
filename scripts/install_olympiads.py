@@ -64,10 +64,12 @@ def hook_html(text):
     if text.count('</head>')!=1:raise RuntimeError('HTML head needs review')
     for name,tag in [('olympiads.css','link'),('olympiads.js','script')]:
         if '/app/'+name in text:
-            # This installer does not remove or duplicate an existing module.
+            # Invalidate the browser cache while preserving the existing HTML tag.
+            pattern=r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?'
+            text=re.sub(pattern,lambda m:m[1]+'?v=20261029-olympiads2',text)
             continue
-        asset=('<link rel="stylesheet" href="/app/olympiads.css?v=20261029-olympiads1">'
-               if tag=='link' else '<script defer src="/app/olympiads.js?v=20261029-olympiads1"></script>')
+        asset=('<link rel="stylesheet" href="/app/olympiads.css?v=20261029-olympiads2">'
+               if tag=='link' else '<script defer src="/app/olympiads.js?v=20261029-olympiads2"></script>')
         text=text.replace('</head>',asset+'</head>',1)
     return text
 
