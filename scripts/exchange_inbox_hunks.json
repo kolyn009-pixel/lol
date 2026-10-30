@@ -1,0 +1,8 @@
+{
+  "web/student_self_service.js": [
+    {
+      "old": "async function renderExchangeInbox(root){let data;",
+      "new": "async function renderExchangeInbox(root){if(window.AdeliaExchangeInbox)return;let data;"
+    }
+  ]
+}
