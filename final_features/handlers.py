@@ -61,7 +61,10 @@ async def _send_admin_slot_request(context, req_id):
     if req['outside_working_hours']:flags.append('⚠️ вне рабочих часов')
     if occ:flags.append(f"🔄 слот занят: {occ['name']}")
     if not flags:flags.append('🟢 слот свободен')
-    text=(f"🔄 ЗАЯВКА НА ПЕРЕНОС / ОБМЕН #{req_id}\n\nУченик: {student['name'] if student else req['requester_student_id']}\nЖелаемое время: {_dt_text(req['desired_start'])}\nДлительность: {int((datetime.fromisoformat(req['desired_end'])-datetime.fromisoformat(req['desired_start'])).total_seconds()/60)} мин\n"+'\n'.join(flags)+"\n\nСначала преподаватель решает, можно ли предлагать это время.")
+    from core.lesson_reschedule_details import message
+    before = database.get_lesson(req['requester_lesson_id'])
+    details = message(before, dict(before, start_time=req['desired_start'], end_time=req['desired_end']), student).replace('Стало:', 'Запрошено:')
+    text=(f"🔄 ЗАЯВКА НА ПЕРЕНОС / ОБМЕН #{req_id}\n\n{details}\nДлительность: {int((datetime.fromisoformat(req['desired_end'])-datetime.fromisoformat(req['desired_start'])).total_seconds()/60)} мин\n"+'\n'.join(flags)+"\n\nСначала преподаватель решает, можно ли предлагать это время.")
     kb=InlineKeyboardMarkup([[InlineKeyboardButton('✅ Разрешить',callback_data=f'ff_x_admin_accept|{req_id}'),InlineKeyboardButton('❌ Отклонить',callback_data=f'ff_x_admin_decline|{req_id}')]])
     for a in admin_roles.list_admins():
         try:await context.bot.send_message(int(a['telegram_id']),text,reply_markup=kb)
@@ -103,12 +106,20 @@ async def _refresh_calendar_and_reminders(context, lesson_ids):
         except Exception as e:print('SLOT CHANGE REMINDER:',repr(e))
 
 async def _apply_slot_request(context, req_id):
+    from core.lesson_reschedule_details import message
     req=slot_change.get_request(req_id)
     if not req:raise ValueError('Запрос не найден.')
+    before_a=database.get_lesson(req['requester_lesson_id'])
     if req['occupant_lesson_id']:
-        a,b=slot_change.swap_times(req_id);await _refresh_calendar_and_reminders(context,[a['id'],b['id']]);await _notify_family(context,a['user_id'],f"✅ Готово, я оформила обмен. Новое время: {_dt_text(a['start_time'])}.");await _notify_family(context,b['user_id'],f"✅ Готово, я оформила обмен. Новое время: {_dt_text(b['start_time'])}.")
+        before_b=database.get_lesson(req['occupant_lesson_id'])
+        a,b=slot_change.swap_times(req_id)
+        await _refresh_calendar_and_reminders(context,[a['id'],b['id']])
+        for before, after in ((before_a,a),(before_b,b)):
+            await _notify_family(context,after['user_id'],"🔁 Занятие перенесено\n\n"+message(before,after))
     else:
-        new_id=slot_change.move_to_requested(req_id);new_lesson=database.get_lesson(new_id);await _refresh_calendar_and_reminders(context,[new_id]);await _notify_family(context,req['requester_student_id'],f"✅ Готово, я оформила перенос. Новое время: {_dt_text(new_lesson['start_time'])}.")
+        new_lesson=slot_change.move_to_requested(req_id)
+        await _refresh_calendar_and_reminders(context,[new_lesson['id']])
+        await _notify_family(context,req['requester_student_id'],"🔁 Занятие перенесено\n\n"+message(before_a,new_lesson))
 
 async def custom_reschedule_entry(update:Update,context:ContextTypes.DEFAULT_TYPE):
     q=update.callback_query;await q.answer();lesson_id=int(q.data.split('|')[1]);lesson=database.get_lesson(lesson_id)

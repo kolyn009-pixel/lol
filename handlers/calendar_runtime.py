@@ -59,11 +59,13 @@ def _state_key(lesson):
     for key in (
         "start_time", "end_time", "lesson_status", "payment_status",
         "price", "subject", "duration_minutes", "is_trial", "meeting_url",
+        "rescheduled_from_lesson_id",
     ):
         try:
             values.append(lesson[key])
         except Exception:
             values.append(None)
+    values.insert(0, "reschedule-details-v1")
     return json.dumps(values, ensure_ascii=False, default=str)
 
 
@@ -208,24 +210,35 @@ async def _sync(application=None):
 
     c = _connect()
     try:
+        canonical_ids = []
+        if database.table_exists(c, 'lesson_external_integrations'):
+            canonical_ids = [int(r[0]) for r in c.execute("SELECT lesson_id FROM lesson_external_integrations WHERE google_event_id IS NOT NULL AND google_event_id != ''")]
         lessons = c.execute("""
             SELECT * FROM lessons
             WHERE start_time BETWEEN ? AND ?
                OR (google_event_id IS NOT NULL AND google_event_id != '')
+               OR rescheduled_to_lesson_id IS NOT NULL
             ORDER BY start_time
         """, (lower, upper)).fetchall()
     finally:
         c.close()
 
+    by_id = {int(row['id']): row for row in lessons}
+    for lid in canonical_ids:
+        if lid not in by_id:
+            row = database.get_lesson(lid)
+            if row:
+                by_id[lid] = row
+    lessons = list(by_id.values())
     created_or_updated = deleted = skipped = 0
     for lesson in lessons:
         lesson_id = int(lesson["id"])
         key = _state_key(lesson)
         try:
             if not _should_exist(lesson):
-                event_id = str(lesson["google_event_id"] or "").strip()
-                if event_id or _stored_state(lesson_id) is not None:
+                if _stored_state(lesson_id) != key:
                     await asyncio.to_thread(_canonical_cancel, lesson_id)
+                    _save_state(lesson_id, key)
                     deleted += 1
                 else:
                     skipped += 1

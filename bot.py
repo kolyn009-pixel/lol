@@ -7746,6 +7746,8 @@ async def student_buttons(
                 )
             )
 
+            from core.lesson_reschedule_details import message as move_details
+
             await notify_student_if_parent_action(
                 query, context, user,
                 "🔁 Готово, я перенесла занятие.\n"
@@ -7762,60 +7764,11 @@ async def student_buttons(
                 ),
             )
 
-            # Google Calendar:
-            # при переносе сохраняем то же событие,
-            # просто меняем дату/время и переносим его ID
-            # на новое занятие.
-            try:
-
-                old_event_id = (
-                    old_lesson[
-                        "google_event_id"
-                    ]
-                )
-
-                if old_event_id:
-
-                    event_id = (
-                        await asyncio.to_thread(
-                            update_google_event,
-                            old_event_id,
-                            user,
-                            new_lesson,
-                        )
-                    )
-
-                    save_google_event_id(
-                        old_lesson_id,
-                        None,
-                    )
-
-                    save_google_event_id(
-                        new_lesson_id,
-                        event_id,
-                    )
-
-                else:
-
-                    event_id = (
-                        await asyncio.to_thread(
-                            create_google_event,
-                            user,
-                            new_lesson,
-                        )
-                    )
-
-                    save_google_event_id(
-                        new_lesson_id,
-                        event_id,
-                    )
-
-            except Exception as error:
-
-                print(
-                    "RESCHEDULE GOOGLE:",
-                    repr(error)
-                )
+            # Reconcile both records: remove the obsolete event, then sync the replacement.
+            from core import schedule_sync
+            result = await schedule_sync.sync_lessons(context.application, [old_lesson_id, new_lesson_id])
+            if result['failed']:
+                print('RESCHEDULE SYNC RETRY NEEDED:', result['failed'], flush=True)
 
             schedule_lesson_reminders(
                 context.application,
@@ -7844,15 +7797,8 @@ async def student_buttons(
 
                 text=(
                     "🔁 УЧЕНИК ПЕРЕНЁС ЗАНЯТИЕ\n\n"
-
-                    f"👤 "
-                    f"{user['name']}\n"
-
-                    f"📅 Новое время: "
-                    f"{start_dt.strftime('%d.%m.%Y %H:%M')}\n\n"
-
-                    "Перенос выполнен более чем "
-                    "за 2 часа — бесплатно."
+                    + move_details(old_lesson, new_lesson, user)
+                    + "\n\nПеренос выполнен более чем за 2 часа — бесплатно."
                 )
             )
 
