@@ -158,6 +158,7 @@ function openMeetingWindow(url) {
   if (!trustedChild(url)) return false;
   if (focusExisting(meetingWindow)) { meetingWindow.loadURL(url); tileLessonWindows(); return true; }
   meetingWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:560, minHeight:400, title:'Телемост — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-lesson', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:false } }), 'meeting');
+  require('./meeting_browser').configure(meetingWindow.webContents);
   hardenNavigation(meetingWindow, trustedChild); meetingWindow.loadURL(url); tileLessonWindows(); return true;
 }
 function openBoardWindow(url) {
