@@ -13,6 +13,10 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../web/lesson_calendar.j
 assert.equal(m.add('2024-02-28',1),'2024-02-29');assert.equal(m.add('2024-02-29',1),'2024-03-01');assert.equal(m.month('2026-01-31',-1),'2025-12-01');assert.equal(m.monday('2027-01-03'),'2026-12-28');
 assert.deepEqual(JSON.parse(JSON.stringify(m.bounds('2026-10-30','month'))),{start:'2026-09-28',end:'2026-11-02'});
 await window.AdeliaLessonCalendar.open();assert(document.querySelector('.lc-app'));assert(calls[0].includes('limit=500'));assert(!document.querySelector('[data-lc-event="4"]'));assert(!document.querySelector('script'));assert(document.querySelector('[data-lc-event="1"]').getAttribute('aria-label').includes('10 класс'));
+assert(document.querySelector('.lc-compact .lc-event-time').textContent.includes('16:30–17:30'));
+assert(document.querySelector('.lc-compact .lc-event-main small').textContent.includes('10 класс'));
+assert(document.querySelector('.lc-legend').textContent.includes('Перенесено'));
+assert.equal(document.querySelector('.lc-selected-day h3 span').textContent,'2');
 // The UTC event at 21:30 belongs to October 31 in Moscow, not October 30.
 assert(document.querySelector('.lc-day.lc-selected [data-lc-day="2026-10-30"]'));document.querySelector('[data-lc-event="1"]').click();assert.deepEqual(opened,[1]);document.querySelector('[data-lc-event="group-3"]').click();assert.deepEqual(groups,[9]);
 document.querySelector('[data-lc-day="2026-10-31"]').click();assert(document.querySelector('.lc-selected-day [data-lc-event="2"]'));
