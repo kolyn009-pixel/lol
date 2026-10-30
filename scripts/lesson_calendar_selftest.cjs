@@ -23,6 +23,14 @@ document.querySelector('[data-lc-day="2026-10-31"]').click();assert(document.que
 const filter=document.querySelector('select[aria-label="Статус занятия"]');filter.value='CANCELLED';filter.onchange({target:filter});assert(document.querySelector('[data-lc-event="4"]'));assert(!document.querySelector('[data-lc-event="1"]'));
 filter.value='RESCHEDULED';filter.onchange({target:filter});assert(document.querySelector('[data-lc-event="2"]'));assert(!document.querySelector('[data-lc-event="1"]'));
 document.querySelector('[data-lc-settings]').click();assert.equal(settings,1);
+// A crowded month cell stays compact; the selected-day panel retains all events.
+filter.value='';filter.onchange({target:filter});
+data=[...data,...[10,11,12].map(id=>({...data[0],id,name:'Дополнительный '+id}))];
+await window.AdeliaLessonCalendar.open();
+assert.equal(document.querySelector('.lc-selected .lc-day-events').querySelectorAll('[data-lc-event]').length,2);
+assert.equal(document.querySelector('.lc-selected .lc-more').textContent,'＋ ещё 3');
+assert.equal(document.querySelector('.lc-selected-day').querySelectorAll('[data-lc-event]').length,5);
+assert(document.querySelector('.lc-month-layout > .lc-selected-day'));
 // A slow fetch must not replace another screen after navigation.
 let resolve;waiter=new Promise(r=>resolve=r);const pending=window.AdeliaLessonCalendar.open();await Promise.resolve();document.querySelector('#app').innerHTML='<div id="another">Другой раздел</div>';resolve();await pending;assert(document.querySelector('#another'));
 console.log('Lesson calendar: leap/year boundaries, Monday month grid, Moscow midnight, escaping, status filters, existing lesson/group/settings actions and stale fetch guard: OK');
