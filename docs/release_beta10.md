@@ -78,3 +78,9 @@ A wider viewport clears inert/menu state. Explicit install instructions remain
 available, while all three legacy install-promotion overlays are hidden. Shared
 asset query versions are refreshed by the installer, including already-added tags.
 DOM checks cover these transitions; an actual iPhone visual check remains needed.
+
+## Mobile correction, 30 October 2026
+
+Live studio4 desktop CSS had more specific `!important` selectors than the first mobile fix. On phones it kept an invisible sidebar in normal flow with max-height 220px and hid the menu trigger. The mobile scope now overrides that exact production selector, takes the drawer out of flow and uses an explicit two-row header. Small dashboard action cards hide secondary captions; next-lesson content aligns to the left.
+
+`scripts/mobile_cascade_selftest.cjs` reproduces the old cascade conflict and checks the new rules at 375, 390, 430, 768, 900, 901 and 1440px in both studio4 and native theme markers. Existing menu gesture tests also pass. CSS cascade and DOM checks are not an actual iPhone render; user confirmation after deployment is still needed. Desktop layout above 900px retains its theme.

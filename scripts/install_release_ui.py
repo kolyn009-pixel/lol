@@ -10,9 +10,9 @@ def html(text):
     if text.count('</head>')!=1:raise RuntimeError('HTML head needs review')
     for name in ('release_ui.css','release_ui.js'):
         if '/app/'+name in text:
-            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261029-release2',text)
+            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-mobile3',text)
             continue
-        tag='<link rel="stylesheet" href="/app/release_ui.css?v=20261029-release2">' if name.endswith('.css') else '<script defer src="/app/release_ui.js?v=20261029-release2"></script>'
+        tag='<link rel="stylesheet" href="/app/release_ui.css?v=20261030-mobile3">' if name.endswith('.css') else '<script defer src="/app/release_ui.js?v=20261030-mobile3"></script>'
         text=text.replace('</head>',tag+'</head>',1)
     return text
 
@@ -56,7 +56,7 @@ def main():
             f=root/n;f.parent.mkdir(parents=True,exist_ok=True);tmp=f.with_name(f.name+'.ui-next');tmp.write_bytes(candidate[n]);os.chmod(tmp,0o644);os.replace(tmp,f)
         subprocess.run(['systemctl','restart','tutorbot-web.service'],check=True,timeout=60);health()
         for name in FILES:
-            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261029-release2'],timeout=12)
+            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261030-mobile3'],timeout=12)
             if served!=candidate[name]:raise RuntimeError('Static asset verification failed: '+name)
     except Exception:
         for n in reversed(changed):

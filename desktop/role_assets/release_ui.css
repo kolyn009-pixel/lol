@@ -44,30 +44,47 @@ body.adelia-release-ui{color:var(--adelia-ink);background:var(--adelia-canvas);f
 @media(max-width:650px){.adelia-release-ui .teacher-shell>main{padding-left:12px;padding-right:12px}.adelia-release-ui .teacher-shell>main>header h1{font-size:25px!important}.adelia-release-ui .header-actions{width:100%}.adelia-release-ui .header-actions button{flex:1;min-width:100px}.adelia-release-ui .finance-kpis article{padding:15px}.adelia-release-ui .finance-kpis article strong{font-size:25px}.adelia-release-ui .post-workspace .panel{padding:16px}.adelia-release-ui .post-finishbar{bottom:calc(9px + env(safe-area-inset-bottom))}.adelia-release-ui .fx-card .ux-actions{flex-wrap:wrap}.adelia-release-ui :is(.teacher-shell,.app-shell) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){font-size:16px}.au-network{bottom:calc(83px + env(safe-area-inset-bottom));font-size:11px}.au-about header,.au-about-body{padding:18px}.adelia-release-ui .msg-thread :is(button,input,textarea){max-width:100%}}
 @media(prefers-reduced-motion:reduce){.adelia-release-ui *{transition:none!important;scroll-behavior:auto!important}}
 /* Mobile hotfix: canonical off-canvas teacher navigation, no install overlays. */
-body.adelia-release-ui #adelia-install-bar,body.adelia-release-ui .pwa-workspace,body.adelia-release-ui .v4-install{display:none!important}
+html:root body.adelia-release-ui #adelia-install-bar,html:root body.adelia-release-ui .pwa-workspace,html:root body.adelia-release-ui .v4-install{display:none!important}
 /* Installation remains available explicitly from the menu and About screen. */
 .au-menu-shade,.au-menu-close{display:none}
-@media(min-width:901px){body.adelia-release-ui .clean-menu-toggle{display:none!important}}
+@media(min-width:901px){html:root body.adelia-release-ui .clean-menu-toggle{display:none!important}}
 @media(max-width:900px){
-body.adelia-release-ui{overflow-x:hidden}
-body.adelia-release-ui .teacher-shell{display:block!important;grid-template-columns:minmax(0,1fr)!important;padding:0!important;width:100%!important;max-width:100%!important;min-width:0!important}
-body.adelia-release-ui .teacher-shell>aside{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;bottom:0!important;width:min(320px,88vw)!important;max-width:88vw!important;height:100dvh!important;max-height:100dvh!important;transform:translateX(-105%)!important;visibility:hidden!important;display:flex!important;flex-direction:column!important;overflow-y:auto!important;overscroll-behavior:contain;z-index:1001!important;padding:calc(18px + env(safe-area-inset-top)) 15px calc(22px + env(safe-area-inset-bottom))!important;border-radius:0 20px 20px 0!important;background:#fdfcfe!important;box-sizing:border-box!important;box-shadow:none!important;transition:transform .18s ease,visibility .18s ease!important}
-body.adelia-release-ui.menu-open{overflow:hidden!important}
-body.adelia-release-ui.menu-open:after{display:none!important}
-body.adelia-release-ui.menu-open .teacher-shell>aside{transform:translateX(0)!important;visibility:visible!important;box-shadow:12px 0 45px #20173630!important}
-body.adelia-release-ui .teacher-shell>aside .brand{padding-right:32px!important;min-height:70px!important;margin-bottom:17px!important}
-body.adelia-release-ui .teacher-shell>aside .brand img{width:42px!important;height:42px!important}
-body.adelia-release-ui .teacher-shell>aside .brand b{font-size:20px!important}
-body.adelia-release-ui .teacher-shell>aside .brand span{font-size:11px!important}
-body.adelia-release-ui .teacher-shell>main{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;padding:0 14px calc(24px + env(safe-area-inset-bottom))!important;box-sizing:border-box!important}
-body.adelia-release-ui .teacher-shell>main>header{display:flex!important;align-items:center!important;gap:10px!important;padding:14px 0!important;margin:0 0 14px!important;min-height:0!important;position:relative!important}
-body.adelia-release-ui .teacher-shell>main>header>div:first-of-type{flex:1 1 180px!important;min-width:0!important}
-body.adelia-release-ui .teacher-shell>main>header h1{font-size:25px!important;line-height:1.2!important;margin:0!important}
-body.adelia-release-ui .teacher-shell>main>header small{font-size:10px!important}
-body.adelia-release-ui .clean-menu-toggle{display:inline-grid!important;place-items:center!important;flex:0 0 40px!important;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;padding:6px!important;border:1px solid #e2dbea!important;border-radius:11px!important;background:#fff!important;color:#8060b4!important;font-size:21px!important;order:-1}
-body.adelia-release-ui .header-actions{display:flex!important;flex-wrap:wrap!important;flex:1 1 100%!important;gap:7px!important;margin:0!important;width:100%!important}
-body.adelia-release-ui .header-actions button{flex:1 1 100px!important;min-width:0!important;min-height:38px!important;font-size:12px!important;padding:8px 10px!important}
-body.adelia-release-ui #app{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;padding:0!important}
-body.adelia-release-ui .au-menu-shade:not([hidden]){display:block;position:fixed;inset:0;width:100%;height:100dvh;border:0;border-radius:0;background:#21173360;backdrop-filter:blur(3px);z-index:1000}
-body.adelia-release-ui .au-menu-close{display:grid;place-items:center;position:absolute;right:13px;top:calc(14px + env(safe-area-inset-top));height:34px;width:34px;border:1px solid #e8e0ef;border-radius:10px;background:#f8f5fc;color:#9278b0;font-size:25px;z-index:1}
+html:root body.adelia-release-ui{overflow-x:hidden}
+html:root body.adelia-release-ui .teacher-shell{display:block!important;grid-template-columns:minmax(0,1fr)!important;padding:0!important;width:100%!important;max-width:100%!important;min-width:0!important}
+html:root body.adelia-release-ui .teacher-shell>aside{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;bottom:0!important;width:min(320px,88vw)!important;max-width:88vw!important;height:100dvh!important;max-height:100dvh!important;transform:translateX(-105%)!important;visibility:hidden!important;display:flex!important;flex-direction:column!important;overflow-y:auto!important;overscroll-behavior:contain;z-index:1001!important;padding:calc(18px + env(safe-area-inset-top)) 15px calc(22px + env(safe-area-inset-bottom))!important;border-radius:0 20px 20px 0!important;background:#fdfcfe!important;box-sizing:border-box!important;box-shadow:none!important;transition:transform .18s ease,visibility .18s ease!important}
+html:root body.adelia-release-ui.menu-open{overflow:hidden!important}
+html:root body.adelia-release-ui.menu-open:after{display:none!important}
+html:root body.adelia-release-ui.menu-open .teacher-shell>aside{transform:translateX(0)!important;visibility:visible!important;box-shadow:12px 0 45px #20173630!important}
+html:root body.adelia-release-ui .teacher-shell>aside .brand{padding-right:32px!important;min-height:70px!important;margin-bottom:17px!important}
+html:root body.adelia-release-ui .teacher-shell>aside .brand img{width:42px!important;height:42px!important}
+html:root body.adelia-release-ui .teacher-shell>aside .brand b{font-size:20px!important}
+html:root body.adelia-release-ui .teacher-shell>aside .brand span{font-size:11px!important}
+html:root body.adelia-release-ui .teacher-shell>main{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;padding:0 14px calc(24px + env(safe-area-inset-bottom))!important;box-sizing:border-box!important}
+html:root body.adelia-release-ui .teacher-shell>main>header{display:grid!important;grid-template-columns:40px minmax(0,1fr)!important;grid-template-rows:auto auto!important;align-items:center!important;gap:10px!important;padding:14px 0!important;margin:0 0 14px!important;min-height:0!important;position:relative!important}
+html:root body.adelia-release-ui .teacher-shell>main>header>div:first-of-type{grid-column:2!important;grid-row:1!important;min-width:0!important}
+html:root body.adelia-release-ui .teacher-shell>main>header h1{font-size:25px!important;line-height:1.2!important;margin:0!important}
+html:root body.adelia-release-ui .teacher-shell>main>header small{font-size:10px!important}
+html:root body.adelia-release-ui .clean-menu-toggle{display:inline-grid!important;place-items:center!important;flex:0 0 40px!important;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;padding:6px!important;border:1px solid #e2dbea!important;border-radius:11px!important;background:#fff!important;color:#8060b4!important;font-size:21px!important;grid-column:1!important;grid-row:1!important;order:-1}
+html:root body.adelia-release-ui .header-actions{display:flex!important;grid-column:1/-1!important;grid-row:2!important;flex-wrap:wrap!important;flex:1 1 100%!important;gap:7px!important;margin:0!important;width:100%!important}
+html:root body.adelia-release-ui .header-actions button{flex:1 1 100px!important;min-width:0!important;min-height:38px!important;font-size:12px!important;padding:8px 10px!important}
+html:root body.adelia-release-ui #app{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;padding:0!important}
+html:root body.adelia-release-ui .au-menu-shade:not([hidden]){display:block;position:fixed;inset:0;width:100%;height:100dvh;border:0;border-radius:0;background:#21173360;backdrop-filter:blur(3px);z-index:1000}
+html:root body.adelia-release-ui .au-menu-close{display:grid;place-items:center;position:absolute;right:13px;top:calc(14px + env(safe-area-inset-top));height:34px;width:34px;border:1px solid #e8e0ef;border-radius:10px;background:#f8f5fc;color:#9278b0;font-size:25px;z-index:1}
+}
+
+@media(max-width:600px){
+html:root body.adelia-release-ui .teacher-shell>main>header .header-actions{gap:6px!important}
+html:root body.adelia-release-ui .teacher-shell>main>header .header-actions>.v3-tools{flex:1 1 140px!important;min-width:0!important}
+html:root body.adelia-release-ui .teacher-shell>main>header .header-actions>.v3-tools button{width:100%!important}
+html:root body.adelia-release-ui .teacher-shell>main>header .teacher-local-clock{min-width:70px!important;flex:0 1 84px!important;padding:6px 10px!important}
+html:root body.adelia-release-ui #app .today-command-main{padding:18px!important}
+html:root body.adelia-release-ui #app .today-next{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:14px!important}
+html:root body.adelia-release-ui #app .today-next>div{min-width:0!important;margin:0!important;padding:0!important}
+html:root body.adelia-release-ui #app .today-next h2{font-size:24px!important;line-height:1.25!important}
+html:root body.adelia-release-ui #app .today-next-time{justify-items:start!important;gap:10px!important}
+html:root body.adelia-release-ui #app .today-command-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
+html:root body.adelia-release-ui #app .today-command-actions button{min-height:100px!important;padding:12px!important;gap:7px!important;justify-content:space-between!important}
+html:root body.adelia-release-ui #app .today-command-actions small{display:none!important}
+html:root body.adelia-release-ui #app .today-command-actions span{font-size:12px!important;line-height:1.35!important}
+html:root body.adelia-release-ui #app .today-command-actions b{font-size:26px!important;line-height:1.1!important}
 }
