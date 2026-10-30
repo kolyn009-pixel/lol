@@ -72,3 +72,4 @@ const {document}=parseHTML('<html data-adelia-design="studio4"><body class="adel
 const old=getOld();function getOld(){return cascade(document,390,fixture+'\n'+legacy)}
 assert.equal(old('.teacher-shell>aside','position').value,'static');assert.equal(old('.teacher-shell>aside','max-height').value,'220px');assert.equal(old('.teacher-shell>aside','visibility').value,'hidden');assert.equal(old('.clean-menu-toggle','display').value,'none');
 console.log(`Mobile CSS cascade: ${cases} widths/theme cases passed; production conflict reproduced.`);
+module.exports={cascade};

@@ -2,19 +2,36 @@
 import argparse,ast,fcntl,hashlib,json,os,re,subprocess,time
 from datetime import datetime,timezone
 from pathlib import Path
-FILES=['web/release_ui.css','web/release_ui.js']
+FILES=['web/release_ui.css','web/release_ui.js','web/teacher_mobile_app.css','web/teacher_mobile_app.js']
 HTML=['web/teacher.html','web/index.html','web/parent/index.html']
 RECORD='release_ui_install.json'
 
 def html(text):
     if text.count('</head>')!=1:raise RuntimeError('HTML head needs review')
-    for name in ('release_ui.css','release_ui.js'):
+    names=['release_ui.css','release_ui.js']
+    if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js']
+    for name in names:
         if '/app/'+name in text:
-            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-mobile3',text)
+            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-app4',text)
             continue
-        tag='<link rel="stylesheet" href="/app/release_ui.css?v=20261030-mobile3">' if name.endswith('.css') else '<script defer src="/app/release_ui.js?v=20261030-mobile3"></script>'
+        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261030-app4">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261030-app4"></script>')
         text=text.replace('</head>',tag+'</head>',1)
+    if 'teacher-shell' in text:
+        text=re.sub(r'(<meta\s+name=[\"\']theme-color[\"\']\s+content=[\"\'])[^\"\']*',lambda m:m[1]+'#f5f5fa',text)
+    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-app4',text)
     return text
+
+def manifest(text):
+    value=json.loads(text)
+    value['scope']='/app/'
+    value['start_url']='/app/teacher.html'
+    value['display']='standalone'
+    value['display_override']=['standalone']
+    value['theme_color']=value['background_color']='#f5f5fa'
+    for shortcut in value.get('shortcuts',[]):
+        old=str(shortcut.get('url') or '')
+        shortcut['url']='/app/teacher.html'+('#'+old.split('#',1)[1] if '#' in old else '')
+    return json.dumps(value,ensure_ascii=False,indent=2)+'\n'
 
 def health():
     for _ in range(20):
@@ -38,6 +55,9 @@ def main():
     for name in HTML:
         if name=='web/parent/index.html' and not (root/name).exists():continue
         original[name]=(root/name).read_bytes();candidate[name]=html(original[name].decode()).encode()
+    name='web/teacher-manifest.webmanifest'
+    original[name]=(root/name).read_bytes()
+    candidate[name]=manifest(original[name].decode()).encode()
     original[RECORD]=(root/RECORD).read_bytes() if (root/RECORD).exists() else None
     candidate[RECORD]=json.dumps({n:hashlib.sha256(candidate[n]).hexdigest() for n in FILES},indent=2).encode()
     changed=[n for n in candidate if candidate[n]!=original[n]]
@@ -55,8 +75,8 @@ def main():
         for n in changed:
             f=root/n;f.parent.mkdir(parents=True,exist_ok=True);tmp=f.with_name(f.name+'.ui-next');tmp.write_bytes(candidate[n]);os.chmod(tmp,0o644);os.replace(tmp,f)
         subprocess.run(['systemctl','restart','tutorbot-web.service'],check=True,timeout=60);health()
-        for name in FILES:
-            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261030-mobile3'],timeout=12)
+        for name in FILES+['web/teacher-manifest.webmanifest']:
+            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261030-app4'],timeout=12)
             if served!=candidate[name]:raise RuntimeError('Static asset verification failed: '+name)
     except Exception:
         for n in reversed(changed):

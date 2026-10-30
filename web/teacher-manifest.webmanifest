@@ -1,1 +1,57 @@
-{"id":"/teacher/","name":"Аделия — преподаватель","short_name":"Аделия","description":"Кабинет преподавателя Аделии","lang":"ru","start_url":"/teacher/","scope":"/teacher/","display":"standalone","display_override":["standalone"],"orientation":"any","background_color":"#f6f7fb","theme_color":"#6847f5","categories":["education","productivity"],"icons":[{"src":"/app/assets/icons/adelia-mark-192.png?v=20261022-unified2","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"/app/assets/icons/adelia-mark-512.png?v=20261022-unified2","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"/app/assets/icons/adelia-mark-512.png?v=20261022-unified2","sizes":"512x512","type":"image/png","purpose":"maskable"}],"shortcuts":[{"name":"Сегодня","short_name":"Сегодня","url":"/teacher/#dashboard"},{"name":"Расписание","short_name":"Расписание","url":"/teacher/#schedule"},{"name":"Группы","short_name":"Группы","url":"/teacher/#groups"}]}
+{
+  "id": "/teacher/",
+  "name": "Аделия — преподаватель",
+  "short_name": "Аделия",
+  "description": "Кабинет преподавателя Аделии",
+  "lang": "ru",
+  "start_url": "/app/teacher.html",
+  "scope": "/app/",
+  "display": "standalone",
+  "display_override": [
+    "standalone"
+  ],
+  "orientation": "any",
+  "background_color": "#f5f5fa",
+  "theme_color": "#f5f5fa",
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/app/assets/icons/adelia-mark-192.png?v=20261022-unified2",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/assets/icons/adelia-mark-512.png?v=20261022-unified2",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/assets/icons/adelia-mark-512.png?v=20261022-unified2",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Сегодня",
+      "short_name": "Сегодня",
+      "url": "/app/teacher.html#dashboard"
+    },
+    {
+      "name": "Расписание",
+      "short_name": "Расписание",
+      "url": "/app/teacher.html#schedule"
+    },
+    {
+      "name": "Группы",
+      "short_name": "Группы",
+      "url": "/app/teacher.html#groups"
+    }
+  ]
+}

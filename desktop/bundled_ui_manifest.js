@@ -76,7 +76,8 @@ module.exports={
       "package_studio.css",
       "teaching_workbench.css",
       "visual_channels.css",
-      "release_ui.css"
+      "release_ui.css",
+      "teacher_mobile_app.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -108,7 +109,8 @@ module.exports={
       "teaching_plan.js",
       "teaching_workbench.js",
       "visual_channels.js",
-      "release_ui.js"
+      "release_ui.js",
+      "teacher_mobile_app.js"
     ]
   },
   "parent": {
