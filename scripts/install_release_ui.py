@@ -2,23 +2,24 @@
 import argparse,ast,fcntl,hashlib,json,os,re,subprocess,time
 from datetime import datetime,timezone
 from pathlib import Path
-FILES=['web/release_ui.css','web/release_ui.js','web/teacher_mobile_app.css','web/teacher_mobile_app.js']
+FILES=['web/release_ui.css','web/release_ui.js','web/teacher_mobile_app.css','web/teacher_mobile_app.js','web/lesson_calendar.css','web/lesson_calendar.js','web_backend/lesson_calendar.py']
 HTML=['web/teacher.html','web/index.html','web/parent/index.html']
 RECORD='release_ui_install.json'
 
 def html(text):
     if text.count('</head>')!=1:raise RuntimeError('HTML head needs review')
     names=['release_ui.css','release_ui.js']
-    if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js']
+    if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js','lesson_calendar.css','lesson_calendar.js']
     for name in names:
         if '/app/'+name in text:
-            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-app4',text)
+            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-release5',text)
             continue
-        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261030-app4">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261030-app4"></script>')
+        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261030-release5">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261030-release5"></script>')
         text=text.replace('</head>',tag+'</head>',1)
     if 'teacher-shell' in text:
         text=re.sub(r'(<meta\s+name=[\"\']theme-color[\"\']\s+content=[\"\'])[^\"\']*',lambda m:m[1]+'#f5f5fa',text)
-    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-app4',text)
+    text=re.sub(r'(/app/teacher_schedule_settings\.js)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-release5',text)
+    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-release5',text)
     return text
 
 def manifest(text):
@@ -51,6 +52,7 @@ def main():
     for name in FILES:
         value=(source/name).read_bytes();live=(root/name).read_bytes() if (root/name).exists() else None
         if live is not None and live!=value and prior.get(name)!=hashlib.sha256(live).hexdigest():raise RuntimeError('Local UI edits need review: '+name)
+        if name.endswith('.py'):compile(value,name,'exec')
         original[name]=live;candidate[name]=value
     for name in HTML:
         if name=='web/parent/index.html' and not (root/name).exists():continue
@@ -58,6 +60,15 @@ def main():
     name='web/teacher-manifest.webmanifest'
     original[name]=(root/name).read_bytes()
     candidate[name]=manifest(original[name].decode()).encode()
+    for name,hunks in json.loads((source/'scripts/lesson_calendar_hooks.json').read_text()).items():
+        original[name]=(root/name).read_bytes()
+        text=original[name].decode()
+        for h in hunks:
+            if text.count(h['old'])==1 and h['new'] not in text:text=text.replace(h['old'],h['new'],1)
+            elif h['old'] not in text and text.count(h['new'])==1:pass
+            else:raise RuntimeError('Calendar hook needs review; no files changed: '+name)
+        if name.endswith('.py'):compile(text,name,'exec')
+        candidate[name]=text.encode()
     original[RECORD]=(root/RECORD).read_bytes() if (root/RECORD).exists() else None
     candidate[RECORD]=json.dumps({n:hashlib.sha256(candidate[n]).hexdigest() for n in FILES},indent=2).encode()
     changed=[n for n in candidate if candidate[n]!=original[n]]
@@ -75,8 +86,8 @@ def main():
         for n in changed:
             f=root/n;f.parent.mkdir(parents=True,exist_ok=True);tmp=f.with_name(f.name+'.ui-next');tmp.write_bytes(candidate[n]);os.chmod(tmp,0o644);os.replace(tmp,f)
         subprocess.run(['systemctl','restart','tutorbot-web.service'],check=True,timeout=60);health()
-        for name in FILES+['web/teacher-manifest.webmanifest']:
-            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261030-app4'],timeout=12)
+        for name in [n for n in FILES if n.startswith('web/')]+['web/teacher-manifest.webmanifest']:
+            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261030-release5'],timeout=12)
             if served!=candidate[name]:raise RuntimeError('Static asset verification failed: '+name)
     except Exception:
         for n in reversed(changed):

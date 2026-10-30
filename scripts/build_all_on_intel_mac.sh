@@ -19,6 +19,7 @@ adelia_repo="$(cd "$(dirname "$0")/.." && pwd)"
 [[ -z "$(git -C "$adelia_repo" status --porcelain --untracked-files=no)" ]] || { echo 'Build checkout has modified tracked source files. Use a separate clean checkout.' >&2; exit 6; }
 adelia_sha="$(git -C "$adelia_repo" rev-parse HEAD)"
 adelia_version="$(cd "$adelia_repo/desktop" && node -p "require('./package.json').version")"
+adelia_channel="$(cd "$adelia_repo/desktop" && node -p "require('./package.json').version.includes('-beta.')?'beta':'stable'")"
 adelia_output="${ADELIA_BUILD_OUTPUT:-$HOME/Desktop/Adelia-${adelia_version}-${adelia_sha:0:12}}"
 [[ ! -e "$adelia_output" ]] || { echo "Output already exists: $adelia_output" >&2; exit 7; }
 mkdir -p "$adelia_output"
@@ -28,13 +29,15 @@ export CSC_IDENTITY_AUTO_DISCOVERY=false
 cd "$adelia_repo/desktop"
 npm install --no-audit --no-fund --package-lock=false
 npm run selftest
+node ../scripts/lesson_calendar_selftest.cjs
+python3 ../scripts/lesson_calendar_selftest.py
 node ../scripts/student_chat_draft_selftest.cjs
 node ../scripts/group_chat_selftest.cjs
 node ../scripts/onboarding_confirmation_selftest.cjs
 python3 ../scripts/learning_hub_selftest.py
 for adelia_arch in x64 arm64; do
  npm run "dist:mac:$adelia_arch" -- --publish never "--config.directories.output=dist/local-macos-$adelia_arch"
- python3 publish_updates.py "dist/local-macos-$adelia_arch" "$adelia_output/macos-$adelia_arch" --platform mac --arch "$adelia_arch" --channel beta --version "$adelia_version" --git-sha "$adelia_sha"
+ python3 publish_updates.py "dist/local-macos-$adelia_arch" "$adelia_output/macos-$adelia_arch" --platform mac --arch "$adelia_arch" --channel "$adelia_channel" --version "$adelia_version" --git-sha "$adelia_sha"
 done
 adelia_digest="$(docker image inspect "$adelia_image" --format '{{index .RepoDigests 0}}')"
 [[ "$adelia_digest" == *@sha256:* ]] || { echo 'Unable to pin Windows builder image digest.' >&2; exit 8; }
@@ -45,11 +48,12 @@ docker run --rm --platform linux/amd64 \
  -v adelia-windows-build-node-modules:/project/desktop/node_modules \
  -w /project/desktop "$adelia_digest" \
  /bin/bash -lc 'npm install --no-audit --no-fund --package-lock=false && npm run dist:win -- --publish never --config.directories.output=dist/local-windows-x64'
-python3 publish_updates.py dist/local-windows-x64 "$adelia_output/win-x64" --platform win --arch x64 --channel beta --version "$adelia_version" --git-sha "$adelia_sha"
+python3 publish_updates.py dist/local-windows-x64 "$adelia_output/win-x64" --platform win --arch x64 --channel "$adelia_channel" --version "$adelia_version" --git-sha "$adelia_sha"
 python3 - "$adelia_output" "$adelia_sha" <<'PY'
 import hashlib,json,sys,zipfile
 from pathlib import Path
 root=Path(sys.argv[1]);sha=sys.argv[2]
+checks=[]
 for name in ('macos-x64','macos-arm64','win-x64'):
  p=root/name;m=json.loads((p/'manifest.json').read_text(encoding='utf-8'))
  assert m['git_sha']==sha
@@ -62,6 +66,13 @@ for name in ('macos-x64','macos-arm64','win-x64'):
  with zipfile.ZipFile(root/(name+'.zip'),'w',compression=zipfile.ZIP_STORED) as archive:
   for f in p.iterdir():
    if f.is_file():archive.write(f,f.name)
+ archive_path=root/(name+'.zip')
+ h=hashlib.sha256()
+ with archive_path.open('rb') as stream:
+  for chunk in iter(lambda:stream.read(1024*1024),b''):h.update(chunk)
+ checks.append(h.hexdigest()+'  '+archive_path.name)
+(root/'SHA256SUMS').write_text('\n'.join(checks)+'\n')
+(root/'release-set.json').write_text(json.dumps({'version':m['version'],'git_sha':sha,'channel':m['channel'],'targets':['macos-x64','macos-arm64','win-x64']},indent=2)+'\n')
 print('ALL_THREE_BUNDLES_VERIFIED')
 PY
 printf 'ALL_DESKTOP_BUILDS_OK\nFiles: %s\n' "$adelia_output"

@@ -42,13 +42,14 @@ async function inject(win){
  `,true);
  }
  if(role==='teacher')await win.webContents.executeJavaScript(`
+   if(window.AdeliaLessonCalendar&&!window.teacherWorkingHours&&typeof window.teacherSchedule==='function')window.teacherWorkingHours=window.teacherSchedule;
    if(!window.__adeliaDesktopTeacherRouteGuard){
      window.__adeliaDesktopTeacherRouteGuard=true;
      window.addEventListener('click',function(event){
        const button=event.target&&event.target.closest&&event.target.closest('[data-view]');
        if(!button)return;
        const view=button.dataset.view;
-       const render=view==='groups'?window.teacherGroups:view==='health'?window.teacherHealth:null;
+       const render=view==='schedule'?window.AdeliaLessonCalendar?.open:view==='groups'?window.teacherGroups:view==='health'?window.teacherHealth:null;
        if(typeof render!=='function')return;
        event.preventDefault();
        event.stopImmediatePropagation();

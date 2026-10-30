@@ -9,7 +9,7 @@ const APP_ORIGIN = new URL(APP_URL).origin;
 const CHILD_ORIGINS = new Set(['https://telemost.yandex.ru','https://telemost.360.yandex.ru']);
 const BOARD_HOSTS = new Set(['myboard.io','www.myboard.io','app.moyadoska.com','moyadoska.com','www.moyadoska.com']);
 const UPDATE_CHECK_MS = 4 * 60 * 60 * 1000;
-const UPDATE_CHANNEL = process.env.ADELIA_UPDATE_CHANNEL === 'stable' ? 'stable' : 'beta';
+const UPDATE_CHANNEL = ['stable','beta'].includes(process.env.ADELIA_UPDATE_CHANNEL) ? process.env.ADELIA_UPDATE_CHANNEL : (/-beta\./.test(app.getVersion()) ? 'beta' : 'stable');
 const UPDATE_TARGET = process.platform === 'win32' ? 'win-x64' : (process.platform === 'darwin' ? `macos-${process.arch}` : `linux-${process.arch}`);
 const UPDATE_BASE_URL = `https://adeliatutor.ru/desktop-updates/${UPDATE_CHANNEL}/${UPDATE_TARGET}/`;
 const PROTOCOL = 'adelia';
@@ -273,9 +273,9 @@ let macDmgUpdater=null;
 function setupAutoUpdates() {
  if(macDmgUpdater){const check=()=>macDmgUpdater.check();setTimeout(check,15000);updateTimer=setInterval(check,UPDATE_CHECK_MS);return;}
   autoUpdater.autoDownload=false; autoUpdater.autoInstallOnAppQuit=false;
-  autoUpdater.channel=UPDATE_CHANNEL;
+  autoUpdater.channel=UPDATE_CHANNEL==='stable'?'latest':'beta';
   autoUpdater.allowPrerelease=UPDATE_CHANNEL==='beta';
-  autoUpdater.setFeedURL({provider:'generic',url:UPDATE_BASE_URL,channel:UPDATE_CHANNEL});
+  autoUpdater.setFeedURL({provider:'generic',url:UPDATE_BASE_URL,channel:UPDATE_CHANNEL==='stable'?'latest':'beta'});
   autoUpdater.on('checking-for-update',()=>sendUpdateState({status:'checking'}));
   autoUpdater.on('update-not-available',()=>sendUpdateState({status:'current'}));
   autoUpdater.on('download-progress',info=>sendUpdateState({status:'downloading',percent:Number(info.percent||0)}));
