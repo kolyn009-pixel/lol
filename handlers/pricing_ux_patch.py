@@ -427,6 +427,8 @@ async def _manual_paid_callbacks(update, context):
 
 
 async def _manual_paid_count_text(update, context):
+    if context.user_data is None or not update.effective_user or not update.message:
+        return
     state = context.user_data.get("manual_paid_wait_count")
     if not state:
         return

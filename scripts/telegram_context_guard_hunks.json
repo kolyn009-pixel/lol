@@ -1,0 +1,14 @@
+{
+  "handlers/board_admin.py": [
+    {
+      "old": "        if context.user_data.get(STATE_KEY):\n            await receive(update, context)",
+      "new": "        if context.user_data is None or not update.effective_user:\n            return\n        if context.user_data.get(STATE_KEY):\n            await receive(update, context)"
+    }
+  ],
+  "handlers/pricing_ux_patch.py": [
+    {
+      "old": "async def _manual_paid_count_text(update, context):\n    state = context.user_data.get(\"manual_paid_wait_count\")",
+      "new": "async def _manual_paid_count_text(update, context):\n    if context.user_data is None or not update.effective_user or not update.message:\n        return\n    state = context.user_data.get(\"manual_paid_wait_count\")"
+    }
+  ]
+}
