@@ -3,13 +3,14 @@ const {parseHTML}=require('../qa-deps/node_modules/linkedom');
 const {cascade}=require('./mobile_cascade_selftest.cjs');
 const source=fs.readFileSync(require('path').join(__dirname,'../web/lesson_calendar.css'),'utf8');
 
-const {document}=parseHTML('<html><body><div id="app"><section class="lc-app"><div class="lc-day lc-today"><button class="lc-day-number">30</button><button class="lc-event lc-compact lc-done"><span class="lc-event-main"><small>Физика · 10 класс</small></span></button><button class="lc-event lc-compact lc-moved"></button><button class="lc-event lc-compact lc-unpaid"></button></div></section></div></body></html>');
+const {document}=parseHTML('<html><body><div id="app"><section class="lc-app"><div class="lc-month"><div class="lc-day lc-today"><button class="lc-day-number"><span class="lc-date-disc">30</span></button><button class="lc-event lc-compact lc-done"><span class="lc-event-main"><small>Физика · 10 класс</small></span></button><button class="lc-event lc-compact lc-moved"></button><button class="lc-event lc-compact lc-unpaid"></button></div></div></section></div></body></html>');
 for(const width of [390,650,900,1440,1920]){
  const c=cascade(document,width,source);
  assert.equal(c('.lc-day-number','border').value,'0');
  assert.equal(c('.lc-day-number','padding').value,'0');
- assert.equal(c('.lc-day-number','min-height').value,'25px');
- assert.equal(c('.lc-day-number','background').value,'#7952d1');
+ assert.equal(c('.lc-day-number','min-height').value,'30px');
+ assert.equal(c('.lc-day-number','background').value,'transparent');
+ assert.equal(c('.lc-date-disc','width').value,'28px');assert.equal(c('.lc-date-disc','height').value,'28px');assert.equal(c('.lc-date-disc','padding').value,'0');
  assert.equal(c('.lc-done','background').value,'var(--lc-surface)');
  assert.equal(c('.lc-done','--lc-surface').value,'#eef7f3');
  assert.equal(c('.lc-moved','--lc-surface').value,'#edf7f8');

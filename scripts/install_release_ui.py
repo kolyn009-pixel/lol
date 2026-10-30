@@ -12,14 +12,14 @@ def html(text):
     if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js','lesson_calendar.css','lesson_calendar.js']
     for name in names:
         if '/app/'+name in text:
-            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar7',text)
+            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar8',text)
             continue
-        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261030-calendar7">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261030-calendar7"></script>')
+        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261030-calendar8">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261030-calendar8"></script>')
         text=text.replace('</head>',tag+'</head>',1)
     if 'teacher-shell' in text:
         text=re.sub(r'(<meta\s+name=[\"\']theme-color[\"\']\s+content=[\"\'])[^\"\']*',lambda m:m[1]+'#f5f5fa',text)
-    text=re.sub(r'(/app/teacher_schedule_settings\.js)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar7',text)
-    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar7',text)
+    text=re.sub(r'(/app/teacher_schedule_settings\.js)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar8',text)
+    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar8',text)
     return text
 
 def manifest(text):
@@ -87,7 +87,7 @@ def main():
             f=root/n;f.parent.mkdir(parents=True,exist_ok=True);tmp=f.with_name(f.name+'.ui-next');tmp.write_bytes(candidate[n]);os.chmod(tmp,0o644);os.replace(tmp,f)
         subprocess.run(['systemctl','restart','tutorbot-web.service'],check=True,timeout=60);health()
         for name in [n for n in FILES if n.startswith('web/')]+['web/teacher-manifest.webmanifest']:
-            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261030-calendar7'],timeout=12)
+            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261030-calendar8'],timeout=12)
             if served!=candidate[name]:raise RuntimeError('Static asset verification failed: '+name)
     except Exception:
         for n in reversed(changed):

@@ -17,6 +17,11 @@ assert(document.querySelector('.lc-compact .lc-event-time').textContent.includes
 assert(document.querySelector('.lc-compact .lc-event-main small').textContent.includes('10 класс'));
 assert(document.querySelector('.lc-legend').textContent.includes('Перенесено'));
 assert.equal(document.querySelector('.lc-selected-day h3 span').textContent,'2');
+assert.equal(document.querySelector('[data-lc-day="2026-10-30"] .lc-date-disc').textContent,'30');
+assert.equal(document.querySelector('[data-lc-day="2026-10-30"]').getAttribute('aria-current'),'date');
+document.querySelector('[data-lc-cell="2026-10-29"]').click();
+assert(document.querySelector('.lc-selected [data-lc-day="2026-10-29"]'));
+document.querySelector('[data-lc-day="2026-10-30"]').click();
 // The UTC event at 21:30 belongs to October 31 in Moscow, not October 30.
 assert(document.querySelector('.lc-day.lc-selected [data-lc-day="2026-10-30"]'));document.querySelector('[data-lc-event="1"]').click();assert.deepEqual(opened,[1]);document.querySelector('[data-lc-event="group-3"]').click();assert.deepEqual(groups,[9]);
 document.querySelector('[data-lc-day="2026-10-31"]').click();assert(document.querySelector('.lc-selected-day [data-lc-event="2"]'));

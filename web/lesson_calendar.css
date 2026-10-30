@@ -94,3 +94,27 @@ html:root body #app .lc-app .lc-week-grid{display:block}html:root body #app .lc-
 html:root body #app .lc-app .lc-week-day .lc-event{grid-template-columns:32px minmax(0,1fr)}html:root body #app .lc-app .lc-week-day .lc-event-avatar{display:grid}html:root body #app .lc-app .lc-week-day .lc-event-time,html:root body #app .lc-app .lc-week-day .lc-event-main,html:root body #app .lc-app .lc-week-day .lc-status{grid-column:2}
 }
 @media(prefers-reduced-motion:reduce){html:root body #app .lc-app *{transition:none!important}}
+
+/* The date disc is separate from site-wide button sizing and padding. */
+html:root body #app .lc-app .lc-month .lc-day{cursor:pointer}
+html:root body #app .lc-app .lc-month button.lc-day-number{
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ width:30px!important;min-width:30px!important;max-width:30px!important;
+ height:30px!important;min-height:30px!important;max-height:30px!important;
+ padding:0!important;border:0!important;box-sizing:border-box!important;
+ margin:0 0 5px 3px!important;background:transparent!important;box-shadow:none!important;
+ border-radius:50%!important;line-height:1!important;letter-spacing:normal!important;
+ overflow:visible!important;transform:none!important;text-indent:0!important;
+}
+html:root body #app .lc-app .lc-month .lc-date-disc{
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;
+ padding:0!important;margin:0!important;border:0!important;box-sizing:border-box!important;
+ border-radius:50%!important;font:600 11px/1 system-ui!important;
+ text-align:center!important;letter-spacing:normal!important;background:transparent;color:#91829e;
+}
+html:root body #app .lc-app .lc-month .lc-other .lc-date-disc{color:#c4bbce}
+html:root body #app .lc-app .lc-month .lc-today .lc-date-disc{color:#7952d1;background:#eee7fa}
+html:root body #app .lc-app .lc-month .lc-selected .lc-date-disc{background:#7952d1;color:#fff}
+html:root body #app .lc-app .lc-month .lc-day.lc-selected{background:#f8f5fe;box-shadow:inset 0 0 0 1px #cdbbe9}
+@media(max-width:650px){html:root body #app .lc-app .lc-month button.lc-day-number{margin:0 auto 3px!important}}
