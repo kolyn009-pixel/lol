@@ -105,6 +105,6 @@ async def homework_watchdog_job(context):
 def register(application):
     student_onboarding_runtime.register(application);runtime_patch_v2.install(application);payment_reminder_routing.install();review_v2.install(application);pricing_ux_patch.install(application);lesson_link_bridge.install();public_trial_notifications.register(application);jq=application.job_queue
     if not jq:return
-    jq.run_repeating(weekly_dispatcher,interval=60,first=20,name="adelia_weekly_dispatcher")
+    jq.run_repeating(weekly_dispatcher,interval=60,first=20,name="adelia_weekly_dispatcher",job_kwargs={"misfire_grace_time":30,"coalesce":True,"max_instances":1})
     jq.run_repeating(runtime_patch_v2.regular_series_sync_job,interval=6*60*60,first=45,name="adelia_regular_full_sync")
     jq.run_repeating(homework_watchdog_job,interval=5*60,first=75,name="adelia_homework_watchdog")

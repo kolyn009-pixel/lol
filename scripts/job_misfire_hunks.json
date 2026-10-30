@@ -1,0 +1,20 @@
+{
+  "handlers/musthave_jobs.py": [
+    {
+      "old": "jq.run_repeating(weekly_dispatcher,interval=60,first=20,name=\"adelia_weekly_dispatcher\")",
+      "new": "jq.run_repeating(weekly_dispatcher,interval=60,first=20,name=\"adelia_weekly_dispatcher\",job_kwargs={\"misfire_grace_time\":30,\"coalesce\":True,\"max_instances\":1})"
+    }
+  ],
+  "handlers/public_trial_notifications.py": [
+    {
+      "old": "jq.run_repeating(dispatch_job, interval=15, first=5, name=\"public_trial_notify\")",
+      "new": "jq.run_repeating(dispatch_job, interval=15, first=5, name=\"public_trial_notify\", job_kwargs={\"misfire_grace_time\":30,\"coalesce\":True,\"max_instances\":1})"
+    }
+  ],
+  "crm_plus/jobs.py": [
+    {
+      "old": "jq.run_repeating(timezone_migration_job,interval=300,first=20,name='timezone_migration_notifier')",
+      "new": "jq.run_repeating(timezone_migration_job,interval=300,first=20,name='timezone_migration_notifier',job_kwargs={'misfire_grace_time':60,'coalesce':True,'max_instances':1})"
+    }
+  ]
+}
