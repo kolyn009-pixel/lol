@@ -13,7 +13,7 @@ class View{constructor(options){this.options=options;this.webContents=new WC();v
 class Window extends EventEmitter{constructor(options){super();this.options=options;this.webContents=new WC()}async loadURL(u){return this.webContents.loadURL(u)}isDestroyed(){return false}close(){this.emit('closed')}}
 let choice=0;const moduleObj={exports:{}};
 const electron={WebContentsView:View,BrowserWindow:Window,ipcMain:{handle:(k,f)=>actions.set(k,f)},shell:{openExternal:async u=>external.push(u)},dialog:{showMessageBox:async()=>({response:choice})}};
-vm.runInNewContext(fs.readFileSync(require('path').join(__dirname,'lesson_room.js'),'utf8'),{require:n=>n==='electron'?electron:n==='./meeting_browser'?require('./meeting_browser'):null,module:moduleObj,URL,console});
+vm.runInNewContext(fs.readFileSync(require('path').join(__dirname,'lesson_room.js'),'utf8'),{require:n=>n==='electron'?electron:n==='./meeting_browser'?require('./meeting_browser'):n==='./board_account'?{allowed:()=>false,open:async()=>null}:null,module:moduleObj,URL,console});
 const win=new EventEmitter();win.webContents=new WC();win.contentView={addChildView(){},removeChildView(){}};win.isDestroyed=()=>false;win.getContentSize=()=>[1440,900];
 const trusted=u=>{try{return new URL(u).origin==='https://telemost.yandex.ru'}catch{return false}};
 (async()=>{const room=moduleObj.exports.create(win,{trustedMeeting:trusted,trustedBoard:u=>u.startsWith('https://app.moyadoska.com/')});

@@ -11,3 +11,9 @@ Evidence: fetched current provider web bundle contains a navigator.userAgent Ele
 Node tests cover UA cleaning and idempotence, unchanged engine/OS versions, application before meeting load, original auth partition, unchanged board UA, trusted URLs and reload/external confirmations. Native build and actual video call, login, camera, microphone and screen sharing require testing on Windows and Mac after rebuilding.
 
 Build scripts/build_all_on_intel_mac.sh from this commit. Publish with scripts/publish_uploaded_desktop.py --git-sha FULL_SHA only after device checks. This creates version 0.3.1; do not replace 0.3.0 installers in-place. A server CSS/JS install cannot update native lesson_room.js.
+
+## Board account addition
+
+The room toolbar now has an explicit board-account action. It opens the board service's own account page in a sandboxed modal with the same persist:adelia-board partition as the working board. MoyaDoska's public client was inspected: its OAuth flows use oauth.yandex.ru and id.vk.com and return to app.moyadoska.com. Exact provider origins and board origins are allowed in navigation/popups; arbitrary redirects are blocked. No passwords or provider tokens are collected by Adelia. The user registers or signs in themselves.
+
+Closing the account window reloads the original board to apply the shared session. The opening confirmation tells the user to wait for saving first. Closing does not imply successful login and no fake signed-in label is displayed. Existing board/Telemost partitions remain separate. Native registration/sign-in through provider pages remains to be tested; third-party requirements may block embedded authentication.
