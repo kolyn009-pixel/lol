@@ -1,0 +1,18 @@
+name: Manual payment concurrency regression
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/teacher-dashboard-receipts-layout-20261025]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  payment-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/manual_payment_guard_selftest.py
+      - run: python -m py_compile database.py web_backend/finance_reporting.py web_backend/stage8_api.py
