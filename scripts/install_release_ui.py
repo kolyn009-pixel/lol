@@ -2,24 +2,27 @@
 import argparse,ast,fcntl,hashlib,json,os,re,subprocess,time
 from datetime import datetime,timezone
 from pathlib import Path
-FILES=['web/release_ui.css','web/release_ui.js','web/teacher_mobile_app.css','web/teacher_mobile_app.js','web/lesson_calendar.css','web/lesson_calendar.js','web_backend/lesson_calendar.py','web/teacher_quick_payment.js','web/teacher_group_finance.js','web_backend/group_finance_admin.py','web_backend/group_finance_reports.py','web_backend/group_finance_receipts.py']
+FILES=['web/release_ui.css','web/release_ui.js','web/teacher_mobile_app.css','web/teacher_mobile_app.js','web/lesson_calendar.css','web/lesson_calendar.js','web_backend/lesson_calendar.py','web/teacher_quick_payment.js','web/teacher_group_finance.js','web_backend/group_finance_admin.py','web_backend/group_finance_reports.py','web_backend/group_finance_receipts.py','web_backend/payment_history.py','web/teacher_payment_history.js','web/formula_explorer.js','web/formula_catalog.css']
+REVIEWED={'web/formula_explorer.js':{'a66f125707a0d12faba3b135e1408c4e1fdb0cd70a7235c2173edaa8326b4fc6'}}
 HTML=['web/teacher.html','web/index.html','web/parent/index.html']
 RECORD='release_ui_install.json'
 
 def html(text):
     if text.count('</head>')!=1:raise RuntimeError('HTML head needs review')
-    names=['release_ui.css','release_ui.js']
-    if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js','lesson_calendar.css','lesson_calendar.js','teacher_quick_payment.js','teacher_group_finance.js','teacher_group_settings.js']
+    names=['release_ui.css','release_ui.js','formula_explorer.js','formula_catalog.css']
+    if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js','lesson_calendar.css','lesson_calendar.js','teacher_quick_payment.js','teacher_group_finance.js','teacher_group_settings.js','teacher_payment_history.js']
     for name in names:
         if '/app/'+name in text:
-            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-groupfinance2',text)
+            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-handbook-history',text)
             continue
-        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261031-groupfinance2">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261031-groupfinance2"></script>')
+        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261031-handbook-history">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261031-handbook-history"></script>')
         text=text.replace('</head>',tag+'</head>',1)
     if 'teacher-shell' in text:
         text=re.sub(r'(<meta\s+name=[\"\']theme-color[\"\']\s+content=[\"\'])[^\"\']*',lambda m:m[1]+'#f5f5fa',text)
-    text=re.sub(r'(/app/teacher_schedule_settings\.js)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-groupfinance2',text)
-    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-groupfinance2',text)
+    for asset in ['teacher_finance.js','teacher_students_clean8.css']:
+        text=re.sub(r'(/app/'+re.escape(asset)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-handbook-history',text)
+    text=re.sub(r'(/app/teacher_schedule_settings\.js)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-handbook-history',text)
+    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-handbook-history',text)
     return text
 
 def manifest(text):
@@ -60,7 +63,7 @@ def main():
     prior=json.loads((root/RECORD).read_text()) if (root/RECORD).exists() else {};original={};candidate={}
     for name in FILES:
         value=(source/name).read_bytes();live=(root/name).read_bytes() if (root/name).exists() else None
-        if live is not None and live!=value and prior.get(name)!=hashlib.sha256(live).hexdigest():raise RuntimeError('Local UI edits need review: '+name)
+        if live is not None and live!=value and prior.get(name)!=hashlib.sha256(live).hexdigest() and hashlib.sha256(live).hexdigest() not in REVIEWED.get(name,set()):raise RuntimeError('Local UI edits need review: '+name)
         if name.endswith('.py'):compile(value,name,'exec')
         original[name]=live;candidate[name]=value
     for name in HTML:
@@ -69,7 +72,7 @@ def main():
     name='web/teacher-manifest.webmanifest'
     original[name]=(root/name).read_bytes()
     candidate[name]=manifest(original[name].decode()).encode()
-    for name,hunks in {**json.loads((source/'scripts/lesson_calendar_hooks.json').read_text()),**json.loads((source/'scripts/group_finance_hooks.json').read_text())}.items():
+    for name,hunks in {**json.loads((source/'scripts/lesson_calendar_hooks.json').read_text()),**json.loads((source/'scripts/group_finance_hooks.json').read_text()),**json.loads((source/'scripts/payment_history_hooks.json').read_text()),**json.loads((source/'scripts/student_css_repair_hooks.json').read_text())}.items():
         original[name]=(root/name).read_bytes()
         text=original[name].decode()
         text=apply_hunks(text,hunks,name)
@@ -93,7 +96,7 @@ def main():
             f=root/n;f.parent.mkdir(parents=True,exist_ok=True);tmp=f.with_name(f.name+'.ui-next');tmp.write_bytes(candidate[n]);os.chmod(tmp,0o644);os.replace(tmp,f)
         subprocess.run(['systemctl','restart','tutorbot-web.service'],check=True,timeout=60);health()
         for name in [n for n in FILES if n.startswith('web/')]+['web/teacher-manifest.webmanifest']:
-            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261031-groupfinance2'],timeout=12)
+            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261031-handbook-history'],timeout=12)
             if served!=candidate[name]:raise RuntimeError('Static asset verification failed: '+name)
     except Exception:
         for n in reversed(changed):

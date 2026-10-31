@@ -5,6 +5,16 @@ from web_backend import receipt_review_tools as receipts
 class ReceiptToolsMixin:
     def do_GET(self):
         u=urlparse(self.path)
+        if u.path in {'/api/teacher/finance/payment/trace','/api/teacher/finance/payment/journal'}:
+            if not self._teacher():return self._json(401,{'error':'unauthorized'})
+            from web_backend import payment_history
+            try:
+                q=parse_qs(u.query)
+                result=payment_history.trace(q) if u.path.endswith('/trace') else payment_history.journal(q.get('group_id',[None])[0])
+                return self._json(200,result)
+            except (ValueError,TypeError):return self._json(409,{'error':'history_not_found'})
+            except Exception as e:
+                print('[web-api] payment history:',type(e).__name__,flush=True);return self._json(500,{'error':'server_error'})
         if u.path!='/api/teacher/finance/receipt/details':return super().do_GET()
         if not self._teacher():return self._json(401,{'error':'unauthorized'})
         try:return self._json(200,receipts.details(parse_qs(u.query).get('payment_id',['0'])[0]))

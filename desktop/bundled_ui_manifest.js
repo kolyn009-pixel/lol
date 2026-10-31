@@ -22,7 +22,8 @@ module.exports={
       "reliability.css",
       "experience.css",
       "education_formula_layout.css",
-      "release_ui.css"
+      "release_ui.css",
+      "formula_catalog.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -78,7 +79,8 @@ module.exports={
       "visual_channels.css",
       "release_ui.css",
       "teacher_mobile_app.css",
-      "lesson_calendar.css"
+      "lesson_calendar.css",
+      "formula_catalog.css"
     ],
     "js": [
       "vendor/katex.min.js",
@@ -113,7 +115,8 @@ module.exports={
       "release_ui.js",
       "teacher_mobile_app.js",
       "lesson_calendar.js",
-      "teacher_quick_payment.js"
+      "teacher_quick_payment.js",
+      "teacher_payment_history.js"
     ]
   },
   "parent": {
@@ -128,7 +131,8 @@ module.exports={
       "desktop_premium.css",
       "reliability.css",
       "experience.css",
-      "release_ui.css"
+      "release_ui.css",
+      "formula_catalog.css"
     ],
     "js": [
       "reliability.js",

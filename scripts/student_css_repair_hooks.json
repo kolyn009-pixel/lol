@@ -1,0 +1,8 @@
+{
+  "web/teacher_students_clean8.css": [
+    {
+      "old": "grid-template-columns:minmax(0,1fr) minmax(0,1.\n",
+      "new": "grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}\n"
+    }
+  ]
+}
