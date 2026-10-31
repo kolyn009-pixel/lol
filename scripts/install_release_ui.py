@@ -2,24 +2,24 @@
 import argparse,ast,fcntl,hashlib,json,os,re,subprocess,time
 from datetime import datetime,timezone
 from pathlib import Path
-FILES=['web/release_ui.css','web/release_ui.js','web/teacher_mobile_app.css','web/teacher_mobile_app.js','web/lesson_calendar.css','web/lesson_calendar.js','web_backend/lesson_calendar.py']
+FILES=['web/release_ui.css','web/release_ui.js','web/teacher_mobile_app.css','web/teacher_mobile_app.js','web/lesson_calendar.css','web/lesson_calendar.js','web_backend/lesson_calendar.py','web/teacher_quick_payment.js']
 HTML=['web/teacher.html','web/index.html','web/parent/index.html']
 RECORD='release_ui_install.json'
 
 def html(text):
     if text.count('</head>')!=1:raise RuntimeError('HTML head needs review')
     names=['release_ui.css','release_ui.js']
-    if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js','lesson_calendar.css','lesson_calendar.js']
+    if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js','lesson_calendar.css','lesson_calendar.js','teacher_quick_payment.js']
     for name in names:
         if '/app/'+name in text:
-            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar8',text)
+            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-quickpay1',text)
             continue
-        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261030-calendar8">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261030-calendar8"></script>')
+        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261031-quickpay1">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261031-quickpay1"></script>')
         text=text.replace('</head>',tag+'</head>',1)
     if 'teacher-shell' in text:
         text=re.sub(r'(<meta\s+name=[\"\']theme-color[\"\']\s+content=[\"\'])[^\"\']*',lambda m:m[1]+'#f5f5fa',text)
-    text=re.sub(r'(/app/teacher_schedule_settings\.js)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar8',text)
-    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261030-calendar8',text)
+    text=re.sub(r'(/app/teacher_schedule_settings\.js)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-quickpay1',text)
+    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-quickpay1',text)
     return text
 
 def manifest(text):
@@ -87,7 +87,7 @@ def main():
             f=root/n;f.parent.mkdir(parents=True,exist_ok=True);tmp=f.with_name(f.name+'.ui-next');tmp.write_bytes(candidate[n]);os.chmod(tmp,0o644);os.replace(tmp,f)
         subprocess.run(['systemctl','restart','tutorbot-web.service'],check=True,timeout=60);health()
         for name in [n for n in FILES if n.startswith('web/')]+['web/teacher-manifest.webmanifest']:
-            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261030-calendar8'],timeout=12)
+            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261031-quickpay1'],timeout=12)
             if served!=candidate[name]:raise RuntimeError('Static asset verification failed: '+name)
     except Exception:
         for n in reversed(changed):

@@ -112,7 +112,8 @@ module.exports={
       "visual_channels.js",
       "release_ui.js",
       "teacher_mobile_app.js",
-      "lesson_calendar.js"
+      "lesson_calendar.js",
+      "teacher_quick_payment.js"
     ]
   },
   "parent": {
