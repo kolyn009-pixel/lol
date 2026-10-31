@@ -22,7 +22,8 @@ def schedule(start=None,end=None,limit=300):
     education_profile.initialize();now=datetime.now();monday=datetime.combine(now.date()-timedelta(days=now.weekday()),datetime.min.time());start=_iso(start,monday.isoformat(timespec="seconds"));end=_iso(end,(monday+timedelta(days=7)).isoformat(timespec="seconds"));limit=max(1,min(int(limit),500));conn=connect();rows=conn.execute("""SELECT l.id,l.user_id,l.start_time,l.end_time,l.duration_minutes,l.subject,l.study_goal,l.lesson_status,l.payment_status,l.price,l.started_at,l.finished_at,l.actual_duration_minutes,l.meeting_link_sent_at,u.name,u.grade,u.education_type,u.education_level,u.board_url FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.start_time>=? AND l.start_time<? ORDER BY l.start_time,l.id LIMIT ?""",(start,end,limit)).fetchall();conn.close();items=[]
     for r in rows:
         x=dict(r);x.update(_education(x));items.append(x)
-    return {"start":start,"end":end,"items":items}
+    from web_backend.lesson_calendar import enrich_schedule
+    return enrich_schedule(start,end,items,limit)
 
 def students(search=None,status=None,limit=200):
     education_profile.initialize();now=datetime.now().isoformat(timespec="seconds");limit=max(1,min(int(limit),500));search=str(search or '').strip().lower();status=str(status or 'ALL').upper();conn=connect();rows=conn.execute("""

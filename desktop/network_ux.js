@@ -1,12 +1,10 @@
 'use strict';
 const { app, BrowserWindow, dialog, net } = require('electron');
-const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
 const APP_URL = process.env.ADELIA_DESKTOP_URL || 'https://adeliatutor.ru/app/';
 let installed = false;
 let retryTimers = new WeakMap();
-let updateBusy = false;
 
 function isMain(win) {
   return !!win && !win.isDestroyed() && !/Телемост|Доска/.test(win.getTitle());
@@ -59,41 +57,10 @@ function installNetworkUx() {
     win.on('closed', () => clearRetry(win));
   });
 }
-function installUpdateUx() {
-  autoUpdater.removeAllListeners('update-available');
-  autoUpdater.removeAllListeners('update-downloaded');
-  autoUpdater.on('update-available', async info => {
-    if (updateBusy) return;
-    updateBusy = true;
-    try {
-      const result = await dialog.showMessageBox(BrowserWindow.getFocusedWindow() || undefined, {
-        type: 'info',
-        title: 'Обновление Аделии',
-        message: 'Доступна новая версия Аделии',
-        detail: `Версия ${info.version}. Обновление загрузится в фоне — можно продолжать работу.`,
-        buttons: ['Обновить', 'Позже'], defaultId: 0, cancelId: 1, noLink: true
-      });
-      if (result.response === 0) await autoUpdater.downloadUpdate();
-    } catch (_) {} finally { updateBusy = false; }
-  });
-  autoUpdater.on('update-downloaded', async info => {
-    const result = await dialog.showMessageBox(BrowserWindow.getFocusedWindow() || undefined, {
-      type: 'info', title: 'Аделия обновлена',
-      message: 'Обновление готово к установке',
-      detail: `Версия ${info.version} уже загружена. Перезапустить приложение сейчас?`,
-      buttons: ['Перезапустить сейчас', 'Позже'], defaultId: 0, cancelId: 1, noLink: true
-    });
-    if (result.response === 0) autoUpdater.quitAndInstall(false, true);
-  });
-  autoUpdater.on('error', () => {
-    updateBusy = false;
-  });
-}
 function install() {
   if (installed) return;
   installed = true;
   installNetworkUx();
-  app.whenReady().then(() => setImmediate(installUpdateUx)).catch(() => {});
   app.on('before-quit', () => {
     for (const win of BrowserWindow.getAllWindows()) clearRetry(win);
   });

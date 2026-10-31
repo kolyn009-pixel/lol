@@ -130,7 +130,7 @@ def _lesson(lesson_id):
     conn = database.connect()
     row = conn.execute(
         """
-        SELECT l.*, u.name AS student_name, u.board_url AS student_board_url
+        SELECT l.*, u.name AS student_name, u.grade AS student_grade, u.board_url AS student_board_url
         FROM lessons l
         JOIN users u ON u.id=l.user_id
         WHERE l.id=?
@@ -185,18 +185,31 @@ def _event_body(lesson):
         lesson_summary_prefix(lesson)
         + f"{subject}{' · ' + goal if goal else ''} — {student}"
     )
-    description = ["Аделия | TutorBot", f"Ученик: {student}"]
+    from core.lesson_reschedule_details import previous, grade_label, interval
+    before = previous(lesson)
+    grade = grade_label(lesson.get('student_grade'))
+    title += f" · {grade}"
+    description = ["Аделия | TutorBot", f"Ученик: {student}", f"Класс: {grade}"]
+    color = lesson_color_id(lesson)
+    if before:
+        title = "🔁 ПЕРЕНЕСЕНО · " + title
+        description += [f"Было: {interval(before)}", f"Стало: {interval(lesson)}", "Время московское (МСК)."]
+        # Lifecycle and urgent payment warnings remain visible.
+        from core.calendar_policy import lesson_state
+        if lesson_state(lesson) not in {'ATTENTION', 'IN_PROGRESS', 'COMPLETED'}:
+            color = "7"  # Peacock / turquoise.
     if lesson.get("meeting_url"):
         description.append(f"Telemost: {lesson['meeting_url']}")
     if lesson.get("student_board_url"):
         description.append(f"Доска: {lesson['student_board_url']}")
-    timezone = str(database.get_setting("bot_timezone", "Europe/Samara") or "Europe/Samara")
+    from core.lesson_time import lesson_timezone
+    timezone = str(lesson_timezone())
     return {
         "summary": title,
         "description": "\n".join(description),
         "start": {"dateTime": lesson["start_time"], "timeZone": timezone},
         "end": {"dateTime": lesson["end_time"], "timeZone": timezone},
-        "colorId": lesson_color_id(lesson),
+        "colorId": color,
         "extendedProperties": {
             "private": {
                 "tutorbot_lesson_id": str(lesson["id"]),
@@ -207,7 +220,7 @@ def _event_body(lesson):
 
 def _is_not_found(exc):
     status = getattr(getattr(exc, "resp", None), "status", None)
-    return status == 404 or "404" in str(exc)
+    return status in (404, 410)
 
 
 def _remote_lesson_events(service, lesson_id):
@@ -302,6 +315,9 @@ def _delete_remote_duplicates(service, events, keep_id):
 def sync_lesson(lesson_id):
     """Create or update exactly one Google event for a lesson."""
     lesson = _lesson(lesson_id)
+    from core.calendar_policy import should_keep_lesson_event
+    if not should_keep_lesson_event(lesson):
+        return cancel_lesson(lesson_id)
     existing = _integration(lesson_id) or {}
 
     service = _service()
@@ -340,11 +356,11 @@ def sync_lesson(lesson_id):
                 event_id,
             )
 
-        elif canonical_id:
+        elif canonical_id or legacy_id:
             try:
                 event = service.events().update(
                     calendarId=CALENDAR_ID,
-                    eventId=canonical_id,
+                    eventId=canonical_id or legacy_id,
                     body=body,
                 ).execute()
 
@@ -392,18 +408,33 @@ def sync_lesson(lesson_id):
 
 
 def cancel_lesson(lesson_id):
+    """Remove all events owned by this lesson, including legacy-only ids.
+
+    Never delete an id reassigned to a replacement lesson. On provider failure,
+    retain ownership ids so the next reconciliation can retry.
+    """
     existing = _integration(lesson_id) or {}
-    event_id = existing.get("google_event_id")
-    if not event_id:
-        return {"status": "noop"}
+    lesson = _lesson(lesson_id)
     service = _service()
     try:
-        service.events().delete(calendarId=CALENDAR_ID, eventId=event_id).execute()
+        remote = _remote_lesson_events(service, lesson_id)
+        ids = {str(x['id']) for x in remote}
+        ids.update(str(x) for x in (existing.get('google_event_id'), lesson.get('google_event_id')) if x)
+        deleted = 0
+        for event_id in sorted(ids):
+            try:
+                event = service.events().get(calendarId=CALENDAR_ID, eventId=event_id).execute()
+                owner = event.get('extendedProperties', {}).get('private', {}).get('tutorbot_lesson_id')
+                if owner is not None and str(owner) != str(int(lesson_id)):
+                    continue
+                if event.get('status') != 'cancelled':
+                    service.events().delete(calendarId=CALENDAR_ID, eventId=event_id).execute()
+                    deleted += 1
+            except Exception as exc:
+                if not _is_not_found(exc):
+                    raise
+        _save(lesson_id, error=None)
+        return {'status': 'ok', 'deleted': deleted}
     except Exception as exc:
-        # Deletion is idempotent at our layer; a missing remote event must not
-        # make a local lesson impossible to cancel.
-        if not _is_not_found(exc):
-            _save(lesson_id, event_id=event_id, error=f"google:{type(exc).__name__}")
-            raise
-    _save(lesson_id, event_id=event_id, error=None)
-    return {"status": "ok", "event_id": event_id}
+        _save(lesson_id, error=f'google:{type(exc).__name__}')
+        raise

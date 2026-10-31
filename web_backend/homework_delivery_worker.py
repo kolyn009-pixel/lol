@@ -39,18 +39,15 @@ def _with_action(item):
 
 
 def deliver(item):
-    recipient=str(item.get('recipient_type') or '').upper();text=_with_action(item);uid=item.get('user_id')
-    if recipient=='STUDENT':
-        if uid is None:return False,'student_id_missing'
-        result=send_student(int(uid),text,telegram=True,vk=True);return any(result.values()),f"telegram={result.get('telegram')} vk={result.get('vk')}"
-    if recipient=='TEACHER':
-        ids=_teacher_ids()
-        if not ids:return False,'teacher_recipient_missing'
-        delivered=False;parts=[]
-        for teacher_id in ids:
-            result=send_student(teacher_id,text,telegram=True,vk=True);delivered=delivered or any(result.values());parts.append(f"{teacher_id}:tg={result.get('telegram')},vk={result.get('vk')}")
-        return delivered,'; '.join(parts)
-    return False,'unsupported_recipient'
+    from web_backend.homework_channel_delivery import deliver as deliver_channels
+    kind=str(item.get('recipient_type') or '').upper()
+    if kind=='STUDENT':
+        if item.get('user_id') is None:return False,'student_id_missing'
+        ids=[int(item['user_id'])]
+    elif kind=='TEACHER':ids=_teacher_ids()
+    else:return False,'unsupported_recipient'
+    if not ids:return False,'teacher_recipient_missing'
+    return deliver_channels(item,_with_action(item),ids)
 
 
 def tick(limit=BATCH_SIZE):

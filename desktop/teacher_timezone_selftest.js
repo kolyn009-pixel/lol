@@ -9,7 +9,7 @@ const window = { addEventListener() {}, dispatchEvent() {} };
 const document = { querySelector() { return null; }, addEventListener() {}, hidden: false };
 let writes = 0;
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'web', 'teacher_time.js'), 'utf8'), {
-  window, document, Intl, Date, Event, setInterval() {},
+  window, document, Intl, Date, Event, AbortController, setTimeout, clearTimeout, setInterval() {},
   fetch: async (url, options) => {
     if (options?.method === 'POST') {
       writes += 1;

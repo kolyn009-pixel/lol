@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('adeliaDesktop', Object.freeze({
+  roomAction: action => ipcRenderer.invoke('adelia:room-action',String(action||'')),
   platform: process.platform,
   desktop: true,
   openLessonTool: (kind, url) => ipcRenderer.invoke('adelia:lesson-tool', { kind, url }),

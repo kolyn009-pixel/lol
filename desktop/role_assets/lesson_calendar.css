@@ -1,0 +1,120 @@
+/* Scoped calendar UI. Native and website use the same calendar component. */
+html:root body #app .lc-app{--lc-ink:#29263a;--lc-muted:#928b9e;--lc-line:#ebe8f0;color:var(--lc-ink);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-width:0;max-width:1800px;margin:0 auto}
+html:root body #app .lc-app *{box-sizing:border-box}
+html:root body #app .lc-app button{font:inherit;cursor:pointer;border:1px solid var(--lc-line);border-radius:10px;padding:8px 12px;min-height:36px;background:#fff;color:#726580;box-shadow:none;max-width:100%}
+html:root body #app .lc-app button:focus-visible{outline:3px solid #b6a0ed;outline-offset:2px}
+html:root body #app .lc-app .lc-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 24px;padding:0;background:none;border:0}
+html:root body #app .lc-app .lc-head small{font-size:9px;font-weight:700;letter-spacing:1.8px;color:#a79ab7}
+html:root body #app .lc-app .lc-head h2{font-size:26px;line-height:1.2;font-weight:700;letter-spacing:-.8px;margin:4px 0 6px;color:#322841}
+html:root body #app .lc-app .lc-head p{margin:0;color:var(--lc-muted);font-size:11px}
+html:root body #app .lc-app .lc-head-actions{display:flex;gap:8px}
+html:root body #app .lc-app .lc-primary{background:#7855d4;border-color:#7855d4;color:#fff;box-shadow:0 4px 10px #7855d420;font-weight:600}
+html:root body #app .lc-app .lc-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+html:root body #app .lc-app .lc-period{display:flex;align-items:center;gap:5px}
+html:root body #app .lc-app .lc-period h3{font-size:20px;color:#44364e;letter-spacing:-.4px;margin:0 12px 0 2px;min-width:186px;text-transform:capitalize;font-weight:650}
+html:root body #app .lc-app .lc-period [data-lc-prev],html:root body #app .lc-app .lc-period [data-lc-next]{width:32px;min-height:32px;padding:0;font-size:23px;background:transparent;border-color:transparent}
+html:root body #app .lc-app .lc-period [data-lc-today]{margin-left:7px;font-size:11px;min-height:31px;padding:6px 10px}
+html:root body #app .lc-app .lc-views{display:flex;gap:3px;padding:4px;border-radius:11px;background:#ebe6f3}
+html:root body #app .lc-app .lc-views button{border:0;background:transparent;min-height:30px;font-size:11px;padding:6px 13px;border-radius:8px}
+html:root body #app .lc-app .lc-views [aria-pressed=true]{color:#7952c5;background:#fff;box-shadow:0 2px 5px #3a21570a;font-weight:600}
+html:root body #app .lc-app .lc-filters{display:grid;grid-template-columns:minmax(160px,1fr) minmax(130px,.48fr) minmax(180px,.62fr) 38px;gap:8px;margin:0 0 14px}
+html:root body #app .lc-app .lc-filters :is(input,select){min-width:0;width:100%;height:37px;border:1px solid var(--lc-line);border-radius:10px;padding:8px 11px;background:#fff;color:#81768f;font:11px system-ui}
+html:root body #app .lc-app .lc-legend{display:flex;gap:9px 18px;flex-wrap:wrap;font-size:10px;color:#988ea3;padding:0 2px 15px}
+html:root body #app .lc-app .lc-legend span{display:inline-flex;align-items:center;gap:5px}
+html:root body #app .lc-app .lc-legend i{width:6px;height:6px;border-radius:50%;background:var(--lc-color,#8b6ac5)}
+html:root body #app .lc-app .lc-warning:empty{display:none}
+html:root body #app .lc-app .lc-warning{padding:10px 13px;margin-bottom:12px;color:#94723a;background:#fff9ef;border-radius:10px;font-size:12px}
+html:root body #app .lc-app .lc-month-layout{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:18px;align-items:start}
+html:root body #app .lc-app .lc-month{border:1px solid #e9e3ef;border-radius:17px;overflow:hidden;background:#fff;min-width:0;box-shadow:0 6px 24px #3f255d04}
+html:root body #app .lc-app .lc-week-labels,html:root body #app .lc-app .lc-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+html:root body #app .lc-app .lc-week-labels{text-align:center;color:#a69ab2;font-size:10px;letter-spacing:.5px;font-weight:600;padding:13px 0;background:#fcfbfe;border-bottom:1px solid #eee9f3}
+html:root body #app .lc-app .lc-week-labels span:nth-last-child(-n+2){color:#bfb4ca}
+html:root body #app .lc-app .lc-day{height:158px;min-width:0;padding:7px 5px;border-right:1px solid #f1edf5;border-bottom:1px solid #f1edf5;background:#fff}
+html:root body #app .lc-app .lc-day:nth-child(7n){border-right:0}
+html:root body #app .lc-app .lc-day:nth-child(7n),html:root body #app .lc-app .lc-day:nth-child(7n-1){background:#fdfbff}
+html:root body #app .lc-app .lc-day.lc-other{background:#faf9fc}
+html:root body #app .lc-app .lc-day-number{display:grid;place-items:center;flex:none;width:25px;height:25px;min-height:25px;padding:0;margin:0 0 5px 3px;border:0;border-radius:50%;background:transparent;font-size:11px;font-weight:600;color:#91829e;box-shadow:none}
+html:root body #app .lc-app .lc-other .lc-day-number{color:#c4bbce}
+html:root body #app .lc-app .lc-today .lc-day-number{background:#7952d1;color:#fff;box-shadow:0 2px 6px #7952d130}
+html:root body #app .lc-app .lc-day.lc-selected{background:#f8f5fe;box-shadow:inset 0 2px #a98ae0}
+html:root body #app .lc-app .lc-day-events{display:grid;gap:4px;min-width:0}
+html:root body #app .lc-app .lc-day-dots{display:none}
+html:root body #app .lc-app .lc-event{--lc-color:#8a69c2;--lc-surface:#f3eefb;display:grid;grid-template-columns:32px minmax(0,1fr);gap:3px 9px;width:100%;max-width:100%;min-width:0;min-height:70px;text-align:left;padding:12px;margin:0 0 9px;border:1px solid #ece6f3;border-left:0;border-radius:12px;background:#fff;box-shadow:0 2px 4px #3b215b03;transition:box-shadow .15s,border-color .15s}
+html:root body #app .lc-app .lc-event:hover{box-shadow:0 4px 14px #3b215b10;border-color:#cdb7eb}
+html:root body #app .lc-app .lc-event-avatar{display:grid;place-items:center;grid-column:1;grid-row:1/3;width:32px;height:32px;border-radius:11px;background:var(--lc-surface);color:var(--lc-color);font-size:12px;font-weight:700;align-self:center}
+html:root body #app .lc-app .lc-event-time{grid-column:2;font-size:11px;font-weight:650;color:var(--lc-color);font-variant-numeric:tabular-nums;white-space:nowrap}
+html:root body #app .lc-app .lc-event-main{grid-column:2;display:grid;gap:2px;min-width:0}
+html:root body #app .lc-app .lc-event-main b{color:#493a57;font-size:13px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html:root body #app .lc-app .lc-event-main small{font-size:10px;color:#a297ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html:root body #app .lc-app .lc-status{grid-column:2;justify-self:start;font-size:9px;color:var(--lc-color);background:var(--lc-surface);border-radius:5px;padding:3px 6px;margin-top:3px}
+html:root body #app .lc-app .lc-event.lc-compact{display:grid;grid-template-columns:minmax(0,1fr);gap:3px;height:47px;min-height:0;margin:0;padding:6px 7px;background:var(--lc-surface);border:0;border-radius:7px;box-shadow:inset 2px 0 var(--lc-color);align-content:center}
+html:root body #app .lc-app .lc-compact .lc-event-time{grid-column:1;font-size:9px;line-height:1.2}
+html:root body #app .lc-app .lc-compact .lc-event-main{grid-column:1;display:flex;align-items:baseline;gap:5px;min-width:0}
+html:root body #app .lc-app .lc-compact .lc-event-main b{font-size:11px;line-height:1.2;min-width:0}
+html:root body #app .lc-app .lc-compact .lc-event-main small{font-size:8px;line-height:1.2;flex-shrink:1;min-width:0}
+html:root body #app .lc-app .lc-compact .lc-status,html:root body #app .lc-app .lc-compact .lc-event-avatar{display:none}
+html:root body #app .lc-app .lc-done{--lc-color:#4a9479;--lc-surface:#eef7f3}
+html:root body #app .lc-app .lc-live{--lc-color:#bd628b;--lc-surface:#f9edf3}
+html:root body #app .lc-app .lc-moved{--lc-color:#429ca3;--lc-surface:#edf7f8}
+html:root body #app .lc-app .lc-unpaid{--lc-color:#b69755;--lc-surface:#fbf6ea}
+html:root body #app .lc-app .lc-cancelled{--lc-color:#a59aaa;--lc-surface:#f3f0f5;opacity:.7}
+html:root body #app .lc-app .lc-group{--lc-color:#6489bf;--lc-surface:#eff4fc}
+html:root body #app .lc-app .lc-trial{--lc-color:#9c77b4;--lc-surface:#f5edf9}
+html:root body #app .lc-app .lc-more{min-height:15px;padding:1px 5px;border:0;background:transparent;color:#a38abd;font-size:9px;text-align:left}
+html:root body #app .lc-app .lc-selected-day{position:sticky;top:20px;min-width:0;padding:21px 15px 13px;border:1px solid #e9e2f0;border-radius:17px;background:linear-gradient(160deg,#f8f4fe,#fff 70%);box-shadow:0 6px 24px #3f255d04}
+html:root body #app .lc-app .lc-day-caption{font-size:8px;font-weight:700;letter-spacing:1.6px;color:#b09cc6;margin:0 0 10px 3px}
+html:root body #app .lc-app .lc-selected-day h3{font-size:16px;font-weight:650;color:#5f4773;line-height:1.4;margin:0 3px 19px;text-transform:capitalize}
+html:root body #app .lc-app .lc-selected-day h3 span{display:inline-grid;place-items:center;min-width:19px;height:19px;margin-left:7px;border-radius:6px;background:#e9dff7;color:#8a62bb;font-size:9px;vertical-align:middle}
+html:root body #app .lc-app .lc-empty-day{padding:26px 5px;text-align:center;font-size:11px;color:#b2a5bd}
+html:root body #app .lc-app .lc-agenda-day{margin-bottom:16px;padding:18px;border:1px solid var(--lc-line);border-radius:16px;background:white}
+html:root body #app .lc-app .lc-agenda-day h3,html:root body #app .lc-app .lc-week-day h3{font-size:13px;color:#8c789a;margin:0 0 14px;text-transform:capitalize}
+html:root body #app .lc-app .lc-week-picker{display:none}
+html:root body #app .lc-app .lc-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px}
+html:root body #app .lc-app .lc-week-day{min-width:0;min-height:250px;padding:13px 9px;border:1px solid var(--lc-line);border-radius:14px;background:white}
+html:root body #app .lc-app .lc-week-day .lc-event{grid-template-columns:minmax(0,1fr);padding:10px}
+html:root body #app .lc-app .lc-week-day .lc-event-avatar{display:none}
+html:root body #app .lc-app .lc-week-day .lc-event-time,html:root body #app .lc-app .lc-week-day .lc-event-main,html:root body #app .lc-app .lc-week-day .lc-status{grid-column:1}
+html:root body #app .lc-app .lc-empty,html:root body #app .lc-app .lc-loading{padding:48px 20px;text-align:center;color:#a494b0;border:1px dashed #e4dbea;border-radius:17px;background:#fcfaff}
+html:root body #app .lc-app .lc-empty>span{font-size:32px;color:#baa3d3}
+html:root body #app .lc-app .lc-empty h3{font-size:18px;margin:10px 0 7px}
+html:root body #app .lc-app .lc-empty p{font-size:12px}
+html:root body #app .lc-return{margin:0 0 16px;padding:9px 13px;border:1px solid #e6ddef;border-radius:11px;background:#fff;color:#765695;font:600 13px system-ui;cursor:pointer}
+@media(min-width:1600px){html:root body #app .lc-app .lc-month-layout{grid-template-columns:minmax(0,1fr) 310px}html:root body #app .lc-app .lc-compact .lc-event-main b{font-size:12px}html:root body #app .lc-app .lc-compact .lc-event-main small{font-size:9px}}
+@media(max-width:1250px){html:root body #app .lc-app .lc-month-layout{grid-template-columns:minmax(0,1fr)}html:root body #app .lc-app .lc-selected-day{position:static;margin-top:0}html:root body #app .lc-app .lc-week-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){
+html:root body #app .lc-app .lc-head{gap:9px;margin-bottom:14px}html:root body #app .lc-app .lc-head h2,html:root body #app .lc-app .lc-head small{display:none}html:root body #app .lc-app .lc-head p{font-size:10px}html:root body #app .lc-app .lc-head-actions{gap:5px}html:root body #app .lc-app .lc-head-actions button{padding:7px 8px;font-size:10px;min-height:34px}
+html:root body #app .lc-app .lc-toolbar{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}html:root body #app .lc-app .lc-period{display:grid;grid-template-columns:29px minmax(0,1fr) 29px auto;gap:3px}html:root body #app .lc-app .lc-period h3{min-width:0;margin:0;text-align:center;font-size:15px}html:root body #app .lc-app .lc-period [data-lc-prev],html:root body #app .lc-app .lc-period [data-lc-next]{width:29px}html:root body #app .lc-app .lc-period [data-lc-today]{margin-left:3px}
+html:root body #app .lc-app .lc-views{width:100%}html:root body #app .lc-app .lc-views button{flex:1;font-size:12px}
+html:root body #app .lc-app .lc-filters{grid-template-columns:minmax(0,1fr) 38px}html:root body #app .lc-app .lc-filters input{grid-column:1;grid-row:1;font-size:16px}html:root body #app .lc-app .lc-filters [data-lc-refresh]{grid-column:2;grid-row:1}html:root body #app .lc-app .lc-filters select{grid-column:1/-1;font-size:16px}
+html:root body #app .lc-app .lc-legend{font-size:9px;gap:7px 11px}
+html:root body #app .lc-app .lc-day{height:61px;min-height:0;padding:5px 2px}html:root body #app .lc-app .lc-day-number{margin:0 auto 5px}html:root body #app .lc-app .lc-day-events{display:none}html:root body #app .lc-app .lc-day-dots{display:flex;justify-content:center;gap:3px;align-items:center;min-height:6px}html:root body #app .lc-app .lc-day-dots i{width:4px;height:4px;border-radius:50%;background:var(--lc-color,#8a69c2)}html:root body #app .lc-app .lc-day-dots small{font-size:8px;color:#ab94bd}
+html:root body #app .lc-app .lc-selected-day{padding:17px 13px 9px}html:root body #app .lc-app .lc-month-layout{gap:13px}
+html:root body #app .lc-app .lc-week-picker{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-bottom:14px}html:root body #app .lc-app .lc-week-picker button{display:grid;justify-items:center;gap:4px;padding:8px 2px;min-height:62px}html:root body #app .lc-app .lc-week-picker small{font-size:9px}html:root body #app .lc-app .lc-week-picker b{font-size:16px}html:root body #app .lc-app .lc-week-picker i{width:4px;height:4px;border-radius:50%;background:#b39dd4}html:root body #app .lc-app .lc-week-picker [aria-pressed=true]{background:#eee6fa;border-color:#d4c1ee;color:#7c55b8}
+html:root body #app .lc-app .lc-week-grid{display:block}html:root body #app .lc-app .lc-week-day{display:none;min-height:0;padding:15px}html:root body #app .lc-app .lc-week-day.lc-week-selected{display:block}
+html:root body #app .lc-app .lc-week-day .lc-event{grid-template-columns:32px minmax(0,1fr)}html:root body #app .lc-app .lc-week-day .lc-event-avatar{display:grid}html:root body #app .lc-app .lc-week-day .lc-event-time,html:root body #app .lc-app .lc-week-day .lc-event-main,html:root body #app .lc-app .lc-week-day .lc-status{grid-column:2}
+}
+@media(prefers-reduced-motion:reduce){html:root body #app .lc-app *{transition:none!important}}
+
+/* The date disc is separate from site-wide button sizing and padding. */
+html:root body #app .lc-app .lc-month .lc-day{cursor:pointer}
+html:root body #app .lc-app .lc-month button.lc-day-number{
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ width:30px!important;min-width:30px!important;max-width:30px!important;
+ height:30px!important;min-height:30px!important;max-height:30px!important;
+ padding:0!important;border:0!important;box-sizing:border-box!important;
+ margin:0 0 5px 3px!important;background:transparent!important;box-shadow:none!important;
+ border-radius:50%!important;line-height:1!important;letter-spacing:normal!important;
+ overflow:visible!important;transform:none!important;text-indent:0!important;
+}
+html:root body #app .lc-app .lc-month .lc-date-disc{
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;
+ padding:0!important;margin:0!important;border:0!important;box-sizing:border-box!important;
+ border-radius:50%!important;font:600 11px/1 system-ui!important;
+ text-align:center!important;letter-spacing:normal!important;background:transparent;color:#91829e;
+}
+html:root body #app .lc-app .lc-month .lc-other .lc-date-disc{color:#c4bbce}
+html:root body #app .lc-app .lc-month .lc-today .lc-date-disc{color:#7952d1;background:#eee7fa}
+html:root body #app .lc-app .lc-month .lc-selected .lc-date-disc{background:#7952d1;color:#fff}
+html:root body #app .lc-app .lc-month .lc-day.lc-selected{background:#f8f5fe;box-shadow:inset 0 0 0 1px #cdbbe9}
+@media(max-width:650px){html:root body #app .lc-app .lc-month button.lc-day-number{margin:0 auto 3px!important}}

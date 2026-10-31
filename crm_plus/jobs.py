@@ -251,5 +251,5 @@ def register(application):
     if not jq:return
     # Minute dispatcher makes time changes effective immediately and uses an explicit configurable timezone.
     jq.run_repeating(brief_dispatcher,interval=60,first=5,name='crm_brief_dispatcher')
-    jq.run_repeating(timezone_migration_job,interval=300,first=20,name='timezone_migration_notifier')
+    jq.run_repeating(timezone_migration_job,interval=300,first=20,name='timezone_migration_notifier',job_kwargs={'misfire_grace_time':60,'coalesce':True,'max_instances':1})
     jq.run_repeating(messenger.delivery_job,interval=60,first=15,name='crm_messenger_delivery')

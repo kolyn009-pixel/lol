@@ -1,0 +1,90 @@
+/* Shared release foundation. Scoped to authenticated cabinet shells. */
+:root{--adelia-ink:#292639;--adelia-muted:#777287;--adelia-accent:#7655cc;--adelia-line:#e7e3ee;--adelia-surface:#fff;--adelia-canvas:#f5f4f9;--adelia-radius:16px}
+body.adelia-release-ui{color:var(--adelia-ink);background:var(--adelia-canvas);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.adelia-release-ui :is(.teacher-shell,.app-shell,#root) :is(button,input,select,textarea){font-family:inherit}
+.adelia-release-ui :is(.teacher-shell,.app-shell,#root) button{touch-action:manipulation;line-height:1.35}
+.adelia-release-ui :is(.teacher-shell,.app-shell,#root) :is(button,a,input,select,textarea):focus-visible{outline:3px solid #b9a1e8;outline-offset:3px}
+.adelia-release-ui :is(.teacher-shell,.app-shell,#root) :is(input,select,textarea){max-width:100%;border-color:var(--adelia-line);border-radius:11px;font-size:14px}
+.adelia-release-ui :is(.teacher-shell,.app-shell,#root) :is(input:not([type=checkbox]):not([type=radio]),select){min-height:42px}
+.adelia-release-ui :is(.teacher-shell,.app-shell,#root) :is(input[type=checkbox],input[type=radio]){accent-color:var(--adelia-accent)}
+.adelia-release-ui .teacher-shell>aside{background:#fdfcfe;border-right:1px solid var(--adelia-line)}
+.adelia-release-ui .teacher-shell nav button{border-radius:11px;font-size:13px;min-height:42px;margin-bottom:3px;transition:background .15s,color .15s}
+.adelia-release-ui .teacher-shell nav button.active{background:#eee7fb;color:#7151ab;box-shadow:inset 3px 0 #9373ce}
+.adelia-release-ui .teacher-shell nav .nav-label{font-size:10px;letter-spacing:1px;color:#9b91a9;margin-top:20px}
+.adelia-release-ui .teacher-shell>main>header h1{color:var(--adelia-ink);font-size:29px!important;font-weight:700;letter-spacing:-.7px}
+.adelia-release-ui .header-actions button{border-radius:11px;min-height:41px;font-size:12px!important}
+.adelia-release-ui :is(.teacher-shell,.app-shell) :is(.panel,.finance-card,.finance-panel,.receipt-card,.invoice-card,.lh-item,.student-card){border:1px solid var(--adelia-line);border-radius:var(--adelia-radius);background:#fff;box-shadow:0 4px 16px #36234d05}
+.adelia-release-ui :is(.teacher-shell,.app-shell) :is(.primary,.btn-primary,.new-hw){background:#7956cd;color:white;border-color:#7956cd;border-radius:11px;box-shadow:0 4px 10px #7956cd15}
+.adelia-release-ui :is(.teacher-shell,.app-shell) button:disabled{cursor:default;opacity:.55}
+.adelia-release-ui :is(.finance-tabs,.payments-tabs,.finance-periods){gap:5px;padding:5px;background:#edebf3;border:1px solid #e5e0ed;border-radius:12px}
+.adelia-release-ui :is(.finance-tabs,.payments-tabs,.finance-periods) button{font-size:12px;min-height:38px;padding:8px 13px;border-radius:9px;white-space:nowrap}
+.adelia-release-ui :is(.finance-tabs,.payments-tabs,.finance-periods) button.active{background:#fff;color:#7351ad;box-shadow:0 2px 6px #3d2d5d0a}
+.adelia-release-ui .finance-kpis article{padding:19px;border-radius:16px;border-color:var(--adelia-line)}
+.adelia-release-ui .finance-kpis article>span{font-size:12px;color:#8d829a}.adelia-release-ui .finance-kpis article strong{font-size:28px;letter-spacing:-.7px}.adelia-release-ui .finance-kpis article small{font-size:11px;line-height:1.5}
+.adelia-release-ui .invoice-main h3{font-size:16px}.adelia-release-ui .invoice-main p{font-size:12px;line-height:1.5}.adelia-release-ui .invoice-main>strong{font-size:22px}.adelia-release-ui .invoice-actions button{min-height:39px;font-size:12px}
+.adelia-release-ui .msg-sidebar{background:#fcfbfe;border-right:1px solid var(--adelia-line)}
+.adelia-release-ui .msg-conversations [data-conv]{border-radius:12px;min-height:73px;padding:12px 13px;border-color:transparent;box-shadow:none}
+.adelia-release-ui .msg-conversations [data-conv].active{background:#eee8f8;border-color:#e0d6ef}
+.adelia-release-ui :is(.msg-conversations,.msg-thread) :is(p,small){line-height:1.5}
+.adelia-release-ui #msgText{font-size:14px;line-height:1.6;min-height:76px;border-radius:13px;border-color:#e3ddeb;background:#fdfcfe;padding:13px 15px}
+.adelia-release-ui .msg-composer{background:#fff;border-top:1px solid var(--adelia-line)}
+.adelia-release-ui :is(.msg-bubble,.message-bubble){border-radius:16px;font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+.adelia-release-ui :is(.post-workspace,.post-progress-panel,.post-summary-panel){font-size:14px}
+.adelia-release-ui .post-workspace .panel{padding:20px;border-radius:18px}.adelia-release-ui .post-section-head h2{font-size:20px}.adelia-release-ui .post-summary-line span{font-size:12px}.adelia-release-ui .post-summary-line b{font-size:13px}
+.adelia-release-ui .post-workspace :is(button,select,input){font-size:13px;min-height:42px}.adelia-release-ui .post-workspace textarea{font-size:14px;line-height:1.6;padding:12px}
+.adelia-release-ui .post-finishbar{padding:13px 16px;border-radius:16px}.adelia-release-ui .post-finishbar b{font-size:13px}.adelia-release-ui .post-finishbar span{font-size:11px}
+.adelia-release-ui .lh-head h2{font-size:24px}.adelia-release-ui .lh-item{padding:17px}.adelia-release-ui .lh-grid{gap:17px}.adelia-release-ui .lh-item p{font-size:13px;line-height:1.6}
+.adelia-release-ui .fx-card{border:1px solid var(--adelia-line);border-radius:18px;box-shadow:0 4px 15px #36234d04}.adelia-release-ui .fx-card h3{font-size:19px}.adelia-release-ui .fx-card p{font-size:13px;line-height:1.6}.adelia-release-ui .fx-card .ux-actions button{font-size:12px;min-height:39px;border-radius:10px}
+.adelia-release-ui .app-shell .topbar{background:#fdfcfef2;border-bottom:1px solid var(--adelia-line);backdrop-filter:blur(12px)}
+.adelia-release-ui .app-shell .bottom-nav{background:#ffffffed;border-top:1px solid var(--adelia-line);backdrop-filter:blur(14px);padding-bottom:max(8px,env(safe-area-inset-bottom))}
+.adelia-release-ui .app-shell .nav-item.active{color:#7857b6;background:#f0eaf9;border-radius:11px}.adelia-release-ui .app-shell .nav-item small{font-size:11px}
+.au-network{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 28px);z-index:1200;display:flex;gap:10px;align-items:center;border:1px solid #e3ce9f;background:#fff7e8;border-radius:13px;box-shadow:0 7px 28px #3b2b3015;padding:12px 17px;color:#866733;font:12px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.au-network[hidden]{display:none}.au-network svg{width:21px;height:21px;flex-shrink:0}
+.au-about{width:min(540px,calc(100vw - 26px));max-height:calc(100dvh - 30px);overflow:auto;border:1px solid #e5dfed;border-radius:23px;padding:0;color:#3d324b;background:#fff;box-shadow:0 25px 90px #27183138;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.au-about::backdrop{background:#1f153b66;backdrop-filter:blur(5px)}.au-about header{display:flex;justify-content:space-between;align-items:center;padding:21px 24px;border-bottom:1px solid #eee9f5;background:#f7f3fc}.au-about header>div{display:flex;align-items:center;gap:12px}.au-about header img{width:42px;height:42px;border-radius:13px}.au-about h2{margin:0;font-size:22px;letter-spacing:-.5px}.au-about small{font-size:11px;color:#93869e}.au-about-body{padding:21px 24px}.au-about-body p{font-size:13px;color:#897a96;margin:0 0 13px}.au-about ul{list-style:none;padding:0;margin:12px 0 20px}.au-about li{padding:11px 0;border-bottom:1px solid #f0ecf5;display:flex;align-items:center;gap:12px;font-size:13px}.au-about li svg{width:20px;height:20px;color:#ab90cb;flex-shrink:0}.au-about button,.au-about a{font:inherit;font-size:12px;border:1px solid #e8e0f0;border-radius:10px;padding:10px 13px;background:#faf8fc;color:#7c6198;text-decoration:none;cursor:pointer;min-height:40px}.au-about button:focus-visible,.au-about a:focus-visible{outline:3px solid #a98bd2;outline-offset:3px}.au-about header>button{font-size:22px;padding:3px 12px}.au-about-actions{display:flex;gap:8px;flex-wrap:wrap}.au-about [data-au-native]{background:#7956c4;border-color:#7956c4;color:#fff}.au-about [role=status]{margin-top:12px;font-size:12px;color:#a36569}
+@media(max-width:1000px){.adelia-release-ui .finance-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.adelia-release-ui .header-actions{gap:7px}.adelia-release-ui .post-layout{grid-template-columns:1fr}}
+@media(max-width:650px){.adelia-release-ui .teacher-shell>main{padding-left:12px;padding-right:12px}.adelia-release-ui .teacher-shell>main>header h1{font-size:25px!important}.adelia-release-ui .header-actions{width:100%}.adelia-release-ui .header-actions button{flex:1;min-width:100px}.adelia-release-ui .finance-kpis article{padding:15px}.adelia-release-ui .finance-kpis article strong{font-size:25px}.adelia-release-ui .post-workspace .panel{padding:16px}.adelia-release-ui .post-finishbar{bottom:calc(9px + env(safe-area-inset-bottom))}.adelia-release-ui .fx-card .ux-actions{flex-wrap:wrap}.adelia-release-ui :is(.teacher-shell,.app-shell) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){font-size:16px}.au-network{bottom:calc(83px + env(safe-area-inset-bottom));font-size:11px}.au-about header,.au-about-body{padding:18px}.adelia-release-ui .msg-thread :is(button,input,textarea){max-width:100%}}
+@media(prefers-reduced-motion:reduce){.adelia-release-ui *{transition:none!important;scroll-behavior:auto!important}}
+/* Mobile hotfix: canonical off-canvas teacher navigation, no install overlays. */
+html:root body.adelia-release-ui #adelia-install-bar,html:root body.adelia-release-ui .pwa-workspace,html:root body.adelia-release-ui .v4-install{display:none!important}
+/* Installation remains available explicitly from the menu and About screen. */
+.au-menu-shade,.au-menu-close{display:none}
+@media(min-width:901px){html:root body.adelia-release-ui .clean-menu-toggle{display:none!important}}
+@media(max-width:900px){
+html:root body.adelia-release-ui{overflow-x:hidden}
+html:root body.adelia-release-ui .teacher-shell{display:block!important;grid-template-columns:minmax(0,1fr)!important;padding:0!important;width:100%!important;max-width:100%!important;min-width:0!important}
+html:root body.adelia-release-ui .teacher-shell>aside{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;bottom:0!important;width:min(320px,88vw)!important;max-width:88vw!important;height:100dvh!important;max-height:100dvh!important;transform:translateX(-105%)!important;visibility:hidden!important;display:flex!important;flex-direction:column!important;overflow-y:auto!important;overscroll-behavior:contain;z-index:1001!important;padding:calc(18px + env(safe-area-inset-top)) 15px calc(22px + env(safe-area-inset-bottom))!important;border-radius:0 20px 20px 0!important;background:#fdfcfe!important;box-sizing:border-box!important;box-shadow:none!important;transition:transform .18s ease,visibility .18s ease!important}
+html:root body.adelia-release-ui.menu-open{overflow:hidden!important}
+html:root body.adelia-release-ui.menu-open:after{display:none!important}
+html:root body.adelia-release-ui.menu-open .teacher-shell>aside{transform:translateX(0)!important;visibility:visible!important;box-shadow:12px 0 45px #20173630!important}
+html:root body.adelia-release-ui .teacher-shell>aside .brand{padding-right:32px!important;min-height:70px!important;margin-bottom:17px!important}
+html:root body.adelia-release-ui .teacher-shell>aside .brand img{width:42px!important;height:42px!important}
+html:root body.adelia-release-ui .teacher-shell>aside .brand b{font-size:20px!important}
+html:root body.adelia-release-ui .teacher-shell>aside .brand span{font-size:11px!important}
+html:root body.adelia-release-ui .teacher-shell>main{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;padding:0 14px calc(24px + env(safe-area-inset-bottom))!important;box-sizing:border-box!important}
+html:root body.adelia-release-ui .teacher-shell>main>header{display:grid!important;grid-template-columns:40px minmax(0,1fr)!important;grid-template-rows:auto auto!important;align-items:center!important;gap:10px!important;padding:14px 0!important;margin:0 0 14px!important;min-height:0!important;position:relative!important}
+html:root body.adelia-release-ui .teacher-shell>main>header>div:first-of-type{grid-column:2!important;grid-row:1!important;min-width:0!important}
+html:root body.adelia-release-ui .teacher-shell>main>header h1{font-size:25px!important;line-height:1.2!important;margin:0!important}
+html:root body.adelia-release-ui .teacher-shell>main>header small{font-size:10px!important}
+html:root body.adelia-release-ui .clean-menu-toggle{display:inline-grid!important;place-items:center!important;flex:0 0 40px!important;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;padding:6px!important;border:1px solid #e2dbea!important;border-radius:11px!important;background:#fff!important;color:#8060b4!important;font-size:21px!important;grid-column:1!important;grid-row:1!important;order:-1}
+html:root body.adelia-release-ui .header-actions{display:flex!important;grid-column:1/-1!important;grid-row:2!important;flex-wrap:wrap!important;flex:1 1 100%!important;gap:7px!important;margin:0!important;width:100%!important}
+html:root body.adelia-release-ui .header-actions button{flex:1 1 100px!important;min-width:0!important;min-height:38px!important;font-size:12px!important;padding:8px 10px!important}
+html:root body.adelia-release-ui #app{width:100%!important;min-width:0!important;max-width:100%!important;margin:0!important;padding:0!important}
+html:root body.adelia-release-ui .au-menu-shade:not([hidden]){display:block;position:fixed;inset:0;width:100%;height:100dvh;border:0;border-radius:0;background:#21173360;backdrop-filter:blur(3px);z-index:1000}
+html:root body.adelia-release-ui .au-menu-close{display:grid;place-items:center;position:absolute;right:13px;top:calc(14px + env(safe-area-inset-top));height:34px;width:34px;border:1px solid #e8e0ef;border-radius:10px;background:#f8f5fc;color:#9278b0;font-size:25px;z-index:1}
+}
+
+@media(max-width:600px){
+html:root body.adelia-release-ui .teacher-shell>main>header .header-actions{gap:6px!important}
+html:root body.adelia-release-ui .teacher-shell>main>header .header-actions>.v3-tools{flex:1 1 140px!important;min-width:0!important}
+html:root body.adelia-release-ui .teacher-shell>main>header .header-actions>.v3-tools button{width:100%!important}
+html:root body.adelia-release-ui .teacher-shell>main>header .teacher-local-clock{min-width:70px!important;flex:0 1 84px!important;padding:6px 10px!important}
+html:root body.adelia-release-ui #app .today-command-main{padding:18px!important}
+html:root body.adelia-release-ui #app .today-next{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:14px!important}
+html:root body.adelia-release-ui #app .today-next>div{min-width:0!important;margin:0!important;padding:0!important}
+html:root body.adelia-release-ui #app .today-next h2{font-size:24px!important;line-height:1.25!important}
+html:root body.adelia-release-ui #app .today-next-time{justify-items:start!important;gap:10px!important}
+html:root body.adelia-release-ui #app .today-command-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
+html:root body.adelia-release-ui #app .today-command-actions button{min-height:100px!important;padding:12px!important;gap:7px!important;justify-content:space-between!important}
+html:root body.adelia-release-ui #app .today-command-actions small{display:none!important}
+html:root body.adelia-release-ui #app .today-command-actions span{font-size:12px!important;line-height:1.35!important}
+html:root body.adelia-release-ui #app .today-command-actions b{font-size:26px!important;line-height:1.1!important}
+}

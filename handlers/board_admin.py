@@ -168,6 +168,8 @@ def install(application):
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
     ):
+        if context.user_data is None or not update.effective_user:
+            return
         if context.user_data.get(STATE_KEY):
             await receive(update, context)
             raise ApplicationHandlerStop

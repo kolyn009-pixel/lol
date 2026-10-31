@@ -10,7 +10,7 @@ from __future__ import annotations
 import database
 from web_backend import message_delivery
 
-_PAID_ACCESS={"PAID","FREE","WAIVED","COVERED"}
+_PAID_ACCESS={"PAID","FREE","WAIVED","COVERED","RESERVED_BALANCE"}
 
 def ensure_schema():
     c=database.connect();c.execute("""CREATE TABLE IF NOT EXISTS lesson_link_deliveries(
@@ -64,7 +64,7 @@ def send_individual(lesson_id):
         if not row["meeting_url"]:return {"status":"skipped","reason":"meeting_url_missing"}
         text=_text(title,row["meeting_url"],row["board_url"])
     else:text=_payment_text(title,row["board_url"])
-    result=message_delivery.send_teacher_reply(uid,text,channels=['TELEGRAM','VK'])
+    result=message_delivery.send_teacher_reply(uid,text,channels=message_delivery._enabled_channels(database.get_user(uid)))
     if result.get("status")=="ok":
         _mark_sent("INDIVIDUAL",lid,uid,result.get("message_id"))
         _notify_teacher_vk(lid, uid, text, result, paid)
@@ -76,7 +76,7 @@ def send_group(lesson_id):
     for r in rows:
         uid=int(r["user_id"])
         if _already_sent("GROUP",lid,uid):out.append({"user_id":uid,"status":"already_sent"});continue
-        result=message_delivery.send_teacher_reply(uid,_text(f"Группа: {lesson['name']}",lesson["telemost_join_url"],lesson["board_url"]))
+        result=message_delivery.send_teacher_reply(uid,_text(f"Группа: {lesson['name']}",lesson["telemost_join_url"],lesson["board_url"]),channels=message_delivery._enabled_channels(database.get_user(uid)))
         if result.get("status")=="ok":_mark_sent("GROUP",lid,uid,result.get("message_id"));out.append({"user_id":uid,**result})
     return {"status":"ok","deliveries":out}
 def send_open_event(event_id):
@@ -86,6 +86,7 @@ def send_open_event(event_id):
     for r in rows:
         uid=int(r["user_id"])
         if _already_sent("OPEN_EVENT",eid,uid):out.append({"user_id":uid,"status":"already_sent"});continue
-        result=message_delivery.send_teacher_reply(uid,_text(event["title"],event["telemost_join_url"],event["board_url"]))
+        result=message_delivery.send_teacher_reply(uid,_text(event["title"],event["telemost_join_url"],event["board_url"]),channels=message_delivery._enabled_channels(database.get_user(uid)))
         if result.get("status")=="ok":_mark_sent("OPEN_EVENT",eid,uid,result.get("message_id"));out.append({"user_id":uid,**result})
     return {"status":"ok","deliveries":out}
+

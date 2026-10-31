@@ -1,0 +1,23 @@
+/* Chat rows must size to content; inherited grid rows compressed previews. */
+html:root body #app .msg-conversations{display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:0!important;overflow-y:auto!important;padding:6px 10px!important;min-height:0!important}
+html:root body #app .msg-person{display:grid!important;grid-template-columns:40px minmax(0,1fr) 44px!important;grid-template-rows:auto!important;align-items:center!important;flex:0 0 auto!important;height:auto!important;min-height:88px!important;width:100%!important;margin:0!important;padding:14px 10px!important;gap:12px!important;border:0!important;border-bottom:1px solid #eeebf3!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;text-align:left!important;overflow:visible!important;box-sizing:border-box!important}
+html:root body #app .msg-person.active{background:#f0ebfb!important;border-radius:10px!important;border-bottom-color:transparent!important}
+html:root body #app .msg-person:hover{background:#f6f3fb!important}
+html:root body #app .msg-person-main{display:flex!important;flex-direction:column!important;justify-content:center!important;gap:3px!important;min-width:0!important;position:static!important;transform:none!important;align-self:center!important}
+html:root body #app .msg-person-main b{display:block!important;margin:0!important;font-size:14px!important;line-height:21px!important;min-height:21px!important;font-weight:650!important;color:#302a3c!important;white-space:nowrap!important;text-overflow:ellipsis!important;overflow:hidden!important}
+html:root body #app .msg-person-main small{display:block!important;margin:0!important;font-size:12px!important;line-height:18px!important;min-height:18px!important;color:#756b82!important;white-space:nowrap!important;text-overflow:ellipsis!important;overflow:hidden!important}
+html:root body #app .msg-person-main em{display:block!important;font-size:11px!important;line-height:16px!important;min-height:16px!important;font-style:normal!important;color:#8a8095!important;margin:0!important}
+html:root body #app .msg-person-side{display:flex!important;flex-direction:column!important;align-items:flex-end!important;justify-content:center!important;align-self:center!important;gap:8px!important;min-width:0!important}
+html:root body #app .msg-person-side time{font-size:11px!important;line-height:16px!important;color:#8a8095!important;white-space:nowrap!important}
+html:root body #app .msg-person .msg-avatar{width:40px!important;height:40px!important;background:#ede6fa!important;color:#7150ba!important;border-radius:12px!important;font-size:17px!important;box-shadow:none!important;align-self:center!important}
+html:root body #app .msg-list-head{padding:16px 18px 10px!important}
+html:root body #app .msg-list-head b{font-size:17px!important;line-height:1.4!important}
+html:root body #app .msg-filterbar{padding:4px 14px 10px!important;gap:6px!important}
+html:root body #app .msg-filterbar button{border:0!important;box-shadow:none!important;background:#f5f3f8!important;border-radius:8px!important;padding:8px 12px!important;font-size:12px!important;line-height:18px!important;min-height:34px!important}
+html:root body #app .msg-filterbar button.active{background:#eae2f8!important;color:#6845ac!important}
+html:root body #app .msg-bubble{border:0!important;border-radius:16px 16px 16px 5px!important;box-shadow:none!important;max-width:86%!important;background:#fff!important}
+html:root body #app .msg-bubble.out{background:#eee7f9!important;border-radius:16px 16px 5px 16px!important}
+html:root body #app .msg-bubble footer{display:flex!important;align-items:center!important;flex-wrap:wrap!important;gap:8px!important;font-size:11px!important;line-height:1.5!important}
+html:root body #app .msg-thread-actions .ghost{box-shadow:none!important;background:#faf9fc!important;border:1px solid #e9e4f0!important;border-radius:8px!important;font-size:12px!important;line-height:1.4!important;min-height:36px!important}
+html:root body .teacher-message-shortcut{display:none!important;visibility:hidden!important;pointer-events:none!important}
+

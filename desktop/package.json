@@ -1,13 +1,13 @@
 {
   "name": "adelia-desktop",
-  "version": "0.3.0-beta.2",
+  "version": "0.3.1",
   "private": true,
   "description": "Аделия — приложение для обучения и преподавания",
   "main": "bootstrap.js",
   "scripts": {
     "sync:icon": "node generate_assets.js",
     "start": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron .",
-    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js && node student_timezone_selftest.js && node teacher_timezone_selftest.js && node current_features_selftest.cjs",
+    "selftest": "npm run sync:icon && node verify_icon.js && node sync_role_assets.js && node selftest.js && node student_timezone_selftest.js && node teacher_timezone_selftest.js && node current_features_selftest.cjs && node mac_dmg_selftest.cjs && node meeting_browser_selftest.cjs && node board_account_selftest.cjs",
     "dist": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder",
     "dist:win": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --win nsis --x64",
     "dist:mac": "node set_build_identity.js && npm run sync:icon && node verify_icon.js && node sync_role_assets.js && electron-builder --mac dmg zip",
@@ -21,7 +21,8 @@
     "electron": "38.0.0",
     "electron-builder": "26.0.12",
     "pngjs": "7.0.0",
-    "png2icons": "2.0.1"
+    "png2icons": "2.0.1",
+    "linkedom": "0.18.14"
   },
   "build": {
     "appId": "ru.adeliatutor.desktop",
@@ -64,7 +65,11 @@
       "build/icon.png",
       "build/icon.icns",
       "build/icon.ico",
-      "build/icon-macos.png"
+      "build/icon-macos.png",
+      "mac_dmg_updates.js",
+      "lesson_room.js",
+      "meeting_browser.js",
+      "board_account.js"
     ],
     "directories": {
       "output": "dist",
@@ -81,8 +86,8 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://adeliatutor.ru/desktop-updates/beta/",
-        "channel": "beta"
+        "url": "https://adeliatutor.ru/desktop-updates/stable/",
+        "channel": "latest"
       }
     ],
     "win": {

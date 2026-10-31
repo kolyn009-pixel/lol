@@ -1,0 +1,8 @@
+{
+  "web_backend/homework_delivery_worker.py": [
+    {
+      "old": "def deliver(item):\n    recipient=str(item.get('recipient_type') or '').upper();text=_with_action(item);uid=item.get('user_id')\n    if recipient=='STUDENT':\n        if uid is None:return False,'student_id_missing'\n        result=send_student(int(uid),text,telegram=True,vk=True);return any(result.values()),f\"telegram={result.get('telegram')} vk={result.get('vk')}\"\n    if recipient=='TEACHER':\n        ids=_teacher_ids()\n        if not ids:return False,'teacher_recipient_missing'\n        delivered=False;parts=[]\n        for teacher_id in ids:\n            result=send_student(teacher_id,text,telegram=True,vk=True);delivered=delivered or any(result.values());parts.append(f\"{teacher_id}:tg={result.get('telegram')},vk={result.get('vk')}\")\n        return delivered,'; '.join(parts)\n    return False,'unsupported_recipient'\n",
+      "new": "def deliver(item):\n    from web_backend.homework_channel_delivery import deliver as deliver_channels\n    kind=str(item.get('recipient_type') or '').upper()\n    if kind=='STUDENT':\n        if item.get('user_id') is None:return False,'student_id_missing'\n        ids=[int(item['user_id'])]\n    elif kind=='TEACHER':ids=_teacher_ids()\n    else:return False,'unsupported_recipient'\n    if not ids:return False,'teacher_recipient_missing'\n    return deliver_channels(item,_with_action(item),ids)\n"
+    }
+  ]
+}

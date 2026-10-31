@@ -1,0 +1,18 @@
+{
+  "web_backend/receipt_tools_api.py": [
+    {
+      "old": "        if u.path!='/api/teacher/finance/receipt/details':return super().do_GET()",
+      "new": "        if u.path in {'/api/teacher/finance/payment/trace','/api/teacher/finance/payment/journal'}:\n            if not self._teacher():return self._json(401,{'error':'unauthorized'})\n            from web_backend import payment_history\n            try:\n                q=parse_qs(u.query)\n                result=payment_history.trace(q) if u.path.endswith('/trace') else payment_history.journal(q.get('group_id',[None])[0])\n                return self._json(200,result)\n            except (ValueError,TypeError):return self._json(409,{'error':'history_not_found'})\n            except Exception as e:\n                print('[web-api] payment history:',type(e).__name__,flush=True);return self._json(500,{'error':'server_error'})\n        if u.path!='/api/teacher/finance/receipt/details':return super().do_GET()"
+    }
+  ],
+  "web/teacher_finance.js": [
+    {
+      "old": "✓ Занятие оплачено</button>",
+      "new": "Отметить оплату</button>"
+    },
+    {
+      "old": "+'</span></article>'}\n",
+      "new": "+((paid&&!free)?(window.AdeliaPaymentHistory?.lessonButton(l.id)||''):'')+'</span></article>'}\n"
+    }
+  ]
+}

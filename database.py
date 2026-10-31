@@ -8051,187 +8051,163 @@ def charge_reserved_lesson(
 # MANUAL PAYMENT
 # ============================================================
 
-def confirm_manual_lesson_payment(
-    lesson_id,
-    amount=None
-):
+def confirm_manual_lesson_payment(lesson_id,amount=None,*,actor_id=None,source='LEGACY'):
+    conn=connect()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        lesson=conn.execute('SELECT * FROM lessons WHERE id=?',(int(lesson_id),)).fetchone()
+        if not lesson:raise ValueError('lesson_not_found')
+        if str(lesson['lesson_status'] or '').upper() in {'CANCELLED','REJECTED'}:raise ValueError('lesson_not_payable')
+        if lesson['payment_status']=='PAID' and lesson['payment_id'] and lesson['package_id']:
+            conn.rollback();return int(lesson['payment_id']),int(lesson['package_id'])
+        if lesson['payment_status']!='AWAITING_PAYMENT':raise ValueError('lesson_not_awaiting_payment')
+        if conn.execute("SELECT 1 FROM payments WHERE lesson_id=? AND status IN ('WAITING','RECEIPT_SENT','PAID')",(int(lesson_id),)).fetchone():raise ValueError('linked_invoice_requires_review')
+        amount=int(lesson['price'] if amount in (None,'') else amount)
+        if amount<=0:raise ValueError('positive_payment_required')
+        cursor=conn.cursor()
+        cursor.execute("""
+            INSERT INTO payments (
 
-    lesson = get_lesson(
-        lesson_id
-    )
+                user_id,
 
-    if lesson is None:
+                study_goal,
+                subject,
 
-        raise ValueError(
-            "Занятие не найдено."
+                payment_type,
+
+                lessons_count,
+
+                price_per_lesson,
+
+                subtotal,
+
+                discount_percent,
+                package_discount_amount,
+
+                promo_discount_amount,
+
+                total_amount,
+
+                status,
+
+                created_at,
+                confirmed_at
+            )
+
+            VALUES (
+                ?,
+                ?, ?,
+                'MANUAL_SINGLE',
+                1,
+                ?,
+                ?,
+                0,
+                0,
+                0,
+                ?,
+                'PAID',
+                ?,
+                ?
+            )
+        """, (
+            lesson["user_id"],
+            lesson["study_goal"],
+            lesson["subject"],
+            int(amount),
+            int(amount),
+            int(amount),
+            now_iso(),
+            now_iso()
+        ))
+
+        payment_id = (
+            cursor.lastrowid
         )
 
-    if (
-        lesson[
-            "payment_status"
-        ] != "AWAITING_PAYMENT"
-    ):
+        cursor.execute("""
+            INSERT INTO lesson_packages (
 
-        raise ValueError(
-            "Занятие не ожидает оплату."
-        )
+                payment_id,
 
-    if amount is None:
+                user_id,
 
-        amount = (
-            lesson["price"]
-        )
+                study_goal,
+                subject,
 
-    conn = connect()
-    cursor = conn.cursor()
+                lessons_total,
+                lessons_used,
 
-    cursor.execute(
-        "BEGIN IMMEDIATE"
-    )
+                price_per_lesson,
 
-    cursor.execute("""
-        INSERT INTO payments (
+                discount_percent,
 
-            user_id,
+                amount_paid,
 
-            study_goal,
-            subject,
+                status,
 
-            payment_type,
+                source_type,
 
-            lessons_count,
+                created_at
+            )
 
-            price_per_lesson,
-
-            subtotal,
-
-            discount_percent,
-            package_discount_amount,
-
-            promo_discount_amount,
-
-            total_amount,
-
-            status,
-
-            created_at,
-            confirmed_at
-        )
-
-        VALUES (
-            ?,
-            ?, ?,
-            'MANUAL_SINGLE',
-            1,
-            ?,
-            ?,
-            0,
-            0,
-            0,
-            ?,
-            'PAID',
-            ?,
-            ?
-        )
-    """, (
-        lesson["user_id"],
-        lesson["study_goal"],
-        lesson["subject"],
-        int(amount),
-        int(amount),
-        int(amount),
-        now_iso(),
-        now_iso()
-    ))
-
-    payment_id = (
-        cursor.lastrowid
-    )
-
-    cursor.execute("""
-        INSERT INTO lesson_packages (
-
+            VALUES (
+                ?,
+                ?,
+                ?, ?,
+                1,
+                1,
+                ?,
+                0,
+                ?,
+                'USED',
+                'PAID',
+                ?
+            )
+        """, (
             payment_id,
+            lesson["user_id"],
+            lesson["study_goal"],
+            lesson["subject"],
+            int(amount),
+            int(amount),
+            now_iso()
+        ))
 
-            user_id,
-
-            study_goal,
-            subject,
-
-            lessons_total,
-            lessons_used,
-
-            price_per_lesson,
-
-            discount_percent,
-
-            amount_paid,
-
-            status,
-
-            source_type,
-
-            created_at
+        package_id = (
+            cursor.lastrowid
         )
 
-        VALUES (
-            ?,
-            ?,
-            ?, ?,
-            1,
-            1,
-            ?,
-            0,
-            ?,
-            'USED',
-            'PAID',
-            ?
-        )
-    """, (
-        payment_id,
-        lesson["user_id"],
-        lesson["study_goal"],
-        lesson["subject"],
-        int(amount),
-        int(amount),
-        now_iso()
-    ))
+        cursor.execute("""
+            UPDATE lessons
 
-    package_id = (
-        cursor.lastrowid
-    )
+            SET
+                payment_status = 'PAID',
 
-    cursor.execute("""
-        UPDATE lessons
+                payment_id = ?,
 
-        SET
-            payment_status = 'PAID',
+                package_id = ?,
 
-            payment_id = ?,
+                charged = 1,
 
-            package_id = ?,
+                payment_deadline = NULL,
 
-            charged = 1,
+                updated_at = ?
 
-            payment_deadline = NULL,
+            WHERE id = ?
+        """, (
+            payment_id,
+            package_id,
+            now_iso(),
+            lesson_id
+        ))
 
-            updated_at = ?
-
-        WHERE id = ?
-    """, (
-        payment_id,
-        package_id,
-        now_iso(),
-        lesson_id
-    ))
-
-    conn.commit()
-    conn.close()
-
-    return (
-        payment_id,
-        package_id
-    )
+        cursor.execute('UPDATE payments SET lesson_id=? WHERE id=?',(int(lesson_id),int(payment_id)))
+        conn.execute('CREATE TABLE IF NOT EXISTS lesson_payment_confirmations(lesson_id INTEGER PRIMARY KEY,payment_id INTEGER UNIQUE NOT NULL,actor_id INTEGER,source TEXT NOT NULL,created_at TEXT NOT NULL)')
+        conn.execute('INSERT INTO lesson_payment_confirmations VALUES(?,?,?,?,?)',(int(lesson_id),int(payment_id),actor_id,str(source)[:40],now_iso()))
+        conn.commit();return int(payment_id),int(package_id)
+    except BaseException:
+        conn.rollback();raise
+    finally:conn.close()
 
 
 def charge_admin_lesson_from_balance(

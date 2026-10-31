@@ -30,8 +30,10 @@ def _clear_reminders(lesson_id):
 
 def _sync_external(lesson_id, lesson):
     from integrations import lesson_sync
-    if _external_should_exist(lesson):
-        result = lesson_sync.sync_lesson(int(lesson_id), google=True, telemost=True)
+    from core.calendar_policy import should_keep_lesson_event
+    if should_keep_lesson_event(lesson):
+        result = lesson_sync.sync_lesson(int(lesson_id), google=True,
+                                        telemost=_external_should_exist(lesson))
     else:
         result = lesson_sync.cancel_lesson(int(lesson_id))
     failures = []

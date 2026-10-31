@@ -7,7 +7,12 @@ GET_PATHS |= {'/api/teacher/learning/help','/api/student/learning/help','/api/te
 POST_PATHS={f'/api/teacher/learning/{action}' for action in ('summary','error','plan','offer')} | {f'/api/student/learning/{action}' for action in ('wait','wait/close','offer/respond')}
 POST_PATHS |= {'/api/student/learning/help','/api/teacher/learning/help/close'}
 
-class LearningHubMixin:
+# ADELIA OLYMPIAD ROUTES 20261029
+from web_backend.olympiad_api import OlympiadMixin, GET_PATHS as OLYMPIAD_GET, POST_PATHS as OLYMPIAD_POST
+GET_PATHS |= OLYMPIAD_GET
+POST_PATHS |= OLYMPIAD_POST
+
+class LearningHubMixin(OlympiadMixin):
     def _learning_identity(self, role, requested=None):
         if role=='teacher':
             if not self._teacher():raise PermissionError('unauthorized')
@@ -22,6 +27,7 @@ class LearningHubMixin:
         return _assert_link(int(auth['id']),int(requested))
 
     def learning_get(self,path,q):
+        if path in OLYMPIAD_GET:return self.olympiad_get(path,q)
         role=path.split('/')[2]
         try:
             uid=self._learning_identity(role,q.get('user_id',[None])[0])
@@ -40,6 +46,7 @@ class LearningHubMixin:
             return self._json(500,{'error':'server_error'})
 
     def learning_post(self,path):
+        if path in OLYMPIAD_POST:return self.olympiad_post(path)
         if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
         role=path.split('/')[2]
         try:
@@ -63,3 +70,4 @@ class LearningHubMixin:
         except Exception as exc:
             print('[learning-hub] POST error:',type(exc).__name__,flush=True)
             return self._json(500,{'error':'server_error'})
+

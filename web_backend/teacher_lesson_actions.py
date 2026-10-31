@@ -4,6 +4,7 @@ from datetime import datetime,timedelta
 import database
 from final_features import slot_change
 from web_backend import push_events
+from core.lesson_reschedule_details import message as move_message, previous as move_previous
 
 def _lesson(lesson_id):
     lesson=database.get_lesson(int(lesson_id))
@@ -73,7 +74,15 @@ def propose_move(lesson_id,desired_start,teacher_id,note=None):
     duration=int(lesson['duration_minutes'] or 60);end=start+timedelta(minutes=duration);rid=slot_change.create_request(int(lesson['user_id']),int(lesson_id),start,end,requested_by=int(teacher_id) if teacher_id else None,note=str(note or 'TEACHER_WEB_REQUEST')[:300]);req=slot_change.get_request(rid)
     if not req:raise ValueError('reschedule_request_not_found')
     if not req['occupant_lesson_id']:
-        moved=slot_change.move_to_requested(rid);slot_change.set_status(rid,'APPLIED',admin_preapproved_by=int(teacher_id),admin_final_by=int(teacher_id));push_events.student_and_parents(int(lesson['user_id']),'🔁 Занятие перенесено',f'Новое время: {start.strftime("%d.%m в %H:%M")}.',f'/app/lesson/?id={int(lesson_id)}','/app/parent/',f'teacher-move-{int(lesson_id)}',{'type':'schedule','lesson_id':int(lesson_id),'reason':'teacher_reschedule'},mirror_messengers=True);return {'status':'applied','request_id':int(rid),'lesson_id':int(lesson_id),'new_start':moved['start_time'] if moved else start.isoformat()}
+        moved=slot_change.move_to_requested(rid)
+        slot_change.set_status(rid,'APPLIED',admin_preapproved_by=int(teacher_id),admin_final_by=int(teacher_id))
+        new_id=int(moved['id'])
+        push_events.student_and_parents(int(lesson['user_id']),'🔁 Занятие перенесено',
+            move_message(lesson,moved),f'/app/lesson/?id={new_id}','/app/parent/',
+            f'teacher-move-{rid}',{'type':'schedule','lesson_id':new_id,
+            'previous_lesson_id':int(lesson_id),'reason':'teacher_reschedule'},mirror_messengers=True)
+        return {'status':'applied','request_id':int(rid),'lesson_id':new_id,
+                'previous_lesson_id':int(lesson_id),'new_start':moved['start_time']}
     slot_change.set_status(rid,'WAITING_OCCUPANT',admin_preapproved_by=int(teacher_id));mode=str(req['exchange_mode'] or 'SWAP').upper();occupant_id=int(req['occupant_student_id'])
     if mode=='SHIFT' and req['occupant_proposed_start']:
         proposed=datetime.fromisoformat(str(req['occupant_proposed_start']));body=f'Чтобы освободить время для другого занятия, преподаватель предлагает сдвинуть твоё занятие на {proposed.strftime("%d.%m в %H:%M")}. Согласиться или отказаться можно в Аделии.'
@@ -112,5 +121,5 @@ def finalize_move(request_id,teacher_id):
     slot_change.set_status(rid,'APPLIED',admin_final_by=tid)
     for item in (first,second):
         if not item:continue
-        push_events.student_and_parents(int(item['user_id']),'🔁 Время занятия изменено',f'Новое время: {datetime.fromisoformat(str(item["start_time"])).strftime("%d.%m в %H:%M")}.',f'/app/lesson/?id={int(item["id"])}','/app/parent/',f'exchange-applied-{rid}-{int(item["id"])}',{'type':'schedule','lesson_id':int(item['id']),'request_id':rid},mirror_messengers=True)
+        push_events.student_and_parents(int(item['user_id']),'🔁 Время занятия изменено',move_message(move_previous(item) or item,item),f'/app/lesson/?id={int(item["id"])}','/app/parent/',f'exchange-applied-{rid}-{int(item["id"])}',{'type':'schedule','lesson_id':int(item['id']),'request_id':rid},mirror_messengers=True)
     return {'status':'ok','request_id':rid,'already_applied':False,'lesson_ids':[int(first['id']),int(second['id'])]}

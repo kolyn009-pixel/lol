@@ -147,4 +147,4 @@ def register(application):
     if jq:
         names = {job.name for job in jq.jobs()}
         if "public_trial_notify" not in names:
-            jq.run_repeating(dispatch_job, interval=15, first=5, name="public_trial_notify")
+            jq.run_repeating(dispatch_job, interval=15, first=5, name="public_trial_notify", job_kwargs={"misfire_grace_time":30,"coalesce":True,"max_instances":1})

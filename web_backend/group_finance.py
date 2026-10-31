@@ -52,14 +52,12 @@ def mark_receipt_sent(payment_id,receipt_ref=None):
  if not cur.rowcount:raise ValueError('group_payment_not_pending')
  return {'status':'ok','payment_id':pid}
 def approve_payment(payment_id,teacher_id):
- ensure_schema();pid=int(payment_id);now=_now();c=database.connect();p=c.execute("SELECT * FROM group_payments WHERE id=?",(pid,)).fetchone()
- if not p:c.close();raise ValueError('group_payment_not_found')
- if p['status']=='PAID':c.close();return {'status':'ok','payment_id':pid,'already_paid':True}
- if p['status'] not in {'PENDING','RECEIPT_SENT'}:c.close();raise ValueError('group_payment_not_approvable')
- c.execute("UPDATE group_payments SET status='PAID',confirmed_at=? WHERE id=?",(now,pid));sid=None
- if p['payment_kind']=='PACKAGE':
-  opt=c.execute("SELECT validity_days FROM group_package_options WHERE id=?",(p['package_option_id'],)).fetchone();expires=(datetime.fromisoformat(now)+__import__('datetime').timedelta(days=int(opt['validity_days']))).isoformat(timespec='seconds') if opt and opt['validity_days'] else None;cur=c.execute("INSERT INTO group_subscriptions(group_id,user_id,source_payment_id,lessons_total,lessons_remaining,status,starts_at,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,'ACTIVE',?,?,?,?)",(int(p['group_id']),int(p['user_id']),pid,int(p['lessons_count']),int(p['lessons_count']),now,expires,now,now));sid=int(cur.lastrowid)
- c.commit();c.close();return {'status':'ok','payment_id':pid,'subscription_id':sid,'approved_by':int(teacher_id)}
+ ensure_schema();c=database.connect()
+ try:p=c.execute('SELECT group_id,total_amount FROM group_payments WHERE id=?',(int(payment_id),)).fetchone()
+ finally:c.close()
+ if not p:raise ValueError('group_payment_not_found')
+ from web_backend.group_finance_admin import confirm
+ return confirm(p['group_id'],int(payment_id),int(teacher_id),p['total_amount'])
 def _active_subscription_row(c,group_id,user_id):
  now=_now();return c.execute("SELECT * FROM group_subscriptions WHERE group_id=? AND user_id=? AND status='ACTIVE' AND lessons_remaining>0 AND (expires_at IS NULL OR expires_at>?) AND (paused_until IS NULL OR paused_until<=? OR paused_from>?) ORDER BY id LIMIT 1",(int(group_id),int(user_id),now,now,now)).fetchone()
 def financial_status_for_lesson(lesson_id,user_id):

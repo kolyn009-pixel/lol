@@ -48,6 +48,14 @@ def create_request(user_id,lesson_id,desired_start,note=None):
     for req in slot_change.requests_for_student(int(user_id),active_only=True):
         if int(req['requester_lesson_id'])==int(lesson_id):raise ValueError('active_reschedule_exists')
     request_id=slot_change.create_request(int(user_id),int(lesson_id),start,end,requested_by=None,note=str(note or 'STUDENT_WEB_REQUEST')[:300]);req=slot_change.get_request(request_id)
+    from core.lesson_reschedule_details import message
+    try:
+        from web_backend import push_events
+        body=message(lesson,dict(lesson,start_time=req['desired_start'],end_time=req['desired_end'])).replace('Стало:', 'Запрошено:')
+        push_events.teachers('🔁 Заявка на перенос',body,'/teacher/',
+            f'reschedule-request-{int(request_id)}',{'type':'schedule_reschedule_request','request_id':int(request_id)})
+    except Exception as exc:
+        print('RESCHEDULE REQUEST NOTIFICATION:',type(exc).__name__,flush=True)
     return {'status':'ok','request_id':int(request_id),'request_status':req['status'],'desired_start':req['desired_start'],'desired_end':req['desired_end'],'outside_working_hours':bool(req['outside_working_hours']),'occupied':bool(req['occupant_lesson_id']),'exchange_mode':req['exchange_mode'],'conflict_preview':_conflict_preview(req)}
 
 def outgoing(user_id):return [_serialize_request(row,'requester') for row in slot_change.requests_for_student(int(user_id),active_only=True)]
@@ -96,6 +104,11 @@ def cancel_request(user_id,request_id):
 def _serialize_request(req,perspective):
     original=database.get_lesson(int(req['requester_lesson_id']))
     result={'id':int(req['id']),'perspective':perspective,'status':req['status'],'desired_start':req['desired_start'],'desired_end':req['desired_end'],'outside_working_hours':bool(req['outside_working_hours']),'is_exchange':bool(req['occupant_lesson_id']),'exchange_mode':req['exchange_mode'],'original_start':original['start_time'] if original else None,'original_end':original['end_time'] if original else None,'note':req['note'],'conflict_preview':_conflict_preview(req)}
+    if original:
+        user=database.get_user(int(original['user_id']))
+        result.update({'student_name':user['name'] if user else None,
+                       'student_grade':user['grade'] if user else None,
+                       'subject':original['subject']})
     if perspective=='occupant':
         if str(req['exchange_mode'] or '').upper()=='SHIFT':result.update({'proposal_start':req['occupant_proposed_start'],'proposal_end':req['occupant_proposed_end']})
         else:result.update({'proposal_start':result['original_start'],'proposal_end':result['original_end']})

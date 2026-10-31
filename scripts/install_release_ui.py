@@ -1,0 +1,109 @@
+"""Install shared release UI without replacing production cabinet HTML."""
+import argparse,ast,fcntl,hashlib,json,os,re,subprocess,time
+from datetime import datetime,timezone
+from pathlib import Path
+FILES=['web/release_ui.css','web/release_ui.js','web/teacher_mobile_app.css','web/teacher_mobile_app.js','web/lesson_calendar.css','web/lesson_calendar.js','web_backend/lesson_calendar.py','web/teacher_quick_payment.js','web/teacher_group_finance.js','web_backend/group_finance_admin.py','web_backend/group_finance_reports.py','web_backend/group_finance_receipts.py','web_backend/payment_history.py','web/teacher_payment_history.js','web/formula_explorer.js','web/formula_catalog.css']
+REVIEWED={'web/formula_explorer.js':{'a66f125707a0d12faba3b135e1408c4e1fdb0cd70a7235c2173edaa8326b4fc6'}}
+HTML=['web/teacher.html','web/index.html','web/parent/index.html']
+RECORD='release_ui_install.json'
+
+def html(text):
+    if text.count('</head>')!=1:raise RuntimeError('HTML head needs review')
+    names=['release_ui.css','release_ui.js','formula_explorer.js','formula_catalog.css']
+    if 'teacher-shell' in text:names+=['teacher_mobile_app.css','teacher_mobile_app.js','lesson_calendar.css','lesson_calendar.js','teacher_quick_payment.js','teacher_group_finance.js','teacher_group_settings.js','teacher_payment_history.js']
+    for name in names:
+        if '/app/'+name in text:
+            text=re.sub(r'(/app/'+re.escape(name)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-handbook-history',text)
+            continue
+        tag=('<link rel="stylesheet" href="/app/'+name+'?v=20261031-handbook-history">') if name.endswith('.css') else ('<script defer src="/app/'+name+'?v=20261031-handbook-history"></script>')
+        text=text.replace('</head>',tag+'</head>',1)
+    if 'teacher-shell' in text:
+        text=re.sub(r'(<meta\s+name=[\"\']theme-color[\"\']\s+content=[\"\'])[^\"\']*',lambda m:m[1]+'#f5f5fa',text)
+    for asset in ['teacher_finance.js','teacher_students_clean8.css']:
+        text=re.sub(r'(/app/'+re.escape(asset)+r')(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-handbook-history',text)
+    text=re.sub(r'(/app/teacher_schedule_settings\.js)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-handbook-history',text)
+    text=re.sub(r'(teacher-manifest\.webmanifest)(?:\?[^\"\']*)?',lambda m:m[1]+'?v=20261031-handbook-history',text)
+    return text
+
+def manifest(text):
+    value=json.loads(text)
+    value['scope']='/app/'
+    value['start_url']='/app/teacher.html'
+    value['display']='standalone'
+    value['display_override']=['standalone']
+    value['theme_color']=value['background_color']='#f5f5fa'
+    for shortcut in value.get('shortcuts',[]):
+        old=str(shortcut.get('url') or '')
+        shortcut['url']='/app/teacher.html'+('#'+old.split('#',1)[1] if '#' in old else '')
+    return json.dumps(value,ensure_ascii=False,indent=2)+'\n'
+
+def health():
+    for _ in range(20):
+        try:
+            d=subprocess.check_output(['curl','--noproxy','*','-fsS','--max-time','3','http://127.0.0.1:8876/api/health'],stderr=subprocess.DEVNULL,timeout=4)
+            if json.loads(d).get('ok') is True:return
+        except (ValueError,subprocess.SubprocessError):pass
+        time.sleep(1)
+    raise RuntimeError('Web health check failed')
+
+def apply_hunks(text,hunks,name='hook'):
+    for h in hunks:
+        if text.count(h['new'])==1:continue
+        options=[*h.get('alternates',[]),h['old']]
+        match=next((v for v in options if text.count(v)==1),None)
+        if match is None:raise RuntimeError('UI hook needs review; no files changed: '+name)
+        text=text.replace(match,h['new'],1)
+    return text
+
+def main():
+    p=argparse.ArgumentParser();p.add_argument('--root',default='/opt/adelia-current');p.add_argument('--apply',action='store_true');a=p.parse_args()
+    root=Path(a.root).resolve(strict=True);source=Path(__file__).resolve().parents[1]
+    if root==source:raise RuntimeError('Use an isolated checkout')
+    lock=open('/run/adelia-release-ui.lock','a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    prior=json.loads((root/RECORD).read_text()) if (root/RECORD).exists() else {};original={};candidate={}
+    for name in FILES:
+        value=(source/name).read_bytes();live=(root/name).read_bytes() if (root/name).exists() else None
+        if live is not None and live!=value and prior.get(name)!=hashlib.sha256(live).hexdigest() and hashlib.sha256(live).hexdigest() not in REVIEWED.get(name,set()):raise RuntimeError('Local UI edits need review: '+name)
+        if name.endswith('.py'):compile(value,name,'exec')
+        original[name]=live;candidate[name]=value
+    for name in HTML:
+        if name=='web/parent/index.html' and not (root/name).exists():continue
+        original[name]=(root/name).read_bytes();candidate[name]=html(original[name].decode()).encode()
+    name='web/teacher-manifest.webmanifest'
+    original[name]=(root/name).read_bytes()
+    candidate[name]=manifest(original[name].decode()).encode()
+    for name,hunks in {**json.loads((source/'scripts/lesson_calendar_hooks.json').read_text()),**json.loads((source/'scripts/group_finance_hooks.json').read_text()),**json.loads((source/'scripts/payment_history_hooks.json').read_text()),**json.loads((source/'scripts/student_css_repair_hooks.json').read_text())}.items():
+        original[name]=(root/name).read_bytes()
+        text=original[name].decode()
+        text=apply_hunks(text,hunks,name)
+        if name.endswith('.py'):compile(text,name,'exec')
+        candidate[name]=text.encode()
+    original[RECORD]=(root/RECORD).read_bytes() if (root/RECORD).exists() else None
+    candidate[RECORD]=json.dumps({n:hashlib.sha256(candidate[n]).hexdigest() for n in FILES},indent=2).encode()
+    changed=[n for n in candidate if candidate[n]!=original[n]]
+    print(json.dumps({'mode':'apply' if a.apply else 'check','changed_files':changed}))
+    if not a.apply or not changed:return
+    if os.geteuid()!=0:raise RuntimeError('Apply requires root')
+    cwd=subprocess.check_output(['systemctl','show','tutorbot-web.service','-p','WorkingDirectory','--value'],text=True).strip()
+    if not cwd or Path(cwd).resolve()!=root:raise RuntimeError('Web service uses a different release')
+    backup=Path('/opt/tutorbot/backups')/('release-ui-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'));backup.mkdir(parents=True)
+    for n in changed:
+        if original[n] is not None:
+            f=backup/n;f.parent.mkdir(parents=True,exist_ok=True);f.write_bytes(original[n])
+    (backup/'manifest.json').write_text(json.dumps({'root':str(root),'files':changed,'new_files':[n for n in changed if original[n] is None]}))
+    try:
+        for n in changed:
+            f=root/n;f.parent.mkdir(parents=True,exist_ok=True);tmp=f.with_name(f.name+'.ui-next');tmp.write_bytes(candidate[n]);os.chmod(tmp,0o644);os.replace(tmp,f)
+        subprocess.run(['systemctl','restart','tutorbot-web.service'],check=True,timeout=60);health()
+        for name in [n for n in FILES if n.startswith('web/')]+['web/teacher-manifest.webmanifest']:
+            served=subprocess.check_output(['curl','--noproxy','*','--resolve','adeliatutor.ru:443:127.0.0.1','-fsS','--max-time','10','https://adeliatutor.ru/app/'+Path(name).name+'?v=20261031-handbook-history'],timeout=12)
+            if served!=candidate[name]:raise RuntimeError('Static asset verification failed: '+name)
+    except Exception:
+        for n in reversed(changed):
+            if original[n] is None:(root/n).unlink(missing_ok=True)
+            else:(root/n).write_bytes(original[n])
+        subprocess.run(['systemctl','restart','tutorbot-web.service'],timeout=60)
+        raise
+    print('RELEASE_UI_INSTALLED\nBackup: '+str(backup))
+
+if __name__=='__main__':main()

@@ -1,15 +1,15 @@
 'use strict';
-const { app, BrowserWindow, shell, session, dialog, ipcMain, screen, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, shell, session, dialog, ipcMain, screen, Tray, Menu, nativeImage, net } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
 
 const APP_URL = process.env.ADELIA_DESKTOP_URL || 'https://adeliatutor.ru/app/';
 const APP_ORIGIN = new URL(APP_URL).origin;
-const CHILD_ORIGINS = new Set(['https://telemost.yandex.ru']);
-const BOARD_HOSTS = new Set(['myboard.io', 'www.myboard.io']);
+const CHILD_ORIGINS = new Set(['https://telemost.yandex.ru','https://telemost.360.yandex.ru']);
+const BOARD_HOSTS = new Set(['myboard.io','www.myboard.io','app.moyadoska.com','moyadoska.com','www.moyadoska.com']);
 const UPDATE_CHECK_MS = 4 * 60 * 60 * 1000;
-const UPDATE_CHANNEL = process.env.ADELIA_UPDATE_CHANNEL === 'stable' ? 'stable' : 'beta';
+const UPDATE_CHANNEL = ['stable','beta'].includes(process.env.ADELIA_UPDATE_CHANNEL) ? process.env.ADELIA_UPDATE_CHANNEL : (/-beta\./.test(app.getVersion()) ? 'beta' : 'stable');
 const UPDATE_TARGET = process.platform === 'win32' ? 'win-x64' : (process.platform === 'darwin' ? `macos-${process.arch}` : `linux-${process.arch}`);
 const UPDATE_BASE_URL = `https://adeliatutor.ru/desktop-updates/${UPDATE_CHANNEL}/${UPDATE_TARGET}/`;
 const PROTOCOL = 'adelia';
@@ -115,7 +115,8 @@ async function maybeOfferAutostart() {
 }
 
 function trackLessonWindow(win, kind) {
-  lessonWindows.add(win);
+  lessonWindows.add(win);win.adeliaLessonKind=kind;
+  win.webContents.on('page-title-updated',event=>event.preventDefault());
   win.on('closed', () => {
     lessonWindows.delete(win);
     if (kind === 'meeting' && meetingWindow === win) meetingWindow = null;
@@ -134,6 +135,7 @@ function lessonDisplay() {
 }
 function tileLessonWindows() {
   if (!meetingWindow || meetingWindow.isDestroyed() || !boardWindow || boardWindow.isDestroyed()) return;
+  try { const layout=require('./lesson_layout');layout.apply(layout.state().mode,false);return; } catch (_) {}
   const area = lessonDisplay().workArea;
   const gap = 8;
   if (area.width >= 1280) {
@@ -149,19 +151,25 @@ function tileLessonWindows() {
   }
   meetingWindow.show(); boardWindow.show(); boardWindow.focus();
 }
+let lessonRoom=null;
+function ensureLessonRoom(){if(!lessonRoom||lessonRoom.owner!==mainWindow.webContents)lessonRoom=require('./lesson_room').create(mainWindow,{trustedMeeting:trustedChild,trustedBoard});return lessonRoom;}
 function openMeetingWindow(url) {
+  if(mainWindow&&!mainWindow.isDestroyed())return trustedChild(url)?ensureLessonRoom().open('meeting',url):false;
   if (!trustedChild(url)) return false;
   if (focusExisting(meetingWindow)) { meetingWindow.loadURL(url); tileLessonWindows(); return true; }
   meetingWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:560, minHeight:400, title:'Телемост — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-lesson', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:false } }), 'meeting');
+  require('./meeting_browser').configure(meetingWindow.webContents);
   hardenNavigation(meetingWindow, trustedChild); meetingWindow.loadURL(url); tileLessonWindows(); return true;
 }
 function openBoardWindow(url) {
+  if(mainWindow&&!mainWindow.isDestroyed())return trustedBoard(url)?ensureLessonRoom().open('board',url):false;
   if (!trustedBoard(url)) return false;
   if (focusExisting(boardWindow)) { boardWindow.loadURL(url); tileLessonWindows(); return true; }
   boardWindow = trackLessonWindow(new BrowserWindow({ width:1050, height:760, minWidth:560, minHeight:400, title:'Доска — Аделия', backgroundColor:'#ffffff', webPreferences:{ partition:'persist:adelia-board', contextIsolation:true, nodeIntegration:false, sandbox:true, webSecurity:true, backgroundThrottling:true } }), 'board');
   hardenNavigation(boardWindow, trustedBoard); boardWindow.loadURL(url); tileLessonWindows(); return true;
 }
 function closeLessonWindows(focusMain=false) {
+  if(lessonRoom)lessonRoom.close();
   for (const win of [...lessonWindows]) if (!win.isDestroyed()) win.close();
   lessonWindows.clear(); meetingWindow=null; boardWindow=null;
   if (focusMain && mainWindow && !mainWindow.isDestroyed()) {
@@ -248,19 +256,35 @@ function createTray() {
   refreshTrayMenu();
 }
 
+async function installDownloadedUpdate() {
+ if(macDmgUpdater)return macDmgUpdater.install();
+ if(updateState.status!=='downloaded')return false;
+ if((lessonWindows.size>0||!!lessonRoom?.active)){sendUpdateState({status:'downloaded',message:'Завершите занятие перед установкой обновления.'});return false;}
+ // An individual lesson can remain active after its video windows are closed.
+ try {
+  if(mainWindow&&!mainWindow.isDestroyed()){
+   const running=await mainWindow.webContents.executeJavaScript("Boolean(document.querySelector('#finishNow,#finishLiveLesson,.lesson-finish-primary'))",true);
+   if(running||(lessonWindows.size>0||!!lessonRoom?.active)){sendUpdateState({status:'downloaded',message:'Завершите занятие перед установкой обновления.'});return false;}
+  }
+ }catch{sendUpdateState({status:'downloaded',message:'Не удалось проверить состояние урока. Повторите после завершения занятия.'});return false;}
+ autoUpdater.quitAndInstall(false,true);return true;
+}
+
+let macDmgUpdater=null;
 function setupAutoUpdates() {
-  autoUpdater.autoDownload=false; autoUpdater.autoInstallOnAppQuit=true;
-  autoUpdater.channel=UPDATE_CHANNEL;
+ if(macDmgUpdater){const check=()=>macDmgUpdater.check();setTimeout(check,15000);updateTimer=setInterval(check,UPDATE_CHECK_MS);return;}
+  autoUpdater.autoDownload=false; autoUpdater.autoInstallOnAppQuit=false;
+  autoUpdater.channel=UPDATE_CHANNEL==='stable'?'latest':'beta';
   autoUpdater.allowPrerelease=UPDATE_CHANNEL==='beta';
-  autoUpdater.setFeedURL({provider:'generic',url:UPDATE_BASE_URL,channel:UPDATE_CHANNEL});
+  autoUpdater.setFeedURL({provider:'generic',url:UPDATE_BASE_URL,channel:UPDATE_CHANNEL==='stable'?'latest':'beta'});
   autoUpdater.on('checking-for-update',()=>sendUpdateState({status:'checking'}));
   autoUpdater.on('update-not-available',()=>sendUpdateState({status:'current'}));
   autoUpdater.on('download-progress',info=>sendUpdateState({status:'downloading',percent:Number(info.percent||0)}));
   autoUpdater.on('error',err=>sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'}));
   if (!app.isPackaged) { sendUpdateState({status:'current'}); return; }
   autoUpdater.on('update-available', async info => { sendUpdateState({status:'available',version:info.version}); if(updateBusy)return; updateBusy=true; try { const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Доступно обновление Аделии',message:`Доступна новая версия ${info.version}.`,detail:'Скачать обновление сейчас? Можно продолжать пользоваться приложением во время загрузки.',buttons:['Скачать','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0) await autoUpdater.downloadUpdate(); } catch(_){} finally{updateBusy=false;} });
-  autoUpdater.on('update-downloaded', async info => { sendUpdateState({status:'downloaded',version:info.version,percent:100}); const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Обновление готово',message:`Версия ${info.version} загружена.`,detail:'Перезапустить Аделию и установить обновление сейчас?',buttons:['Перезапустить и обновить','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0){closeLessonWindows();autoUpdater.quitAndInstall(false,true);} });
-  const check=()=>{if(updateBusy||lessonWindows.size>0)return;autoUpdater.checkForUpdates().catch(()=>{});}; setTimeout(check,15000); updateTimer=setInterval(check,UPDATE_CHECK_MS);
+  autoUpdater.on('update-downloaded', async info => { sendUpdateState({status:'downloaded',version:info.version,percent:100}); const result=await dialog.showMessageBox(mainWindow||undefined,{type:'info',title:'Обновление готово',message:`Версия ${info.version} загружена.`,detail:'Перезапустить Аделию и установить обновление сейчас?',buttons:['Перезапустить и обновить','Позже'],defaultId:0,cancelId:1,noLink:true}); if(result.response===0)await installDownloadedUpdate(); });
+  const check=()=>{if(updateBusy||(lessonWindows.size>0||!!lessonRoom?.active))return;autoUpdater.checkForUpdates().catch(()=>{});}; setTimeout(check,15000); updateTimer=setInterval(check,UPDATE_CHECK_MS);
 }
 
 function createWindow(initialUrl = null) {
@@ -291,6 +315,13 @@ if (!gotSingleInstanceLock) {
   app.on('open-url', (event, url) => { event.preventDefault(); handleDeepLink(url); });
 
   app.whenReady().then(async()=>{
+    if(process.platform==='darwin'&&app.isPackaged){
+      macDmgUpdater=require('./mac_dmg_updates').create({app,dialog,shell,net,getWindow:()=>mainWindow,sendState:sendUpdateState,baseURL:UPDATE_BASE_URL,arch:process.arch,hasLesson:async()=>{
+        if((lessonWindows.size>0||!!lessonRoom?.active))return true;
+        try{return mainWindow&&!mainWindow.isDestroyed()?await mainWindow.webContents.executeJavaScript("Boolean(document.querySelector('#finishNow,#finishLiveLesson,.lesson-finish-primary'))",true):false;}catch{return true;}
+      }});
+      if(await macDmgUpdater.startup())return;
+    }
     if (process.platform === 'win32') app.setAppUserModelId('ru.adeliatutor.desktop');
     if (app.isPackaged) app.setAsDefaultProtocolClient(PROTOCOL);
     else if (process.defaultApp && process.argv[1]) app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
@@ -322,8 +353,8 @@ if (!gotSingleInstanceLock) {
     ipcMain.handle('adelia:device-check-close',(event)=>{if(!deviceCheckWindow||event.sender!==deviceCheckWindow.webContents)return false;deviceCheckWindow.close();return true;});
     ipcMain.handle('adelia:open-about',(event)=>{if(!mainWindow||event.sender!==mainWindow.webContents)return false;return openAboutWindow();});
     ipcMain.handle('adelia:about-info',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;return {version:app.getVersion(),channel:UPDATE_CHANNEL==='beta'?'Beta':'Stable',platform:process.platform,arch:process.arch,updateTarget:UPDATE_TARGET,buildSha:buildSha(),packaged:app.isPackaged,updateState};});
-    ipcMain.handle('adelia:about-check-updates',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;if(!app.isPackaged)return sendUpdateState({status:'current'});if(lessonWindows.size>0)return sendUpdateState({status:'error',message:'Завершите текущее занятие перед проверкой обновления.'});try{sendUpdateState({status:'checking'});await autoUpdater.checkForUpdates();return updateState}catch(err){return sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'})}});
-    ipcMain.handle('adelia:about-install-update',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents||updateState.status!=='downloaded')return false;closeLessonWindows();autoUpdater.quitAndInstall(false,true);return true;});
+    ipcMain.handle('adelia:about-check-updates',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return null;if(!app.isPackaged)return sendUpdateState({status:'current'});if((lessonWindows.size>0||!!lessonRoom?.active))return sendUpdateState({status:'error',message:'Завершите текущее занятие перед проверкой обновления.'});try{sendUpdateState({status:'checking'});if(macDmgUpdater)await macDmgUpdater.check();else await autoUpdater.checkForUpdates();return updateState}catch(err){return sendUpdateState({status:'error',message:err&&err.message?String(err.message).slice(0,180):'Не удалось проверить обновления.'})}});
+    ipcMain.handle('adelia:about-install-update',async(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents||updateState.status!=='downloaded')return false;return installDownloadedUpdate();});
     ipcMain.handle('adelia:about-close',(event)=>{if(!aboutWindow||event.sender!==aboutWindow.webContents)return false;aboutWindow.close();return true;});
 
     createTray();
