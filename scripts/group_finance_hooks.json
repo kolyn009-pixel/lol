@@ -16,11 +16,17 @@
   "web_backend/group_workspace_api.py": [
     {
       "old": "'/api/teacher/group/settings','/api/group-onboarding/status'",
-      "new": "'/api/teacher/group/settings','/api/teacher/group/finance','/api/group-onboarding/status'"
+      "new": "'/api/teacher/group/settings','/api/teacher/group/finance','/api/teacher/group/finance/forecast','/api/teacher/group/finance/families','/api/teacher/group/finance/family-week','/api/teacher/group/finance/receipt','/api/group-onboarding/status'",
+      "alternates": [
+        "'/api/teacher/group/settings','/api/teacher/group/finance','/api/group-onboarding/status'"
+      ]
     },
     {
-      "old": "if u.path == '/api/teacher/group/settings':",
-      "new": "if u.path == '/api/teacher/group/finance':\n                if not self._teacher(): return self._json(401,{'error':'unauthorized'})\n                from web_backend import group_finance_admin\n                result=group_finance_admin.overview(q.get('group_id',['0'])[0])\n            elif u.path == '/api/teacher/group/settings':"
+      "old": "            if u.path == '/api/teacher/group/settings':",
+      "new": "            if u.path.startswith('/api/teacher/group/finance/'):\n                if not self._teacher(): return self._json(401,{'error':'unauthorized'})\n                from web_backend import group_finance_reports as reports\n                gid=q.get('group_id',['0'])[0]\n                if u.path.endswith('/forecast'):result=reports.forecast(gid,q.get('date',[None])[0])\n                elif u.path.endswith('/families'):result={'items':reports.families(gid)}\n                elif u.path.endswith('/family-week'):result=reports.family_week(gid,q.get('parent_id',['0'])[0],q.get('date',[None])[0])\n                else:\n                    from web_backend import group_finance_receipts\n                    data,mime=group_finance_receipts.read(gid,q.get('payment_id',['0'])[0])\n                    self.send_response(200)\n                    for k,v in {'Content-Type':mime,'Content-Length':str(len(data)),'Content-Disposition':'inline','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':\"sandbox; default-src 'none'\"}.items():self.send_header(k,v)\n                    self.end_headers();self.wfile.write(data);return\n            elif u.path == '/api/teacher/group/finance':\n                if not self._teacher(): return self._json(401,{'error':'unauthorized'})\n                from web_backend import group_finance_admin\n                result=group_finance_admin.overview(q.get('group_id',['0'])[0])\n            elif u.path == '/api/teacher/group/settings':",
+      "alternates": [
+        "            if u.path == '/api/teacher/group/finance':\n                if not self._teacher(): return self._json(401,{'error':'unauthorized'})\n                from web_backend import group_finance_admin\n                result=group_finance_admin.overview(q.get('group_id',['0'])[0])\n            elif u.path == '/api/teacher/group/settings':"
+      ]
     },
     {
       "old": "routes = {'/api/teacher/group/settings'",

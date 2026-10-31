@@ -6,10 +6,23 @@ from web_backend import group_workspace as groups
 class GroupWorkspaceMixin:
     def do_GET(self):
         u = urlparse(self.path); q = parse_qs(u.query)
-        if u.path not in {'/api/public/group-invite','/api/teacher/group/settings','/api/teacher/group/finance','/api/group-onboarding/status'}:
+        if u.path not in {'/api/public/group-invite','/api/teacher/group/settings','/api/teacher/group/finance','/api/teacher/group/finance/forecast','/api/teacher/group/finance/families','/api/teacher/group/finance/family-week','/api/teacher/group/finance/receipt','/api/group-onboarding/status'}:
             return super().do_GET()
         try:
-            if u.path == '/api/teacher/group/finance':
+            if u.path.startswith('/api/teacher/group/finance/'):
+                if not self._teacher(): return self._json(401,{'error':'unauthorized'})
+                from web_backend import group_finance_reports as reports
+                gid=q.get('group_id',['0'])[0]
+                if u.path.endswith('/forecast'):result=reports.forecast(gid,q.get('date',[None])[0])
+                elif u.path.endswith('/families'):result={'items':reports.families(gid)}
+                elif u.path.endswith('/family-week'):result=reports.family_week(gid,q.get('parent_id',['0'])[0],q.get('date',[None])[0])
+                else:
+                    from web_backend import group_finance_receipts
+                    data,mime=group_finance_receipts.read(gid,q.get('payment_id',['0'])[0])
+                    self.send_response(200)
+                    for k,v in {'Content-Type':mime,'Content-Length':str(len(data)),'Content-Disposition':'inline','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"sandbox; default-src 'none'"}.items():self.send_header(k,v)
+                    self.end_headers();self.wfile.write(data);return
+            elif u.path == '/api/teacher/group/finance':
                 if not self._teacher(): return self._json(401,{'error':'unauthorized'})
                 from web_backend import group_finance_admin
                 result=group_finance_admin.overview(q.get('group_id',['0'])[0])
