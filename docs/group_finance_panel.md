@@ -1,0 +1,9 @@
+# Group finance panel (prepared, not deployed)
+
+Adds a Finance tab to the existing group settings view, with participant prices and available subscription balances, lesson-by-member allocation matrix, pending/existing payment confirmation and audit history. Does not generate invoices automatically, send reminders, debit balances when viewing, or synthesize historical approval actors. Supports confirming existing group payments; arbitrary new cash payments and creation of package offers remain in their existing workflows.
+
+PAID means a specific separate payment, RESERVED requires a live subscription ledger reservation for that student/lesson, AVAILABLE means spendable balance without a reservation. Future UNPAID is not labelled overdue debt. Low balances 1–2 are highlighted only; no automatic messages. Overview shows all-time paid total and latest 50 lessons / 200 payment records with a truncation notice.
+
+All group payment approvals, including legacy call sites, delegate to a BEGIN IMMEDIATE transaction. The transaction validates group, expected amount and current status, then credits a package and writes the teacher audit together. Repeats return already_paid; mismatches do not credit. Individual finance endpoints and balances are unchanged. New audit table is additive on first new confirmation. Existing historical payments are untouched.
+
+Install_release_ui.py now applies reviewed group UI/API/approval hunks alongside the calendar hooks, preserving unrelated production edits and backing up changed files. No production installation or data migration has been executed. Python isolated SQLite tests include concurrent approval, group/amount mismatch, available vs reserved balance and no state changes from viewing. Node DOM test verifies no POST on view/cancel and exact group/payment/amount on confirmation. Actual browser/native rendering and production integration still require verification after installation.

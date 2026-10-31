@@ -1,0 +1,40 @@
+{
+  "web/teacher_group_settings.js": [
+    {
+      "old": "['members','Участники','people'],['invite'",
+      "new": "['members','Участники','people'],['finance','Финансы','settings'],['invite'"
+    },
+    {
+      "old": "<section class=\"agw-pane\" id=\"agw-panel-invite\"",
+      "new": "<section class=\"agw-pane\" id=\"agw-panel-finance\" role=\"tabpanel\" aria-labelledby=\"agw-tab-finance\" data-gs-pane=\"finance\" hidden><div id=\"gsFinanceHost\"></div></section><section class=\"agw-pane\" id=\"agw-panel-invite\""
+    },
+    {
+      "old": "function switchTab(key,focus=false){if(chat)",
+      "new": "function switchTab(key,focus=false){if(key==='finance'&&window.AdeliaGroupFinance)window.AdeliaGroupFinance.mount(q('#gsFinanceHost'),id);if(chat)"
+    }
+  ],
+  "web_backend/group_workspace_api.py": [
+    {
+      "old": "'/api/teacher/group/settings','/api/group-onboarding/status'",
+      "new": "'/api/teacher/group/settings','/api/teacher/group/finance','/api/group-onboarding/status'"
+    },
+    {
+      "old": "if u.path == '/api/teacher/group/settings':",
+      "new": "if u.path == '/api/teacher/group/finance':\n                if not self._teacher(): return self._json(401,{'error':'unauthorized'})\n                from web_backend import group_finance_admin\n                result=group_finance_admin.overview(q.get('group_id',['0'])[0])\n            elif u.path == '/api/teacher/group/settings':"
+    },
+    {
+      "old": "routes = {'/api/teacher/group/settings'",
+      "new": "routes = {'/api/teacher/group/finance/confirm','/api/teacher/group/settings'"
+    },
+    {
+      "old": "if path == '/api/teacher/group/weekly-session':",
+      "new": "if path == '/api/teacher/group/finance/confirm':\n                from web_backend import group_finance_admin\n                actor=self._teacher()\n                result=group_finance_admin.confirm(body.get('group_id'),body.get('payment_id'),int(actor.get('admin_telegram_id') or actor['id']),body.get('expected_amount'))\n            elif path == '/api/teacher/group/weekly-session':"
+    }
+  ],
+  "web_backend/group_finance.py": [
+    {
+      "old": "def approve_payment(payment_id,teacher_id):\n ensure_schema();pid=int(payment_id);now=_now();c=database.connect();p=c.execute(\"SELECT * FROM group_payments WHERE id=?\",(pid,)).fetchone()\n if not p:c.close();raise ValueError('group_payment_not_found')\n if p['status']=='PAID':c.close();return {'status':'ok','payment_id':pid,'already_paid':True}\n if p['status'] not in {'PENDING','RECEIPT_SENT'}:c.close();raise ValueError('group_payment_not_approvable')\n c.execute(\"UPDATE group_payments SET status='PAID',confirmed_at=? WHERE id=?\",(now,pid));sid=None\n if p['payment_kind']=='PACKAGE':\n  opt=c.execute(\"SELECT validity_days FROM group_package_options WHERE id=?\",(p['package_option_id'],)).fetchone();expires=(datetime.fromisoformat(now)+__import__('datetime').timedelta(days=int(opt['validity_days']))).isoformat(timespec='seconds') if opt and opt['validity_days'] else None;cur=c.execute(\"INSERT INTO group_subscriptions(group_id,user_id,source_payment_id,lessons_total,lessons_remaining,status,starts_at,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,'ACTIVE',?,?,?,?)\",(int(p['group_id']),int(p['user_id']),pid,int(p['lessons_count']),int(p['lessons_count']),now,expires,now,now));sid=int(cur.lastrowid)\n c.commit();c.close();return {'status':'ok','payment_id':pid,'subscription_id':sid,'approved_by':int(teacher_id)}\n",
+      "new": "def approve_payment(payment_id,teacher_id):\n ensure_schema();c=database.connect()\n try:p=c.execute('SELECT group_id,total_amount FROM group_payments WHERE id=?',(int(payment_id),)).fetchone()\n finally:c.close()\n if not p:raise ValueError('group_payment_not_found')\n from web_backend.group_finance_admin import confirm\n return confirm(p['group_id'],int(payment_id),int(teacher_id),p['total_amount'])\n"
+    }
+  ]
+}

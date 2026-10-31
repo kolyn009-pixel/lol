@@ -6,10 +6,14 @@ from web_backend import group_workspace as groups
 class GroupWorkspaceMixin:
     def do_GET(self):
         u = urlparse(self.path); q = parse_qs(u.query)
-        if u.path not in {'/api/public/group-invite','/api/teacher/group/settings','/api/group-onboarding/status'}:
+        if u.path not in {'/api/public/group-invite','/api/teacher/group/settings','/api/teacher/group/finance','/api/group-onboarding/status'}:
             return super().do_GET()
         try:
-            if u.path == '/api/teacher/group/settings':
+            if u.path == '/api/teacher/group/finance':
+                if not self._teacher(): return self._json(401,{'error':'unauthorized'})
+                from web_backend import group_finance_admin
+                result=group_finance_admin.overview(q.get('group_id',['0'])[0])
+            elif u.path == '/api/teacher/group/settings':
                 if not self._teacher(): return self._json(401,{'error':'unauthorized'})
                 result = groups.settings(q.get('id',['0'])[0])
             elif u.path == '/api/group-onboarding/status':
@@ -25,7 +29,7 @@ class GroupWorkspaceMixin:
 
     def do_POST(self):
         path = urlparse(self.path).path
-        routes = {'/api/teacher/group/settings','/api/teacher/group/invite','/api/teacher/group/weekly-session',
+        routes = {'/api/teacher/group/finance/confirm','/api/teacher/group/settings','/api/teacher/group/invite','/api/teacher/group/weekly-session',
                   '/api/student/group/invite/join','/api/group-onboarding/start',
                   '/api/group-onboarding/region','/api/group-onboarding/complete'}
         if path not in routes: return super().do_POST()
@@ -41,7 +45,11 @@ class GroupWorkspaceMixin:
         body = self._body()
         if body is None: return self._json(400,{'error':'invalid_json'})
         try:
-            if path == '/api/teacher/group/weekly-session':
+            if path == '/api/teacher/group/finance/confirm':
+                from web_backend import group_finance_admin
+                actor=self._teacher()
+                result=group_finance_admin.confirm(body.get('group_id'),body.get('payment_id'),int(actor.get('admin_telegram_id') or actor['id']),body.get('expected_amount'))
+            elif path == '/api/teacher/group/weekly-session':
                 from web_backend import group_weekly_schedule
                 result = group_weekly_schedule.add(body.get('group_id'),body)
             elif path == '/api/teacher/group/settings': result = groups.update(body.get('group_id'),body)
