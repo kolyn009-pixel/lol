@@ -1,0 +1,18 @@
+name: Homework channel delivery regression
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/teacher-dashboard-receipts-layout-20261025]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  channel-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/homework_channel_delivery_selftest.py
+      - run: python -m py_compile web_backend/reliable_channel_send.py web_backend/homework_channel_delivery.py web_backend/homework_delivery_worker.py

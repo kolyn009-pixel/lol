@@ -23,3 +23,15 @@ Pending reconstruction before a final release:
 - Release source gate and Mac/Windows build handoff; cached Docker builder fallback for registry timeouts.
 
 Do not publish the incomplete release or describe installers as built. No macOS/Windows binaries were created in this environment. No off-server backup destination is configured. The unexplained historical production PAID entries still need the read-only production diagnostic; reproducing a race does not prove their cause.
+
+## Homework channel delivery checkpoint
+
+Recovered after the payment checkpoint:
+- Homework deliveries now persist acknowledgement per event, recipient and channel.
+- A partial Telegram/VK success does not finish the whole job. Explicit rate-limit failures retry using the existing homework outbox backoff.
+- A successful channel is skipped on subsequent attempts, including worker restarts.
+- Recipient bindings are snapshotted. Changed/unlinked recipients are skipped, never silently redirected.
+- Timeout, lost acknowledgement and expired worker claim become UNKNOWN and require investigation; no blind retry.
+- Provider errors are redacted. VK retries use the same event identifier.
+
+Six isolated SQLite/source regressions passed. No real messages were sent by these tests. These changes are not installed on production. The final unified installer must include the two new modules and the reviewed worker hook. A manual UNKNOWN/FAILED review/requeue interface and general chat queue are still pending. No guarantee of exactly-once Telegram delivery is claimed.
