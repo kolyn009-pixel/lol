@@ -7,7 +7,7 @@
   <title>Запись в группу · Аделия</title>
   <link rel="icon" href="/app/assets/icons/adelia-mark-32.png">
   <link rel="stylesheet" href="/start/group.css?v=20261111-1">
-  <script src="/start/group.js?v=20261111-1" defer></script>
+  <script src="/start/group.js?v=20261111-contact2" defer></script>
 </head>
 <body>
   <main>
@@ -32,8 +32,8 @@
         <form id="groupForm" hidden>
           <label>Имя ученика<input name="name" autocomplete="given-name" maxlength="80" required></label>
           <label>Класс<select name="grade" required><option value="">Выберите класс</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option></select></label>
-          <label>Telegram, ссылка на VK или телефон<input name="contact" placeholder="@username, vk.com/… или +7…" minlength="5" maxlength="160" required aria-describedby="contactHelp"></label>
-          <small id="contactHelp">Укажите контакт, по которому можно написать или позвонить.</small>
+          <label>Telegram, ссылка на VK или телефон<input name="contact" placeholder="@username, vk.ru/… или +7…" minlength="5" maxlength="160" required aria-describedby="contactHelp"></label>
+          <small id="contactHelp" aria-live="polite">Телефон: +7 999 123-45-67 · Telegram: @username или t.me/username · VK: vk.ru/id123456</small>
           <label>Ваш часовой пояс<select name="timezone" required></select></label>
           <label>Что хотите рассказать о подготовке <span class="muted">· необязательно</span><textarea name="note" maxlength="600" rows="3" placeholder="Например: пробник на 50 баллов, хочу разобраться со второй частью"></textarea></label>
           <label class="consent"><input name="consent" type="checkbox" required><span>Согласен на обработку указанных данных для ответа на заявку. <a href="/app/privacy.html" target="_blank" rel="noopener">Политика конфиденциальности</a></span></label>

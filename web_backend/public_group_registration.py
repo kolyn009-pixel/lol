@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from urllib.parse import urlsplit
 import database
 from web_backend import group_lessons
 
@@ -74,16 +75,58 @@ def _text(value, limit, required=False):
     return text
 
 
+def normalize_contact(value):
+    """Validate supported contact syntax without contacting messenger services."""
+    if not isinstance(value, str) or not value.strip() or len(value) > 160:
+        raise ValueError('invalid_contact')
+    text = value.strip()
+    if re.fullmatch(r'\+?[0-9\s()\-]+', text):
+        digits = re.sub(r'[^0-9]', '', text)
+        if text.count('(') != text.count(')') or text.count('(') > 1 or (')' in text and text.index(')') < text.index('(')):
+            raise ValueError('invalid_contact')
+        if not text.startswith('+'):
+            if len(digits) == 10:
+                digits = '7' + digits
+            elif len(digits) == 11 and digits[0] in '78':
+                digits = '7' + digits[1:]
+            else:
+                raise ValueError('invalid_contact')
+        if not 8 <= len(digits) <= 15 or digits[0] == '0' or len(set(digits)) < 2:
+            raise ValueError('invalid_contact')
+        if digits.startswith('7') and len(digits) != 11:
+            raise ValueError('invalid_contact')
+        return '+' + digits, 'phone:' + digits
+    if re.fullmatch(r'@[A-Za-z][A-Za-z0-9_]{4,31}', text):
+        username = text[1:].lower()
+        return '@' + username, 'telegram:' + username
+    if re.search(r'\s', text) or '\\' in text:
+        raise ValueError('invalid_contact')
+    try:
+        url = urlsplit(text if '://' in text else 'https://' + text)
+        if url.scheme not in {'http', 'https'} or url.username or url.password or url.port:
+            raise ValueError('invalid_contact')
+        host = (url.hostname or '').lower()
+        path = url.path.strip('/')
+    except ValueError:
+        raise ValueError('invalid_contact') from None
+    if host in {'t.me', 'www.t.me', 'telegram.me', 'www.telegram.me'} and re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{4,31}', path):
+        username = path.lower()
+        return '@' + username, 'telegram:' + username
+    if host in {'vk.com', 'www.vk.com', 'm.vk.com', 'vk.ru', 'www.vk.ru', 'm.vk.ru'}:
+        screen = path.lower()
+        reserved = {'feed', 'im', 'join', 'login', 'settings', 'support', 'help', 'away', 'search', 'apps', 'friends', 'groups', 'video', 'videos', 'clips', 'audio', 'audios', 'market', 'wall', 'photo', 'photos', 'album', 'albums', 'topic', 'page'}
+        if (re.fullmatch(r'id[1-9][0-9]*', screen) or re.fullmatch(r'[a-z][a-z0-9_.]{2,63}', screen)) and screen not in reserved and not re.match(r'^(?:club|public|event|wall|photo|video|album|topic|page|app)[0-9_-]', screen):
+            return 'https://vk.ru/' + screen, 'vk:' + screen
+    raise ValueError('invalid_contact')
+
+
 def register(body):
     if not isinstance(body, dict):
         raise ValueError('invalid_fields')
     if body.get('consent') is not True:
         raise ValueError('consent_required')
     name = _text(body.get('name'), 80, True)
-    contact = _text(body.get('contact'), 160, True)
-    # A contact is entered explicitly; it is never inferred from an existing account.
-    if len(contact) < 5:
-        raise ValueError('invalid_contact')
+    contact, key = normalize_contact(body.get('contact'))
     grade = int(body.get('grade') or 0)
     if grade not in range(5, 12):
         raise ValueError('invalid_grade')
@@ -94,15 +137,23 @@ def register(body):
         raise ValueError('invalid_timezone') from None
     note = _text(body.get('note'), 600)
     source = _text(body.get('source'), 200)
-    key = contact.casefold()
-    if re.fullmatch(r'[+\d\s()\-]+', contact):
-        key = re.sub(r'\D', '', contact)
     ensure_schema()
     c = database.connect()
     try:
         c.execute('BEGIN IMMEDIATE')
         g = _public_group(c, body.get('group_id'))
         existing = c.execute("SELECT id,status FROM public_group_registrations WHERE group_id=? AND contact_key=? AND status IN ('NEW','CONTACTED','WAITLIST')", (g['id'], key)).fetchone()
+        if not existing:
+            # Older versions stored raw contact keys. Compare without rewriting
+            # existing leads or altering their names, notes and review history.
+            for row in c.execute("SELECT id,status,contact FROM public_group_registrations WHERE group_id=? AND status IN ('NEW','CONTACTED','WAITLIST')", (g['id'],)):
+                try:
+                    same = normalize_contact(row['contact'])[1] == key
+                except ValueError:
+                    continue
+                if same:
+                    existing = row
+                    break
         if existing:
             # Do not expose an existing person's request id, contact or status.
             c.rollback()

@@ -25,6 +25,11 @@ STAMP = '20261111-group-registration'
 NEW_FILES = ['web_backend/public_group_registration.py',
              'web_backend/public_group_registration_api.py',
              'web/start/group.html', 'web/start/group.css', 'web/start/group.js']
+PREVIOUS_HASHES = {
+    'web_backend/public_group_registration.py': {'a38a8e1a9a8116c63bfb35e902424e554082c82cfe1e70c8f2a704c5f59e4592'},
+    'web/start/group.html': {'427300ff46bd8f9d72d32e41112906c0edb70b6541aee668b94659b798d7663b'},
+    'web/start/group.js': {'acd409be3f90fe9fac557e99d2cc976c89cd436a8bdae551852c35ea4ad3f970'},
+}
 
 
 def digest(data):
@@ -113,7 +118,7 @@ def candidates(root, static):
     for name in NEW_FILES:
         data = (SOURCE / name).read_bytes()
         target = root / name
-        if target.exists() and target.read_bytes() != data:
+        if target.exists() and target.read_bytes() != data and digest(target.read_bytes()) not in PREVIOUS_HASHES.get(name, set()):
             raise RuntimeError('Existing new module differs: ' + name)
         put(target, data)
     patches = {'web_backend/api_v7.py': patch_api,
@@ -127,7 +132,7 @@ def candidates(root, static):
     for name in ['start/group.html', 'start/group.css', 'start/group.js']:
         target = static / name
         data = (SOURCE / 'web' / name).read_bytes()
-        if target.exists() and target.read_bytes() != data:
+        if target.exists() and target.read_bytes() != data and digest(target.read_bytes()) not in PREVIOUS_HASHES.get('web/' + name, set()):
             raise RuntimeError('Existing group page differs: ' + str(target))
         put(target, data)
     for name, fn in [('start/index.html', patch_start), ('landing.js', patch_landing), ('index.html', patch_home)]:
@@ -174,6 +179,18 @@ def health(base, new=False):
     except HTTPError as exc:
         if exc.code != 404 or json.load(exc).get('error') != 'group_not_available':
             raise RuntimeError('Group API check failed')
+    # An invalid group id makes this write-free even if old code is still live.
+    invalid = {'group_id': 0, 'name': 'Validation check', 'grade': 11,
+               'contact': 'not a contact', 'timezone': 'Europe/Moscow', 'consent': True}
+    validation_request = Request(base + '/api/public/group-registration',
+        data=json.dumps(invalid).encode(), headers={'Host': 'adeliatutor.ru',
+        'Origin': 'https://adeliatutor.ru', 'Content-Type': 'application/json'})
+    try:
+        urlopen(validation_request, timeout=4)
+        raise RuntimeError('Invalid contact unexpectedly accepted')
+    except HTTPError as exc:
+        if exc.code != 400 or json.load(exc).get('error') != 'invalid_contact':
+            raise RuntimeError('Contact validation is not active')
     request = Request(base + '/api/teacher/group-registration/review', data=b'{}',
                       headers={'Host': 'adeliatutor.ru', 'Origin': 'https://adeliatutor.ru', 'Content-Type': 'application/json'})
     try:

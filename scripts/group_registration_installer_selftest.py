@@ -91,6 +91,19 @@ class InstallerTests(unittest.TestCase):
                 setup.install(root, static, db, 'tutorbot-web.service', 'http://127.0.0.1:8876')
             self.assertEqual(before, {p:p.read_bytes() for p in Path(tmp).rglob('*') if p.is_file()})
 
+    def test_reviewed_previous_modules_upgrade_but_unknown_changes_stop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, static, db = self.fixture(tmp)
+            target = root / 'web_backend/public_group_registration.py'
+            original = b'# reviewed previous version\n'
+            target.write_bytes(original)
+            hashes = {**setup.PREVIOUS_HASHES, 'web_backend/public_group_registration.py': {setup.digest(original)}}
+            with patch.object(setup, 'PREVIOUS_HASHES', hashes):
+                self.assertIn(target, setup.candidates(root, static))
+                target.write_bytes(b'# different change\n')
+                with self.assertRaisesRegex(RuntimeError, 'Existing new module differs'):
+                    setup.candidates(root, static)
+
     def test_failed_restart_restores_files_and_preserves_live_database(self):
         with tempfile.TemporaryDirectory() as tmp:
             root, static, db = self.fixture(tmp)

@@ -139,6 +139,51 @@ class RecruitmentTests(unittest.TestCase):
         self.assertEqual(self.request('POST', route, body, **{'X-Test-Teacher': 'yes'})[0], 200)
         self.assertEqual(self.domain.list_for_teacher(), [])
 
+    def test_contact_formats_and_normalization(self):
+        cases = json.loads((ROOT / 'scripts/group_registration_contact_cases.json').read_text(encoding='utf-8'))
+        for contact, expected in cases:
+            with self.subTest(contact=contact):
+                if expected is None:
+                    with self.assertRaisesRegex(ValueError, 'invalid_contact'):
+                        self.domain.normalize_contact(contact)
+                else:
+                    self.assertEqual(self.domain.normalize_contact(contact)[0], expected)
+
+    def test_bad_contact_rejected_by_api_without_creating_lead(self):
+        for value in ['ТЕСТ — не связываться', 'https://vk.ru.evil.example/student', '+7 123', 79991234567, ['@student'], None]:
+            body = self.payload(); body['contact'] = value
+            status, data = self.request('POST', '/api/public/group-registration', body)
+            self.assertEqual((status, data.get('error')), (400, 'invalid_contact'))
+        self.assertEqual(self.domain.list_for_teacher(), [])
+
+    def test_contact_aliases_do_not_create_duplicate_leads(self):
+        for contact in ['@Student_1', 'https://t.me/student_1', 'telegram.me/Student_1/']:
+            body = self.payload(); body['contact'] = contact
+            self.assertEqual(self.request('POST', '/api/public/group-registration', body)[0], 200)
+        self.assertEqual(len(self.domain.list_for_teacher()), 1)
+        self.assertEqual(self.domain.list_for_teacher()[0]['contact'], '@student_1')
+        for contact in ['8 (999) 123-45-67', '+79991234567', '9991234567']:
+            body = self.payload(); body['contact'] = contact
+            self.assertEqual(self.request('POST', '/api/public/group-registration', body)[0], 200)
+        self.assertEqual(len(self.domain.list_for_teacher()), 2)
+        for contact in ['m.vk.com/Student_1', 'vk.ru/student_1', 'www.vk.ru/student_1/']:
+            body = self.payload(); body['contact'] = contact
+            self.assertEqual(self.request('POST', '/api/public/group-registration', body)[0], 200)
+        self.assertEqual(len(self.domain.list_for_teacher()), 3)
+
+    def test_legacy_raw_contact_keys_are_deduplicated_without_rewriting(self):
+        c = sys.modules['database'].connect()
+        for contact in ['https://m.vk.com/Student_1', '8 (999) 123-45-67']:
+            c.execute('''INSERT INTO public_group_registrations(group_id,name,grade,contact,contact_key,timezone,note,source,status,created_at,updated_at,consent_at)
+                VALUES(1,'Existing',11,?,?,'Europe/Moscow','keep note','legacy','NEW','now','now','now')''', (contact, contact.casefold()))
+        c.commit(); c.close()
+        for contact in ['https://vk.ru/student_1', '+79991234567']:
+            body = self.payload(); body['contact'] = contact
+            self.assertEqual(self.request('POST', '/api/public/group-registration', body)[0], 200)
+        rows = self.domain.list_for_teacher()
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(x['name'] == 'Existing' and x['note'] == 'keep note' for x in rows))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
