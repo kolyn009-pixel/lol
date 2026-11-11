@@ -32,8 +32,10 @@ def _schedule_groups(rows):
 
 
 def list_all(limit=100):
+ from web_backend import public_group_registration
+ group_registrations=public_group_registration.list_for_teacher(limit)
  trials=public_trial.list_for_teacher(limit=limit);lessons=_lesson_requests(limit);schedules=_schedule_requests(limit);groups=_schedule_groups(schedules)
- return {'counts':{'trial':sum(1 for x in trials if x.get('status') in {'NEW','CONTACTED'}),'lesson':len(lessons),'schedule':len(schedules),'schedule_groups':len(groups)},'trials':trials,'lesson_requests':lessons,'schedule_requests':schedules,'schedule_groups':groups}
+ return {'group_registrations':group_registrations,'counts':{'group':len(group_registrations),'trial':sum(1 for x in trials if x.get('status') in {'NEW','CONTACTED'}),'lesson':len(lessons),'schedule':len(schedules),'schedule_groups':len(groups)},'trials':trials,'lesson_requests':lessons,'schedule_requests':schedules,'schedule_groups':groups}
 
 
 def approve_lesson(lesson_id):
