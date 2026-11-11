@@ -65,9 +65,23 @@ class InstallerTests(unittest.TestCase):
             before = {p:p.read_bytes() for p in Path(tmp).rglob('*') if p.is_file()}
             with patch.object(setup.subprocess, 'run') as run:
                 run.return_value.returncode = 1
-                with self.assertRaisesRegex(RuntimeError, 'merge needs review'):
+                with self.assertRaisesRegex(RuntimeError, 'anchor missing or ambiguous'):
                     setup.candidates(root, static)
             self.assertEqual(before, {p:p.read_bytes() for p in Path(tmp).rglob('*') if p.is_file()})
+
+    def test_live_friendly_errors_survive_group_ui_update(self):
+        baseline = (setup.SOURCE / 'scripts/group_registration_request_center_base.js').read_text(encoding='utf-8')
+        current = baseline.replace("'&quot'", "'&quot;'").replace(
+            "new Error(j.error||j.detail||'Ошибка')", "new Error('Friendly slot_unavailable message')") + '\n'
+        with patch.object(setup.subprocess, 'run', side_effect=AssertionError('No Git merge needed')):
+            merged = setup.merge_request_js(current)
+        self.assertEqual(current.splitlines()[1], merged.splitlines()[1])
+        self.assertIn('function groupRegistration(x)', merged)
+        expected = (setup.SOURCE / 'web/teacher_request_center.js').read_text(encoding='utf-8').splitlines()
+        actual = merged.rstrip('\n').splitlines()
+        self.assertEqual(expected[:1] + expected[2:], actual[:1] + actual[2:])
+        with patch.object(setup.subprocess, 'run', side_effect=AssertionError('No Git merge needed')):
+            self.assertEqual(merged, setup.merge_request_js(merged))
 
     def test_dry_run_writes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:

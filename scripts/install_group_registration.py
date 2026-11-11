@@ -84,19 +84,21 @@ def patch_home(text):
 def merge_request_js(current):
     before = (SOURCE / 'scripts/group_registration_request_center_base.js').read_text(encoding='utf-8')
     after = (SOURCE / 'web/teacher_request_center.js').read_text(encoding='utf-8')
-    if current == before:
-        return after
-    if current == after:
-        return current
-    with tempfile.TemporaryDirectory(prefix='group-merge-') as tmp:
-        paths = [Path(tmp) / name for name in ['live.js', 'base.js', 'feature.js']]
-        for p, value in zip(paths, [current, before, after]):
-            p.write_text(value, encoding='utf-8', newline='\n')
-        result = subprocess.run(['git', 'merge-file', '-p', *map(str, paths)],
-                                capture_output=True, text=True, encoding='utf-8', timeout=20)
-        if result.returncode:
-            raise RuntimeError('Request-center JS merge needs review; no files changed')
-        return result.stdout
+    # Patch only the three reviewed group UI functions. Keep the live API error
+    # helper, translated subjects, accessibility labels and any other functions.
+    current = current.replace("'&quot'", "'&quot;'")
+    for prefix in ['function css(', 'async function render(', 'function wire(']:
+        old = [line for line in before.splitlines() if line.startswith(prefix)]
+        new = [line for line in after.splitlines() if line.startswith(prefix)]
+        if len(old) != 1 or len(new) != 1:
+            raise RuntimeError('Unexpected request-center source layout')
+        current = replace_once(current, old[0] + '\n', new[0] + '\n')
+    added = [line for line in after.splitlines() if line.startswith('function groupRegistration(')]
+    if len(added) != 1:
+        raise RuntimeError('Group card function missing')
+    if added[0] not in current:
+        current = replace_once(current, 'async function render(){', added[0] + '\nasync function render(){')
+    return current
 
 
 def candidates(root, static):
