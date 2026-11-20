@@ -1,3 +1,4 @@
+import logging
 import os
 import sqlite3
 import secrets
@@ -5037,13 +5038,20 @@ def approve_payment(
         )
 
     # WAITING (ручное подтверждение без чека) и RECEIPT_SENT допустимы.
-    if payment["status"] in ("REJECTED", "CANCELLED"):
+    if payment["status"] == "CANCELLED":
 
         conn.rollback()
         conn.close()
 
         raise ValueError(
-            "Платёж отклонён или отменён — подтвердить его нельзя."
+            "Платёж отменён — подтвердить его нельзя."
+        )
+
+    if payment["status"] == "REJECTED":
+
+        logging.getLogger(__name__).info(
+            "Админ подтверждает ранее отклонённый платёж #%s",
+            payment_id
         )
 
     # ========================================================
@@ -5360,38 +5368,46 @@ def approve_payment(
 def reject_payment(
     payment_id
 ):
+    """Возвращает True, если статус изменён; False — если платёж
+    уже PAID/CANCELLED (или не найден) и ничего не менялось."""
 
     conn = connect()
 
-    conn.execute("""
+    cursor = conn.execute("""
         UPDATE payments
 
         SET status = 'REJECTED'
 
         WHERE
             id = ?
-            AND status != 'PAID'
+            AND status NOT IN ('PAID', 'CANCELLED')
     """, (
         payment_id,
     ))
 
-    conn.execute("""
-        UPDATE receipts
+    changed = cursor.rowcount > 0
 
-        SET
-            status = 'REJECTED',
-            reviewed_at = ?
+    if changed:
 
-        WHERE
-            payment_id = ?
-            AND status = 'WAITING'
-    """, (
-        now_iso(),
-        payment_id
-    ))
+        conn.execute("""
+            UPDATE receipts
+
+            SET
+                status = 'REJECTED',
+                reviewed_at = ?
+
+            WHERE
+                payment_id = ?
+                AND status = 'WAITING'
+        """, (
+            now_iso(),
+            payment_id
+        ))
 
     conn.commit()
     conn.close()
+
+    return changed
 
 
 # ============================================================
@@ -6284,10 +6300,16 @@ def approve_paid_booking_draft_payment(payment_id):
         conn.close()
         raise ValueError("Платёж уже подтверждён.")
 
-    if payment["status"] in ("REJECTED", "CANCELLED"):
+    if payment["status"] == "CANCELLED":
         conn.rollback()
         conn.close()
-        raise ValueError("Платёж отклонён или отменён — подтвердить его нельзя.")
+        raise ValueError("Платёж отменён — подтвердить его нельзя.")
+
+    if payment["status"] == "REJECTED":
+        logging.getLogger(__name__).info(
+            "Админ подтверждает ранее отклонённый платёж #%s (booking draft)",
+            payment_id
+        )
 
     # Не создаём второй урок при повторной обработке.
     lesson = cursor.execute(

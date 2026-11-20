@@ -44,7 +44,11 @@ from core import minute_balance as core_minute_balance
 
 # Telegram ID владельца берётся из окружения (OWNER_ID);
 # fallback сохраняет прежнее поведение.
-ADMIN_ID = int(os.environ.get("OWNER_ID", "913246612"))
+try:
+    ADMIN_ID = int(os.environ.get("OWNER_ID", "").strip() or "913246612")
+except ValueError:
+    print("WARNING: OWNER_ID не является числом — используется значение по умолчанию.")
+    ADMIN_ID = 913246612
 
 
 # ============================================================
