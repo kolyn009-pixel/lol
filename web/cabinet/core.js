@@ -4,7 +4,16 @@
   var C = window.C = {};
   var SUBJ = { PHYSICS: 'Физика', CHEMISTRY: 'Химия', OGE: 'ОГЭ', EGE: 'ЕГЭ', SCHOOL: 'Школьная программа' };
   var PAY = { PAID: ['Оплачено', 'ok'], AWAITING_PAYMENT: ['Ждём оплату', 'due'], UNPAID: ['Не оплачено', 'due'], WAITING: ['Ждём оплату', 'due'], PREPAID: ['Оплачено', 'ok'], FREE: ['Без оплаты', ''] };
-  var HOME = { teacher: '/teacher/', student: '/app/' };
+  var HOME = { teacher: '/teacher/', student: '/app/', parent: '/app/parent/' };
+  var NEWHOME = { teacher: '/app/cabinet/teacher.html', student: '/app/cabinet/student.html', parent: '/app/cabinet/parent.html' };
+  var OLD_RE = /^\/(teacher\/?|app\/?|app\/index\.html|app\/teacher\.html|app\/parent\/?|app\/parent\/index\.html)$/;
+  /* ссылка в старый кабинет: добавляет classic=1, сохраняя параметры раздела и хэш */
+  C.classic = function (u) {
+    var m = String(u || '').match(/^([^?#]*)(\?[^#]*)?(#.*)?$/); if (!m || !OLD_RE.test(m[1])) return u;
+    var q = m[2] || ''; if (/[?&]classic=1(&|$)/.test(q)) return u;
+    return m[1] + (q ? q + '&' : '?') + 'classic=1' + (m[3] || '');
+  };
+  C.goOld = function () { try { localStorage.setItem('adelia:cabinet', 'old'); } catch (e) {} };
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   C.esc = esc;
@@ -122,15 +131,19 @@
     b.setAttribute('aria-label', n > 0 ? 'Уведомления: ' + n : 'Уведомления');
   };
 
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href]'); if (!a || a.origin !== location.origin) return;
+    var u = a.pathname + a.search + a.hash, n = C.classic(u); if (n !== u) a.setAttribute('href', n);
+  }, true);
+
   /* ---- boot ---- */
   C.boot = function (opts) {
-    var role = opts.role, home = HOME[role], other = role === 'teacher' ? 'student' : 'teacher';
+    var role = opts.role, home = HOME[role], other = '';
     document.body.classList.add('cab');
     C.api('/auth/me').then(function (me) {
       var s = me && me.session;
       if (!me || !me.authenticated || !s) { location.replace(home); return; }
-      if (s.role === 'parent') { location.replace('/app/parent/'); return; }
-      if (s.role !== role) { location.replace(s.role === 'teacher' ? '/app/cabinet/teacher.html' : '/app/cabinet/student.html'); return; }
+      if (s.role !== role) { location.replace(NEWHOME[s.role] || home); return; }
       build(s);
     }, function (e) { if (e.status === 401) location.replace(home); else showFatal(e); });
 
@@ -141,28 +154,28 @@
       document.body.innerHTML = '';
       var skip = el('a', 'cab-skip', 'К содержимому'); skip.href = '#cabMain'; document.body.appendChild(skip);
       var head = el('header', 'cab-head');
-      var brand = el('a', 'cab-brand', 'Аделия'); brand.href = home; head.appendChild(brand);
+      var brand = el('a', 'cab-brand', 'Аделия'); brand.href = (menu[0] && menu[0].href) || NEWHOME[role]; head.appendChild(brand);
       var nm = s.name || s.full_name || (s.user && (s.user.name || s.user.full_name)) || ''; head.appendChild(el('span', 'cab-name', nm));
       var bell = el('button', 'cab-bell'); bell.type = 'button'; bell.setAttribute('aria-label', 'Уведомления');
       bell.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4"/></svg>';
-      bell.addEventListener('click', function () { location.href = home; }); head.appendChild(bell);
-      var old = el('a', 'cab-link cab-old', 'Вернуться к старому'); old.href = home; head.appendChild(old);
+      bell.addEventListener('click', function () { location.href = C.classic(home); }); head.appendChild(bell);
+      var old = el('a', 'cab-link cab-old', 'Старый кабинет'); old.href = C.classic(home); old.addEventListener('click', C.goOld); head.appendChild(old);
       var out = el('button', 'cab-link', 'Выйти'); out.type = 'button';
       out.addEventListener('click', function () { C.api('/auth/logout', { method: 'POST', body: {} }).catch(function () {}).then(function () { location.replace(home); }); });
       head.appendChild(out); document.body.appendChild(head);
 
       var shell = el('div', 'cab-shell'), side = el('nav', 'cab-side'); side.setAttribute('aria-label', 'Разделы');
-      menu.forEach(function (m) { var a = el('a', '', m.label); a.href = m.href; if (m.key === opts.active) a.setAttribute('aria-current', 'page'); side.appendChild(a); });
+      menu.forEach(function (m) { var a = el('a', '', m.label); a.href = C.classic(m.href); if (m.key === opts.active) a.setAttribute('aria-current', 'page'); side.appendChild(a); });
       var main = el('main', 'cab-main'); main.id = 'cabMain'; main.tabIndex = -1;
       shell.appendChild(side); shell.appendChild(main); document.body.appendChild(shell);
 
       var phone = menu.filter(function (m) { return m.phone; }); if (!phone.length) phone = menu.slice(0, 4);
       var rest = menu.filter(function (m) { return phone.indexOf(m) < 0; });
       var tabs = el('nav', 'cab-tabs'); tabs.setAttribute('aria-label', 'Основные разделы');
-      phone.forEach(function (m) { var a = el('a', '', m.short || m.label); a.href = m.href; if (m.key === opts.active) a.setAttribute('aria-current', 'page'); tabs.appendChild(a); });
+      phone.forEach(function (m) { var a = el('a', '', m.short || m.label); a.href = C.classic(m.href); if (m.key === opts.active) a.setAttribute('aria-current', 'page'); tabs.appendChild(a); });
       var more = el('div', 'cab-more'); more.hidden = true; more.id = 'cabMore';
-      rest.forEach(function (m) { var a = el('a', '', m.label); a.href = m.href; more.appendChild(a); });
-      var oa = el('a', '', 'Вернуться к старому'); oa.href = home; more.appendChild(oa);
+      rest.forEach(function (m) { var a = el('a', '', m.label); a.href = C.classic(m.href); more.appendChild(a); });
+      var oa = el('a', '', 'Старый кабинет'); oa.href = C.classic(home); oa.addEventListener('click', C.goOld); more.appendChild(oa);
       var mb = el('button', '', 'Ещё'); mb.type = 'button'; mb.setAttribute('aria-expanded', 'false'); mb.setAttribute('aria-controls', 'cabMore');
       mb.addEventListener('click', function () { more.hidden = !more.hidden; mb.setAttribute('aria-expanded', String(!more.hidden)); });
       tabs.appendChild(mb); document.body.appendChild(more); document.body.appendChild(tabs);
