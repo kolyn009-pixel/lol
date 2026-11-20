@@ -316,7 +316,8 @@ body.e-page {
   gap: var(--space-7);
   align-items: center;
 }
-.e-teacher__photo { flex: 0 1 380px; min-width: 0; }
+.e-teacher__photo { flex: 0 1 460px; min-width: 0; margin: 0; }
+.e-teacher__img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; }
 .e-teacher__placeholder {
   height: 460px;
   background: var(--surface-alt);
