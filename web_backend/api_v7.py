@@ -20,11 +20,19 @@ from web_backend.learning_hub_api import LearningHubMixin, GET_PATHS as LEARNING
 from web_backend.group_workspace_api import GroupWorkspaceMixin
 from web_backend.group_media_api import GroupMediaMixin
 from web_backend.receipt_tools_api import ReceiptToolsMixin
+from web_backend.student_accounts_api import StudentAccountsMixin
+from web_backend.day_off_api import DayOffMixin
+
 from web_backend.self_study_api import SelfStudyMixin, GET_PATHS as SELF_STUDY_GET, POST_PATHS as SELF_STUDY_POST
+from web_backend.self_study_pwa import serve as serve_study_pwa
+
+from web_backend.acquisition_api import AcquisitionMixin
+
+from web_backend.sport_api import SportMixin
 
 from web_backend.public_group_registration_api import PublicGroupRegistrationMixin
 
-class Handler(PublicGroupRegistrationMixin, SelfStudyMixin, ReceiptToolsMixin, GroupMediaMixin, GroupWorkspaceMixin, LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
+class Handler(PublicGroupRegistrationMixin, SportMixin, AcquisitionMixin, StudentAccountsMixin, SelfStudyMixin, DayOffMixin, ReceiptToolsMixin, GroupMediaMixin, GroupWorkspaceMixin, LearningHubMixin, LegalMixin, RobokassaMixin, api_v6.Handler):
     server_version="AdeliaWeb/7.10"
     def _redirect(self,location):
         self.send_response(302);self.send_header("Location",str(location));self.send_header("Cache-Control","no-store");self.send_header("Content-Length","0");self.end_headers()
@@ -33,15 +41,13 @@ class Handler(PublicGroupRegistrationMixin, SelfStudyMixin, ReceiptToolsMixin, G
             import database
             user=database.get_user(int(user_id));name=str(user['name'] or 'Новый ученик') if user else 'Новый ученик'
             conn=database.connect();rows=conn.execute("SELECT DISTINCT entity_id FROM web_push_subscriptions WHERE role='teacher' AND enabled=1").fetchall();conn.close()
-            for row in rows:web_push.send('teacher',int(row['entity_id']),'👋 Новый ученик зарегистрировался',f'{name} завершил регистрацию на сайте. Откройте карточку ученика, чтобы посмотреть данные.','/teacher/','adelia-registration',{'type':'registration','user_id':int(user_id)})
+            for row in rows:
+                from web_backend import teacher_push_queue
+                teacher_push_queue.enqueue(int(row['entity_id']),'registration','web-registration:'+str(int(user_id)))
         except Exception as exc:print('[web-api] registration push error:',type(exc).__name__,repr(exc),flush=True)
     def do_GET(self):
-        if urlparse(self.path).path=='/api/teacher/lesson/options':
-            if not self._teacher():return self._json(401,{'error':'unauthorized'})
-            try:return self._json(200,teacher_manual_booking.options(parse_qs(urlparse(self.path).query).get('user_id',['0'])[0]))
-            except (ValueError,TypeError):return self._json(400,{'error':'invalid_request'})
-
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
+        if serve_study_pwa(self,path):return
         if path in SELF_STUDY_GET:return self.self_study_route(path,q)
         if self.legal_get(path,q) or self.legal_parent_gate(path):return
         if path in LEARNING_GET:return self.learning_get(path,q)
@@ -96,7 +102,8 @@ class Handler(PublicGroupRegistrationMixin, SelfStudyMixin, ReceiptToolsMixin, G
             try:
                 if path.endswith('/subscribe'):return self._json(200,web_push.subscribe(auth,body.get('subscription'),self.headers.get('User-Agent')))
                 if path.endswith('/unsubscribe'):return self._json(200,web_push.unsubscribe(auth,body.get('endpoint')))
-                return self._json(200,web_push.send_test(auth))
+                from web_backend.push_device_test import send_test
+                return self._json(200,send_test(auth,body.get('subscription_id'),body.get('workspace')))
             except PermissionError:return self._json(401,{"error":"unauthorized"})
             except ValueError as exc:return self._json(400,{"error":str(exc)})
             except Exception as exc:print("[web-api] push POST error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
@@ -105,7 +112,7 @@ class Handler(PublicGroupRegistrationMixin, SelfStudyMixin, ReceiptToolsMixin, G
             if not self._teacher():return self._json(401,{"error":"unauthorized"})
             body=self._body()
             if body is None:return self._json(400,{"error":"invalid_json"})
-            try:return self._json(200,teacher_manual_booking.create(body.get("user_id"),body.get("start_time"),body.get("duration_minutes")or 60,body.get("payment_mode")or"AWAITING_PAYMENT",body.get("program_id"),body.get("topic"),body.get("formula_id")))
+            try:return self._json(200,teacher_manual_booking.create(body.get("user_id"),body.get("start_time"),body.get("duration_minutes")or 60,body.get("payment_mode")or"AWAITING_PAYMENT"))
             except (TypeError,ValueError) as exc:return self._json(409,{"error":str(exc)or"invalid_request"})
             except Exception as exc:print("[web-api] teacher manual booking error:",type(exc).__name__,repr(exc),flush=True);return self._json(500,{"error":"server_error"})
         if path=="/api/teacher/crm/student/monthly-allowance":
@@ -200,7 +207,8 @@ def main():
     if not otp_secret.configured():raise SystemExit("ADELIA_OTP_SECRET must be set to at least 32 bytes")
     from web_backend import group_visuals
     group_visuals.ensure_schema()
+    from web_backend import day_off_planner
+    day_off_planner.ensure_schema();day_off_planner.start_worker()
     ensure_indexes();formula_schema_repair.ensure_schema();open_event_admin.choices();event_campaign.ensure_schema();student_social_profile.ensure_schema();group_portal.ensure_schema();group_lesson_access.ensure_schema();lesson_join.ensure_schema();student_onboarding.ensure_schema();public_trial_access.ensure_schema();public_trial_channel.ensure_schema();student_regular_booking.ensure_schema();web_push.ensure_schema();monthly_allowance.ensure_schema();print(f"Adelia web API v7.10 listening on http://{v1.HOST}:{v1.PORT}");ThreadingHTTPServer((v1.HOST,v1.PORT),Handler).serve_forever()
 if __name__=="__main__":main()
-
 

@@ -5,6 +5,7 @@ an unlinked student even if they guess an id. Private teacher notes, answers and
 internal CRM fields are intentionally excluded from the parent read model.
 """
 from __future__ import annotations
+from core.lesson_time import lesson_timezone, schedule_datetime
 from datetime import datetime, timedelta
 from database import connect
 from core import minute_balance
@@ -103,9 +104,9 @@ def student(parent_id,student_id):
     payments=conn.execute("SELECT id,study_goal,subject,lessons_count,total_amount,status,created_at,confirmed_at FROM payments WHERE user_id=? ORDER BY id DESC LIMIT 20",(uid,)).fetchall()
     waiting=conn.execute("SELECT COUNT(*) c,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id=? AND status IN ('WAITING','PENDING','RECEIPT_SENT')",(uid,)).fetchone()
     completed=conn.execute("SELECT COUNT(*) c,COALESCE(SUM(price),0) amount FROM lessons WHERE user_id=? AND lesson_status='COMPLETED'",(uid,)).fetchone()
-    upcoming=conn.execute("SELECT COUNT(*) c FROM lessons WHERE user_id=? AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')",(uid,datetime.now().isoformat(timespec='seconds'))).fetchone()
+    upcoming=conn.execute("SELECT COUNT(*) c FROM lessons WHERE user_id=? AND start_time>=? AND lesson_status NOT IN ('CANCELLED','REJECTED','COMPLETED')",(uid,datetime.now(lesson_timezone()).replace(tzinfo=None).isoformat(timespec='seconds'))).fetchone()
     recent_lessons=conn.execute("SELECT id,start_time,duration_minutes,subject,study_goal,lesson_status,payment_status FROM lessons WHERE user_id=? ORDER BY start_time DESC LIMIT 12",(uid,)).fetchall()
-    out={'student':dict(u),'programs':_programs(conn,uid),'payments':[dict(r) for r in payments],'payment_summary':{'waiting_count':int(waiting['c'] or 0),'waiting_amount':int(waiting['amount'] or 0)},'minute_balance':_minute_balance(uid),'lessons':{'completed':int(completed['c'] or 0),'completed_value':int(completed['amount'] or 0),'upcoming':int(upcoming['c'] or 0),'recent':[dict(r) for r in recent_lessons]},'packages':_package_summary(conn,uid),'progress':_progress(conn,uid)};conn.close();return out
+    out={'student':dict(u),'programs':_programs(conn,uid),'payments':[dict(r) for r in payments],'payment_summary':{'waiting_count':int(waiting['c'] or 0),'waiting_amount':int(waiting['amount'] or 0)},'minute_balance':_minute_balance(uid),'lessons':{'completed':int(completed['c'] or 0),'completed_value':int(completed['amount'] or 0),'upcoming':int(upcoming['c'] or 0),'recent':[_schedule_times(dict(r)) for r in recent_lessons]},'packages':_package_summary(conn,uid),'progress':_progress(conn,uid)};conn.close();return out
 
 
 def schedule(parent_id,student_id=None,days=45,limit=120):
@@ -116,7 +117,7 @@ def schedule(parent_id,student_id=None,days=45,limit=120):
         uids=requested
     else:uids=sorted(_linked_ids(pid))
     if not uids:return []
-    now=datetime.now();end=now+timedelta(days=max(1,min(int(days or 45),180)));start=now.isoformat(timespec='seconds');stop=end.isoformat(timespec='seconds');cap=_limit(limit,120,500);marks=','.join('?' for _ in uids);conn=connect();items=[]
+    now=datetime.now(lesson_timezone()).replace(tzinfo=None);end=now+timedelta(days=max(1,min(int(days or 45),180)));start=now.isoformat(timespec='seconds');stop=end.isoformat(timespec='seconds');cap=_limit(limit,120,500);marks=','.join('?' for _ in uids);conn=connect();items=[]
     rows=conn.execute(f"""SELECT l.id,l.user_id,u.name,l.start_time,l.end_time,l.duration_minutes,l.subject,l.study_goal,l.lesson_status,l.payment_status,l.price FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.user_id IN ({marks}) AND l.start_time>=? AND l.start_time<? AND l.lesson_status NOT IN ('CANCELLED','REJECTED') ORDER BY l.start_time LIMIT ?""",(*uids,start,stop,cap)).fetchall()
     for row in rows:
         item=dict(row);item['kind']='INDIVIDUAL';items.append(item)
@@ -130,7 +131,7 @@ def schedule(parent_id,student_id=None,days=45,limit=120):
         for row in rows:
             item=dict(row);item['kind']='OPEN_EVENT';item['name']=f"{item.pop('event_title')} · {item['name']}";items.append(item)
     except Exception:pass
-    conn.close();items.sort(key=lambda x:str(x.get('start_time') or ''));return items[:cap]
+    conn.close();items.sort(key=lambda x:str(x.get('start_time') or ''));return [_schedule_times(x) for x in items[:cap]]
 
 
 def dashboard(parent_id):
@@ -141,3 +142,9 @@ def dashboard(parent_id):
     marks=','.join('?' for _ in uids);conn=connect();waiting=conn.execute(f"SELECT COUNT(*) c,COALESCE(SUM(total_amount),0) amount FROM payments WHERE user_id IN ({marks}) AND status IN ('WAITING','PENDING','RECEIPT_SENT')",uids).fetchone();conn.close();upcoming_items=schedule(pid,None,21,120)
     total_minutes=sum(_minute_balance(uid)['total'] for uid in uids)
     return {'parent':p,'students':students,'summary':{'students':len(students),'upcoming_lessons':len(upcoming_items),'waiting_payments':int(waiting['c'] or 0),'waiting_amount':int(waiting['amount'] or 0),'balance_minutes':int(total_minutes)},'upcoming':upcoming_items[:40]}
+
+
+def _schedule_times(item):
+    for key in ('start_time','end_time'):
+        if item.get(key):item[key]=schedule_datetime(item[key]).isoformat(timespec='seconds')
+    return item

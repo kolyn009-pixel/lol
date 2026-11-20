@@ -59,6 +59,9 @@ class Handler(Stage10Mixin,Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Ha
             try:
                 if path=='/api/teacher/crm/schedule':return self._json(200,teacher_crm_schedule(q.get('start',[None])[0],q.get('end',[None])[0],q.get('limit',[300])[0]))
                 if path=='/api/teacher/crm/students':return self._json(200,teacher_crm_students(q.get('q',[None])[0],q.get('status',[None])[0],q.get('limit',[200])[0]))
+                if path=='/api/teacher/crm/student/lessons':
+                    from web_backend.student_lesson_history import history
+                    return self._json(200,history(q.get('id',['0'])[0],q.get('limit',[30])[0],q.get('cursor',[None])[0],q.get('status',['all'])[0]))
                 if path=='/api/teacher/crm/student':
                     item=teacher_crm_student(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
             except (TypeError,ValueError):return self._json(400,{'error':'invalid_request'})
