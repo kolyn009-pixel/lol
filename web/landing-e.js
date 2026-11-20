@@ -80,10 +80,15 @@
   }
 
   /* ---------- Цены курсов: /api/public/prices ---------- */
-  function isPhysics(x) {
+  var DICT = { PHYSICS: 'Физика', CHEMISTRY: 'Химия', SCHOOL: 'Школьная программа', OGE: 'ОГЭ', EGE: 'ЕГЭ', COLLEGE_PHYSICS: 'Физика в колледже', OLYMPIAD: 'Олимпиада' };
+  function tr(code) { return DICT[String(code || '').toUpperCase()] || ''; }
+  function subjectOf(x) {
     var s = String(x.subject || '').toUpperCase();
-    return !s || s === 'PHYSICS' || s.indexOf('ФИЗИК') !== -1;
+    if (!s || s === 'PHYSICS' || s.indexOf('ФИЗИК') !== -1) return 'PHYSICS';
+    if (s === 'CHEMISTRY' || s.indexOf('ХИМИ') !== -1) return 'CHEMISTRY';
+    return s;
   }
+  function rowSubject(row) { return (row.getAttribute('data-subject') || 'PHYSICS').toUpperCase(); }
   function overlaps(x, min, max) {
     var a = x.grade_min == null ? null : Number(x.grade_min);
     var b = x.grade_max == null ? null : Number(x.grade_max);
@@ -105,17 +110,18 @@
       var overall = null;
       rows.forEach(function (row) {
         var goal = row.getAttribute('data-goal');
+        var subj = rowSubject(row);
         var min = Number(row.getAttribute('data-grade-min'));
         var max = Number(row.getAttribute('data-grade-max'));
         var hits = list.filter(function (x) {
-          return String(x.goal || '').toUpperCase() === goal && isPhysics(x) && overlaps(x, min, max) && Number(x.amount != null ? x.amount : x.hourly_rate) > 0;
+          return String(x.goal || '').toUpperCase() === goal && subjectOf(x) === subj && overlaps(x, min, max) && Number(x.amount != null ? x.amount : x.hourly_rate) > 0;
         });
         if (!hits.length) return;
         var best = Math.min.apply(null, hits.map(function (x) { return Number(x.amount != null ? x.amount : x.hourly_rate); }));
         overall = overall == null ? best : Math.min(overall, best);
-        setText(row.querySelector('[data-price]'), 'от ' + num(best) + ' ₽/60 мин');
+        setText(row.querySelector('[data-price]'), 'от ' + num(best) + ' ₽ / 60 мин');
       });
-      if (overall != null) setText(doc.querySelector('[data-formats-price="individual"]'), 'от ' + num(overall) + ' ₽ за 60 минут');
+      if (overall != null) setText(doc.querySelector('[data-formats-price="individual"]'), 'от ' + num(overall) + ' ₽ / 60 мин');
     }).catch(function () { /* остаётся статическое «Цена уточняется» */ });
   }
   function groupPrice(g) { return Number(g.price); }
@@ -123,23 +129,25 @@
     var rows = doc.querySelectorAll('.e-course[data-goal]');
     loadOpps().then(function (data) {
       var groups = (data.groups || []).filter(function (x) {
-        return isPhysics(x) && groupPrice(x) > 0 && x.recruitment_status !== 'WAITLIST';
+        return groupPrice(x) > 0 && x.recruitment_status !== 'WAITLIST';
       });
       if (!groups.length) return;
       var minOf = function (arr) { return Math.min.apply(null, arr.map(groupPrice)); };
-      var overall = minOf(groups);
+      var phys = groups.filter(function (x) { return subjectOf(x) === 'PHYSICS'; });
+      var overall = minOf(phys.length ? phys : groups);
       rows.forEach(function (row) {
         var goal = row.getAttribute('data-goal');
-        var matched = groups.filter(function (x) { return String(x.study_goal || '').toUpperCase() === goal; });
+        var subj = rowSubject(row);
+        var matched = groups.filter(function (x) { return String(x.study_goal || '').toUpperCase() === goal && subjectOf(x) === subj; });
         var link = row.querySelector('[data-group-link]');
         if (!link || !matched.length) return; // нет групп по этой цели — остаётся «Группы набираются»
         var y = minOf(matched);
-        setText(link.querySelector('[data-group-price]'), 'от ' + num(y) + ' ₽/занятие');
+        setText(link.querySelector('[data-group-price]'), 'от ' + num(y) + ' ₽ / занятие');
         link.classList.remove('is-empty');
         link.setAttribute('href', '/start/?format=group#e-groups');
         link.setAttribute('aria-label', 'В группе, ' + (row.querySelector('.e-course__title').textContent) + ': от ' + num(y) + ' рублей за занятие');
       });
-      setText(doc.querySelector('[data-formats-price="group"]'), 'от ' + num(overall) + ' ₽ за занятие');
+      setText(doc.querySelector('[data-formats-price="group"]'), 'от ' + num(overall) + ' ₽ / занятие');
       var maxN = Math.max.apply(null, groups.map(function (x) { return Number(x.max_members) || 0; }));
       if (maxN > 0) {
         doc.querySelectorAll('[data-group-max]').forEach(function (el) { el.textContent = maxN; });
@@ -172,14 +180,14 @@
       (data.groups || []).forEach(function (x) {
         var wait = x.recruitment_status === 'WAITLIST';
         out.push(row('Группа', wait ? 'Лист ожидания' : 'Набор открыт', x.title,
-          [x.subject, x.study_goal].filter(Boolean).join(' · '),
+          [tr(x.subject), tr(x.study_goal)].filter(Boolean).join(' · '),
           [money(x.price) + ' / занятие', x.next_lesson ? 'Ближайшее: ' + when(x.next_lesson) : '', seatsText(x)],
           '/start/group.html?group_id=' + encodeURIComponent(x.id),
           wait ? 'Встать в лист ожидания' : 'Записаться в группу'));
       });
       (data.events || []).forEach(function (x) {
         out.push(row(x.event_label || 'Событие', 'Регистрация открыта', x.title,
-          [x.subject, gradeText(x)].filter(Boolean).join(' · '),
+          [tr(x.subject), gradeText(x)].filter(Boolean).join(' · '),
           [when(x.starts_at), money(x.price), seatsText(x)],
           '/start/?event_id=' + encodeURIComponent(x.id), 'Записаться'));
       });
@@ -223,6 +231,30 @@
     }
   }
 
+  /* ---------- Преподаватель: /api/public/teacher-profile (статический fallback в HTML) ---------- */
+  function clean(v) { v = v == null ? '' : String(v).trim(); return /^(null|undefined|\[.*\])$/i.test(v) ? '' : v; }
+  function loadTeacher() {
+    getJSON('/api/public/teacher-profile').then(function (d) {
+      if (!d || typeof d !== 'object') return;
+      var q = doc.querySelector('[data-teacher-quote] p'), nm = doc.querySelector('[data-teacher-name]');
+      var facts = doc.querySelector('[data-teacher-facts]'), bio = doc.querySelector('[data-teacher-bio]'), lk = doc.querySelector('[data-teacher-links]');
+      if (clean(d.quote) && q) q.textContent = '«' + clean(d.quote).replace(/^«|»$/g, '') + '»';
+      if (clean(d.display_name) && nm) nm.textContent = clean(d.display_name);
+      var fl = [].concat(Array.isArray(d.facts) ? d.facts : []).map(clean).filter(Boolean);
+      if (clean(d.education)) fl.unshift(clean(d.education));
+      if (clean(d.experience_text) && fl.indexOf(clean(d.experience_text)) === -1) fl.unshift(clean(d.experience_text));
+      if (facts && fl.length) facts.innerHTML = fl.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('');
+      if (bio && clean(d.bio)) bio.textContent = clean(d.bio);
+      var L = d.links || {};
+      var defs = [['profi', 'Отзывы на Профи.ру'], ['telegram_channel', 'Telegram-канал'], ['vk', 'VK']];
+      var lh = defs.filter(function (k) { return /^https?:\/\//.test(clean(L[k[0]])); }).map(function (k) {
+        return '<a href="' + esc(clean(L[k[0]])) + '" target="_blank" rel="noopener" data-link="' + k[0] + '">' + k[1] + '</a>';
+      }).join('');
+      if (lk && lh) lk.innerHTML = lh;
+    }).catch(function () { /* остаётся статический текст */ });
+  }
+
+  loadTeacher();
   loadPrices();
   loadGroupPrices();
   loadOpportunities();

@@ -17,7 +17,8 @@ Adelia — онлайн-школа физики (ОГЭ, ЕГЭ, школьна�
 | Бэкенд | **backend-lead** | api-dev, integrations, db-migrations, perf, timezones |
 | Тестирование | **qa-lead** | tester, test-writer, e2e-tester, bot-flow-tester, payments-qa, design-qa |
 | Безопасность | **security-lead** | security (аудит кода), secrets-guard, infra-security, privacy-guard |
-| Маркетинг | **marketing-lead** | seo-specialist, content-writer, marketing-analyst, competitor-scout, product |
+| Маркетинг | **marketing-lead** | seo-specialist, content-writer, marketing-analyst, competitor-scout |
+| Будущие обновления | **roadmap-lead** | product, idea-critic, feasibility-reviewer, competitor-scout, ux-researcher |
 | Общие | tech-lead (задачи на несколько команд) | reviewer, refactor, cleaner, docs, deps, branch-janitor, release, ai-assistant, vk-tg-parity |
 
 Цепочка для любой задачи команды:
@@ -29,6 +30,10 @@ Adelia — онлайн-школа физики (ОГЭ, ЕГЭ, школьна�
 6. `efficiency-lead` — проверка расхода и запись в `docs/agent-budget-log.md`.
 
 Мелкая правка в один-два файла — без цепочки, сразу исполнитель + tester.
+
+## Отдел будущих обновлений
+
+Идеи владельцу приносит только roadmap-lead и только после внутреннего обсуждения: product предлагает → idea-critic разбирает → feasibility-reviewer оценивает → roadmap-lead отбирает 3–5 здравых. Итог — `docs/roadmap/`. Сырые идеи владельцу не отправлять.
 
 ## Бюджет токенов (обязательно)
 
