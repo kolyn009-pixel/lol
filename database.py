@@ -1671,6 +1671,30 @@ def create_tables():
         ON lesson_packages(program_id)
     """)
 
+    # Один пакет на один платёж: защита от двойного зачисления.
+    # Старые БД с дублями не должны падать при старте — только лог.
+    _pkg_cols = {
+        row[1]
+        for row in cursor.execute(
+            "PRAGMA table_info(lesson_packages)"
+        ).fetchall()
+    }
+    if "payment_id" in _pkg_cols:
+        try:
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                idx_packages_payment_unique
+                ON lesson_packages(payment_id)
+            """)
+        except sqlite3.IntegrityError as error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Не удалось создать уникальный индекс "
+                "lesson_packages(payment_id): в БД есть дубли (%s). "
+                "Проверьте пакеты с одинаковым payment_id вручную.",
+                error,
+            )
+
     # Переносим старых учеников в новую модель направлений.
     migrate_legacy_student_programs(
         conn
@@ -4574,6 +4598,17 @@ def create_payment(
     program_id=None
 ):
 
+    try:
+        _lessons_count = int(lessons_count)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Некорректное количество занятий."
+        )
+    if not 1 <= _lessons_count <= 50:
+        raise ValueError(
+            "Количество занятий должно быть от 1 до 50."
+        )
+
     package = (
         calculate_package(
             price_per_lesson,
@@ -4880,8 +4915,30 @@ def add_receipt(
     source_platform="TELEGRAM"
 ):
 
+    """Attach a receipt. Returns receipt_id, or None if the payment is
+    missing or already final (PAID/CANCELLED) — then nothing is written."""
+
     conn = connect()
     cursor = conn.cursor()
+
+    cursor.execute(
+        "BEGIN IMMEDIATE"
+    )
+
+    current = cursor.execute(
+        "SELECT status FROM payments WHERE id = ?",
+        (payment_id,)
+    ).fetchone()
+
+    if (
+        current is None
+        or current["status"] in ("PAID", "CANCELLED")
+    ):
+
+        conn.rollback()
+        conn.close()
+
+        return None
 
     cursor.execute("""
         INSERT INTO receipts (
@@ -4927,6 +4984,7 @@ def add_receipt(
         SET status = 'RECEIPT_SENT'
 
         WHERE id = ?
+          AND status IN ('WAITING', 'REJECTED')
     """, (
         payment_id,
     ))
@@ -4976,6 +5034,16 @@ def approve_payment(
 
         raise ValueError(
             "Платёж уже подтверждён."
+        )
+
+    # WAITING (ручное подтверждение без чека) и RECEIPT_SENT допустимы.
+    if payment["status"] in ("REJECTED", "CANCELLED"):
+
+        conn.rollback()
+        conn.close()
+
+        raise ValueError(
+            "Платёж отклонён или отменён — подтвердить его нельзя."
         )
 
     # ========================================================
@@ -6215,6 +6283,11 @@ def approve_paid_booking_draft_payment(payment_id):
         conn.rollback()
         conn.close()
         raise ValueError("Платёж уже подтверждён.")
+
+    if payment["status"] in ("REJECTED", "CANCELLED"):
+        conn.rollback()
+        conn.close()
+        raise ValueError("Платёж отклонён или отменён — подтвердить его нельзя.")
 
     # Не создаём второй урок при повторной обработке.
     lesson = cursor.execute(

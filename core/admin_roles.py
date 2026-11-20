@@ -4,6 +4,10 @@ from .schema import ensure_schema
 
 OWNER_ID = None
 
+# Роли с админскими правами. TESTER сюда НЕ входит: тестировщик
+# получает доступ только к тест-лабе (см. is_tester / test_lab).
+ADMIN_ROLES = ("OWNER", "ADMIN")
+
 
 def initialize(owner_id: int):
     global OWNER_ID
@@ -30,12 +34,16 @@ def is_admin_id(telegram_id):
         return True
     ensure_schema()
     conn = database.connect()
-    row = conn.execute("SELECT 1 FROM admin_accounts WHERE telegram_id=? AND active=1", (int(telegram_id),)).fetchone()
+    row = conn.execute(
+        "SELECT 1 FROM admin_accounts WHERE telegram_id=? AND active=1 AND role IN (?, ?)",
+        (int(telegram_id), *ADMIN_ROLES),
+    ).fetchone()
     conn.close()
     return bool(row)
 
 
 def role_for(telegram_id):
+    # Описательная роль (в т.ч. TESTER) — для аудита; НЕ для проверки прав.
     if is_owner(telegram_id):
         return "OWNER"
     conn = database.connect()
@@ -51,9 +59,12 @@ def touch(telegram_id):
     conn.commit(); conn.close()
 
 
-def list_admins():
+def list_admins(include_testers=False):
+    # По умолчанию — только OWNER/ADMIN (рассылки админских уведомлений).
+    # include_testers=True — для экранов управления командой.
     conn = database.connect()
-    rows = conn.execute("SELECT * FROM admin_accounts WHERE active=1 ORDER BY CASE role WHEN 'OWNER' THEN 0 ELSE 1 END, created_at").fetchall()
+    role_filter = "" if include_testers else " AND role IN ('OWNER', 'ADMIN')"
+    rows = conn.execute("SELECT * FROM admin_accounts WHERE active=1" + role_filter + " ORDER BY CASE role WHEN 'OWNER' THEN 0 ELSE 1 END, created_at").fetchall()
     conn.close(); return [dict(r) for r in rows]
 
 
