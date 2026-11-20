@@ -6319,6 +6319,8 @@ async def tutor_delay_followup_job(context):
             callback_data=f"admin_lesson_delay_followup|{lesson_id}|unknown|{recipient}",
         )],
     ])
+    from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+    _adelia_teacher_push('schedule','admin.py:tutor_delay_followup_job',locals(),ADMIN_ID)
     await context.bot.send_message(
         chat_id=ADMIN_ID,
         text=(

@@ -20,13 +20,16 @@ def _viewable_source(source):
     return str(source or '').upper() in {'WEB','TELEGRAM','TG','TELEGRAM_PARENT','VK'}
 
 def list_receipts(status='WAITING',limit=100):
+    from web_backend import receipt_accounting
+    receipt_accounting.ensure_schema()
     status=str(status or 'WAITING').upper()
-    if status not in {'WAITING','APPROVED','REJECTED','ALL'}:raise ValueError('invalid_receipt_status')
+    if status not in {'WAITING','APPROVED','REJECTED','ACCOUNTED','ALL'}:raise ValueError('invalid_receipt_status')
     where=[];params=[]
-    if status!='ALL':where.append('r.status=?');params.append(status)
+    if status=='ACCOUNTED':where.append('ack.receipt_id IS NOT NULL')
+    elif status!='ALL':where.append('r.status=? AND ack.receipt_id IS NULL');params.append(status)
     sql="""
       SELECT r.id receipt_id,r.payment_id,r.user_id,r.source_platform,r.file_type,
-        r.status receipt_status,r.created_at receipt_created_at,
+        CASE WHEN ack.receipt_id IS NOT NULL THEN 'ACCOUNTED' ELSE r.status END receipt_status,r.status original_receipt_status,ack.acknowledged_at,ack.note accounting_note,r.created_at receipt_created_at,
         p.status payment_status,p.total_amount,p.lessons_count,p.price_per_lesson,
         p.study_goal,p.subject,p.promo_code,p.promo_discount_amount,
         p.created_at payment_created_at,p.confirmed_at,u.name,
@@ -34,6 +37,7 @@ def list_receipts(status='WAITING',limit=100):
       FROM receipts r
       JOIN payments p ON p.id=r.payment_id AND p.user_id=r.user_id
       JOIN users u ON u.id=r.user_id
+      LEFT JOIN receipt_accounting_ack ack ON ack.receipt_id=r.id
       LEFT JOIN receipt_cloud_archives a ON a.receipt_id=r.id
     """
     if where:sql+=' WHERE '+' AND '.join(where)
@@ -84,13 +88,26 @@ def archive_summary():
     finally:conn.close()
 
 def summary():
-    conn=connect();rows=conn.execute('SELECT status,COUNT(*) c FROM receipts GROUP BY status').fetchall();waiting_amount=conn.execute("SELECT COALESCE(SUM(p.total_amount),0) s FROM receipts r JOIN payments p ON p.id=r.payment_id AND p.user_id=r.user_id WHERE r.status='WAITING' AND p.status IN ('WAITING','PENDING','RECEIPT_SENT')").fetchone();conn.close();counts={str(r['status']).upper():int(r['c'] or 0) for r in rows};return {'waiting':counts.get('WAITING',0),'approved':counts.get('APPROVED',0),'rejected':counts.get('REJECTED',0),'waiting_amount':int(waiting_amount['s'] or 0),'archive':archive_summary()}
+    from web_backend import receipt_accounting
+    receipt_accounting.ensure_schema();conn=connect()
+    try:
+        rows=conn.execute("SELECT CASE WHEN ack.receipt_id IS NOT NULL THEN 'ACCOUNTED' ELSE r.status END status,COUNT(*) c FROM receipts r LEFT JOIN receipt_accounting_ack ack ON ack.receipt_id=r.id GROUP BY 1").fetchall()
+        amount=conn.execute("SELECT COALESCE(SUM(p.total_amount),0) s FROM receipts r JOIN payments p ON p.id=r.payment_id AND p.user_id=r.user_id WHERE r.status='WAITING' AND p.status IN ('WAITING','PENDING','RECEIPT_SENT') AND NOT EXISTS(SELECT 1 FROM receipt_accounting_ack ack WHERE ack.receipt_id=r.id)").fetchone()
+        counts={str(r['status']).upper():int(r['c'] or 0) for r in rows}
+        return {'waiting':counts.get('WAITING',0),'approved':counts.get('APPROVED',0),'rejected':counts.get('REJECTED',0),'accounted':counts.get('ACCOUNTED',0),'waiting_amount':int(amount['s'] or 0),'archive':archive_summary()}
+    finally:conn.close()
+
 
 def review(payment_id,action):
     pid=int(payment_id);action=str(action or '').upper();conn=connect();row=conn.execute('SELECT id,status,user_id,total_amount FROM payments WHERE id=?',(pid,)).fetchone();receipt=conn.execute('SELECT id,status FROM receipts WHERE payment_id=? ORDER BY id DESC LIMIT 1',(pid,)).fetchone();conn.close()
     if not row:raise ValueError('payment_not_found')
     if not receipt:raise ValueError('receipt_not_found')
     if action=='APPROVE':
+        from web_backend import receipt_accounting
+        receipt_accounting.ensure_schema();c=connect()
+        try:ack=c.execute('SELECT 1 FROM receipt_accounting_ack WHERE payment_id=?',(pid,)).fetchone()
+        finally:c.close()
+        if ack:raise ValueError('Чек уже отмечен как учтённый ранее. Повторное зачисление заблокировано.')
         if str(row['status']).upper()=='PAID':
             package_id=approve_payment(pid)
             return {'status':'ok','payment_id':pid,'package_id':package_id,'already_processed':True,'result':'PAID'}

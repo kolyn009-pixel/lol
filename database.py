@@ -3548,6 +3548,8 @@ def student_has_pending_regular_schedule(
     user_id
 ):
 
+    from core.lesson_time import lesson_timezone
+    today=datetime.now(lesson_timezone()).date().isoformat()
     conn = connect()
 
     row = conn.execute("""
@@ -3557,13 +3559,13 @@ def student_has_pending_regular_schedule(
         WHERE
             user_id = ?
 
-            AND active = 1
+            AND (end_date IS NULL OR end_date >= ?)
 
             AND status = 'PENDING'
 
         LIMIT 1
     """, (
-        user_id,
+        user_id,today,
     )).fetchone()
 
     conn.close()
@@ -3610,7 +3612,7 @@ def get_regular_recurring_slots(
             requested_end = requested_start + timedelta(minutes=duration_minutes)
             rows = conn.execute(
                 """
-                SELECT start_time, duration_minutes
+                SELECT start_time, duration_minutes, end_date
                 FROM regular_schedules
                 WHERE weekday = ?
                   AND (
@@ -3621,6 +3623,8 @@ def get_regular_recurring_slots(
                 (weekday,),
             ).fetchall()
             for row in rows:
+                if row['end_date'] and str(row['end_date'])[:10] < day.isoformat():
+                    continue
                 existing_start = datetime.strptime(row["start_time"], "%H:%M")
                 existing_end = existing_start + timedelta(
                     minutes=int(row["duration_minutes"] or 60)
@@ -3631,6 +3635,8 @@ def get_regular_recurring_slots(
 
         def slots_for_day(day_obj):
             values = set()
+            from core.availability_windows import merge_intervals
+            intervals = []
             for row in get_effective_working_hours(day_obj, conn=conn):
                 start_dt = datetime.combine(
                     day_obj,
@@ -3640,6 +3646,8 @@ def get_regular_recurring_slots(
                     day_obj,
                     datetime.strptime(row["end_time"], "%H:%M").time(),
                 )
+                intervals.append((start_dt, end_dt))
+            for start_dt, end_dt in merge_intervals(intervals):
                 current = start_dt
                 while current + timedelta(minutes=duration_minutes) <= end_dt:
                     value = current.strftime("%H:%M")
@@ -3683,7 +3691,8 @@ def regular_schedule_slot_conflict(
     weekday,
     start_time,
     duration_minutes,
-    exclude_schedule_id=None
+    exclude_schedule_id=None,
+    start_date=None
 ):
 
     requested_start = (
@@ -3741,7 +3750,11 @@ def regular_schedule_slot_conflict(
 
     conn.close()
 
+    from core.lesson_time import lesson_timezone
+    boundary=str(start_date)[:10] if start_date else datetime.now(lesson_timezone()).date().isoformat()
     for row in rows:
+        if row['end_date'] and str(row['end_date'])[:10] < boundary:
+            continue
 
         existing_start = (
             datetime.strptime(
@@ -3856,7 +3869,8 @@ def create_regular_schedule_request(
     if regular_schedule_slot_conflict(
         weekday,
         start_time,
-        duration_minutes
+        duration_minutes,
+        start_date=start_date
     ):
 
         raise ValueError(
@@ -4907,8 +4921,7 @@ def create_payment(
     minutes_total=None,
     base_duration_minutes=None,
     hourly_rate=None,
-    program_id=None,
-    self_service=False
+    program_id=None
 ):
 
     package = (
@@ -4991,28 +5004,6 @@ def create_payment(
 
     conn = connect()
     cursor = conn.cursor()
-
-    if self_service:
-        # Serialize checkout across web and bot processes using SQLite's write lock.
-        cursor.execute("BEGIN IMMEDIATE")
-        review = cursor.execute("""SELECT id FROM payments
-            WHERE user_id=? AND status='RECEIPT_SENT' LIMIT 1""", (int(user_id),)).fetchone()
-        if review:
-            conn.rollback(); conn.close()
-            raise ValueError('receipt_already_under_review')
-        existing = cursor.execute("""SELECT id FROM payments
-            WHERE user_id=? AND status='WAITING'
-              AND study_goal=? AND subject=? AND lessons_count=? AND total_amount=?
-              AND COALESCE(lesson_id,0)=? AND COALESCE(program_id,0)=?
-              AND COALESCE(minutes_total,0)=? AND COALESCE(hourly_rate,0)=?
-              AND COALESCE(base_duration_minutes,0)=? AND COALESCE(promo_code,'')=?
-            ORDER BY id DESC LIMIT 1""",
-            (int(user_id),study_goal,subject,int(lessons_count),int(total_amount),
-             int(lesson_id or 0),int(program_id or 0),minutes_total,hourly_rate,
-             base_duration_minutes,str(promo_code or ''))).fetchone()
-        if existing:
-            conn.rollback(); conn.close()
-            return int(existing['id'])
 
     cursor.execute("""
         INSERT INTO payments (
@@ -5155,8 +5146,7 @@ def get_payment_for_lesson(
 
 def create_lesson_payment(
     lesson_id,
-    promo_code=None,
-    self_service=False
+    promo_code=None
 ):
 
     lesson = get_lesson(
@@ -5203,7 +5193,6 @@ def create_lesson_payment(
         price_per_lesson=int(lesson["price"]),
         promo_code=promo_code,
         lesson_id=lesson_id,
-        self_service=self_service,
     )
 
 
@@ -8051,187 +8040,183 @@ def charge_reserved_lesson(
 # MANUAL PAYMENT
 # ============================================================
 
-def confirm_manual_lesson_payment(
-    lesson_id,
-    amount=None
-):
+def confirm_manual_lesson_payment(lesson_id,amount=None,*,actor_id=None,source='LEGACY',lessons_count=1):
+    if isinstance(lessons_count,bool) or str(lessons_count) not in {str(i) for i in range(1,101)}:raise ValueError('invalid_lessons_count')
+    count=int(lessons_count)
+    conn=connect()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        lesson=conn.execute('SELECT * FROM lessons WHERE id=?',(int(lesson_id),)).fetchone()
+        if not lesson:raise ValueError('lesson_not_found')
+        if str(lesson['lesson_status'] or '').upper() in {'CANCELLED','REJECTED'}:raise ValueError('lesson_not_payable')
+        if lesson['payment_status']=='PAID' and lesson['payment_id'] and lesson['package_id']:
+            conn.rollback();return int(lesson['payment_id']),int(lesson['package_id'])
+        if lesson['payment_status'] not in {'AWAITING_PAYMENT','UNPAID','WAITING'}:raise ValueError('lesson_not_awaiting_payment')
+        if conn.execute("SELECT 1 FROM payments WHERE lesson_id=? AND status IN ('WAITING','RECEIPT_SENT','PAID')",(int(lesson_id),)).fetchone():raise ValueError('linked_invoice_requires_review')
+        unit=int(lesson['price']);amount=int(unit*count if amount in (None,'') else amount)
+        if amount%count:raise ValueError('amount_must_divide_by_lessons')
+        unit=amount//count
+        if amount<=0:raise ValueError('positive_payment_required')
+        cursor=conn.cursor()
+        cursor.execute("""
+            INSERT INTO payments (
 
-    lesson = get_lesson(
-        lesson_id
-    )
+                user_id,
 
-    if lesson is None:
+                study_goal,
+                subject,
 
-        raise ValueError(
-            "Занятие не найдено."
+                payment_type,
+
+                lessons_count,
+
+                price_per_lesson,
+
+                subtotal,
+
+                discount_percent,
+                package_discount_amount,
+
+                promo_discount_amount,
+
+                total_amount,
+
+                status,
+
+                created_at,
+                confirmed_at
+            )
+
+            VALUES (
+                ?,
+                ?, ?,
+                ?,
+                ?,
+                ?,
+                ?,
+                0,
+                0,
+                0,
+                ?,
+                'PAID',
+                ?,
+                ?
+            )
+        """, (
+            lesson["user_id"],
+            lesson["study_goal"],
+            lesson["subject"],
+            'MANUAL_SINGLE' if count==1 else 'MANUAL_PACKAGE',
+            count,
+            int(unit),
+            int(amount),
+            int(amount),
+            now_iso(),
+            now_iso()
+        ))
+
+        payment_id = (
+            cursor.lastrowid
         )
 
-    if (
-        lesson[
-            "payment_status"
-        ] != "AWAITING_PAYMENT"
-    ):
+        cursor.execute("""
+            INSERT INTO lesson_packages (
 
-        raise ValueError(
-            "Занятие не ожидает оплату."
-        )
+                payment_id,
 
-    if amount is None:
+                user_id,
 
-        amount = (
-            lesson["price"]
-        )
+                study_goal,
+                subject,
 
-    conn = connect()
-    cursor = conn.cursor()
+                lessons_total,
+                lessons_used,
 
-    cursor.execute(
-        "BEGIN IMMEDIATE"
-    )
+                price_per_lesson,
 
-    cursor.execute("""
-        INSERT INTO payments (
+                discount_percent,
 
-            user_id,
+                amount_paid,
 
-            study_goal,
-            subject,
+                status,
 
-            payment_type,
+                source_type,
 
-            lessons_count,
+                created_at
+            )
 
-            price_per_lesson,
-
-            subtotal,
-
-            discount_percent,
-            package_discount_amount,
-
-            promo_discount_amount,
-
-            total_amount,
-
-            status,
-
-            created_at,
-            confirmed_at
-        )
-
-        VALUES (
-            ?,
-            ?, ?,
-            'MANUAL_SINGLE',
-            1,
-            ?,
-            ?,
-            0,
-            0,
-            0,
-            ?,
-            'PAID',
-            ?,
-            ?
-        )
-    """, (
-        lesson["user_id"],
-        lesson["study_goal"],
-        lesson["subject"],
-        int(amount),
-        int(amount),
-        int(amount),
-        now_iso(),
-        now_iso()
-    ))
-
-    payment_id = (
-        cursor.lastrowid
-    )
-
-    cursor.execute("""
-        INSERT INTO lesson_packages (
-
+            VALUES (
+                ?,
+                ?,
+                ?, ?,
+                ?,
+                1,
+                ?,
+                0,
+                ?,
+                ?,
+                'PAID',
+                ?
+            )
+        """, (
             payment_id,
+            lesson["user_id"],
+            lesson["study_goal"],
+            lesson["subject"],
+            count,
+            int(unit),
+            int(amount),
+            'USED' if count==1 else 'ACTIVE',
+            now_iso()
+        ))
 
-            user_id,
-
-            study_goal,
-            subject,
-
-            lessons_total,
-            lessons_used,
-
-            price_per_lesson,
-
-            discount_percent,
-
-            amount_paid,
-
-            status,
-
-            source_type,
-
-            created_at
+        package_id = (
+            cursor.lastrowid
         )
 
-        VALUES (
-            ?,
-            ?,
-            ?, ?,
-            1,
-            1,
-            ?,
-            0,
-            ?,
-            'USED',
-            'PAID',
-            ?
-        )
-    """, (
-        payment_id,
-        lesson["user_id"],
-        lesson["study_goal"],
-        lesson["subject"],
-        int(amount),
-        int(amount),
-        now_iso()
-    ))
+        cursor.execute("""
+            UPDATE lessons
 
-    package_id = (
-        cursor.lastrowid
-    )
+            SET
+                payment_status = 'PAID',
 
-    cursor.execute("""
-        UPDATE lessons
+                payment_id = ?,
 
-        SET
-            payment_status = 'PAID',
+                package_id = ?,
 
-            payment_id = ?,
+                charged = 1,
 
-            package_id = ?,
+                payment_deadline = NULL,
 
-            charged = 1,
+                updated_at = ?
 
-            payment_deadline = NULL,
+            WHERE id = ?
+        """, (
+            payment_id,
+            package_id,
+            now_iso(),
+            lesson_id
+        ))
 
-            updated_at = ?
-
-        WHERE id = ?
-    """, (
-        payment_id,
-        package_id,
-        now_iso(),
-        lesson_id
-    ))
-
-    conn.commit()
-    conn.close()
-
-    return (
-        payment_id,
-        package_id
-    )
+        duration=int(lesson['duration_minutes'] or 60) if 'duration_minutes' in lesson.keys() else 60
+        hourly=round(unit*60/duration)
+        for table,values,record_id in [('payments',{'minutes_total':count*duration,'base_duration_minutes':duration,'hourly_rate':hourly},payment_id),('lesson_packages',{'minutes_total':count*duration,'minutes_used':duration,'base_duration_minutes':duration,'hourly_rate':hourly},package_id)]:
+            columns={row['name'] for row in conn.execute('PRAGMA table_info('+table+')')}
+            fields={key:value for key,value in values.items() if key in columns}
+            if fields:conn.execute('UPDATE '+table+' SET '+','.join(key+'=?' for key in fields)+' WHERE id=?',(*fields.values(),record_id))
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='lesson_minute_charges'").fetchone():
+            conn.execute("INSERT INTO lesson_minute_charges(lesson_id,package_id,minutes,source_type,created_at) VALUES(?,?,?,'PAID',?)",(int(lesson_id),int(package_id),duration,now_iso()))
+            columns={row['name'] for row in conn.execute('PRAGMA table_info(lessons)')}
+            values={'reserved_minutes':duration,'reserved_paid_minutes':duration,'reserved_bonus_minutes':0}
+            fields={key:value for key,value in values.items() if key in columns}
+            if fields:conn.execute('UPDATE lessons SET '+','.join(key+'=?' for key in fields)+' WHERE id=?',(*fields.values(),int(lesson_id)))
+        cursor.execute('UPDATE payments SET lesson_id=? WHERE id=?',(int(lesson_id),int(payment_id)))
+        conn.execute('CREATE TABLE IF NOT EXISTS lesson_payment_confirmations(lesson_id INTEGER PRIMARY KEY,payment_id INTEGER UNIQUE NOT NULL,actor_id INTEGER,source TEXT NOT NULL,created_at TEXT NOT NULL)')
+        conn.execute('INSERT INTO lesson_payment_confirmations VALUES(?,?,?,?,?) ON CONFLICT(lesson_id) DO UPDATE SET payment_id=excluded.payment_id,actor_id=excluded.actor_id,source=excluded.source,created_at=excluded.created_at',(int(lesson_id),int(payment_id),actor_id,str(source)[:40],now_iso()))
+        conn.commit();return int(payment_id),int(package_id)
+    except BaseException:
+        conn.rollback();raise
+    finally:conn.close()
 
 
 def charge_admin_lesson_from_balance(
@@ -8284,6 +8269,10 @@ def auto_cancel_unpaid_lesson(
     lesson_id
 ):
 
+    # ADELIA_DAY_OFF_AUTOCANCEL_V1
+    from web_backend.day_off_planner import hold_auto_cancel
+    if hold_auto_cancel(lesson_id):
+        return False
     lesson = get_lesson(
         lesson_id
     )
@@ -14321,4 +14310,3 @@ def freeze_legacy_lesson_timezones():
     conn.commit(); conn.close()
     set_setting('lesson_timezone_canonicalized_v1', '1')
     return changed
-

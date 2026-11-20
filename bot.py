@@ -1123,7 +1123,8 @@ def get_work_intervals(
             item[0]
     )
 
-    return intervals
+    from core.availability_windows import merge_intervals
+    return merge_intervals(intervals)
 
 
 # ============================================================
@@ -1477,14 +1478,15 @@ async def show_regular_times(
     row = []
 
     actor_tid = int(query.from_user.id)
-    teacher_anchor = datetime.now(TIMEZONE).date()
+    from core.lesson_time import lesson_timezone
+    teacher_anchor = datetime.now(lesson_timezone()).date()
     while teacher_anchor.weekday() != weekday:
         teacher_anchor += timedelta(days=1)
 
     weekday_short = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
     for value in slots:
-        teacher_dt = time_to_datetime(teacher_anchor, value)
-        local_dt = teacher_dt.astimezone(user_timezone.user_tz(actor_tid, TIMEZONE_NAME))
+        teacher_dt = datetime.combine(teacher_anchor, datetime.strptime(value, '%H:%M').time(), tzinfo=lesson_timezone())
+        local_dt = teacher_dt.astimezone(user_timezone.user_tz(actor_tid, str(lesson_timezone())))
         display_value = local_dt.strftime("%H:%M")
         if local_dt.date() != teacher_dt.date():
             display_value = f"{weekday_short[local_dt.weekday()]} {local_dt.strftime('%H:%M')}"
@@ -1585,6 +1587,7 @@ async def show_regular_confirmation(
         await show_program_picker(query, user)
         return
 
+    from core.lesson_time import lesson_timezone
     duration = program_duration(program)
     names = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 
@@ -1593,7 +1596,7 @@ async def show_regular_confirmation(
     await query.edit_message_text(
         "🔁 Проверь постоянное расписание\n\n"
         f"📅 Каждый {names[weekday].lower()}\n"
-        f"🕐 {start_time}\n"
+        f"🕐 {start_time} · {lesson_timezone()} (время расписания)\n"
         f"⏱ {duration} минут\n"
         f"📆 До {datetime.strptime(end_date, '%Y-%m-%d').strftime('%d.%m.%Y')}\n\n"
         "После подтверждения преподавателем я закреплю это время за тобой. "
@@ -1626,12 +1629,17 @@ async def create_regular_request(
         return
 
     duration = program_duration(program)
-    today = datetime.now(TIMEZONE).date()
+    from core.lesson_time import lesson_timezone
+    current=datetime.now(lesson_timezone())
+    today = current.date()
+    while today.weekday()!=int(weekday):today+=timedelta(days=1)
+    if datetime.combine(today,datetime.strptime(start_time,'%H:%M').time(),tzinfo=lesson_timezone())<=current:today+=timedelta(days=7)
 
     try:
         schedule_id = database.create_regular_schedule_request(
             user_id=user["id"],
             study_goal=program["study_goal"],
+            program_id=int(program["id"]),
             subject=program["subject"],
             weekday=weekday,
             start_time=start_time,
@@ -1667,6 +1675,8 @@ async def create_regular_request(
     )
 
     try:
+        from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+        _adelia_teacher_push('regular_request', 'bot.py:create_regular_request', locals(), admin.ADMIN_ID)
         await context.bot.send_message(
             chat_id=admin.ADMIN_ID,
             text=(
@@ -3081,6 +3091,8 @@ async def notify_admin_registration(context, role, name, telegram_user, phone=No
     if extra_lines:
         lines.extend(extra_lines)
     try:
+        from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+        _adelia_teacher_push('registration', 'bot.py:notify_admin_registration', locals(), admin.ADMIN_ID)
         await context.bot.send_message(chat_id=admin.ADMIN_ID, text="\n".join(lines))
     except Exception as error:
         print("REGISTRATION ADMIN NOTIFY ERROR:", repr(error))
@@ -3396,6 +3408,8 @@ async def parent_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             + ("⚠️ Поздняя отмена: занятие считается использованным." if late else "✅ Отмена с возвратом минут на баланс.")
         )
         try:
+            from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+            _adelia_teacher_push('schedule', 'bot.py:parent_buttons', locals(), admin.ADMIN_ID)
             await context.bot.send_message(
                 chat_id=admin.ADMIN_ID,
                 text=(
@@ -4085,6 +4099,8 @@ async def create_student_request(
     # ТЕБЕ
     # ========================================================
 
+    from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+    _adelia_teacher_push('lesson_request', 'bot.py:create_student_request', locals(), admin.ADMIN_ID)
     await context.bot.send_message(
 
         chat_id=(
@@ -4238,6 +4254,10 @@ async def lesson_reminder_job(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    # ADELIA_DAY_OFF_GUARD_V1
+    from web_backend.day_off_planner import suppress_reminder as _dayoff_reminder_guard
+    if _dayoff_reminder_guard((context.job.data or {}).get('lesson_id'),(context.job.data or {}).get('reminder_type')):
+        return
     data = (
         context.job.data
     )
@@ -4711,6 +4731,8 @@ async def lesson_reminder_watchdog_job(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    # ADELIA_DAY_OFF_GUARD_V1
+    from web_backend.day_off_planner import suppress_reminder as _dayoff_reminder_guard
     conn = database.connect()
 
     rows = conn.execute("""
@@ -4746,6 +4768,8 @@ async def lesson_reminder_watchdog_job(
 
     for lesson in rows:
 
+        if _dayoff_reminder_guard(lesson['id']):
+            continue
         try:
 
             start_dt = datetime.fromisoformat(
@@ -4836,6 +4860,10 @@ async def payment_reminder_job(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    # ADELIA_DAY_OFF_GUARD_V1
+    from web_backend.day_off_planner import suppress_reminder as _dayoff_reminder_guard
+    if _dayoff_reminder_guard((context.job.data or {}).get('lesson_id'),(context.job.data or {}).get('reminder_type')):
+        return
     if str(database.get_setting("notify_payment", "1")).lower() in ("0","false","off","no"):
         return
 
@@ -4995,94 +5023,19 @@ async def payment_deadline_job(
 
         return
 
-    cancelled = (
-        database
-        .auto_cancel_unpaid_lesson(
-            lesson_id
-        )
-    )
-
-    if not cancelled:
-
+    try:
+        database.charge_reserved_lesson(int(lesson_id))
+    except ValueError:
+        pass
+    else:
         return
-
-    if lesson[
-        "google_event_id"
-    ]:
-
-        deleted = await asyncio.to_thread(
-            delete_google_event,
-            lesson[
-                "google_event_id"
-            ]
-        )
-
-        if deleted:
-            save_google_event_id(
-                lesson_id,
-                None,
-            )
-
-    user = (
-        database
-        .get_user(
-            lesson[
-                "user_id"
-            ]
-        )
-    )
-
-    if user[
-        "telegram_id"
-    ]:
-
-        await context.bot.send_message(
-
-            chat_id=(
-                user[
-                    "telegram_id"
-                ]
-            ),
-
-            text=(
-                "❌ Я отменила запись\n\n"
-
-                f"📅 "
-                f"{format_datetime(lesson['start_time'])}\n\n"
-
-                "Оплата не была подтверждена за 2 часа до занятия, поэтому я освободила слот.\n\nЕсли занятие всё ещё нужно — выбери новое время, я помогу 💜"
-            )
-        )
-
-    from handlers import auto_cancel_actions
-
-    await context.bot.send_message(
-
-        chat_id=(
-            admin.ADMIN_ID
-        ),
-
-        text=(
-            "⚠️ АВТООТМЕНА ЗАНЯТИЯ\n\n"
-
-            f"👤 "
-            f"{user['name']}\n"
-
-            f"📅 "
-            f"{format_datetime(lesson['start_time'])}\n"
-
-            f"💰 {int(lesson['price'] or 0):,} ₽".replace(",", " ")
-            + "\n\n"
-
-            "Причина: оплата не подтверждена "
-            "за 2 часа до занятия.\n\n"
-
-            "Что сделать с занятием?"
-        ),
-
-        reply_markup=auto_cancel_actions.admin_keyboard(lesson_id),
-    )
-
+    from core import payment_wait_control
+    payment_wait_control.mark_risk(int(lesson_id))
+    from web_backend import push_events
+    push_events.teachers('Оплата не подтверждена — нужно решение','Откройте занятие: ждать оплату или отменить.', '/app/teacher.html',f'payment-risk-{int(lesson_id)}',{'type':'payment_risk','lesson_id':int(lesson_id)})
+    from core.payment_reminder_routing import _notify_teacher
+    await _notify_teacher(context,int(lesson_id),lesson)
+    return
 
 # ============================================================
 # PAYMENT JOBS
@@ -5245,6 +5198,8 @@ async def homework_reminder_job(
         )
     )
 
+    from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+    _adelia_teacher_push('homework_missing', 'bot.py:homework_reminder_job', locals(), admin.ADMIN_ID)
     await context.bot.send_message(
 
         chat_id=(
@@ -5951,6 +5906,8 @@ async def lesson_request_save(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"📖 {SUBJECT_NAMES.get(lesson['subject'], lesson['subject'])}\n\n"
         f"Материалов: {len(items)}"
     )
+    from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+    _adelia_teacher_push('lesson_material', 'bot.py:lesson_request_save', locals(), admin.ADMIN_ID)
     await context.bot.send_message(
         chat_id=admin.ADMIN_ID,
         text=header,
@@ -5958,12 +5915,16 @@ async def lesson_request_save(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
     for item in items:
         if item["photo_file_id"]:
+            from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+            _adelia_teacher_push('lesson_material', 'bot.py:lesson_request_save', locals(), admin.ADMIN_ID)
             await context.bot.send_photo(
                 chat_id=admin.ADMIN_ID,
                 photo=item["photo_file_id"],
                 caption=item["text"] or None,
             )
         elif item["text"]:
+            from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+            _adelia_teacher_push('lesson_material', 'bot.py:lesson_request_save', locals(), admin.ADMIN_ID)
             await context.bot.send_message(chat_id=admin.ADMIN_ID, text=item["text"])
 
     context.user_data.pop("lesson_request_items", None)
@@ -6187,6 +6148,8 @@ async def lesson_note_handler(
 
         if photo_file_id:
 
+            from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+            _adelia_teacher_push('lesson_material', 'bot.py:lesson_note_handler', locals(), admin.ADMIN_ID)
             await context.bot.send_photo(
                 chat_id=admin.ADMIN_ID,
                 photo=photo_file_id,
@@ -6196,6 +6159,8 @@ async def lesson_note_handler(
 
         else:
 
+            from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+            _adelia_teacher_push('lesson_material', 'bot.py:lesson_note_handler', locals(), admin.ADMIN_ID)
             await context.bot.send_message(
                 chat_id=admin.ADMIN_ID,
                 text=admin_caption,
@@ -6551,6 +6516,8 @@ async def confirm_sickness(
         ])
     )
 
+    from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+    _adelia_teacher_push('sickness', 'bot.py:confirm_sickness', locals(), admin.ADMIN_ID)
     await context.bot.send_message(
 
         chat_id=(
@@ -7468,6 +7435,8 @@ async def student_buttons(
 
         # Используем тот же admin request flow, который уже
         # обрабатывает обычные ученические заявки.
+        from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+        _adelia_teacher_push('lesson_request', 'bot.py:student_buttons', locals(), admin.ADMIN_ID)
         await context.bot.send_message(
             chat_id=admin.ADMIN_ID,
             text=(
@@ -7746,6 +7715,8 @@ async def student_buttons(
                 )
             )
 
+            from core.lesson_reschedule_details import message as move_details
+
             await notify_student_if_parent_action(
                 query, context, user,
                 "🔁 Готово, я перенесла занятие.\n"
@@ -7762,60 +7733,11 @@ async def student_buttons(
                 ),
             )
 
-            # Google Calendar:
-            # при переносе сохраняем то же событие,
-            # просто меняем дату/время и переносим его ID
-            # на новое занятие.
-            try:
-
-                old_event_id = (
-                    old_lesson[
-                        "google_event_id"
-                    ]
-                )
-
-                if old_event_id:
-
-                    event_id = (
-                        await asyncio.to_thread(
-                            update_google_event,
-                            old_event_id,
-                            user,
-                            new_lesson,
-                        )
-                    )
-
-                    save_google_event_id(
-                        old_lesson_id,
-                        None,
-                    )
-
-                    save_google_event_id(
-                        new_lesson_id,
-                        event_id,
-                    )
-
-                else:
-
-                    event_id = (
-                        await asyncio.to_thread(
-                            create_google_event,
-                            user,
-                            new_lesson,
-                        )
-                    )
-
-                    save_google_event_id(
-                        new_lesson_id,
-                        event_id,
-                    )
-
-            except Exception as error:
-
-                print(
-                    "RESCHEDULE GOOGLE:",
-                    repr(error)
-                )
+            # Reconcile both records: remove the obsolete event, then sync the replacement.
+            from core import schedule_sync
+            result = await schedule_sync.sync_lessons(context.application, [old_lesson_id, new_lesson_id])
+            if result['failed']:
+                print('RESCHEDULE SYNC RETRY NEEDED:', result['failed'], flush=True)
 
             schedule_lesson_reminders(
                 context.application,
@@ -7836,6 +7758,8 @@ async def student_buttons(
                 "с баланса не списывалось."
             )
 
+            from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+            _adelia_teacher_push('schedule', 'bot.py:student_buttons', locals(), admin.ADMIN_ID)
             await context.bot.send_message(
 
                 chat_id=(
@@ -7844,15 +7768,8 @@ async def student_buttons(
 
                 text=(
                     "🔁 УЧЕНИК ПЕРЕНЁС ЗАНЯТИЕ\n\n"
-
-                    f"👤 "
-                    f"{user['name']}\n"
-
-                    f"📅 Новое время: "
-                    f"{start_dt.strftime('%d.%m.%Y %H:%M')}\n\n"
-
-                    "Перенос выполнен более чем "
-                    "за 2 часа — бесплатно."
+                    + move_details(old_lesson, new_lesson, user)
+                    + "\n\nПеренос выполнен более чем за 2 часа — бесплатно."
                 )
             )
 
@@ -8338,6 +8255,8 @@ async def student_buttons(
                 ]
             )
 
+        from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+        _adelia_teacher_push('schedule', 'bot.py:student_buttons', locals(), admin.ADMIN_ID)
         await context.bot.send_message(
 
             chat_id=(
@@ -8500,6 +8419,8 @@ async def post_init(
     # Consolidated runtime patches must be active before startup sync.
     # This prevents the legacy Google Calendar policy from deleting
     # AWAITING_PAYMENT events before V2 restores them.
+    from web_backend import teacher_push_queue
+    teacher_push_queue.install(application)
     musthave_jobs.runtime_patch_v2.install(application)
     board_admin.install(application)
 
@@ -8775,6 +8696,8 @@ async def error_handler(
             priority="CRITICAL",
             dedupe_key=None,
         )
+        from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+        _adelia_teacher_push('system', 'bot.py:error_handler', locals(), admin.ADMIN_ID)
         await context.bot.send_message(
             chat_id=admin.ADMIN_ID,
             text=f"🚨 Критическая ошибка Аделия | TutorBot\n\n{repr(context.error)[:3000]}",
@@ -9294,6 +9217,9 @@ def main():
 
     for handler in learning_handlers.handlers():
         app.add_handler(handler)
+
+    from handlers.self_study_family import install as install_family_languages
+    install_family_languages(app)
 
     # ========================================================
     # AUTOMATION STAGE 3

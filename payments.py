@@ -2630,6 +2630,8 @@ async def receipt_handler(
 
     if file_type == "PHOTO":
 
+        from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+        _adelia_teacher_push('receipt', 'payments.py:receipt_handler', locals(), admin.ADMIN_ID)
         await context.bot.send_photo(
 
             chat_id=(
@@ -2645,6 +2647,8 @@ async def receipt_handler(
 
     else:
 
+        from web_backend.teacher_push_queue import telegram_event as _adelia_teacher_push
+        _adelia_teacher_push('receipt', 'payments.py:receipt_handler', locals(), admin.ADMIN_ID)
         await context.bot.send_document(
 
             chat_id=(
