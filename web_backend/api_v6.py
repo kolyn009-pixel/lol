@@ -45,6 +45,18 @@ class Handler(api_v5.Handler):
   return super().do_GET()
  def do_POST(self):
   path=urlparse(self.path).path
+  if path=='/api/teacher/booking/regular':
+   if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+   teacher=self._teacher()
+   if not teacher:return self._json(401,{'error':'unauthorized'})
+   body=self._body()
+   if not isinstance(body,dict):return self._json(400,{'error':'invalid_json'})
+   try:
+    from web_backend import teacher_regular_booking
+    return self._json(200,teacher_regular_booking.create(int(teacher['admin_telegram_id']),body))
+   except (ValueError,TypeError) as exc:return self._json(409,{'error':str(exc)})
+   except PermissionError as exc:return self._json(404,{'error':str(exc)})
+   except Exception as exc:print('[web-api] teacher recurring booking:',type(exc).__name__,flush=True);return self._json(500,{'error':'server_error'})
   if path=='/api/student/booking/regular':
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
    auth=self._student()

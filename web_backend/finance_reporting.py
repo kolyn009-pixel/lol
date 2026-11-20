@@ -105,7 +105,7 @@ def dashboard(start=None,end=None,period=None):
 
 
 
-def mark_lesson_paid(lesson_id,amount=None):
+def mark_lesson_paid(lesson_id,amount=None,actor_id=None,lessons_count=1):
     lesson=database.get_lesson(int(lesson_id))
     if lesson is None:raise ValueError('lesson_not_found')
     if str(lesson['lesson_status'] or '').upper() in {'CANCELLED','REJECTED'}:raise ValueError('lesson_not_payable')
@@ -114,10 +114,14 @@ def mark_lesson_paid(lesson_id,amount=None):
         return {'status':'already_paid','lesson_id':int(lesson_id),'payment_status':status,'payment_id':lesson['payment_id']}
     existing=database.get_payment_for_lesson(int(lesson_id))
     if existing is not None:
+        if isinstance(lessons_count,bool) or str(lessons_count) not in {str(i) for i in range(1,101)}:raise ValueError('invalid_lessons_count')
+        if int(existing['lessons_count'] or 1)!=int(lessons_count):raise ValueError('existing_invoice_lessons_mismatch')
+        expected=int(lesson['price'])*int(lessons_count) if amount in (None,'') else int(amount)
+        if int(existing['total_amount'] or 0)!=expected:raise ValueError('existing_invoice_amount_mismatch')
         database.approve_payment(int(existing['id']))
         updated=database.get_lesson(int(lesson_id))
         return {'status':'ok','lesson_id':int(lesson_id),'payment_status':updated['payment_status'],'payment_id':int(existing['id'])}
-    payment_id,package_id=database.confirm_manual_lesson_payment(int(lesson_id),None if amount in (None,'') else int(amount))
+    payment_id,package_id=database.confirm_manual_lesson_payment(int(lesson_id),None if amount in (None,'') else int(amount),actor_id=actor_id,source='TEACHER_WEB',lessons_count=lessons_count)
     return {'status':'ok','lesson_id':int(lesson_id),'payment_status':'PAID','payment_id':int(payment_id),'package_id':int(package_id)}
 
 
