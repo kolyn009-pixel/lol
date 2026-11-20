@@ -131,9 +131,9 @@
       rows.forEach(function (row) {
         var goal = row.getAttribute('data-goal');
         var matched = groups.filter(function (x) { return String(x.study_goal || '').toUpperCase() === goal; });
-        var y = matched.length ? minOf(matched) : overall;
         var link = row.querySelector('[data-group-link]');
-        if (!link) return;
+        if (!link || !matched.length) return; // нет групп по этой цели — остаётся «Группы набираются»
+        var y = minOf(matched);
         setText(link.querySelector('[data-group-price]'), 'от ' + num(y) + ' ₽/занятие');
         link.classList.remove('is-empty');
         link.setAttribute('href', '/start/?format=group#e-groups');
@@ -141,7 +141,10 @@
       });
       setText(doc.querySelector('[data-formats-price="group"]'), 'от ' + num(overall) + ' ₽ за занятие');
       var maxN = Math.max.apply(null, groups.map(function (x) { return Number(x.max_members) || 0; }));
-      if (maxN > 0) doc.querySelectorAll('[data-group-max]').forEach(function (el) { el.textContent = maxN; });
+      if (maxN > 0) {
+        doc.querySelectorAll('[data-group-max]').forEach(function (el) { el.textContent = maxN; });
+        doc.querySelectorAll('[data-group-max-wrap]').forEach(function (el) { el.hidden = false; });
+      }
     }).catch(function () { /* остаётся «Группы набираются» */ });
   }
 
