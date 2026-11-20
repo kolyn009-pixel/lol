@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Главная — Аделия</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/app/assets/icons/adelia-mark-32.png">
+<link rel="stylesheet" href="/app/tokens.css">
+<link rel="stylesheet" href="/app/cabinet/cabinet.css">
+</head>
+<body class="cab">
+<noscript>Для работы кабинета нужен JavaScript.</noscript>
+<script src="/app/cabinet/core.js"></script>
+<script>
+(function () {
+  var A = '/app/';
+  var MENU = [
+    { key: 'home', label: 'Главная', href: '/app/cabinet/student.html', phone: true },
+    { key: 'lessons', label: 'Занятия', href: A, phone: true },
+    { key: 'homework', label: 'Домашние задания', short: 'ДЗ', href: A, phone: true },
+    { key: 'messages', label: 'Сообщения', href: A, phone: true },
+    { key: 'pay', label: 'Оплата', href: A, phone: true },
+    { key: 'formulas', label: 'Формулы', href: A }
+  ];
+  var MON = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  var body, name = '', hadData = false, loading = false;
+
+  function num(x) { var n = Number(x); return isFinite(n) ? n : 0; }
+  function when(iso) {
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? (+m[3]) + ' ' + MON[+m[2] - 1] : '';
+  }
+  function ok(p) { return p.then(function (v) { return { v: v }; }, function (e) { if (e.status === 401) throw e; return { e: e }; }); }
+  function plural(n, a, b, c) { n = Math.abs(n) % 100; var k = n % 10; return n > 10 && n < 20 ? c : k > 1 && k < 5 ? b : k === 1 ? a : c; }
+  function rub(n) { return new Intl.NumberFormat('ru-RU').format(n); }
+  function stat(h) { if (h == null) return ''; if (typeof h === 'object') return h.label || h.text || h.title || ''; return String(h); }
+
+  function lessonSection(d) {
+    var s = C.section('01', 'Следующий урок'), l = d && d.next_lesson;
+    if (!l) { s.appendChild(C.empty('Ближайших занятий нет. Напиши преподавателю, чтобы записаться.')); return s; }
+    var row = C.el('div', 'c-row'), t = C.el('div', 'c-row-t');
+    var tm = C.hhmm(l.start_time), te = C.hhmm(l.end_time), dt = when(l.start_time);
+    t.appendChild(C.el('div', 'c-big', (dt ? dt + ', ' : '') + tm + (te ? '–' + te : '')));
+    var meta = C.el('div', 'c-lesson-meta');
+    meta.appendChild(C.el('span', 'c-tag', 'Индивидуально'));
+    var sb = C.subjectLabel(l.subject); if (sb) meta.appendChild(C.el('span', '', sb));
+    var g = C.subjectLabel(l.study_goal); if (g && g !== sb) meta.appendChild(C.el('span', '', g));
+    var ps = C.payStatus(l.payment_status); if (ps) meta.appendChild(C.el('span', 'c-pay ' + ps.cls, ps.text));
+    t.appendChild(meta); row.appendChild(t);
+    var act = C.el('div', 'c-actions');
+    act.appendChild(C.button('Войти на урок', 'primary', function (ev) { join(l, ev.currentTarget); }));
+    row.appendChild(act); s.appendChild(row); return s;
+  }
+
+  function join(l, btn) {
+    var fb = A + 'lesson/?id=' + encodeURIComponent(l.id);
+    btn.disabled = true;
+    C.api('/student/lesson/join', { method: 'POST', body: { lesson_id: l.id } }).then(function (r) {
+      var u = (r && r.meeting_url) || l.meeting_url;
+      if (u && /^https?:\/\//i.test(u)) window.open(u, '_blank', 'noopener'); else location.href = fb;
+    }, function (e) {
+      if (e.status === 401) { location.replace(A); return; }
+      C.toast(e.message || 'Не получилось войти.');
+      if (l.meeting_url && /^https?:\/\//i.test(l.meeting_url)) window.open(l.meeting_url, '_blank', 'noopener');
+    }).then(function () { btn.disabled = false; });
+  }
+
+  function hwSection(items) {
+    var s = C.section('02', 'Домашние задания');
+    if (!items.length) { s.appendChild(C.empty('Заданий нет — можно выдохнуть.')); return s; }
+    items.slice().sort(function (a, b) { return String(a.deadline || '9').localeCompare(String(b.deadline || '9')); }).slice(0, 3).forEach(function (h) {
+      var r = C.el('a', 'c-row'); r.href = A; r.style.textDecoration = 'none';
+      var t = C.el('div', 'c-row-t'); t.appendChild(C.el('div', '', h.title || h.topic || 'Задание'));
+      var sub = [stat(h.status_ui), h.deadline ? 'до ' + when(h.deadline) : ''].filter(Boolean).join(' · ');
+      if (sub) t.appendChild(C.el('div', 'c-row-s', sub));
+      r.appendChild(t); s.appendChild(r);
+    });
+    var a = C.el('div', 'c-actions'); a.style.marginTop = 'var(--space-2)'; a.appendChild(C.button('Все задания', 'secondary', A)); s.appendChild(a);
+    return s;
+  }
+
+  function finSection(f) {
+    var s = C.section('03', 'Баланс и оплата'), b = (f && f.balance) || {}, tot = num(b.total);
+    var big = C.el('div', 'c-big', tot + ' мин'); s.appendChild(big);
+    var lessons = Math.floor(tot / 60);
+    var sub = '≈ ' + lessons + ' ' + plural(lessons, 'занятие', 'занятия', 'занятий') + ' по 60 минут';
+    if (num(b.bonus) > 0) sub += ' · бонусных ' + num(b.bonus) + ' мин';
+    s.appendChild(C.el('p', 'c-row-s', sub));
+    var w = num(f && f.waiting_payment);
+    if (w > 0) {
+      var r = C.el('div', 'c-row'); r.appendChild(C.el('span', 'c-pay due', 'Ждёт оплата: ' + rub(w) + ' ₽'));
+      r.appendChild(C.button('Оплатить', 'primary', A)); s.appendChild(r);
+    }
+    return s;
+  }
+
+  function progSection(p, recent) {
+    var sm = p && p.summary, tp = (p && p.topics) || [];
+    if ((!sm || !num(sm.total)) && !tp.length && !recent) return null;
+    var s = C.section('04', 'Прогресс');
+    if (sm && num(sm.total)) {
+      var st = C.el('div', 'c-stats');
+      [['Тем', sm.total], ['Начато', sm.started], ['Освоено', sm.mastered], ['Средний балл', num(sm.avg_mastery) + '%']].forEach(function (x) {
+        var i = C.el('span', ''); i.append(x[0] + ' ', C.el('b', '', String(x[1]))); st.appendChild(i);
+      });
+      s.appendChild(st);
+    }
+    var cur = false;
+    tp.slice(0, 6).forEach(function (t) {
+      var m = Math.max(0, Math.min(100, num(t.mastery))), isCur = !cur && t.status === 'started'; if (isCur) cur = true;
+      var r = C.el('div', 'c-topic'), h = C.el('div', 'c-topic-h');
+      h.append(C.el('span', '', t.title || 'Тема'), C.el('span', '', m + '%'));
+      var bar = C.el('div', 'c-bar' + (isCur ? ' cur' : '')), i = document.createElement('i'); i.style.width = m + '%';
+      bar.appendChild(i); bar.setAttribute('role', 'img'); bar.setAttribute('aria-label', 'Освоено ' + m + '%');
+      r.append(h, bar); s.appendChild(r);
+    });
+    if (recent) {
+      var rr = C.el('p', 'c-row-s');
+      var txt = typeof recent === 'object' ? [recent.title || recent.topic || recent.name, recent.score != null ? 'результат ' + recent.score : (recent.result || '')].filter(Boolean).join(' · ') : String(recent);
+      rr.textContent = 'Последний результат: ' + txt; rr.style.marginTop = 'var(--space-2)'; s.appendChild(rr);
+    }
+    return s;
+  }
+
+  function paint(dash, hw, fin, prog) {
+    var items = (hw && hw.items) || [], w = num(fin && fin.waiting_payment);
+    var line = items.length ? 'Есть задания: ' + items.length : w > 0 ? 'Ждёт оплата' : 'Всё под контролем';
+    if (items.length && w > 0) line += ' · Ждёт оплата';
+    var frag = document.createDocumentFragment();
+    frag.append(C.el('h1', 'c-hello', 'Привет, ' + name + '!'), C.el('p', 'cab-sub', line));
+    frag.appendChild(dash ? lessonSection(dash) : C.error('Не получилось загрузить ближайший урок.', load));
+    frag.appendChild(hw ? hwSection(items) : C.error('Не получилось загрузить задания.', load));
+    frag.appendChild(fin ? finSection(fin) : C.error('Не получилось загрузить баланс.', load));
+    var ps = prog || (dash && dash.recent_result) ? progSection(prog, dash && dash.recent_result) : null;
+    if (ps) frag.appendChild(ps);
+    body.replaceChildren(frag);
+    C.setBell(num(dash && dash.unread_messages));
+  }
+
+  function load() {
+    if (loading) return Promise.resolve(); loading = true;
+    return Promise.all([ok(C.api('/student/dashboard')), ok(C.api('/student/homework')), ok(C.api('/student/finance/overview')), ok(C.api('/student/progress'))]).then(function (r) {
+      if (r.every(function (x) { return x.e; })) { if (!hadData) body.replaceChildren(C.error(r[0].e.message, load)); else C.toast('Не удалось обновить. Показаны прежние данные.'); return; }
+      hadData = true; paint(r[0].v, r[1].v, r[2].v, r[3].v);
+    }, function (e) { if (e.status === 401) location.replace(A); }).then(function () { loading = false; });
+  }
+
+  C.boot({
+    role: 'student', menu: MENU, active: 'home',
+    render: function (main, s) {
+      name = s.name || s.full_name || (s.user && (s.user.name || s.user.full_name)) || 'ученик';
+      name = String(name).split(/\s+/)[0];
+      body = document.createElement('div'); body.setAttribute('aria-live', 'polite');
+      for (var i = 0; i < 3; i++) body.appendChild(C.el('div', 'c-skel'));
+      main.appendChild(body); document.title = 'Главная — Аделия';
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
+      return load();
+    }
+  });
+})();
+</script>
+</body>
+</html>
