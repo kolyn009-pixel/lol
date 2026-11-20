@@ -3,7 +3,7 @@ from __future__ import annotations
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
 from web_backend import api as v1
-from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_access,public_trial_slots,public_trial_channel,student_onboarding,teacher_request_center,onboarding_schedule_options,payment_hub,teacher_schedule_settings,server_health,student_regular_booking,trial_approval_atomic,teacher_lesson_actions
+from web_backend import api_v5,otp_secret,open_event_admin,event_campaign,student_social_profile,group_portal,public_trial_access,public_trial_slots,public_trial_channel,student_onboarding,teacher_request_center,onboarding_schedule_options,payment_hub,teacher_schedule_settings,server_health,student_regular_booking,trial_approval_atomic,teacher_lesson_actions,teacher_lesson_payment
 from web_backend.stage12_indexes import ensure_indexes
 from web_backend.student_auth import peek_student_login_code
 class Handler(api_v5.Handler):
@@ -73,6 +73,17 @@ class Handler(api_v5.Handler):
     return self._json(200,result)
    except (TypeError,ValueError) as exc:return self._json(409,{'error':str(exc) or 'invalid_request'})
    except Exception as exc:print('[web-api] teacher lesson action error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
+  if path=='/api/teacher/lesson/payment':
+   if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
+   teacher=self._teacher()
+   if not teacher:return self._json(401,{'error':'unauthorized'})
+   if not self._owner():return self._json(403,{'error':'owner_required'})
+   body=self._body()
+   if body is None or not isinstance(body,dict):return self._json(400,{'error':'invalid_json'})
+   try:
+    code,result=teacher_lesson_payment.handle(body,int(teacher['admin_telegram_id']))
+    return self._json(code,result)
+   except Exception as exc:print('[web-api] teacher lesson payment error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'server_error'})
   if path=='/api/teacher/trial/approve':
    if not self._same_origin_write():return self._json(403,{'error':'cross_origin_forbidden'})
    teacher=self._teacher()

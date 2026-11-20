@@ -32,13 +32,13 @@ def remind_payment(lesson_id):
     delivery=push_events.student_and_parents(student_id,'💳 Напоминание об оплате',body,f'/app/lesson/?id={int(lesson_id)}','/app/parent/',f'payment-reminder-teacher-{int(lesson_id)}-{int(datetime.now().timestamp())}',{'type':'reminder','lesson_id':int(lesson_id),'reason':'teacher_payment_reminder'},mirror_messengers=mirror_student)
     return {'status':'ok','lesson_id':int(lesson_id),'payment_status':'AWAITING_PAYMENT','delivery':delivery}
 
-def confirm_payment_wait(lesson_id,teacher_id=None):
+def confirm_payment_wait(lesson_id,teacher_id=None,notify=True):
     lesson=_lesson(lesson_id)
     if str(lesson['payment_status'] or '').upper()!='AWAITING_PAYMENT':raise ValueError('payment_not_awaiting')
     from core import payment_wait_control
     state=payment_wait_control.confirm_wait(int(lesson_id),teacher_id)
     already=bool(state.get('already_confirmed'))
-    delivery=None if already else remind_payment(int(lesson_id))['delivery']
+    delivery=None if already or not notify else remind_payment(int(lesson_id))['delivery']
     return {'status':'ok','lesson_id':int(lesson_id),'payment_status':'AWAITING_PAYMENT','payment_wait_confirmed':True,'already_confirmed':already,'state':state,'delivery':delivery}
 
 def cancel(lesson_id,reason=None):

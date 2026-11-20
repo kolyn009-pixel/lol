@@ -8506,6 +8506,11 @@ def confirm_manual_lesson_payment(lesson_id,amount=None,*,actor_id=None,source='
             fields={key:value for key,value in values.items() if key in columns}
             if fields:conn.execute('UPDATE lessons SET '+','.join(key+'=?' for key in fields)+' WHERE id=?',(*fields.values(),int(lesson_id)))
         cursor.execute('UPDATE payments SET lesson_id=? WHERE id=?',(int(lesson_id),int(payment_id)))
+        # Журнал минут: та же запись PAYMENT_CREDIT (остаток total-used), что
+        # иначе добавил бы retry_uncredited_payments() позже; без неё отмена
+        # оплаты до повтора уводила бы журнал в минус.
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='minute_ledger'").fetchone():
+            conn.execute('INSERT OR IGNORE INTO minute_ledger(user_id,program_id,lesson_id,payment_id,package_id,operation,paid_minutes_delta,bonus_minutes_delta,money_rubles,hourly_rate,reason,actor_id,idempotency_key,created_at) VALUES(?,NULL,?,?,?,?,?,0,?,?,?,?,?,?)',(int(lesson['user_id']),int(lesson_id),int(payment_id),int(package_id),'PAYMENT_CREDIT',(count-1)*duration,int(amount),hourly,'Ручная отметка оплаты занятия',actor_id,_payment_credit_key(payment_id,package_id),now_iso()))
         conn.execute('CREATE TABLE IF NOT EXISTS lesson_payment_confirmations(lesson_id INTEGER PRIMARY KEY,payment_id INTEGER UNIQUE NOT NULL,actor_id INTEGER,source TEXT NOT NULL,created_at TEXT NOT NULL)')
         conn.execute('INSERT INTO lesson_payment_confirmations VALUES(?,?,?,?,?) ON CONFLICT(lesson_id) DO UPDATE SET payment_id=excluded.payment_id,actor_id=excluded.actor_id,source=excluded.source,created_at=excluded.created_at',(int(lesson_id),int(payment_id),actor_id,str(source)[:40],now_iso()))
         conn.commit();return int(payment_id),int(package_id)

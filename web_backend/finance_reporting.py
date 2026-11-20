@@ -105,7 +105,7 @@ def dashboard(start=None,end=None,period=None):
 
 
 
-def mark_lesson_paid(lesson_id,amount=None):
+def mark_lesson_paid(lesson_id,amount=None,lessons_count=1):
     lesson=database.get_lesson(int(lesson_id))
     if lesson is None:raise ValueError('lesson_not_found')
     if str(lesson['lesson_status'] or '').upper() in {'CANCELLED','REJECTED'}:raise ValueError('lesson_not_payable')
@@ -117,7 +117,7 @@ def mark_lesson_paid(lesson_id,amount=None):
         database.approve_payment(int(existing['id']))
         updated=database.get_lesson(int(lesson_id))
         return {'status':'ok','lesson_id':int(lesson_id),'payment_status':updated['payment_status'],'payment_id':int(existing['id'])}
-    payment_id,package_id=database.confirm_manual_lesson_payment(int(lesson_id),None if amount in (None,'') else int(amount))
+    payment_id,package_id=database.confirm_manual_lesson_payment(int(lesson_id),None if amount in (None,'') else int(amount),lessons_count=1 if lessons_count in (None,'') else lessons_count)
     return {'status':'ok','lesson_id':int(lesson_id),'payment_status':'PAID','payment_id':int(payment_id),'package_id':int(package_id)}
 
 
