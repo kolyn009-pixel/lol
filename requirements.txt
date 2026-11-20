@@ -1,0 +1,31 @@
+# Зависимости TutorBot (Adelia). Python 3.10+ (используется zoneinfo, async/await).
+# Установка: python3 -m pip install -r requirements.txt
+#
+# Точные версии (==) взяты из pip freeze текущего окружения.
+# Для пакетов, которых в окружении нет, указана нижняя граница по используемому API.
+
+# --- Telegram ---
+# Основной фреймворк бота: telegram, telegram.ext, telegram.error.
+# Код использует асинхронный API v20+ (ApplicationBuilder, ContextTypes, filters.*,
+# async-хендлеры, post_init, run_polling). CopyTextButton (vk_adapter/telegram_link.py)
+# появился только в 21.7, отсюда нижняя граница.
+# Экстра [job-queue] обязательна: используются application.job_queue.run_repeating/run_once
+# (без неё job_queue == None). Она подтягивает APScheduler.
+python-telegram-bot[job-queue]>=21.7,<23
+
+# --- Google Calendar (bot.py, calendar_test.py) ---
+# googleapiclient.discovery.build, googleapiclient.errors.HttpError
+google-api-python-client>=2.0
+# google.oauth2.credentials.Credentials, google.auth.transport.requests.Request
+google-auth>=2.0
+# Транспорт для google.auth.transport.requests (обновление OAuth-токена)
+requests==2.34.2
+# google_auth_oauthlib.flow.InstalledAppFlow: только calendar_test.py
+# (разовый OAuth-вход, после которого создаётся token.json). В рантайме бота не нужен.
+google-auth-oauthlib>=1.0
+
+# --- Документы ---
+# Экспорт в Excel (core/exporter.py: Workbook, openpyxl.styles)
+openpyxl==3.1.5
+# Извлечение текста из PDF-домашек (learning/homework_flow.py: PdfReader, ленивый импорт)
+pypdf==6.17.0
