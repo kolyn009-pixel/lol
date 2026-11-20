@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Сегодня — Аделия</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/app/assets/icons/adelia-mark-32.png">
+<link rel="stylesheet" href="/app/tokens.css">
+<link rel="stylesheet" href="/app/cabinet/cabinet.css">
+<link rel="stylesheet" href="/app/teacher_lesson_payment.css">
+</head>
+<body class="cab">
+<noscript>Для работы кабинета нужен JavaScript.</noscript>
+<script src="/app/teacher_lesson_payment.js"></script>
+<script src="/app/cabinet/core.js"></script>
+<script>
+(function () {
+  window.__lpNoReload = true; // модуль оплаты не «кликает» меню старого кабинета
+  var T = '/teacher/';
+  var MENU = [
+    { key: 'today', label: 'Сегодня', short: 'Сегодня', href: '/app/cabinet/teacher.html', phone: true },
+    { key: 'schedule', label: 'Расписание', href: T, phone: true },
+    { key: 'students', label: 'Ученики и группы', href: T },
+    { key: 'homework', label: 'Работы', href: T, phone: true },
+    { key: 'messages', label: 'Сообщения', href: T, phone: true },
+    { key: 'payments', label: 'Оплаты', href: T },
+    { key: 'materials', label: 'Материалы', href: T }
+  ];
+  var WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+  var body, tz, timer, loading = false, hadData = false;
+
+  function todayIn(tz) {
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined }).format(new Date()); }
+    catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+
+  function lessonsSection(d) {
+    var s = C.section('01', 'Уроки дня');
+    var list = d.lessons || [];
+    if (!list.length) { s.appendChild(C.empty('На сегодня занятий нет. Хороший день, чтобы проверить работы или написать ученикам.')); return s; }
+    list.forEach(function (l) {
+      var acts = [];
+      if (l.kind === 'lesson' && window.AdeliaLessonPayment) {
+        var x = Object.assign({}, l, { name: l.student_name || l.group_title, start_time: l.start_at });
+        acts.push(window.AdeliaLessonPayment.buttons(x));
+      }
+      acts.push(C.button('Открыть', 'secondary', T));
+      s.appendChild(C.lessonRow(l, { tz: d.tz, actions: acts }));
+    });
+    return s;
+  }
+
+  function attentionSection(d) {
+    var s = C.section('02', 'Требует внимания');
+    var a = (d.attention || []).filter(function (x) { return Number(x.count) > 0; });
+    if (!a.length) { s.appendChild(C.empty('Всё разобрано. Аделия сообщит, если что-то появится.')); return s; }
+    a.forEach(function (x) { s.appendChild(C.attentionRow(x, T)); });
+    return s;
+  }
+
+  function weekSection(d) {
+    var s = C.section('03', 'Ближайшие 7 дней');
+    var g = document.createElement('div'); g.className = 'c-week'; g.setAttribute('role', 'list');
+    var today = todayIn(d.tz);
+    (d.week || []).slice(0, 7).forEach(function (w) {
+      var p = String(w.date).split('-'), dt = new Date(+p[0], +p[1] - 1, +p[2]), n = Number(w.lessons_count) || 0;
+      var c = document.createElement('div'); c.className = 'c-day' + (w.date === today ? ' today' : ''); c.setAttribute('role', 'listitem');
+      if (w.date === today) c.setAttribute('aria-current', 'date');
+      c.setAttribute('aria-label', dt.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }) + ': уроков ' + n);
+      var a = C.el('span', 'w', WD[dt.getDay()]), b = C.el('span', 'd', String(dt.getDate())), e = C.el('span', 'n', n ? n + ' ур.' : '—');
+      c.append(a, b, e); g.appendChild(c);
+    });
+    s.appendChild(g); return s;
+  }
+
+  function paint(d) {
+    var frag = document.createDocumentFragment();
+    frag.append(lessonsSection(d), attentionSection(d), weekSection(d));
+    var bar = body.querySelector('[data-stale]'); body.replaceChildren(frag);
+    var n = (d.attention || []).reduce(function (t, x) { return t + (Number(x.count) || 0); }, 0);
+    C.setBell(n);
+  }
+
+  function load() {
+    if (loading) return Promise.resolve(); loading = true;
+    return C.api('/teacher/today').then(function (d) { hadData = true; tz = d.tz; paint(d); },
+      function (e) {
+        if (e.status === 401) { location.replace(T); return; }
+        if (!hadData) { body.replaceChildren(C.error(e.message, load)); } else C.toast('Не удалось обновить. Показаны прежние данные.');
+      }).then(function () { loading = false; });
+  }
+
+  C.boot({
+    role: 'teacher', menu: MENU, active: 'today',
+    render: function (main) {
+      var h = C.el('h1', 'cab-title', 'Сегодня');
+      var sub = C.el('p', 'cab-sub', new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }));
+      body = document.createElement('div'); body.setAttribute('aria-live', 'polite');
+      for (var i = 0; i < 3; i++) body.appendChild(C.el('div', 'c-skel'));
+      main.append(h, sub, body);
+      document.title = 'Сегодня — Аделия';
+      document.addEventListener('adelia:lesson-payment-changed', function () { setTimeout(load, 250); });
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
+      timer = setInterval(function () { if (!document.hidden) load(); }, 60000);
+      return load();
+    }
+  });
+})();
+</script>
+</body>
+</html>

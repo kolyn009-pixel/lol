@@ -46,6 +46,14 @@ class Handler(PublicGroupRegistrationMixin, SportMixin, AcquisitionMixin, Studen
                 teacher_push_queue.enqueue(int(row['entity_id']),'registration','web-registration:'+str(int(user_id)))
         except Exception as exc:print('[web-api] registration push error:',type(exc).__name__,repr(exc),flush=True)
     def do_GET(self):
+        if urlparse(self.path).path=='/api/teacher/today':
+            auth=self._teacher()
+            if not auth:return self._json(401,{'error':'unauthorized'})
+            try:
+                from web_backend import teacher_today
+                return self._json(200,teacher_today.today(int(auth.get('id') or 0)))
+            except Exception as exc:
+                print('[web-api] teacher today error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'internal_error'})
         parsed=urlparse(self.path);path=parsed.path;q=parse_qs(parsed.query)
         if serve_study_pwa(self,path):return
         if path in SELF_STUDY_GET:return self.self_study_route(path,q)
