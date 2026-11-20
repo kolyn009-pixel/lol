@@ -5454,7 +5454,8 @@ def retry_uncredited_payments():
       * minutes_total IS NULL  -> полный повтор credit_confirmed_payment
         (минуты ещё не могли быть израсходованы);
       * minutes_total заполнен -> только запись в журнал с тем же ключом
-        идемпотентности: повторный credit перезаписал бы minutes_used.
+        идемпотентности (на сумму остатка total - used минус то, что по
+        пакету уже есть в журнале), minutes_used не трогаем.
 
     Вызывать ТОЛЬКО вне открытой транзакции записи: функция и
     credit_confirmed_payment открывают собственные соединения.
@@ -5528,35 +5529,29 @@ def retry_uncredited_payments():
                         "SELECT * FROM lesson_packages WHERE id = ?",
                         (package_id,),
                     ).fetchone()
-                    has_ledger = c.execute(
-                        "SELECT 1 FROM minute_ledger WHERE package_id = ? LIMIT 1",
+                    journaled = int(c.execute(
+                        "SELECT COALESCE(SUM(paid_minutes_delta), 0) FROM minute_ledger "
+                        "WHERE package_id = ?",
                         (package_id,),
-                    ).fetchone() is not None
+                    ).fetchone()[0] or 0)
                 finally:
                     c.close()
 
+                # minutes_used уже заполнен ensure_schema()/резервами и
+                # является фактическим состоянием пакета. Записываем столько,
+                # чтобы сумма журнала по пакету сравнялась с остатком
+                # (total - used): расход, уже попавший в журнал, не
+                # вычитается дважды, а minutes_used не перезаписывается.
                 total = int(pkg["minutes_total"] or 0)
-                base = int(
-                    pkg["base_duration_minutes"]
-                    or p["base_duration_minutes"]
-                    or minute_balance.default_duration_for_goal(p["study_goal"])
-                )
-                # Остаток на момент подтверждения — как в credit_confirmed_payment.
-                used_at_credit = min(total, int(pkg["lessons_used"] or 0) * base)
-                opening = max(total - used_at_credit, 0)
+                used = min(total, int(pkg["minutes_used"] or 0))
+                opening = (total - used) - journaled
                 if opening <= 0:
-                    continue
-                if (
-                    int(pkg["minutes_used"] or 0) != used_at_credit
-                    and not has_ledger
-                ):
-                    # Минуты расходовались без журнала — автоматически
-                    # восстановить начальный остаток нельзя.
-                    log.warning(
-                        "RETRY MINUTE CREDIT SKIPPED: payment #%s package #%s "
-                        "— расход без журнала, нужна ручная проверка",
-                        payment_id, package_id,
-                    )
+                    if total - used > 0 or journaled != 0:
+                        log.warning(
+                            "RETRY MINUTE CREDIT SKIPPED: payment #%s package #%s "
+                            "— остаток %s, журнал %s; нужна ручная проверка",
+                            payment_id, package_id, total - used, journaled,
+                        )
                     continue
                 hourly = int(pkg["hourly_rate"] or p["hourly_rate"] or 0)
                 minute_ledger.append(
@@ -5983,7 +5978,7 @@ def reject_payment(
     payment_id
 ):
     """Возвращает True, если статус изменён; False — если платёж
-    уже PAID/CANCELLED (или не найден) и ничего не менялось."""
+    уже PAID/CANCELLED/REVERSED (или не найден) и ничего не менялось."""
 
     conn = connect()
 
@@ -5994,7 +5989,7 @@ def reject_payment(
 
         WHERE
             id = ?
-            AND status NOT IN ('PAID', 'CANCELLED')
+            AND status NOT IN ('PAID', 'CANCELLED', 'REVERSED')
     """, (
         payment_id,
     ))
@@ -8388,6 +8383,25 @@ def confirm_manual_lesson_payment(
     cursor.execute(
         "BEGIN IMMEDIATE"
     )
+
+    # Повторная проверка под блокировкой записи: двойной клик / два
+    # параллельных запроса не должны создать два PAID-платежа за занятие.
+    current = cursor.execute(
+        "SELECT payment_status FROM lessons WHERE id = ?",
+        (int(lesson_id),)
+    ).fetchone()
+
+    if (
+        current is None
+        or current["payment_status"] != "AWAITING_PAYMENT"
+    ):
+
+        conn.rollback()
+        conn.close()
+
+        raise ValueError(
+            "Занятие не ожидает оплату."
+        )
 
     cursor.execute("""
         INSERT INTO payments (

@@ -2838,6 +2838,33 @@ async def admin_payment_buttons(
             data.split("|")[1]
         )
 
+        # approve_payment() для PAID идемпотентен (возвращает пакет без
+        # повторного зачисления) — повторный клик не должен заново
+        # уведомлять ученика.
+        _current = database.get_payment(payment_id)
+
+        if _current is not None and _current["status"] in (
+            "PAID", "CANCELLED", "REVERSED"
+        ):
+
+            try:
+                await query.answer(
+                    "Платёж уже подтверждён."
+                    if _current["status"] == "PAID"
+                    else "Платёж отменён — подтвердить его нельзя.",
+                    show_alert=True
+                )
+            except Exception:
+                try:
+                    await query.message.reply_text(
+                        f"⚠️ Платёж #{payment_id}: статус {_current['status']}, "
+                        "повторное подтверждение не требуется."
+                    )
+                except Exception:
+                    pass
+
+            return
+
         try:
 
             draft_result = (
