@@ -14,15 +14,17 @@ Adelia — онлайн-школа физики (ОГЭ, ЕГЭ, школьна�
 |---|---|---|
 | Контроль | **efficiency-lead** | бриф до задачи, проверка и журнал после |
 | Дизайн | **design-lead** | ui-builder, ux-texts, design-qa, ux-researcher |
-| Бэкенд | **backend-lead** | api-dev, integrations, db-migrations, payments-qa, security, perf, timezones |
-| Общие | tech-lead (задачи на обе команды) | tester, reviewer, refactor, cleaner, docs, deps, branch-janitor, release, ai-assistant, vk-tg-parity |
-| Идеи (только по запросу) | product | competitor-scout, ux-researcher |
+| Бэкенд | **backend-lead** | api-dev, integrations, db-migrations, perf, timezones |
+| Тестирование | **qa-lead** | tester, test-writer, e2e-tester, bot-flow-tester, payments-qa, design-qa |
+| Безопасность | **security-lead** | security (аудит кода), secrets-guard, infra-security, privacy-guard |
+| Маркетинг | **marketing-lead** | seo-specialist, content-writer, marketing-analyst, competitor-scout, product |
+| Общие | tech-lead (задачи на несколько команд) | reviewer, refactor, cleaner, docs, deps, branch-janitor, release, ai-assistant, vk-tg-parity |
 
 Цепочка для любой задачи команды:
 1. `efficiency-lead` — бриф: агенты, модели, что читать, лимиты шагов, что параллельно.
 2. Ведущий (`design-lead` / `backend-lead`) — план или контракт.
 3. Исполнители — строго по брифу.
-4. Проверка: дизайн → `design-qa`, бэкенд → `tester` (+ `security` и `payments-qa`, если затронуты деньги или права).
+4. Проверка: `qa-lead` составляет план тестов; деньги, права, вход, персональные данные — дополнительно `security-lead`.
 5. `reviewer` — перед мержем.
 6. `efficiency-lead` — проверка расхода и запись в `docs/agent-budget-log.md`.
 
@@ -31,7 +33,7 @@ Adelia — онлайн-школа физики (ОГЭ, ЕГЭ, школьна�
 ## Бюджет токенов (обязательно)
 
 - Не больше 3 агентов одновременно.
-- Модели: haiku — механика, поиск, проверки; sonnet — обычная работа; opus — только design-lead, backend-lead, tech-lead, security, refactor, reviewer и сложные слияния.
+- Модели: haiku — механика, поиск, проверки; sonnet — обычная работа; opus — только design-lead, backend-lead, security-lead, tech-lead, security, refactor, reviewer и сложные слияния.
 - Лимит вызовов инструментов на агента: haiku ≤15, sonnet ≤30, opus ≤40. Не хватает — задача слишком большая, дробить.
 - Большие файлы (bot.py, database.py, admin.py, payments.py ~100–270 КБ, web/*.css) целиком не читать: grep, затем Read нужного диапазона.
 - Агент, который упёрся в неясность, останавливается и возвращает вопрос, а не гадает.
@@ -54,6 +56,10 @@ Adelia — онлайн-школа физики (ОГЭ, ЕГЭ, школьна�
 - Сбой зачисления минут повторяет `retry_uncredited_payments()` (при старте и раз в 10 минут).
 - Админские права — только OWNER и ADMIN; TESTER — нет. Владелец — `OWNER_ID` из окружения.
 - Секреты только в окружении (`/etc/tutorbot.env`, `/etc/tutorbot/*.env`).
+
+## Постоянство
+
+Агенты и правила живут в репозитории (`.claude/agents/`, этот файл, `docs/`). Любая сессия Claude Code в папке проекта — на Mac, на сервере или в облаке с подключённым репозиторием — подхватывает их автоматически. Новые агенты добавлять сюда же, через PR. Журнал расхода — `docs/agent-budget-log.md`, стратегия маркетинга — `docs/marketing/`, модель угроз — `docs/security/`.
 
 ## Продакшн и деплой (важно)
 
