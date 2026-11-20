@@ -1502,9 +1502,24 @@ async def payment_buttons(
         "paycount|"
     ):
 
-        lessons_count = int(
-            data.split("|")[1]
-        )
+        try:
+            lessons_count = int(
+                data.split("|")[1]
+            )
+
+        except (IndexError, ValueError):
+            lessons_count = 0
+
+        if not 1 <= lessons_count <= 50:
+
+            await query.edit_message_text(
+                "❌ Количество занятий должно быть от 1 до 50.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="payments")]
+                ])
+            )
+
+            return ConversationHandler.END
 
         context.user_data.pop(
             "payment_promo_code",
@@ -1558,9 +1573,24 @@ async def payment_buttons(
         "payment_promo|"
     ):
 
-        lessons_count = int(
-            data.split("|")[1]
-        )
+        try:
+            lessons_count = int(
+                data.split("|")[1]
+            )
+
+        except (IndexError, ValueError):
+            lessons_count = 0
+
+        if not 1 <= lessons_count <= 50:
+
+            await query.edit_message_text(
+                "❌ Количество занятий должно быть от 1 до 50.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="payments")]
+                ])
+            )
+
+            return ConversationHandler.END
 
         context.user_data[
             "payment_lessons_count"
@@ -1583,9 +1613,24 @@ async def payment_buttons(
         "payment_remove_promo|"
     ):
 
-        lessons_count = int(
-            data.split("|")[1]
-        )
+        try:
+            lessons_count = int(
+                data.split("|")[1]
+            )
+
+        except (IndexError, ValueError):
+            lessons_count = 0
+
+        if not 1 <= lessons_count <= 50:
+
+            await query.edit_message_text(
+                "❌ Количество занятий должно быть от 1 до 50.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="payments")]
+                ])
+            )
+
+            return ConversationHandler.END
 
         context.user_data.pop(
             "payment_promo_code",
@@ -1612,9 +1657,24 @@ async def payment_buttons(
         "payment_confirm|"
     ):
 
-        lessons_count = int(
-            data.split("|")[1]
-        )
+        try:
+            lessons_count = int(
+                data.split("|")[1]
+            )
+
+        except (IndexError, ValueError):
+            lessons_count = 0
+
+        if not 1 <= lessons_count <= 50:
+
+            await query.edit_message_text(
+                "❌ Количество занятий должно быть от 1 до 50.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="payments")]
+                ])
+            )
+
+            return ConversationHandler.END
 
         promo_code = (
             context.user_data.get(
@@ -2437,6 +2497,19 @@ async def receipt_handler(
             ConversationHandler.END
         )
 
+    if payment["status"] in ("PAID", "CANCELLED"):
+
+        await update.message.reply_text(
+            "✅ Этот платёж уже подтверждён — чек больше не нужен."
+            if payment["status"] == "PAID"
+            else "🚫 Этот платёж отменён — чек к нему прикрепить нельзя. "
+                 "Создайте новую оплату в разделе «Оплата»."
+        )
+
+        return (
+            ConversationHandler.END
+        )
+
 
     # ========================================================
     # ФОТО
@@ -2481,7 +2554,7 @@ async def receipt_handler(
     # БД
     # ========================================================
 
-    database.add_receipt(
+    receipt_id = database.add_receipt(
 
         payment_id=(
             payment_id
@@ -2503,6 +2576,18 @@ async def receipt_handler(
             "TELEGRAM"
         )
     )
+
+    if receipt_id is None:
+
+        # Статус успел смениться (PAID/CANCELLED) между проверкой и записью.
+        await update.message.reply_text(
+            "Этот платёж уже закрыт — чек к нему прикрепить нельзя. "
+            "Откройте историю оплат, чтобы проверить статус."
+        )
+
+        return (
+            ConversationHandler.END
+        )
 
     payment = (
         database
@@ -2764,10 +2849,27 @@ async def admin_payment_buttons(
 
         except Exception as error:
 
-            await query.answer(
-                str(error),
-                show_alert=True
-            )
+            if isinstance(error, database.PromoLimitExceeded):
+                error_text = database.PROMO_LIMIT_APPROVE_MESSAGE
+            else:
+                error_text = str(error)
+
+            # query.answer() уже вызван выше — повторный answer может
+            # не дойти, поэтому дублируем сообщением.
+            try:
+                await query.answer(
+                    error_text,
+                    show_alert=True
+                )
+            except Exception:
+                pass
+
+            try:
+                await query.message.reply_text(
+                    f"⚠️ Платёж #{payment_id}: {error}"
+                )
+            except Exception:
+                pass
 
             return
 
@@ -3017,7 +3119,7 @@ async def admin_payment_buttons(
 
         try:
 
-            database.reject_payment(
+            changed = database.reject_payment(
                 payment_id
             )
 
@@ -3025,6 +3127,15 @@ async def admin_payment_buttons(
 
             await query.answer(
                 str(error),
+                show_alert=True
+            )
+
+            return
+
+        if not changed:
+
+            await query.answer(
+                "Платёж уже оплачен или отменён — статус не изменён.",
                 show_alert=True
             )
 
