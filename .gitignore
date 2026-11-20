@@ -48,3 +48,4 @@ client_secret*.json
 *.bak
 *.backup
 backups/
+*.bak*
