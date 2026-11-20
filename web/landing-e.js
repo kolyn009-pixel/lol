@@ -90,11 +90,19 @@
     if (a == null && b == null) return true;
     return (a == null || a <= max) && (b == null || b >= min);
   }
+  function num(n) { return Number(n).toLocaleString('ru-RU'); }
+  var oppPromise = null;
+  function loadOpps() {
+    if (!oppPromise) oppPromise = getJSON('/api/public/opportunities', { cache: 'no-store' });
+    return oppPromise;
+  }
+  function setText(el, t) { if (el) el.textContent = t; }
   function loadPrices() {
     var rows = doc.querySelectorAll('.e-course[data-goal]');
     if (!rows.length) return;
     getJSON('/api/public/prices').then(function (data) {
       var list = items(data);
+      var overall = null;
       rows.forEach(function (row) {
         var goal = row.getAttribute('data-goal');
         var min = Number(row.getAttribute('data-grade-min'));
@@ -102,15 +110,42 @@
         var hits = list.filter(function (x) {
           return String(x.goal || '').toUpperCase() === goal && isPhysics(x) && overlaps(x, min, max) && Number(x.amount != null ? x.amount : x.hourly_rate) > 0;
         });
-        var slot = row.querySelector('[data-price]');
-        if (!hits.length || !slot) return;
-        hits.sort(function (p, q) { return Number(p.amount != null ? p.amount : p.hourly_rate) - Number(q.amount != null ? q.amount : q.hourly_rate); });
-        var best = hits[0];
-        var amount = Number(best.amount != null ? best.amount : best.hourly_rate);
-        var minutes = Number(best.duration_minutes || 60);
-        slot.textContent = (hits.length > 1 ? 'от ' : '') + rub(amount) + ' / ' + minutes + ' мин';
+        if (!hits.length) return;
+        var best = Math.min.apply(null, hits.map(function (x) { return Number(x.amount != null ? x.amount : x.hourly_rate); }));
+        overall = overall == null ? best : Math.min(overall, best);
+        setText(row.querySelector('[data-price]'), 'от ' + num(best) + ' ₽/60 мин');
       });
-    }).catch(function () { /* остаётся статический «[цена уточняется]» */ });
+      if (overall != null) setText(doc.querySelector('[data-formats-price="individual"]'), 'от ' + num(overall) + ' ₽ за 60 минут');
+    }).catch(function () { /* остаётся статическое «Цена уточняется» */ });
+  }
+  function groupPrice(g) { return Number(g.price); }
+  function loadGroupPrices() {
+    var rows = doc.querySelectorAll('.e-course[data-goal]');
+    loadOpps().then(function (data) {
+      var groups = (data.groups || []).filter(function (x) {
+        return isPhysics(x) && groupPrice(x) > 0 && x.recruitment_status !== 'WAITLIST';
+      });
+      if (!groups.length) return;
+      var minOf = function (arr) { return Math.min.apply(null, arr.map(groupPrice)); };
+      var overall = minOf(groups);
+      rows.forEach(function (row) {
+        var goal = row.getAttribute('data-goal');
+        var matched = groups.filter(function (x) { return String(x.study_goal || '').toUpperCase() === goal; });
+        var link = row.querySelector('[data-group-link]');
+        if (!link || !matched.length) return; // нет групп по этой цели — остаётся «Группы набираются»
+        var y = minOf(matched);
+        setText(link.querySelector('[data-group-price]'), 'от ' + num(y) + ' ₽/занятие');
+        link.classList.remove('is-empty');
+        link.setAttribute('href', '/start/?format=group#e-groups');
+        link.setAttribute('aria-label', 'В группе, ' + (row.querySelector('.e-course__title').textContent) + ': от ' + num(y) + ' рублей за занятие');
+      });
+      setText(doc.querySelector('[data-formats-price="group"]'), 'от ' + num(overall) + ' ₽ за занятие');
+      var maxN = Math.max.apply(null, groups.map(function (x) { return Number(x.max_members) || 0; }));
+      if (maxN > 0) {
+        doc.querySelectorAll('[data-group-max]').forEach(function (el) { el.textContent = maxN; });
+        doc.querySelectorAll('[data-group-max-wrap]').forEach(function (el) { el.hidden = false; });
+      }
+    }).catch(function () { /* остаётся «Группы набираются» */ });
   }
 
   /* ---------- Группы и события: /api/public/opportunities ---------- */
@@ -132,7 +167,7 @@
   function loadOpportunities() {
     var root = doc.getElementById('e-opportunities');
     if (!root) return;
-    getJSON('/api/public/opportunities', { cache: 'no-store' }).then(function (data) {
+    loadOpps().then(function (data) {
       var out = [];
       (data.groups || []).forEach(function (x) {
         var wait = x.recruitment_status === 'WAITLIST';
@@ -189,6 +224,7 @@
   }
 
   loadPrices();
+  loadGroupPrices();
   loadOpportunities();
   loadReviews();
   recommendDesktop();
