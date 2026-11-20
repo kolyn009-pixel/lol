@@ -83,7 +83,8 @@ def mark_paid(lesson_id, amount, actor_id, count, source='WEB'):
         if amount % count:
             raise PaymentError(400, 'amount_must_divide_by_lessons')
     try:
-        payment_id, package_id = database.confirm_manual_lesson_payment(int(lesson_id), amount, actor_id=actor_id, source=source, lessons_count=count)
+        payment_id, package_id, created = database.confirm_manual_lesson_payment(int(lesson_id), amount, actor_id=actor_id, source=source, lessons_count=count, with_created=True)
+        already = not created
     except ValueError as exc:
         if str(exc) == 'linked_invoice_requires_review':
             raise PaymentError(409, 'linked_invoice_requires_review', INVOICE_CONFLICT)
@@ -94,7 +95,7 @@ def mark_paid(lesson_id, amount, actor_id, count, source='WEB'):
     finally:
         conn.close()
     balance = balance_lessons(lesson['user_id'])
-    if not already:
+    if created:
         _notify_paid(lesson['user_id'], payment_id, balance)
     return {'status': 'ok', 'action': 'paid', 'lesson_id': int(lesson_id), 'payment_id': int(payment_id), 'package_id': int(package_id),
             'lessons_count': int(pay['lessons_count'] or count) if pay else count, 'amount': int(pay['total_amount'] or 0) if pay else amount,

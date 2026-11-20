@@ -8335,7 +8335,7 @@ def charge_reserved_lesson(
 # MANUAL PAYMENT
 # ============================================================
 
-def confirm_manual_lesson_payment(lesson_id,amount=None,*,actor_id=None,source='LEGACY',lessons_count=1):
+def confirm_manual_lesson_payment(lesson_id,amount=None,*,actor_id=None,source='LEGACY',lessons_count=1,with_created=False):
     if isinstance(lessons_count,bool) or str(lessons_count) not in {str(i) for i in range(1,101)}:raise ValueError('invalid_lessons_count')
     count=int(lessons_count)
     conn=connect()
@@ -8345,7 +8345,7 @@ def confirm_manual_lesson_payment(lesson_id,amount=None,*,actor_id=None,source='
         if not lesson:raise ValueError('lesson_not_found')
         if str(lesson['lesson_status'] or '').upper() in {'CANCELLED','REJECTED'}:raise ValueError('lesson_not_payable')
         if lesson['payment_status']=='PAID' and lesson['payment_id'] and lesson['package_id']:
-            conn.rollback();return int(lesson['payment_id']),int(lesson['package_id'])
+            conn.rollback();return (int(lesson['payment_id']),int(lesson['package_id']),False) if with_created else (int(lesson['payment_id']),int(lesson['package_id']))
         if lesson['payment_status'] not in {'AWAITING_PAYMENT','UNPAID','WAITING'}:raise ValueError('lesson_not_awaiting_payment')
         if conn.execute("SELECT 1 FROM payments WHERE lesson_id=? AND status IN ('WAITING','RECEIPT_SENT','PAID')",(int(lesson_id),)).fetchone():raise ValueError('linked_invoice_requires_review')
         unit=int(lesson['price']);amount=int(unit*count if amount in (None,'') else amount)
@@ -8513,7 +8513,7 @@ def confirm_manual_lesson_payment(lesson_id,amount=None,*,actor_id=None,source='
             conn.execute('INSERT OR IGNORE INTO minute_ledger(user_id,program_id,lesson_id,payment_id,package_id,operation,paid_minutes_delta,bonus_minutes_delta,money_rubles,hourly_rate,reason,actor_id,idempotency_key,created_at) VALUES(?,NULL,?,?,?,?,?,0,?,?,?,?,?,?)',(int(lesson['user_id']),int(lesson_id),int(payment_id),int(package_id),'PAYMENT_CREDIT',(count-1)*duration,int(amount),hourly,'Ручная отметка оплаты занятия',actor_id,_payment_credit_key(payment_id,package_id),now_iso()))
         conn.execute('CREATE TABLE IF NOT EXISTS lesson_payment_confirmations(lesson_id INTEGER PRIMARY KEY,payment_id INTEGER UNIQUE NOT NULL,actor_id INTEGER,source TEXT NOT NULL,created_at TEXT NOT NULL)')
         conn.execute('INSERT INTO lesson_payment_confirmations VALUES(?,?,?,?,?) ON CONFLICT(lesson_id) DO UPDATE SET payment_id=excluded.payment_id,actor_id=excluded.actor_id,source=excluded.source,created_at=excluded.created_at',(int(lesson_id),int(payment_id),actor_id,str(source)[:40],now_iso()))
-        conn.commit();return int(payment_id),int(package_id)
+        conn.commit();return (int(payment_id),int(package_id),True) if with_created else (int(payment_id),int(package_id))
     except BaseException:
         conn.rollback();raise
     finally:conn.close()

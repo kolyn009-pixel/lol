@@ -35,6 +35,7 @@ check(database.retry_uncredited_payments()==0 and ledger.derived_balance(u)['pai
 code2,r2=T.handle({'lesson_id':L,'action':'paid','lessons_count':4},A)
 check(code2==200 and r2['already_paid'] and r2['payment_id']==r['payment_id'] and r2['package_id']==r['package_id'],'2 repeat -> already_paid same ids')
 check(len(q('select id from lesson_packages where user_id=?',u))==1 and len(SENT)==1,'2 no 2nd package, no 2nd notify')
+check(database.confirm_manual_lesson_payment(L,None,with_created=True)[2] is False,'2 db created=False on repeat')
 # 3
 L2=lesson(u,day=2)
 for bad in (0,101,'x',2.5,True):
