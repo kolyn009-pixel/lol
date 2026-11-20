@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 
 from datetime import (
     datetime,
@@ -8563,6 +8564,13 @@ async def post_init(
         )
 
         application.job_queue.run_repeating(
+            retry_uncredited_payments_job,
+            interval=10 * 60,
+            first=10 * 60,
+            name="retry_uncredited_payments",
+        )
+
+        application.job_queue.run_repeating(
             regular_sync_job,
             interval=6 * 60 * 60,
             first=15 * 60,
@@ -8606,6 +8614,14 @@ async def post_init(
         crm_jobs.register(application)
         channel_admin.register_jobs(application)
         musthave_jobs.register(application)
+
+
+async def retry_uncredited_payments_job(context):
+    # В отдельном потоке и собственных соединениях — без открытой транзакции.
+    try:
+        await asyncio.to_thread(database.retry_uncredited_payments)
+    except Exception:
+        logging.getLogger(__name__).exception("RETRY UNCREDITED PAYMENTS JOB ERROR")
 
 
 async def core_ledger_sync_job(context):
@@ -8804,6 +8820,14 @@ def main():
     teacher_tasks.initialize()
     final_curriculum.seed()
     final_minute_ledger.backfill_current()
+    # Вне открытых транзакций: повторяем зачисление минут по PAID-платежам,
+    # у которых оно ранее упало.
+    try:
+        recredited = database.retry_uncredited_payments()
+        if recredited:
+            print(f"💳 Повторно зачислены минуты по платежам: {recredited}")
+    except Exception:
+        logging.getLogger(__name__).exception("RETRY UNCREDITED PAYMENTS ERROR")
 
     app = (
         Application

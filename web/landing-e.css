@@ -1,0 +1,460 @@
+/* Аделия — лендинг, вариант E («Журнал»). Требует /app/tokens.css. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body.e-page {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  overflow-x: hidden;
+}
+
+.e-page img, .e-page svg { max-width: 100%; height: auto; }
+.e-page a { color: var(--ink); }
+.e-page a:hover { color: var(--accent); }
+.e-page :where(h1, h2, h3, p, figure, blockquote) { margin: 0; }
+.e-page :where(ul) { margin: 0; padding: 0; list-style: none; }
+.e-page em { font-style: italic; color: var(--accent); }
+
+.e-page :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-none);
+}
+.e-method :focus-visible { outline-color: var(--on-inverse); }
+
+.e-visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.e-page .e-skip {
+  position: absolute;
+  left: var(--space-2);
+  top: -100px;
+  z-index: 20;
+  padding: 12px 20px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+  text-decoration: none;
+}
+.e-page .e-skip:focus { top: var(--space-2); }
+
+/* ---------- Типографика ---------- */
+.e-label {
+  font-size: var(--text-label-size);
+  line-height: var(--text-label-line);
+  font-weight: var(--text-label-weight);
+  letter-spacing: var(--text-label-tracking);
+  text-transform: uppercase;
+  color: var(--ink-subtle);
+}
+.e-label--inverse { color: var(--on-inverse-muted); }
+
+.e-lead {
+  font-size: var(--text-lead-size);
+  line-height: var(--text-lead-line);
+  color: var(--ink-muted);
+  max-width: 560px;
+}
+
+.e-note { font-size: 15px; color: var(--ink-subtle); }
+
+.e-h-section {
+  font-family: var(--font-display);
+  font-size: clamp(44px, 6vw, var(--text-h1-size));
+  line-height: var(--text-h1-line);
+  font-weight: var(--text-display-weight);
+  letter-spacing: -0.02em;
+}
+
+/* ---------- Кнопки и ссылки ---------- */
+.e-btn {
+  display: inline-block;
+  padding: 13px 22px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-none);
+  font-size: var(--text-ui-size);
+  line-height: var(--text-ui-line);
+  font-weight: var(--text-ui-weight);
+  text-decoration: none;
+  text-align: center;
+  transition: background-color .15s ease, color .15s ease;
+}
+.e-page .e-btn--ink { background: var(--ink); color: var(--paper); }
+.e-page .e-btn--ink:hover { background: var(--accent); color: var(--paper); }
+.e-page .e-btn--accent { background: var(--accent); color: var(--paper); }
+.e-page .e-btn--accent:hover { background: var(--ink); color: var(--paper); }
+.e-page .e-btn--secondary { background: var(--paper); color: var(--ink); border-color: var(--ink); }
+.e-btn--lg { padding: 18px 30px; font-size: var(--text-body-size); }
+.e-btn--xl { padding: 20px 34px; font-size: 18px; }
+
+.e-arrow-link {
+  padding: 18px 8px;
+  font-size: var(--text-body-size);
+  font-weight: var(--text-ui-weight);
+}
+
+.e-actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+
+/* ---------- Каркас ---------- */
+.e-section,
+.e-hero,
+.e-header__inner,
+.e-footer__inner,
+.e-facts__list,
+.e-final__inner,
+.e-method__inner {
+  max-width: var(--container);
+  margin: 0 auto;
+}
+
+.e-section { padding: var(--space-12) var(--space-5); }
+
+.e-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+
+/* ---------- Шапка ---------- */
+.e-header { border-bottom: var(--rule); background: var(--paper); }
+.e-header__inner {
+  position: relative;
+  padding: 26px var(--space-5);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+.e-page .e-logo {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  color: var(--ink);
+}
+.e-nav { display: flex; flex-wrap: wrap; gap: 32px; align-items: center; }
+.e-nav__list { display: flex; flex-wrap: wrap; gap: 28px; }
+.e-nav__list a {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.e-nav__list a[aria-current="true"] { color: var(--accent); }
+
+.e-menu-toggle {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: var(--rule);
+  border-radius: var(--radius-none);
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 14px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.e-menu-toggle__bars,
+.e-menu-toggle__bars::before,
+.e-menu-toggle__bars::after {
+  display: block;
+  width: 18px;
+  height: 1.5px;
+  background: currentColor;
+  transition: transform .2s ease, opacity .2s ease;
+}
+.e-menu-toggle__bars { position: relative; }
+.e-menu-toggle__bars::before,
+.e-menu-toggle__bars::after { content: ""; position: absolute; left: 0; }
+.e-menu-toggle__bars::before { top: -6px; }
+.e-menu-toggle__bars::after { top: 6px; }
+.e-menu-toggle[aria-expanded="true"] .e-menu-toggle__bars { background: transparent; }
+.e-menu-toggle[aria-expanded="true"] .e-menu-toggle__bars::before { transform: translateY(6px) rotate(45deg); }
+.e-menu-toggle[aria-expanded="true"] .e-menu-toggle__bars::after { transform: translateY(-6px) rotate(-45deg); }
+
+/* ---------- Первый экран ---------- */
+.e-hero {
+  padding: 72px var(--space-5) 88px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 48px;
+  align-items: center;
+}
+.e-hero__copy { flex: 1 1 620px; min-width: 0; display: flex; flex-direction: column; gap: 32px; }
+.e-hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 7.4vw, var(--text-display-size));
+  line-height: var(--text-display-line);
+  font-weight: var(--text-display-weight);
+  letter-spacing: -0.025em;
+}
+.e-hero__art { flex: 1 1 420px; min-width: 0; display: flex; justify-content: center; }
+.e-orbits { width: 100%; max-width: 460px; }
+.e-orbits__faint { stroke: var(--track); stroke-width: 1; }
+.e-orbits__ring { stroke: var(--ink); stroke-width: 1.2; }
+.e-orbits__line { stroke: var(--ink); stroke-width: 1; }
+.e-orbits__dash { stroke-dasharray: 4 6; }
+.e-orbits__ink { fill: var(--ink); }
+.e-orbits__accent { fill: var(--accent); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .e-orbits__rings { transform-origin: 230px 230px; animation: e-spin 120s linear infinite; }
+  @keyframes e-spin { to { transform: rotate(360deg); } }
+}
+
+/* ---------- Факт-полоса ---------- */
+.e-facts { border-top: var(--rule); border-bottom: var(--rule); }
+.e-facts__list {
+  padding: 28px var(--space-5);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+.e-facts__list li { font-family: var(--font-display); font-size: 22px; line-height: 1.3; }
+
+/* ---------- Курсы ---------- */
+.e-course-list { border-bottom: var(--rule); }
+.e-page .e-course {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 32px 0;
+  border-top: var(--rule);
+  text-decoration: none;
+  color: var(--ink);
+}
+.e-course__grade {
+  flex: 0 0 140px;
+  font-family: var(--font-display);
+  font-size: 56px;
+  line-height: 1;
+  font-style: italic;
+  color: var(--accent);
+}
+.e-course__body { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.e-course__title { font-family: var(--font-display); font-size: 34px; line-height: var(--text-h3-line); }
+.e-course__text { font-size: var(--text-body-size); color: var(--ink-muted); }
+.e-course__price { font-size: 18px; font-weight: 600; white-space: nowrap; }
+.e-page .e-course:hover .e-course__title { color: var(--accent); }
+.e-courses .e-note { margin-top: var(--space-2); }
+
+/* ---------- Метод (тёмная вставка) ---------- */
+.e-method { background: var(--inverse); color: var(--on-inverse); padding: 104px var(--space-5); }
+.e-method__inner { display: flex; flex-direction: column; gap: var(--space-7); }
+.e-method .e-section__head { margin-bottom: 0; }
+.e-method__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 48px;
+}
+.e-method__item {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px solid var(--ink-subtle);
+  padding-top: var(--space-3);
+}
+.e-method__item h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-line);
+  font-weight: var(--text-display-weight);
+}
+.e-method__item p { color: var(--on-inverse-muted); }
+
+/* ---------- Преподаватель ---------- */
+.e-teacher {
+  padding-top: 104px;
+  padding-bottom: 104px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-7);
+  align-items: center;
+}
+.e-teacher__photo { flex: 0 1 380px; min-width: 0; }
+.e-teacher__placeholder {
+  height: 460px;
+  background: var(--surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-subtle);
+  font-weight: 600;
+  text-align: center;
+  padding: var(--space-2);
+}
+.e-teacher__copy { flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.e-teacher__quote p {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3.6vw, var(--text-h2-size));
+  line-height: 1.25;
+  font-style: italic;
+}
+.e-teacher__name { font-family: var(--font-sans); font-size: 18px; font-weight: 600; line-height: 1.4; }
+.e-teacher__meta { font-size: 16px; color: var(--ink-muted); }
+
+/* ---------- Группы и события, отзывы: строки между линейками ---------- */
+.e-band { border-top: var(--rule); }
+.e-groups__lead { margin-bottom: 40px; }
+.e-rows { border-bottom: var(--rule); }
+.e-rows > .e-note { padding: var(--space-3) 0; border-top: var(--rule); }
+.e-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+  padding: 28px 0;
+  border-top: var(--rule);
+}
+.e-row__kind { flex: 0 0 140px; }
+.e-row__body { flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.e-row__title { font-family: var(--font-display); font-size: var(--text-h3-size); line-height: var(--text-h3-line); font-weight: var(--text-display-weight); }
+.e-row__text { color: var(--ink-muted); }
+.e-row__meta { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 15px; color: var(--ink-subtle); }
+.e-row__action { font-weight: 600; white-space: nowrap; }
+.e-row--empty { display: flex; flex-direction: column; gap: var(--space-1); }
+
+.e-reviews__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 0 var(--space-7);
+  margin-bottom: var(--space-3);
+}
+.e-reviews__list > .e-note { grid-column: 1 / -1; padding: var(--space-3) 0; border-top: var(--rule); border-bottom: var(--rule); }
+.e-review { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) 0 32px; border-top: var(--rule); }
+.e-review blockquote p { font-family: var(--font-display); font-size: 20px; line-height: 1.5; font-style: italic; }
+.e-review figcaption { font-size: 15px; color: var(--ink-subtle); }
+.e-review figcaption b { color: var(--ink); font-weight: 600; }
+
+/* ---------- Финальный CTA ---------- */
+.e-final { border-top: var(--rule); }
+.e-final__inner {
+  padding: var(--space-12) var(--space-5);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.e-final__title {
+  flex: 1 1 640px;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: clamp(44px, 6.4vw, 72px);
+  line-height: 1.02;
+  font-weight: var(--text-display-weight);
+  letter-spacing: -0.02em;
+}
+
+/* ---------- Футер ---------- */
+.e-footer__inner {
+  padding: 28px var(--space-5) 48px;
+  border-top: var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--ink-subtle);
+  font-size: 14px;
+}
+.e-footer__apps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
+  padding-bottom: var(--space-3);
+  border-bottom: var(--rule-inner);
+}
+.e-footer__bottom { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: space-between; }
+.e-footer__links { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
+.e-page .e-footer a { color: var(--ink-subtle); }
+.e-page .e-footer a:hover { color: var(--accent); }
+.e-page .e-footer a.is-recommended { color: var(--ink); font-weight: 600; }
+
+/* ---------- Адаптив ---------- */
+@media (max-width: 960px) {
+  .e-nav__list { gap: 20px; }
+}
+
+@media (max-width: 768px) {
+  :root { --space-5: 20px; --space-12: 64px; }
+
+  .e-header__inner { padding-top: 16px; padding-bottom: 16px; }
+  .e-menu-toggle { display: inline-flex; }
+
+  .e-nav {
+    display: none;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding-top: var(--space-2);
+  }
+  .e-nav.is-open { display: flex; }
+  .e-nav__list { flex-direction: column; gap: 0; }
+  .e-nav__list li { border-top: var(--rule-inner); }
+  .e-nav__list a { display: block; padding: 14px 0; }
+  .e-header__cta { width: 100%; padding: 16px 22px; }
+  /* без JS меню остаётся видимым */
+  .no-js .e-nav { display: flex; }
+  .no-js .e-menu-toggle { display: none; }
+
+  .e-hero { padding-top: 40px; padding-bottom: 56px; gap: 32px; }
+  .e-hero__copy { gap: var(--space-3); flex-basis: 100%; }
+  .e-hero__art { flex-basis: 100%; }
+  .e-orbits { max-width: 320px; }
+  .e-lead { font-size: 18px; }
+  .e-actions .e-btn { width: 100%; }
+
+  .e-facts__list { grid-template-columns: 1fr; gap: var(--space-2); }
+  .e-facts__list li { font-size: 20px; }
+
+  .e-course { flex-direction: column; gap: var(--space-1); padding: var(--space-3) 0; }
+  .e-course__grade { flex: none; font-size: 44px; }
+  .e-course__body { flex: none; }
+  .e-course__title { font-size: 28px; }
+  .e-course__price { white-space: normal; }
+
+  .e-method { padding: 64px var(--space-5); }
+  .e-method__grid { grid-template-columns: 1fr; gap: 32px; }
+
+  .e-teacher { padding-top: 64px; padding-bottom: 64px; gap: 32px; }
+  .e-teacher__photo, .e-teacher__copy { flex-basis: 100%; }
+  .e-teacher__placeholder { height: 320px; }
+
+  .e-row { flex-direction: column; gap: var(--space-1); }
+  .e-row__kind, .e-row__body { flex: none; }
+  .e-row__action { white-space: normal; }
+
+  .e-reviews__list { grid-template-columns: 1fr; }
+
+  .e-final__title { flex-basis: 100%; }
+  .e-final .e-btn { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .e-page *, .e-page *::before, .e-page *::after { transition: none; animation: none; }
+}

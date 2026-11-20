@@ -7,7 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import database
 from core import admin_roles, post_lesson
-from core.lesson_time import schedule_datetime, actual_datetime
+from core.lesson_time import schedule_datetime, actual_datetime, lessons_on_local_day
 
 
 def _tz():
@@ -27,14 +27,14 @@ def _admins():
 
 def _fmt_time(raw):
     try:
-        return schedule_datetime(raw).strftime("%H:%M")
+        return schedule_datetime(raw).astimezone(_tz()).strftime("%H:%M")
     except Exception:
         return "—"
 
 
 def _fmt_actual(raw):
     try:
-        return actual_datetime(raw).strftime("%H:%M") if raw else "—"
+        return actual_datetime(raw).astimezone(_tz()).strftime("%H:%M") if raw else "—"
     except Exception:
         return "—"
 
@@ -42,16 +42,21 @@ def _fmt_actual(raw):
 def _today_lessons(day):
     c = database.connect()
     try:
-        return list(c.execute(
+        # ``day`` is a teacher-local (bot_timezone) date. SQLite date() would
+        # put a 01:30+04:00 lesson on the previous (UTC) day, so the exact
+        # local-day check and the ordering happen in Python.
+        from datetime import date as _date
+        day_obj = _date.fromisoformat(str(day)[:10])
+        return lessons_on_local_day(
+            c,
+            day_obj,
+            _tz(),
             """
             SELECT l.*,u.name
             FROM lessons l JOIN users u ON u.id=l.user_id
-            WHERE date(l.start_time)=?
-              AND l.lesson_status NOT IN ('CANCELLED','REJECTED')
-            ORDER BY datetime(l.start_time),l.id
+            WHERE l.lesson_status NOT IN ('CANCELLED','REJECTED')
             """,
-            (day,),
-        ).fetchall())
+        )
     finally:
         c.close()
 

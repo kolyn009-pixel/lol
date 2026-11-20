@@ -30,6 +30,29 @@ def _tz():
         return ZoneInfo("Europe/Samara")
 
 
+def _student_tz(lesson):
+    """Timezone of the student: personal region if configured (by telegram_id),
+    otherwise the teacher/TutorBot timezone (same fallback as Telegram)."""
+    fallback = _tz()
+    try:
+        tid = lesson["student_telegram_id"]
+    except (KeyError, IndexError):
+        tid = None
+    if not tid:
+        return fallback, None
+    try:
+        from core import user_timezone
+        zone = str(getattr(fallback, "key", "Europe/Samara"))
+        return user_timezone.user_tz(int(tid), zone), user_timezone.user_label(int(tid), zone)
+    except Exception:
+        return fallback, None
+
+
+def _student_start(lesson):
+    tz, label = _student_tz(lesson)
+    return schedule_datetime(lesson["start_time"]).astimezone(tz), label
+
+
 def initialize():
     c = database.connect()
     try:
@@ -96,7 +119,7 @@ def _due(start_dt, offset, now, grace_minutes=15):
 
 def _lesson_text(user, lesson, reminder_type):
     subject = SUBJECT_NAMES.get(str(lesson["subject"] or "").upper(), str(lesson["subject"] or "Занятие"))
-    start = schedule_datetime(lesson["start_time"])
+    start, label = _student_start(lesson)
     intros = {
         "LESSON_24H": "💜 Небольшое напоминание\n\nЗавтра у тебя занятие.",
         "LESSON_2H": "⏰ До занятия осталось 2 часа.",
@@ -107,7 +130,7 @@ def _lesson_text(user, lesson, reminder_type):
         f"{intros.get(reminder_type, '⏰ Напоминание о занятии')}\n\n"
         f"📖 {subject}\n"
         f"📅 {start.strftime('%d.%m.%Y')}\n"
-        f"🕐 {start.strftime('%H:%M')}\n"
+        f"🕐 {start.strftime('%H:%M')}" + (f" · {label}" if label else "") + "\n"
         f"⏱ {int(lesson['duration_minutes'] or 0)} минут"
     )
     if reminder_type == "LESSON_LINK_10M":
@@ -119,11 +142,9 @@ def _lesson_text(user, lesson, reminder_type):
 
 
 def _payment_text(lesson, reminder_type):
-    start = datetime.fromisoformat(str(lesson["start_time"]))
-    if start.tzinfo is None:
-        start = start.replace(tzinfo=_tz())
-    else:
-        start = start.astimezone(_tz())
+    # Naive values are schedule-timezone wall clock (schedule_datetime), not
+    # bot_timezone; display in the student's own timezone.
+    start, label = _student_start(lesson)
     try:
         amount = int(effective_pricing.effective_lesson_price(lesson))
     except Exception:
@@ -132,7 +153,7 @@ def _payment_text(lesson, reminder_type):
     tail = "До занятия осталось меньше суток." if reminder_type == "PAYMENT_24H" else "До занятия осталось около 8 часов."
     return (
         "💳 Небольшое напоминание об оплате 💜\n\n"
-        f"📅 {start.strftime('%d.%m.%Y в %H:%M')}\n"
+        f"📅 {start.strftime('%d.%m.%Y в %H:%M')}" + (f" · {label}" if label else "") + "\n"
         f"💰 {amount_text} ₽\n\n"
         f"{tail}\n\n"
         "Пожалуйста, подтверди оплату не позднее чем за 2 часа до занятия."
@@ -145,20 +166,25 @@ def tick(send_func):
     now = datetime.now(_tz())
     c = database.connect()
     try:
+        # datetime() prefilter is only a coarse window (it normalises offset
+        # values to UTC but treats naive ones as UTC too); exact due checks
+        # happen on aware datetimes below.
         lessons = c.execute("""
-            SELECT l.*, u.name, u.board_url, u.active AS user_active
+            SELECT l.*, u.name, u.board_url, u.active AS user_active,
+                   u.telegram_id AS student_telegram_id
             FROM lessons l
             JOIN users u ON u.id=l.user_id
             WHERE u.active=1
               AND l.lesson_status='CONFIRMED'
               AND l.cancelled_at IS NULL
-              AND datetime(l.start_time)>=datetime('now','-20 minutes')
-              AND datetime(l.start_time)<=datetime('now','+25 hours')
-            ORDER BY datetime(l.start_time)
+              AND datetime(l.start_time)>=datetime('now','-1 day')
+              AND datetime(l.start_time)<=datetime('now','+2 days')
         """).fetchall()
     finally:
         c.close()
 
+    from core.lesson_time import sort_by_start
+    lessons = sort_by_start(lessons)
     sent = 0
     for lesson in lessons:
         user_id = int(lesson["user_id"])
