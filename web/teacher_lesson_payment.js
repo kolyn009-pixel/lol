@@ -1,0 +1,39 @@
+(()=>{if(window.AdeliaLessonPayment)return;
+const API='/api/teacher/lesson/payment',REV='/api/teacher/finance/payment/reverse';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const UNPAID=['AWAITING_PAYMENT','UNPAID','WAITING'];
+const fmt=n=>Number(n||0).toLocaleString('ru-RU');
+const lessonStart=l=>l.start_at||l.start_time||'';
+const lessonPrice=l=>{const v=Number(l.price??l.lesson_price??l.amount??l.earned_value??0);return v>0?v:0};
+function when(l){const d=new Date(lessonStart(l));if(isNaN(d))return '';return d.toLocaleString('ru-RU',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})}
+function isUnpaid(l){return UNPAID.includes(String(l.payment_status||'').toUpperCase())}
+function canAwait(l){if(!isUnpaid(l)||l.payment_wait_confirmed_at)return false;const ms=new Date(lessonStart(l)).getTime()-Date.now();return !isNaN(ms)&&ms<=2*3600*1000}
+async function post(path,body){const r=await fetch(path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});const j=await r.json().catch(()=>({}));if(!r.ok||j.error)throw new Error(j.error||j.detail||'Не получилось сохранить. Попробуйте ещё раз.');return j}
+function lessonAttrs(l){return `data-lp-id="${Number(l.id)}" data-lp-name="${esc(l.name||l.student_name||'')}" data-lp-start="${esc(lessonStart(l))}" data-lp-price="${lessonPrice(l)}" data-lp-status="${esc(l.payment_status||'')}" data-lp-wait="${esc(l.payment_wait_confirmed_at||'')}"`}
+function buttons(l,cls=''){if(!l||!l.id||!isUnpaid(l))return '';return `<button type="button" class="lp-btn lp-btn-main ${cls}" data-lp-paid ${lessonAttrs(l)}>Оплата получена</button>`+(canAwait(l)?`<button type="button" class="lp-btn ${cls}" data-lp-await ${lessonAttrs(l)}>Ждём оплату</button>`:'')}
+function fromEl(b){const d=b.dataset;return {id:Number(d.lpId),name:d.lpName,start_time:d.lpStart,price:Number(d.lpPrice||0),payment_status:d.lpStatus,payment_wait_confirmed_at:d.lpWait}}
+function toast(text,undo){document.querySelector('.lp-toast')?.remove();const t=document.createElement('div');t.className='lp-toast';t.setAttribute('role','status');t.innerHTML=`<span>${esc(text)}</span>`;let timer;if(undo){const b=document.createElement('button');b.type='button';b.textContent='Отменить';b.onclick=async()=>{b.disabled=true;try{await undo();clearTimeout(timer);t.firstChild.textContent='Отметка отменена.';b.remove();setTimeout(()=>t.remove(),3500);refresh()}catch(e){t.firstChild.textContent=e.message;b.disabled=false}};t.append(b);timer=setTimeout(()=>t.remove(),30000)}else timer=setTimeout(()=>t.remove(),5000);document.body.append(t)}
+function refresh(){document.dispatchEvent(new CustomEvent('adelia:lesson-payment-changed'));const v=document.querySelector('nav [data-view].active');if(v&&!window.__lpNoReload)setTimeout(()=>v.click(),250)}
+function open(l){document.querySelector('.lp-backdrop')?.remove();const prev=document.activeElement,price=lessonPrice(l);let count=4,busy=false;
+const bd=document.createElement('div');bd.className='lp-backdrop';
+bd.innerHTML=`<div class="lp-card" role="dialog" aria-modal="true" aria-labelledby="lpTitle"><button type="button" class="lp-close" aria-label="Закрыть">×</button><h2 id="lpTitle">Оплата получена</h2><p class="lp-sub">${esc(l.name||'Ученик')}${when(l)?' · '+esc(when(l)):''}</p><div class="lp-label" id="lpCntLbl">Сколько занятий оплатили</div><div class="lp-counts" role="group" aria-labelledby="lpCntLbl">${[1,4,8,12].map(n=>`<button type="button" data-n="${n}" aria-pressed="false">${n}</button>`).join('')}<button type="button" data-n="custom" aria-pressed="false">Своё</button></div><label class="lp-custom" hidden>Количество, 1–100<input type="number" min="1" max="100" step="1" inputmode="numeric" value="4"></label>${price?'':'<label class="lp-amount">Сумма, ₽<input type="number" min="1" step="50" inputmode="numeric" required placeholder="Например, 6000"></label>'}<div class="lp-sum" aria-live="polite"></div><div class="lp-error" role="alert"></div><button type="button" class="lp-submit">Отметить оплату</button></div>`;
+document.body.append(bd);
+const card=bd.querySelector('.lp-card'),cust=bd.querySelector('.lp-custom'),cin=cust.querySelector('input'),ain=bd.querySelector('.lp-amount input'),sum=bd.querySelector('.lp-sum'),err=bd.querySelector('.lp-error'),sub=bd.querySelector('.lp-submit');
+const getCount=()=>{const n=Math.floor(Number(count));return n>=1&&n<=100?n:0};
+function paint(){bd.querySelectorAll('.lp-counts button').forEach(b=>{const on=b.dataset.n==='custom'?!cust.hidden:(cust.hidden&&Number(b.dataset.n)===count);b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});const n=getCount();sum.textContent=!n?'Укажите количество от 1 до 100':price?`${n} × ${fmt(price)} = ${fmt(n*price)} ₽`:'Введите сумму, которую получили'}
+const close=()=>{document.removeEventListener('keydown',key,true);bd.remove();try{prev?.focus()}catch(e){}};
+function key(e){if(e.key==='Escape'){e.stopPropagation();close()}else if(e.key==='Tab'){const f=[...card.querySelectorAll('button:not(:disabled),input')].filter(x=>!x.closest('[hidden]'));if(!f.length)return;const a=f[0],z=f[f.length-1];if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}}}
+document.addEventListener('keydown',key,true);
+bd.addEventListener('mousedown',e=>{if(e.target===bd)close()});bd.querySelector('.lp-close').onclick=close;
+bd.querySelectorAll('.lp-counts button').forEach(b=>b.onclick=()=>{if(b.dataset.n==='custom'){cust.hidden=false;count=Number(cin.value);cin.focus()}else{cust.hidden=true;count=Number(b.dataset.n)}paint()});
+cin.oninput=()=>{count=Number(cin.value);paint()};
+sub.onclick=async()=>{if(busy)return;err.textContent='';const n=getCount();if(!n){err.textContent='Укажите количество занятий от 1 до 100.';return}let amount;if(!price){amount=Number(ain.value);if(!(amount>0)){err.textContent='Укажите сумму, которую получили.';ain.focus();return}}
+busy=true;sub.disabled=true;sub.textContent='Отмечаю…';
+try{const body={lesson_id:Number(l.id),action:'paid',lessons_count:n};if(amount)body.amount=amount;const r=await post(API,body);close();const bal=r.balance_lessons_after;const msg=r.already_paid?'Оплата уже была отмечена':'Оплата отмечена'+(bal!=null?` · на балансе ${bal} ${plural(bal)}`:'');toast(msg,r.payment_id&&!r.already_paid?()=>post(REV,{payment_id:r.payment_id,confirmed:true,reason:'Ошибочная отметка'}):null);refresh()}
+catch(e){err.textContent=e.message;busy=false;sub.disabled=false;sub.textContent='Отметить оплату'}};
+paint();(card.querySelector('.lp-counts button.on')||card.querySelector('.lp-close')).focus()}
+function plural(n){n=Math.abs(n)%100;const m=n%10;return n>10&&n<20?'занятий':m===1?'занятие':m>=2&&m<=4?'занятия':'занятий'}
+async function wait(l){try{await post(API,{lesson_id:Number(l.id),action:'await',lessons_count:1});toast('Ждём оплату — автоотмена выключена');refresh()}catch(e){toast(e.message)}}
+document.addEventListener('click',e=>{const p=e.target.closest('[data-lp-paid]');if(p){e.preventDefault();e.stopPropagation();open(fromEl(p));return}const a=e.target.closest('[data-lp-await]');if(a){e.preventDefault();e.stopPropagation();if(a.disabled)return;a.disabled=true;wait(fromEl(a)).finally(()=>{a.disabled=false})}},true);
+window.AdeliaLessonPayment={open,await:wait,buttons,canAwait,isUnpaid};
+})();
