@@ -47,7 +47,40 @@
       if (!a || !/^\/api\//.test(String(a.url || ''))) return;
       var l = el('a', 'msg-att', String(a.kind || '').toLowerCase() === 'photo' ? 'Фото: ' + (a.name || 'открыть') : 'Файл: ' + (a.name || 'открыть')); l.href = a.url; l.target = '_blank'; l.rel = 'noopener'; b.appendChild(l);
     });
-    b.appendChild(el('small', 'msg-b-t', when(m.created_at) + (m.direction === 'OUT' && m.read_at ? ' · прочитано' : ''))); return b;
+    b.appendChild(el('small', 'msg-b-t', when(m.created_at) + (m.direction === 'OUT' && m.read_at ? ' · прочитано' : '')));
+    if (m.direction === 'OUT' && !isParent(st.active)) b.appendChild(statusLine(m));
+    return b;
+  }
+  var CH = { TELEGRAM: 'Telegram', VK: 'VK' };
+  var DST = { SENT: '✓', DELIVERED: '✓', READ: '✓ прочитано', QUEUED: 'в очереди', FAILED: 'не доставлено', SKIPPED: 'не привязан' };
+  function statusLine(m) {
+    var line = el('div', 'msg-status'), ext = (m.deliveries || []).filter(function (d) { return CH[String(d.channel).toUpperCase()]; }), bad = [];
+    line.appendChild(el('span', '', 'Аделия ✓'));
+    ext.forEach(function (d) {
+      var c = String(d.channel).toUpperCase(), k = String(d.status).toUpperCase(); if (k === 'FAILED') bad.push(c);
+      line.appendChild(el('span', 'msg-st' + (k === 'FAILED' ? ' bad' : ''), ' · ' + CH[c] + ' ' + (DST[k] || k)));
+    });
+    if (bad.length) { var r = el('button', 'msg-retry', 'Повторить'); r.type = 'button'; r.addEventListener('click', function () { r.disabled = true; sendExternal(m.id, bad); }); line.appendChild(r); }
+    return line;
+  }
+  /* каналы диалога: доступность берётся из conversation.channels (telegram/vk привязаны) */
+  function avail(x, c) { return !x.channels || !!x.channels[c.toLowerCase()]; }
+  function chKey(x) { return 'adelia:msgch:' + x.id; }
+  function chLoad(x) { var v = []; try { v = JSON.parse(localStorage.getItem(chKey(x)) || '[]'); } catch (e) {} return (Array.isArray(v) ? v : []).filter(function (c) { return CH[c] && avail(x, c); }); }
+  function chSave(x, list) { try { localStorage.setItem(chKey(x), JSON.stringify(list)); } catch (e) {} }
+  function rawExternal(id, channels) {
+    return fetch('/api/teacher/messages/send-external', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_id: Number(id), channels: channels }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); }, function () { throw new Error('Нет связи с сервером.'); });
+  }
+  function extReport(res, channels) {
+    var d = (res.j && res.j.deliveries) || {}, bad = channels.filter(function (c) { var x = d[c.toLowerCase()]; return !x || ['SENT', 'DELIVERED', 'READ'].indexOf(String(x.status).toUpperCase()) < 0; });
+    if (!res.ok && !res.j.deliveries) return 'В Аделии сохранено, но внешний канал не ответил. Можно повторить.';
+    return bad.length ? 'В Аделии сохранено. Не доставлено: ' + bad.map(function (c) { return CH[c]; }).join(', ') + '. Можно повторить.' : 'Отправлено: Аделия, ' + channels.map(function (c) { return CH[c]; }).join(', ');
+  }
+  function sendExternal(id, channels) {
+    var x = st.active; if (!x) return Promise.resolve();
+    return rawExternal(id, channels).then(function (res) { if (stateEl) stateEl.textContent = extReport(res, channels); }, function (e) { if (stateEl) stateEl.textContent = 'Не удалось повторить: ' + err(e); })
+      .then(function () { return loadHist(x.id); }).then(function (h) { if (st.active && st.active.id === x.id) { st.hist = h; paintHist(false); } });
   }
   function paintHist(stick) {
     var near = !histBox || histBox.scrollHeight - histBox.scrollTop - histBox.clientHeight < 90;
@@ -70,9 +103,19 @@
     fileName = el('span', 'msg-fname'); st.file = (st.drafts[x.id] || {}).file || null; fileName.textContent = st.file ? st.file.name : '';
     fi.addEventListener('change', function () { st.file = fi.files[0] || null; fileName.textContent = st.file ? st.file.name : ''; });
     pick.appendChild(fi);
+    var chs = el('div', 'msg-chs'); chs.setAttribute('role', 'group'); chs.setAttribute('aria-label', 'Куда отправить');
+    var a0 = el('label', 'msg-ch on fixed'), ai = el('input'); ai.type = 'checkbox'; ai.checked = true; ai.disabled = true; a0.append(ai, document.createTextNode(' Аделия')); chs.appendChild(a0);
+    var sel = chLoad(x); st.sel = sel;
+    if (isParent(x)) chs.appendChild(el('span', 'msg-ch-note', 'Родителю — только в Аделии'));
+    else ['TELEGRAM', 'VK'].forEach(function (c) {
+      var ok = avail(x, c), l = el('label', 'msg-ch' + (ok ? '' : ' off')), i = el('input'); i.type = 'checkbox'; i.checked = ok && sel.indexOf(c) >= 0; i.disabled = !ok;
+      if (!ok) l.title = CH[c] + ' не привязан';
+      i.addEventListener('change', function () { st.sel = st.sel.filter(function (k) { return k !== c; }); if (i.checked) st.sel.push(c); chSave(x, st.sel); });
+      l.append(i, document.createTextNode(' ' + CH[c] + (ok ? '' : ' — не привязан'))); chs.appendChild(l);
+    });
     var sb = el('button', 'c-btn primary', 'Отправить'); sb.type = 'submit';
     row.append(pick, fileName, sb); stateEl = el('div', 'msg-state'); stateEl.setAttribute('aria-live', 'polite');
-    form.append(ta, row, stateEl); form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
+    form.append(ta, chs, row, stateEl); form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
     threadBox.appendChild(form); paintHist(true);
   }
   function saveDraft() { if (st.active && ta) st.drafts[st.active.id] = { text: ta.value, file: st.file }; }
@@ -106,8 +149,13 @@
     Promise.resolve(file ? upload(file) : null).then(function (att) {
       var body = isParent(x) ? { conversation_id: x.id, text: text, attachment: att } : { user_id: x.student_id, text: text, attachment: att };
       return C.api('/teacher/messages/send', { method: 'POST', body: jsonBody(body) });
-    }).then(function () {
+    }).then(function (created) {
       delete st.drafts[x.id]; ta.value = ''; st.file = null; fileName.textContent = ''; stateEl.textContent = 'Отправлено';
+      var ext = isParent(x) ? [] : (st.sel || []).filter(function (c) { return avail(x, c); });
+      if (!ext.length || !created || created.message_id == null) return;
+      stateEl.textContent = 'Отправляю: ' + ext.map(function (c) { return CH[c]; }).join(', ') + '…';
+      return rawExternal(created.message_id, ext).then(function (res) { stateEl.textContent = extReport(res, ext); }, function (e) { stateEl.textContent = 'В Аделии сохранено, но внешний канал не ответил: ' + err(e); });
+    }).then(function () {
       return loadHist(x.id).then(function (h) { if (st.active && st.active.id === x.id) { st.hist = h; paintHist(true); } }).then(refreshList);
     }, function (e) { stateEl.textContent = 'Не удалось отправить: ' + err(e); }).then(function () { st.sending = false; [].forEach.call(btns, function (b) { b.disabled = false; }); });
   }
