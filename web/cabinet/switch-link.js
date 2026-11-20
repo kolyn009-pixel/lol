@@ -16,7 +16,7 @@
       fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         if (!d || d.authenticated !== true) return;
         var role = d.role || (d.session && d.session.role);
-        if (NEW[role]) location.replace(NEW[role] + (location.hash || ''));
+        if (false && NEW[role]) location.replace(NEW[role] + (location.hash || ''));
       }).catch(function () {});
     } catch (e) {}
     return;

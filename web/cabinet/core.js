@@ -4,7 +4,7 @@
   var C = window.C = {};
   var SUBJ = { PHYSICS: 'Физика', CHEMISTRY: 'Химия', OGE: 'ОГЭ', EGE: 'ЕГЭ', SCHOOL: 'Школьная программа' };
   var PAY = { PAID: ['Оплачено', 'ok'], AWAITING_PAYMENT: ['Ждём оплату', 'due'], UNPAID: ['Не оплачено', 'due'], WAITING: ['Ждём оплату', 'due'], PREPAID: ['Оплачено', 'ok'], FREE: ['Без оплаты', ''] };
-  var HOME = { teacher: '/teacher/', student: '/app/', parent: '/app/parent/' };
+  var HOME = { teacher: '/app/teacher.html', student: '/app/', parent: '/app/parent/' };
   var NEWHOME = { teacher: '/app/cabinet/teacher.html', student: '/app/cabinet/student.html', parent: '/app/cabinet/parent.html' };
   var OLD_RE = /^\/(teacher\/?|app\/?|app\/index\.html|app\/teacher\.html|app\/parent\/?|app\/parent\/index\.html)$/;
   /* ссылка в старый кабинет: добавляет classic=1, сохраняя параметры раздела и хэш */
