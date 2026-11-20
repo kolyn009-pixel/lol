@@ -107,7 +107,8 @@ def review(payment_id,action):
         package_id=approve_payment(pid);_notify_review(row,True);return {'status':'ok','payment_id':pid,'package_id':package_id,'result':'PAID'}
     if action=='REJECT':
         if str(row['status']).upper()=='REJECTED':return {'status':'ok','payment_id':pid,'already_processed':True,'result':'REJECTED'}
-        reject_payment(pid);_notify_review(row,False);return {'status':'ok','payment_id':pid,'result':'REJECTED'}
+        if not reject_payment(pid):raise ValueError('payment_not_rejectable')
+        _notify_review(row,False);return {'status':'ok','payment_id':pid,'result':'REJECTED'}
     raise ValueError('invalid_review_action')
 
 def _notify_review(payment_row,approved):
