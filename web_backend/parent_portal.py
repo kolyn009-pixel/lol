@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from database import connect
 from core import minute_balance
+from web_backend.student_progress import topic_stats
 
 
 def _limit(value, default=50, maximum=200):
@@ -77,8 +78,7 @@ def _minute_balance(uid):
 def _progress(conn,uid):
     out={'topics':{'total':0,'started':0,'mastered':0,'average_mastery':0},'goal':None,'exam_results':[],'diagnostics':[],'homework':{'assigned':0,'submitted':0,'completed':0,'overdue':0,'average_score':None}}
     try:
-        row=conn.execute("""SELECT COUNT(*) total,SUM(CASE WHEN p.status<>'NOT_STARTED' OR COALESCE(p.mastery,0)>0 THEN 1 ELSE 0 END) started,SUM(CASE WHEN p.status IN ('MASTERED','DONE','COMPLETED') OR COALESCE(p.mastery,0)>=80 THEN 1 ELSE 0 END) mastered,AVG(COALESCE(p.mastery,0)) avg_mastery FROM student_topic_progress p WHERE p.user_id=?""",(uid,)).fetchone()
-        out['topics']={'total':int(row['total'] or 0),'started':int(row['started'] or 0),'mastered':int(row['mastered'] or 0),'average_mastery':round(float(row['avg_mastery'] or 0))}
+        t=topic_stats(conn,uid);out['topics']={'total':t['total'],'started':t['started'],'mastered':t['mastered'],'average_mastery':t['avg_mastery']}
     except Exception:pass
     try:
         row=conn.execute("SELECT subject,study_goal,target_text,target_score,target_date FROM student_goals WHERE user_id=? AND status='ACTIVE' ORDER BY id DESC LIMIT 1",(uid,)).fetchone();out['goal']=dict(row) if row else None

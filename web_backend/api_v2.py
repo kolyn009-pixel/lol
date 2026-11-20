@@ -43,6 +43,11 @@ class Handler(Stage10Mixin,Stage9Mixin,Stage8Mixin,Stage7Mixin,Stage6Mixin,v1.Ha
             try:
                 if path=='/api/student/dashboard':
                     item=student_dashboard(uid);return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
+                if path=='/api/student/progress':
+                    from web_backend.student_progress import progress as student_progress
+                    from database import connect as _c;conn=_c()
+                    try:return self._json(200,student_progress(conn,uid))
+                    finally:conn.close()
                 if path=='/api/student/schedule':return self._json(200,{'items':student_schedule(uid,q.get('limit',[40])[0])})
                 if path=='/api/student/payments':
                     item=student_payments(uid,q.get('limit',[50])[0]);return self._json(200,item) if item else self._json(404,{'error':'student_not_found'})
