@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Аделия — онлайн-школа физики: ОГЭ, ЕГЭ, 7–11 класс</title>
-<meta name="description" content="Онлайн-школа физики «Аделия»: живые уроки в мини-группах, программа по неделям и прогресс по каждой теме экзамена. ОГЭ, ЕГЭ и школьная физика для 7–11 класса.">
+<meta name="description" content="Онлайн-школа физики «Аделия»: занятия индивидуально и в мини-группах, программа по неделям, прогресс по каждой теме экзамена. ОГЭ, ЕГЭ и школьная физика для 7–11 класса.">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="application-name" content="Аделия">
 <meta name="apple-mobile-web-app-title" content="Аделия">
@@ -13,7 +13,7 @@
 <meta property="og:locale" content="ru_RU">
 <meta property="og:site_name" content="Аделия">
 <meta property="og:title" content="Аделия — онлайн-школа физики">
-<meta property="og:description" content="Живые уроки в мини-группах, программа по неделям и прогресс по каждой теме экзамена. Для учеников 7–11 класса и их родителей.">
+<meta property="og:description" content="Занятия индивидуально и в мини-группах, программа по неделям, прогресс по каждой теме экзамена. ОГЭ, ЕГЭ и школьная физика для 7–11 класса.">
 <meta property="og:url" content="https://adeliatutor.ru/">
 <meta property="og:image" content="https://adeliatutor.ru/app/assets/icons/adelia-mark-512.png">
 <meta name="twitter:card" content="summary">
@@ -106,12 +106,13 @@
 
 <section class="e-hero" aria-labelledby="e-hero-title">
   <div class="e-hero__copy">
-    <p class="e-label">Онлайн-школа физики · ОГЭ · ЕГЭ · 7–11 класс</p>
+    <p class="e-label">Онлайн-школа физики · ОГЭ · ЕГЭ · 7–11 класс · индивидуально и в мини-группах</p>
     <h1 class="e-hero__title" id="e-hero-title">Физика —<br>это <em>красиво</em>.<br>И сдаётся на отлично.</h1>
-    <p class="e-lead">Живые уроки в мини-группах, программа по неделям и прогресс по каждой теме экзамена. Для учеников 7–11 класса и их родителей.</p>
+    <p class="e-lead">Занятия индивидуально или в мини-группе, программа по неделям и прогресс по каждой теме экзамена. Для учеников 7–11 класса и их родителей.</p>
     <div class="e-actions">
       <a class="e-btn e-btn--accent e-btn--lg" href="/start/">Записаться на пробный урок</a>
       <a class="e-arrow-link" href="#e-courses">Смотреть курсы →</a>
+      <a class="e-arrow-link" href="#e-formats">Сравнить форматы →</a>
     </div>
   </div>
   <div class="e-hero__art">
@@ -135,7 +136,7 @@
 
 <section class="e-facts" aria-label="Коротко о школе">
   <ul class="e-facts__list">
-    <li>Мини-группы до [N] человек</li>
+    <li>Индивидуально или в мини-группе до <span data-group-max>[N]</span> человек</li>
     <li>Программа по кодификатору</li>
     <li>Автопроверка домашних заданий</li>
     <li>Отчёты родителям каждый месяц</li>
@@ -149,59 +150,104 @@
   </div>
   <ul class="e-course-list" id="e-course-list">
     <li>
-      <a class="e-course" href="/start/" data-course="oge" data-goal="OGE" data-grade-min="9" data-grade-max="9">
+      <li class="e-course" data-course="oge" data-goal="OGE" data-grade-min="9" data-grade-max="9">
         <span class="e-course__grade" aria-hidden="true">9</span>
         <span class="e-course__body">
           <span class="e-course__title">ОГЭ по физике<span class="e-visually-hidden">, 9 класс</span></span>
           <span class="e-course__text">Все темы экзамена и экспериментальное задание</span>
         </span>
-        <span class="e-course__price"><span data-price>[цена уточняется]</span> <span aria-hidden="true">→</span></span>
-      </a>
+        <div class="e-course__formats">
+          <a href="/start/?format=individual" aria-label="Индивидуально, ОГЭ по физике, 9 класс: подобрать время"><span class="e-label">Индивидуально</span> <span class="e-course__price" data-price>Цена уточняется</span> <span aria-hidden="true">→</span></a>
+          <a class="e-course__group is-empty" href="/start/?format=group" data-group-link aria-label="В группе, ОГЭ по физике, 9 класс: группы набираются"><span class="e-label">В группе</span> <span class="e-course__price" data-group-price>Группы набираются</span> <span aria-hidden="true">→</span></a>
+        </div>
+      </li>
     </li>
     <li>
-      <a class="e-course" href="/start/" data-course="ege" data-goal="EGE" data-grade-min="11" data-grade-max="11">
+      <li class="e-course" data-course="ege" data-goal="EGE" data-grade-min="11" data-grade-max="11">
         <span class="e-course__grade" aria-hidden="true">11</span>
         <span class="e-course__body">
           <span class="e-course__title">ЕГЭ по физике<span class="e-visually-hidden">, 11 класс</span></span>
           <span class="e-course__text">Обе части и задачи с развёрнутым ответом</span>
         </span>
-        <span class="e-course__price"><span data-price>[цена уточняется]</span> <span aria-hidden="true">→</span></span>
-      </a>
+        <div class="e-course__formats">
+          <a href="/start/?format=individual" aria-label="Индивидуально, ЕГЭ по физике, 11 класс: подобрать время"><span class="e-label">Индивидуально</span> <span class="e-course__price" data-price>Цена уточняется</span> <span aria-hidden="true">→</span></a>
+          <a class="e-course__group is-empty" href="/start/?format=group" data-group-link aria-label="В группе, ЕГЭ по физике, 11 класс: группы набираются"><span class="e-label">В группе</span> <span class="e-course__price" data-group-price>Группы набираются</span> <span aria-hidden="true">→</span></a>
+        </div>
+      </li>
     </li>
     <li>
-      <a class="e-course" href="/start/" data-course="school" data-goal="SCHOOL" data-grade-min="7" data-grade-max="9">
+      <li class="e-course" data-course="school" data-goal="SCHOOL" data-grade-min="7" data-grade-max="9">
         <span class="e-course__grade" aria-hidden="true">7–9</span>
         <span class="e-course__body">
           <span class="e-course__title">Школьная физика<span class="e-visually-hidden">, 7–9 класс</span></span>
           <span class="e-course__text">Основы без пробелов и зубрёжки</span>
         </span>
-        <span class="e-course__price"><span data-price>[цена уточняется]</span> <span aria-hidden="true">→</span></span>
-      </a>
+        <div class="e-course__formats">
+          <a href="/start/?format=individual" aria-label="Индивидуально, Школьная физика, 7–9 класс: подобрать время"><span class="e-label">Индивидуально</span> <span class="e-course__price" data-price>Цена уточняется</span> <span aria-hidden="true">→</span></a>
+          <a class="e-course__group is-empty" href="/start/?format=group" data-group-link aria-label="В группе, Школьная физика, 7–9 класс: группы набираются"><span class="e-label">В группе</span> <span class="e-course__price" data-group-price>Группы набираются</span> <span aria-hidden="true">→</span></a>
+        </div>
+      </li>
     </li>
     <li>
-      <a class="e-course" href="/start/" data-course="senior" data-goal="SCHOOL" data-grade-min="10" data-grade-max="11">
+      <li class="e-course" data-course="senior" data-goal="SCHOOL" data-grade-min="10" data-grade-max="11">
         <span class="e-course__grade" aria-hidden="true">10–11</span>
         <span class="e-course__body">
           <span class="e-course__title">Физика старшей школы<span class="e-visually-hidden">, 10–11 класс</span></span>
           <span class="e-course__text">Программа 10–11 класса и база для ЕГЭ</span>
         </span>
-        <span class="e-course__price"><span data-price>[цена уточняется]</span> <span aria-hidden="true">→</span></span>
-      </a>
+        <div class="e-course__formats">
+          <a href="/start/?format=individual" aria-label="Индивидуально, Физика старшей школы, 10–11 класс: подобрать время"><span class="e-label">Индивидуально</span> <span class="e-course__price" data-price>Цена уточняется</span> <span aria-hidden="true">→</span></a>
+          <a class="e-course__group is-empty" href="/start/?format=group" data-group-link aria-label="В группе, Физика старшей школы, 10–11 класс: группы набираются"><span class="e-label">В группе</span> <span class="e-course__price" data-group-price>Группы набираются</span> <span aria-hidden="true">→</span></a>
+        </div>
+      </li>
     </li>
   </ul>
-  <p class="e-note" id="e-price-note">Стоимость указана за одно занятие.</p>
+  <p class="e-note" id="e-price-note">Цена указана за одно занятие: 60 минут индивидуально или занятие в группе.</p>
+</section>
+
+<section class="e-section e-formats" id="e-formats" aria-labelledby="e-formats-title">
+  <div class="e-section__head">
+    <h2 class="e-h-section" id="e-formats-title">Курс один — <em>способа</em> два</h2>
+    <p class="e-label">02 / Форматы</p>
+  </div>
+  <div class="e-formats__grid">
+    <article class="e-formats__col">
+      <p class="e-label">Формат 1</p>
+      <h3>Индивидуально</h3>
+      <p class="e-formats__for">Если нужен свой темп и расписание под ученика.</p>
+      <ul class="e-formats__list">
+        <li>Темп — как удобно ученику</li>
+        <li>Время согласуем лично</li>
+        <li>Преподаватель и ученик, цена за 60 минут</li>
+      </ul>
+      <p class="e-formats__price" data-formats-price="individual">Цена уточняется</p>
+      <a class="e-arrow-link" href="/start/?format=individual">Подобрать время →</a>
+    </article>
+    <article class="e-formats__col">
+      <p class="e-label">Формат 2</p>
+      <h3>В мини-группе</h3>
+      <p class="e-formats__for">Если важны живое общение и занятия по расписанию группы.</p>
+      <ul class="e-formats__list">
+        <li>Общий темп по программе группы</li>
+        <li>Постоянные дни и время</li>
+        <li>До <span data-group-max>[N]</span> человек, цена за занятие</li>
+      </ul>
+      <p class="e-formats__price" data-formats-price="group">Группы набираются</p>
+      <a class="e-arrow-link" href="#e-groups">Выбрать группу →</a>
+    </article>
+  </div>
 </section>
 
 <section class="e-method" id="e-method" aria-labelledby="e-method-title">
   <div class="e-method__inner">
     <div class="e-section__head">
       <h2 class="e-h-section" id="e-method-title">Как мы учим</h2>
-      <p class="e-label e-label--inverse">02 / Метод</p>
+      <p class="e-label e-label--inverse">03 / Метод</p>
     </div>
     <div class="e-method__grid">
       <article class="e-method__item">
         <h3>Живой урок</h3>
-        <p>Объяснение, вопросы и задачи вместе с преподавателем — онлайн, в небольшой группе.</p>
+        <p>Объяснение, вопросы и задачи вместе с преподавателем — онлайн, индивидуально или в мини-группе.</p>
       </article>
       <article class="e-method__item">
         <h3>Практика</h3>
@@ -220,7 +266,7 @@
     <div class="e-teacher__placeholder" role="img" aria-label="Место для фото преподавателя">[ФОТО ПРЕПОДАВАТЕЛЯ]</div>
   </figure>
   <div class="e-teacher__copy">
-    <p class="e-label">03 / Преподаватель</p>
+    <p class="e-label">04 / Преподаватель</p>
     <blockquote class="e-teacher__quote"><p>«[Короткая цитата о том, как вы учите физике]»</p></blockquote>
     <h2 class="e-teacher__name" id="e-teacher-name">Николай Владимирович Соловьев</h2>
     <p class="e-teacher__meta">[Опыт и образование — одна строка]</p>
@@ -231,7 +277,7 @@
 <div class="e-section e-groups">
   <div class="e-section__head">
     <h2 class="e-h-section" id="e-groups-title">Группы и <em>события</em></h2>
-    <p class="e-label">04 / Набор</p>
+    <p class="e-label">05 / Набор</p>
   </div>
   <p class="e-lead e-groups__lead">Учебные группы, пробники, разборы и интенсивы. Открытый набор и ближайшие события появляются здесь автоматически.</p>
   <div class="e-rows" id="e-opportunities" aria-live="polite">
@@ -244,7 +290,7 @@
 <div class="e-section e-reviews">
   <div class="e-section__head">
     <h2 class="e-h-section" id="e-reviews-title">Отзывы</h2>
-    <p class="e-label">05 / Ученики и родители</p>
+    <p class="e-label">06 / Ученики и родители</p>
   </div>
   <div class="e-reviews__list" id="e-reviews-list" aria-live="polite">
     <p class="e-note">Загружаю отзывы…</p>
