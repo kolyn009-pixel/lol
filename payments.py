@@ -1574,9 +1574,24 @@ async def payment_buttons(
         "payment_promo|"
     ):
 
-        lessons_count = int(
-            data.split("|")[1]
-        )
+        try:
+            lessons_count = int(
+                data.split("|")[1]
+            )
+
+        except (IndexError, ValueError):
+            lessons_count = 0
+
+        if not 1 <= lessons_count <= 50:
+
+            await query.edit_message_text(
+                "❌ Количество занятий должно быть от 1 до 50.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="payments")]
+                ])
+            )
+
+            return ConversationHandler.END
 
         context.user_data[
             "payment_lessons_count"
@@ -1599,9 +1614,24 @@ async def payment_buttons(
         "payment_remove_promo|"
     ):
 
-        lessons_count = int(
-            data.split("|")[1]
-        )
+        try:
+            lessons_count = int(
+                data.split("|")[1]
+            )
+
+        except (IndexError, ValueError):
+            lessons_count = 0
+
+        if not 1 <= lessons_count <= 50:
+
+            await query.edit_message_text(
+                "❌ Количество занятий должно быть от 1 до 50.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="payments")]
+                ])
+            )
+
+            return ConversationHandler.END
 
         context.user_data.pop(
             "payment_promo_code",
@@ -3096,7 +3126,7 @@ async def admin_payment_buttons(
 
         try:
 
-            database.reject_payment(
+            changed = database.reject_payment(
                 payment_id
             )
 
@@ -3104,6 +3134,15 @@ async def admin_payment_buttons(
 
             await query.answer(
                 str(error),
+                show_alert=True
+            )
+
+            return
+
+        if not changed:
+
+            await query.answer(
+                "Платёж уже оплачен или отменён — статус не изменён.",
                 show_alert=True
             )
 
