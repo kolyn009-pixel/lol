@@ -10,6 +10,7 @@ from urllib.parse import urlparse, parse_qs
 from web_backend.parent_linking import find_student_by_username, link_parent_to_student_by_username
 from web_backend.public_catalog import get_public_price_catalog
 from web_backend.public_reviews import list_public_reviews
+from web_backend.teacher_profile import get_public_teacher_profile,update_teacher_profile
 from web_backend.student_auth import consume_student_login_code
 from web_backend.teacher_auth import consume_teacher_login_code
 from web_backend.teacher_portal import dashboard as teacher_dashboard, students as teacher_students, student_card, review_submission
@@ -74,6 +75,8 @@ class Handler(BaseHTTPRequestHandler):
    if path=='/api/health':return self._json(200,{'ok':True,'service':'adelia-web'})
    if path=='/api/public/prices':return self._json(200,{'items':get_public_price_catalog()})
    if path=='/api/public/reviews':return self._json(200,{'items':list_public_reviews(12)})
+   if path=='/api/public/teacher-profile':
+    item=get_public_teacher_profile(q.get('slug',[None])[0]);return self._json(200,item) if item else self._json(404,{'error':'profile_not_found'})
    if path=='/api/homework/attachment':
     a=self._auth()
     if not a:return self._json(401,{'error':'unauthorized'})
@@ -113,6 +116,18 @@ class Handler(BaseHTTPRequestHandler):
     if path=='/api/teacher/post-lesson':
      item=post_lesson_state(int(q.get('id',['0'])[0]));return self._json(200,item) if item else self._json(404,{'error':'lesson_not_found'})
    return self._json(404,{'error':'not_found'})
+  except Exception:return self._json(500,{'error':'server_error'})
+ def do_PUT(self):
+  path=urlparse(self.path).path
+  try:
+   if path=='/api/teacher/public-profile':
+    a=self._teacher()
+    if not a:return self._json(401,{'error':'unauthorized'})
+    body=self._body()
+    if body is None:return self._json(400,{'error':'invalid_json'})
+    return self._json(200,update_teacher_profile(a['id'],body))
+   return self._json(404,{'error':'not_found'})
+  except ValueError as e:return self._json(400,{'error':str(e)})
   except Exception:return self._json(500,{'error':'server_error'})
  def do_POST(self):
   path=urlparse(self.path).path

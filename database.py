@@ -1,3 +1,4 @@
+import logging
 import os
 import sqlite3
 import secrets
@@ -1676,6 +1677,30 @@ def create_tables():
         idx_packages_program
         ON lesson_packages(program_id)
     """)
+
+    # Один пакет на один платёж: защита от двойного зачисления.
+    # Старые БД с дублями не должны падать при старте — только лог.
+    _pkg_cols = {
+        row[1]
+        for row in cursor.execute(
+            "PRAGMA table_info(lesson_packages)"
+        ).fetchall()
+    }
+    if "payment_id" in _pkg_cols:
+        try:
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                idx_packages_payment_unique
+                ON lesson_packages(payment_id)
+            """)
+        except sqlite3.IntegrityError as error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Не удалось создать уникальный индекс "
+                "lesson_packages(payment_id): в БД есть дубли (%s). "
+                "Проверьте пакеты с одинаковым payment_id вручную.",
+                error,
+            )
 
     # Переносим старых учеников в новую модель направлений.
     migrate_legacy_student_programs(
@@ -4911,6 +4936,17 @@ def create_payment(
     self_service=False
 ):
 
+    try:
+        _lessons_count = int(lessons_count)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Некорректное количество занятий."
+        )
+    if not 1 <= _lessons_count <= 50:
+        raise ValueError(
+            "Количество занятий должно быть от 1 до 50."
+        )
+
     package = (
         calculate_package(
             price_per_lesson,
@@ -5241,6 +5277,10 @@ def add_receipt(
     source_platform="TELEGRAM"
 ):
 
+    """Attach a receipt. Raises ValueError if the payment is missing,
+    belongs to another user or is already final (PAID/REVERSED/CANCELLED);
+    then nothing is written."""
+
     conn = connect()
     cursor = conn.cursor()
 
@@ -5299,6 +5339,7 @@ def add_receipt(
         SET status = 'RECEIPT_SENT'
 
         WHERE id = ?
+          AND status IN ('WAITING', 'REJECTED')
     """, (
         payment_id,
     ))
@@ -5307,6 +5348,236 @@ def add_receipt(
     conn.close()
 
     return receipt_id
+
+
+class PromoLimitExceeded(ValueError):
+    """Промокод платежа исчерпал лимит к моменту подтверждения."""
+
+
+PROMO_LIMIT_APPROVE_MESSAGE = (
+    "Промокод исчерпал лимит — подтверждение отклонено. "
+    "Попросите ученика оплатить без промокода."
+)
+
+
+def _check_payment_promo_limits_in_tx(cursor, payment):
+    """Перепроверяет max_uses / per_user_limit промокода платежа внутри
+    уже открытой транзакции (BEGIN IMMEDIATE), до учёта текущего платежа.
+
+    Возвращает текст причины, если лимит превышен, иначе None.
+    Если использование для этого платежа уже записано (повторная обработка),
+    оно не считается повторно.
+    """
+    if not payment["promo_id"]:
+        return None
+
+    already = cursor.execute(
+        "SELECT 1 FROM promo_code_usages WHERE payment_id = ? LIMIT 1",
+        (int(payment["id"]),),
+    ).fetchone()
+    if already is not None:
+        return None
+
+    promo = cursor.execute(
+        "SELECT * FROM promo_codes WHERE id = ?",
+        (int(payment["promo_id"]),),
+    ).fetchone()
+    if promo is None:
+        return None
+
+    if (
+        promo["max_uses"] is not None
+        and int(promo["uses_count"] or 0) + 1 > int(promo["max_uses"])
+    ):
+        return "Лимит промокода исчерпан."
+
+    if promo["per_user_limit"] is not None:
+        uses = cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM promo_code_usages
+            WHERE promo_id = ?
+              AND user_id = ?
+            """,
+            (int(promo["id"]), int(payment["user_id"])),
+        ).fetchone()[0]
+        if int(uses) + 1 > int(promo["per_user_limit"]):
+            return "Ученик уже использовал этот промокод."
+
+    return None
+
+
+def _reject_if_promo_over_limit(conn, cursor, payment):
+    reason = _check_payment_promo_limits_in_tx(cursor, payment)
+    if reason is None:
+        return
+    conn.rollback()
+    conn.close()
+    logging.getLogger(__name__).warning(
+        "Подтверждение платежа #%s отклонено: %s (promo_id=%s)",
+        payment["id"], reason, payment["promo_id"],
+    )
+    raise PromoLimitExceeded(
+        f"{PROMO_LIMIT_APPROVE_MESSAGE} ({reason})"
+    )
+
+
+def _credit_minutes_after_confirm(payment_id, package_id):
+    """Зачисление минут после commit. Ошибка не откатывает подтверждение:
+    платёж остаётся PAID, а retry_uncredited_payments() повторит зачисление."""
+    try:
+        from core import minute_balance
+        minute_balance.credit_confirmed_payment(int(payment_id), int(package_id))
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "MINUTE CREDIT ERROR: payment #%s package #%s — "
+            "будет повторено retry_uncredited_payments()",
+            payment_id, package_id,
+        )
+
+
+def _payment_credit_key(payment_id, package_id):
+    # Тот же ключ, что использует credit_confirmed_payment.
+    return f"payment:{int(payment_id)}:package:{int(package_id)}"
+
+
+def retry_uncredited_payments():
+    """Повторяет зачисление минут для PAID-платежей, по которым оно упало.
+
+    Признак незачисления — у пакета PAID-платежа нет записи зачисления в
+    minute_ledger (PAYMENT_CREDIT с ключом payment:X:package:Y или
+    OPENING_BALANCE от миграции). credit_confirmed_payment делает всё одной
+    транзакцией, поэтому при сбое ничего не записывается; но
+    minute_balance.ensure_schema() (вызывается почти любой минутной
+    операцией) сам заполняет lesson_packages.minutes_total, уже без журнала.
+    Поэтому:
+      * minutes_total IS NULL  -> полный повтор credit_confirmed_payment
+        (минуты ещё не могли быть израсходованы);
+      * minutes_total заполнен -> только запись в журнал с тем же ключом
+        идемпотентности (на сумму остатка total - used минус то, что по
+        пакету уже есть в журнале), minutes_used не трогаем.
+
+    Вызывать ТОЛЬКО вне открытой транзакции записи: функция и
+    credit_confirmed_payment открывают собственные соединения.
+    Возвращает число исправленных пакетов; повторный вызов ничего не дублирует.
+    """
+    log = logging.getLogger(__name__)
+    from core import minute_balance
+    from final_features import ledger as minute_ledger
+    from final_features import schema as final_schema
+
+    final_schema.initialize()
+
+    conn = connect()
+    try:
+        try:
+            rows = conn.execute(
+                """
+                SELECT lp.id AS package_id, p.id AS payment_id,
+                       lp.minutes_total AS minutes_total
+                FROM lesson_packages lp
+                JOIN payments p ON p.id = lp.payment_id
+                WHERE p.status = 'PAID'
+                  AND lp.source_type = 'PAID'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM minute_ledger ml
+                      WHERE ml.package_id = lp.id
+                        AND (
+                            ml.idempotency_key =
+                                'payment:' || p.id || ':package:' || lp.id
+                            OR ml.operation = 'OPENING_BALANCE'
+                        )
+                  )
+                ORDER BY lp.id
+                """
+            ).fetchall()
+        except sqlite3.OperationalError:
+            # Минутные колонки ещё не добавлены — сначала миграция.
+            conn.close()
+            minute_balance.ensure_schema()
+            return retry_uncredited_payments()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    def _credited(payment_id, package_id):
+        c = connect()
+        try:
+            return c.execute(
+                "SELECT 1 FROM minute_ledger WHERE idempotency_key = ?",
+                (_payment_credit_key(payment_id, package_id),),
+            ).fetchone() is not None
+        finally:
+            c.close()
+
+    fixed = 0
+    for row in rows:
+        payment_id = int(row["payment_id"])
+        package_id = int(row["package_id"])
+        try:
+            if row["minutes_total"] is None:
+                minute_balance.credit_confirmed_payment(payment_id, package_id)
+            else:
+                c = connect()
+                try:
+                    p = c.execute(
+                        "SELECT * FROM payments WHERE id = ?", (payment_id,)
+                    ).fetchone()
+                    pkg = c.execute(
+                        "SELECT * FROM lesson_packages WHERE id = ?",
+                        (package_id,),
+                    ).fetchone()
+                    journaled = int(c.execute(
+                        "SELECT COALESCE(SUM(paid_minutes_delta), 0) FROM minute_ledger "
+                        "WHERE package_id = ?",
+                        (package_id,),
+                    ).fetchone()[0] or 0)
+                finally:
+                    c.close()
+
+                # minutes_used уже заполнен ensure_schema()/резервами и
+                # является фактическим состоянием пакета. Записываем столько,
+                # чтобы сумма журнала по пакету сравнялась с остатком
+                # (total - used): расход, уже попавший в журнал, не
+                # вычитается дважды, а minutes_used не перезаписывается.
+                total = int(pkg["minutes_total"] or 0)
+                used = min(total, int(pkg["minutes_used"] or 0))
+                opening = (total - used) - journaled
+                if opening <= 0:
+                    if total - used > 0 or journaled != 0:
+                        log.warning(
+                            "RETRY MINUTE CREDIT SKIPPED: payment #%s package #%s "
+                            "— остаток %s, журнал %s; нужна ручная проверка",
+                            payment_id, package_id, total - used, journaled,
+                        )
+                    continue
+                hourly = int(pkg["hourly_rate"] or p["hourly_rate"] or 0)
+                minute_ledger.append(
+                    p["user_id"], "PAYMENT_CREDIT",
+                    program_id=pkg["program_id"] or p["program_id"],
+                    payment_id=payment_id, package_id=package_id,
+                    paid_delta=opening, money=int(p["total_amount"] or 0),
+                    hourly_rate=hourly,
+                    reason="Подтверждённая оплата (повторное зачисление)",
+                    idempotency_key=_payment_credit_key(payment_id, package_id),
+                )
+        except Exception:
+            log.exception(
+                "RETRY MINUTE CREDIT ERROR: payment #%s package #%s",
+                payment_id, package_id,
+            )
+            continue
+
+        if _credited(payment_id, package_id):
+            fixed += 1
+            log.warning(
+                "Минуты зачислены повторно: payment #%s package #%s",
+                payment_id, package_id,
+            )
+
+    return fixed
 
 
 def approve_payment(
@@ -5378,6 +5649,27 @@ def approve_payment(
             print("MINUTE CREDIT RETRY ERROR:", error)
 
         return int(package["id"])
+
+    # WAITING (ручное подтверждение без чека) и RECEIPT_SENT допустимы.
+    if payment["status"] == "CANCELLED":
+
+        conn.rollback()
+        conn.close()
+
+        raise ValueError(
+            "Платёж отменён — подтвердить его нельзя."
+        )
+
+    if payment["status"] == "REJECTED":
+
+        logging.getLogger(__name__).info(
+            "Админ подтверждает ранее отклонённый платёж #%s",
+            payment_id
+        )
+
+    # Лимиты промокода перепроверяются в той же транзакции:
+    # если исчерпан — платёж не подтверждаем, статус не меняем.
+    _reject_if_promo_over_limit(conn, cursor, payment)
 
     # ========================================================
     # ОПЛАТА КОНКРЕТНОГО НАЗНАЧЕННОГО ЗАНЯТИЯ
@@ -5538,11 +5830,7 @@ def approve_payment(
         conn.commit()
         conn.close()
 
-        try:
-            from core import minute_balance
-            minute_balance.credit_confirmed_payment(payment_id, package_id)
-        except Exception as error:
-            print("MINUTE CREDIT ERROR:", error)
+        _credit_minutes_after_confirm(payment_id, package_id)
 
         return package_id
 
@@ -5681,11 +5969,7 @@ def approve_payment(
     conn.commit()
     conn.close()
 
-    try:
-        from core import minute_balance
-        minute_balance.credit_confirmed_payment(payment_id, package_id)
-    except Exception as error:
-        print("MINUTE CREDIT ERROR:", error)
+    _credit_minutes_after_confirm(payment_id, package_id)
 
     return package_id
 
@@ -5693,38 +5977,46 @@ def approve_payment(
 def reject_payment(
     payment_id
 ):
+    """Возвращает True, если статус изменён; False — если платёж
+    уже PAID/CANCELLED/REVERSED (или не найден) и ничего не менялось."""
 
     conn = connect()
 
-    conn.execute("""
+    cursor = conn.execute("""
         UPDATE payments
 
         SET status = 'REJECTED'
 
         WHERE
             id = ?
-            AND status != 'PAID'
+            AND status NOT IN ('PAID', 'CANCELLED', 'REVERSED')
     """, (
         payment_id,
     ))
 
-    conn.execute("""
-        UPDATE receipts
+    changed = cursor.rowcount > 0
 
-        SET
-            status = 'REJECTED',
-            reviewed_at = ?
+    if changed:
 
-        WHERE
-            payment_id = ?
-            AND status = 'WAITING'
-    """, (
-        now_iso(),
-        payment_id
-    ))
+        conn.execute("""
+            UPDATE receipts
+
+            SET
+                status = 'REJECTED',
+                reviewed_at = ?
+
+            WHERE
+                payment_id = ?
+                AND status = 'WAITING'
+        """, (
+            now_iso(),
+            payment_id
+        ))
 
     conn.commit()
     conn.close()
+
+    return changed
 
 
 # ============================================================
@@ -6592,6 +6884,19 @@ def approve_paid_booking_draft_payment(payment_id):
         conn.close()
         raise ValueError("Платёж уже подтверждён.")
 
+    if payment["status"] == "CANCELLED":
+        conn.rollback()
+        conn.close()
+        raise ValueError("Платёж отменён — подтвердить его нельзя.")
+
+    if payment["status"] == "REJECTED":
+        logging.getLogger(__name__).info(
+            "Админ подтверждает ранее отклонённый платёж #%s (booking draft)",
+            payment_id
+        )
+
+    _reject_if_promo_over_limit(conn, cursor, payment)
+
     # Не создаём второй урок при повторной обработке.
     lesson = cursor.execute(
         """
@@ -6852,17 +7157,7 @@ def approve_paid_booking_draft_payment(payment_id):
     # Заполняем минутные compatibility-поля.
     # lessons_used=1 => minutes_used станет равен minutes_total,
     # поэтому свободный баланс НЕ увеличится.
-    try:
-        from core import minute_balance
-        minute_balance.credit_confirmed_payment(
-            int(payment_id),
-            int(package_id),
-        )
-    except Exception as error:
-        print(
-            "DIRECT DRAFT MINUTE METADATA ERROR:",
-            repr(error),
-        )
+    _credit_minutes_after_confirm(payment_id, package_id)
 
     return int(package_id), int(lesson_id)
 
@@ -8088,6 +8383,25 @@ def confirm_manual_lesson_payment(
     cursor.execute(
         "BEGIN IMMEDIATE"
     )
+
+    # Повторная проверка под блокировкой записи: двойной клик / два
+    # параллельных запроса не должны создать два PAID-платежа за занятие.
+    current = cursor.execute(
+        "SELECT payment_status FROM lessons WHERE id = ?",
+        (int(lesson_id),)
+    ).fetchone()
+
+    if (
+        current is None
+        or current["payment_status"] != "AWAITING_PAYMENT"
+    ):
+
+        conn.rollback()
+        conn.close()
+
+        raise ValueError(
+            "Занятие не ожидает оплату."
+        )
 
     cursor.execute("""
         INSERT INTO payments (

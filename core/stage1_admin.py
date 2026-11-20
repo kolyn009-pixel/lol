@@ -35,7 +35,7 @@ def _role_text(tid):
 
 
 def _admins_screen():
-    rows = admin_roles.list_admins()
+    rows = admin_roles.list_admins(include_testers=True)
 
     admins = [
         r for r in rows
@@ -244,7 +244,7 @@ async def callbacks(update:Update,context:ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        rows = admin_roles.list_admins()
+        rows = admin_roles.list_admins(include_testers=True)
         kb = []
 
         for r in rows:
@@ -318,7 +318,7 @@ async def callbacks(update:Update,context:ContextTypes.DEFAULT_TYPE):
             # Админ может существовать ещё до регистрации как ученик.
             admin_row = next(
                 (
-                    r for r in admin_roles.list_admins()
+                    r for r in admin_roles.list_admins(include_testers=True)
                     if int(r['telegram_id']) == tid
                 ),
                 None

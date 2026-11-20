@@ -100,9 +100,23 @@ async def schedulemsg_cmd(update:Update, context:ContextTypes.DEFAULT_TYPE):
     if '|' not in raw:
         await update.message.reply_text('Использование: /schedulemsg YYYY-MM-DD HH:MM | текст'); return
     left,text=[x.strip() for x in raw.split('|',1)]
-    try: send_at=datetime.strptime(left,'%Y-%m-%d %H:%M').isoformat(timespec='seconds')
+    try: local_at=datetime.strptime(left,'%Y-%m-%d %H:%M')
     except ValueError: await update.message.reply_text('Неверная дата. Пример: /schedulemsg 2026-09-01 10:00 | Текст'); return
-    mid=messaging.schedule(update.effective_user.id,text,send_at,'ALL'); await update.message.reply_text(f'✅ Сообщение #{mid} запланировано на {left}.')
+    # Input is the admin's local time (personal region, else bot_timezone);
+    # messaging.schedule converts it to the queue's MSK storage convention.
+    tz,label=schedulemsg_input_tz(update.effective_user.id)
+    mid=messaging.schedule(update.effective_user.id,text,local_at.replace(tzinfo=tz),'ALL'); await update.message.reply_text(f'✅ Сообщение #{mid} запланировано на {left} ({label}).')
+
+
+def schedulemsg_input_tz(telegram_id):
+    from zoneinfo import ZoneInfo
+    from core import user_timezone
+    zone=database.get_setting('bot_timezone','Europe/Samara') or 'Europe/Samara'
+    try:
+        return user_timezone.user_tz(int(telegram_id),zone),user_timezone.user_label(int(telegram_id),zone)
+    except Exception:
+        try: return ZoneInfo(zone),zone
+        except Exception: return ZoneInfo('Europe/Samara'),'Europe/Samara'
 
 async def question_cmd(update:Update, context:ContextTypes.DEFAULT_TYPE):
     text=' '.join(context.args).strip()

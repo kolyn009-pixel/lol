@@ -11,7 +11,31 @@ from . import schema
 GOAL_RU={'EGE':'ЕГЭ','OGE':'ОГЭ','OLYMPIAD':'Олимпиада','SCHOOL':'Школьная программа'}
 SUBJ_RU={'PHYSICS':'Физика','CHEMISTRY':'Химия'}
 
-def now(): return datetime.now(ZoneInfo('Europe/Moscow')).replace(tzinfo=None)
+STORAGE_TZ=ZoneInfo('Europe/Moscow')
+
+def now():
+    """Current moment as naive Moscow wall-clock.
+
+    This is the storage convention of crm_* timestamps (created_at,
+    scheduled_for, ...). It is NOT the teacher's local time: use
+    teacher_tz()/to_local() for any time-of-day policy (quiet hours,
+    reception hours).
+    """
+    return datetime.now(STORAGE_TZ).replace(tzinfo=None)
+
+def teacher_tz():
+    from core.lesson_time import teacher_timezone
+    return teacher_timezone()
+
+def to_local(dt):
+    """Storage-naive (MSK) or aware datetime -> aware teacher-local datetime."""
+    if dt.tzinfo is None: dt=dt.replace(tzinfo=STORAGE_TZ)
+    return dt.astimezone(teacher_tz())
+
+def to_storage(dt):
+    """Aware datetime -> naive MSK storage value (naive input is returned as is)."""
+    if dt is None or dt.tzinfo is None: return dt
+    return dt.astimezone(STORAGE_TZ).replace(tzinfo=None)
 
 def get_setting(key,default=None):
     schema.initialize(); c=database.connect(); r=c.execute('SELECT value FROM crm_settings WHERE key=?',(key,)).fetchone(); c.close(); return r['value'] if r else default
@@ -20,14 +44,16 @@ def set_setting(key,value,actor=None):
     schema.initialize(); c=database.connect(); c.execute('INSERT INTO crm_settings(key,value,updated_by,updated_at) VALUES(?,?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_by=excluded.updated_by,updated_at=excluded.updated_at',(key,str(value),actor,now().isoformat(timespec='seconds'))); c.commit(); c.close()
 
 def quiet_state(dt=None):
-    dt=dt or now()
+    # Quiet hours are configured in the teacher's local time (bot_timezone);
+    # the returned target stays in the caller's convention (naive MSK storage).
+    dt=dt or now(); naive=dt.tzinfo is None; local=to_local(dt)
     if get_setting('quiet_enabled','1')!='1': return False,None
-    s=datetime.strptime(get_setting('quiet_start','22:00'),'%H:%M').time(); e=datetime.strptime(get_setting('quiet_end','09:00'),'%H:%M').time(); t=dt.time()
+    s=datetime.strptime(get_setting('quiet_start','22:00'),'%H:%M').time(); e=datetime.strptime(get_setting('quiet_end','09:00'),'%H:%M').time(); t=local.time()
     quiet=(t>=s or t<e) if s>e else (s<=t<e)
     if not quiet:return False,None
-    target=dt.replace(hour=e.hour,minute=e.minute,second=0,microsecond=0)
-    if t>=s: target+=timedelta(days=1)
-    return True,target
+    target=datetime.combine(local.date(),e).replace(tzinfo=local.tzinfo)
+    if s>e and t>=s: target+=timedelta(days=1)
+    return True,(to_storage(target) if naive else target)
 
 
 
@@ -37,9 +63,11 @@ def reception_state(dt=None):
     Reception hours are independent from outgoing quiet hours. Messages are always
     stored immediately; outside reception hours only the admin notification waits.
     """
-    dt=dt or now()
+    dt=dt or now(); naive=dt.tzinfo is None; orig=dt
     if get_setting('reception_enabled','1')!='1':
-        return True,dt
+        return True,orig
+    dt=to_local(dt)
+    back=(lambda x: to_storage(x) if naive else x)
     start=datetime.strptime(get_setting('reception_start','09:00'),'%H:%M').time()
     end=datetime.strptime(get_setting('reception_end','21:00'),'%H:%M').time()
     days={int(x) for x in (get_setting('reception_days','0,1,2,3,4,5,6') or '').split(',') if x.strip().isdigit()}
@@ -50,29 +78,44 @@ def reception_state(dt=None):
         if start<=end:return start<=t<end
         return t>=start or t<end
     if inside(dt.weekday(),dt.time()):
-        return True,dt
-    # Find the nearest next start of an enabled reception day.
+        return True,orig
+    # Find the nearest next start of an enabled reception day (teacher-local).
     for offset in range(0,15):
-        cand=(dt+timedelta(days=offset)).replace(hour=start.hour,minute=start.minute,second=0,microsecond=0)
+        cand=datetime.combine(dt.date()+timedelta(days=offset),start).replace(tzinfo=dt.tzinfo)
         if cand.weekday() not in days:continue
-        if cand>dt:return False,cand
-    return False,dt+timedelta(days=1)
+        if cand>dt:return False,back(cand)
+    return False,back(dt+timedelta(days=1))
 
 def teacher_busy_until(dt=None):
-    """Return end of the current/contiguous lesson block, or None."""
-    dt=dt or now(); c=database.connect()
+    """Return end of the current/contiguous lesson block, or None.
+
+    Lesson timestamps may be naive (schedule timezone) or carry an offset, so
+    the comparison is done on aware datetimes in Python instead of SQLite
+    datetime(), which silently converts offset values to UTC. The result is in
+    the caller's convention: naive MSK storage for naive input.
+    """
+    from core.lesson_time import schedule_datetime
+    dt=dt or now(); naive=dt.tzinfo is None
+    moment=dt.replace(tzinfo=STORAGE_TZ) if naive else dt
+    c=database.connect()
     try:
-        rows=c.execute("SELECT start_time,end_time FROM lessons WHERE lesson_status='CONFIRMED' AND cancelled_at IS NULL AND datetime(end_time)>datetime(?) AND datetime(start_time)<=datetime(?) ORDER BY datetime(start_time)",(dt.isoformat(timespec='seconds'),dt.isoformat(timespec='seconds'))).fetchall()
-        if not rows:return None
-        end=max(datetime.fromisoformat(str(r['end_time'])) for r in rows)
-        while True:
-            nxt=c.execute("SELECT start_time,end_time FROM lessons WHERE lesson_status='CONFIRMED' AND cancelled_at IS NULL AND datetime(start_time)<=datetime(?) AND datetime(end_time)>datetime(?) ORDER BY datetime(start_time) LIMIT 1",(end.isoformat(timespec='seconds'),end.isoformat(timespec='seconds'))).fetchone()
-            if not nxt:break
-            ne=datetime.fromisoformat(str(nxt['end_time']))
-            if ne<=end:break
-            end=ne
-        return end
+        # Prefilter by a generous textual window; exact check below.
+        lo=(moment-timedelta(days=2)).astimezone(STORAGE_TZ).date().isoformat()
+        rows=c.execute("SELECT start_time,end_time FROM lessons WHERE lesson_status='CONFIRMED' AND cancelled_at IS NULL AND end_time IS NOT NULL AND substr(end_time,1,10)>=?",(lo,)).fetchall()
     finally:c.close()
+    spans=[]
+    for r in rows:
+        try:spans.append((schedule_datetime(r['start_time']),schedule_datetime(r['end_time'])))
+        except Exception:continue
+    spans.sort(key=lambda x:x[0])
+    current=[e for st,e in spans if st<=moment<e]
+    if not current:return None
+    end=max(current)
+    while True:
+        nxt=[e for st,e in spans if st<=end<e and e>end]
+        if not nxt:break
+        end=max(nxt)
+    return to_storage(end) if naive else end
 
 def inbound_delivery_state(dt=None):
     dt=dt or now(); accepting,next_at=reception_state(dt)
@@ -158,7 +201,8 @@ def attention_reasons(student_id):
 def today_dashboard():
     schema.initialize(); c=database.connect();
     try:
-        lessons=c.execute("SELECT l.id,l.user_id,l.start_time,l.duration_minutes,u.name FROM lessons l JOIN users u ON u.id=l.user_id WHERE date(l.start_time)=date('now','localtime') AND l.cancelled_at IS NULL ORDER BY datetime(l.start_time)").fetchall()
+        from core.lesson_time import lessons_on_local_day
+        lessons=lessons_on_local_day(c,datetime.now(teacher_tz()).date(),teacher_tz(),"SELECT l.id,l.user_id,l.start_time,l.duration_minutes,u.name FROM lessons l JOIN users u ON u.id=l.user_id WHERE l.cancelled_at IS NULL")
         open_msgs=c.execute("SELECT COUNT(*) n FROM teacher_inbox WHERE status='OPEN'").fetchone()['n']
         unpaid=c.execute("SELECT COUNT(*) n FROM lessons WHERE lesson_status='CONFIRMED' AND payment_status='AWAITING_PAYMENT'").fetchone()['n']
         students=c.execute('SELECT id,name FROM users WHERE active=1 ORDER BY name').fetchall()
