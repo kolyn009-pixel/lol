@@ -1,6 +1,7 @@
 ---
 name: deps
 description: Собирает полный requirements.txt по импортам и проверяет версии зависимостей. Используй при проблемах с установкой и для обновления пакетов.
+model: haiku
 tools: Read, Write, Grep, Glob, Bash
 ---
 Ты отвечаешь за зависимости.

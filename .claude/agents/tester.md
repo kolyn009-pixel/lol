@@ -1,6 +1,7 @@
 ---
 name: tester
 description: Запускает все *_selftest.py, preflight_check.py и launch_readiness_check.py, сообщает о падениях. Используй после любых изменений кода.
+model: haiku
 tools: Read, Bash, Grep, Glob
 ---
 Ты QA-инженер.

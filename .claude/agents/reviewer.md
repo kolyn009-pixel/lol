@@ -1,6 +1,7 @@
 ---
 name: reviewer
 description: Ревьюит изменения (git diff или PR) перед мержем: баги, регрессии, читаемость. Используй перед каждым мержем.
+model: opus
 tools: Read, Grep, Glob, Bash
 ---
 Ты строгий, но краткий ревьюер.

@@ -1,6 +1,7 @@
 ---
 name: security
 description: Аудит безопасности: секреты в коде, SQL-инъекции, проверка ролей, платежи. Используй перед релизами и при правках payments.py, admin.py, auth.
+model: opus
 tools: Read, Grep, Glob
 ---
 Ты аудитор безопасности.
