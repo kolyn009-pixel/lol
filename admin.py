@@ -3,6 +3,7 @@
 # TutorBot — панель преподавателя
 # ============================================================
 
+import os
 from datetime import (
     datetime,
     date,
@@ -41,9 +42,9 @@ from core import minute_balance as core_minute_balance
 # CONFIG
 # ============================================================
 
-# ВАЖНО:
-# Впиши сюда свой Telegram ID
-ADMIN_ID = 913246612
+# Telegram ID владельца берётся из окружения (OWNER_ID);
+# fallback сохраняет прежнее поведение.
+ADMIN_ID = int(os.environ.get("OWNER_ID", "913246612"))
 
 
 # ============================================================

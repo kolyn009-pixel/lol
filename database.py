@@ -1677,6 +1677,30 @@ def create_tables():
         ON lesson_packages(program_id)
     """)
 
+    # Один пакет на один платёж: защита от двойного зачисления.
+    # Старые БД с дублями не должны падать при старте — только лог.
+    _pkg_cols = {
+        row[1]
+        for row in cursor.execute(
+            "PRAGMA table_info(lesson_packages)"
+        ).fetchall()
+    }
+    if "payment_id" in _pkg_cols:
+        try:
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS
+                idx_packages_payment_unique
+                ON lesson_packages(payment_id)
+            """)
+        except sqlite3.IntegrityError as error:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Не удалось создать уникальный индекс "
+                "lesson_packages(payment_id): в БД есть дубли (%s). "
+                "Проверьте пакеты с одинаковым payment_id вручную.",
+                error,
+            )
+
     # Переносим старых учеников в новую модель направлений.
     migrate_legacy_student_programs(
         conn
@@ -4911,6 +4935,17 @@ def create_payment(
     self_service=False
 ):
 
+    try:
+        _lessons_count = int(lessons_count)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Некорректное количество занятий."
+        )
+    if not 1 <= _lessons_count <= 50:
+        raise ValueError(
+            "Количество занятий должно быть от 1 до 50."
+        )
+
     package = (
         calculate_package(
             price_per_lesson,
@@ -5241,6 +5276,10 @@ def add_receipt(
     source_platform="TELEGRAM"
 ):
 
+    """Attach a receipt. Raises ValueError if the payment is missing,
+    belongs to another user or is already final (PAID/REVERSED/CANCELLED);
+    then nothing is written."""
+
     conn = connect()
     cursor = conn.cursor()
 
@@ -5299,6 +5338,7 @@ def add_receipt(
         SET status = 'RECEIPT_SENT'
 
         WHERE id = ?
+          AND status IN ('WAITING', 'REJECTED')
     """, (
         payment_id,
     ))
@@ -5378,6 +5418,16 @@ def approve_payment(
             print("MINUTE CREDIT RETRY ERROR:", error)
 
         return int(package["id"])
+
+    # WAITING (ручное подтверждение без чека) и RECEIPT_SENT допустимы.
+    if payment["status"] in ("REJECTED", "CANCELLED"):
+
+        conn.rollback()
+        conn.close()
+
+        raise ValueError(
+            "Платёж отклонён или отменён — подтвердить его нельзя."
+        )
 
     # ========================================================
     # ОПЛАТА КОНКРЕТНОГО НАЗНАЧЕННОГО ЗАНЯТИЯ
@@ -6591,6 +6641,11 @@ def approve_paid_booking_draft_payment(payment_id):
         conn.rollback()
         conn.close()
         raise ValueError("Платёж уже подтверждён.")
+
+    if payment["status"] in ("REJECTED", "CANCELLED"):
+        conn.rollback()
+        conn.close()
+        raise ValueError("Платёж отклонён или отменён — подтвердить его нельзя.")
 
     # Не создаём второй урок при повторной обработке.
     lesson = cursor.execute(
