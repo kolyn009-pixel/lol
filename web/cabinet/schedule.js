@@ -158,7 +158,8 @@
   var HUMAN = { PHYSICS: 'Физика', CHEMISTRY: 'Химия', MATH: 'Математика', SCHOOL: 'Школьная программа', EGE: 'ЕГЭ', OGE: 'ОГЭ', OLYMPIAD: 'Олимпиада' };
   function h(x) { return HUMAN[x] || x || ''; }
 
-  function createPanel() {
+  function createPanel(pre) {
+    pre = (pre && typeof pre === 'object' && !pre.target && pre.user_id) ? pre : null;
     var f = C.el('form', 'sch-form'), out = C.el('div'); out.setAttribute('aria-live', 'polite');
     function field(label, ctrl) { var l = C.el('label', '', label); l.appendChild(ctrl); f.appendChild(l); return ctrl; }
     var stu = document.createElement('select'); stu.name = 'user_id'; stu.required = true; stu.innerHTML = '<option value="">Загружаю учеников…</option>';
@@ -180,6 +181,7 @@
     C.api('/teacher/crm/students?limit=500').then(function (d) {
       stu.innerHTML = '<option value="">Выберите ученика</option>';
       (d.items || []).forEach(function (s) { var o = document.createElement('option'); o.value = s.id; o.textContent = s.name || 'Ученик'; stu.appendChild(o); });
+      if (pre) { stu.value = String(pre.user_id); stu.dispatchEvent(new Event('change')); }
     }, function (e) { stu.innerHTML = '<option value="">—</option>'; fail(e); });
     stu.addEventListener('change', function () {
       programs = []; prog.disabled = true; out.replaceChildren(); if (!stu.value) return;
@@ -201,11 +203,13 @@
       go.disabled = true;
       post('/teacher/lesson/create', b).then(function (r) {
         m.close(); C.toast(r.already_created ? 'Это занятие уже создано.' : 'Занятие назначено.');
-        var d = parseDay(when.value.slice(0, 10)), mon = monday(0); weekOffset = Math.floor((d - mon) / (7 * 86400000)); load();
+        var d = parseDay(when.value.slice(0, 10)), mon = monday(0); weekOffset = Math.floor((d - mon) / (7 * 86400000)); if (window.__schNoBoot) { if (window.__schAfterCreate) window.__schAfterCreate(); return; } load();
       }, function (er) { go.disabled = false; fail(er); });
     });
   }
 
+  window.CabSchedule = { create: createPanel };
+  if (window.__schNoBoot) return;
   C.boot({
     role: 'teacher', menu: C.TEACHER_MENU, active: 'schedule',
     render: function (main) {

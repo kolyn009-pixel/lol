@@ -195,9 +195,9 @@
   window.C.TEACHER_MENU = [
     { key: 'today', label: 'Сегодня', short: 'Сегодня', href: '/app/cabinet/teacher.html', phone: true },
     { key: 'schedule', label: 'Расписание', href: '/app/cabinet/schedule.html', phone: true },
-    { key: 'students', label: 'Ученики и группы', href: T },
-    { key: 'homework', label: 'Работы', href: T, phone: true },
-    { key: 'messages', label: 'Сообщения', href: T, phone: true },
+    { key: 'students', label: 'Ученики и группы', href: '/app/cabinet/students.html' },
+    { key: 'homework', label: 'Работы', href: '/app/cabinet/homework.html', phone: true },
+    { key: 'messages', label: 'Сообщения', href: '/app/cabinet/messages.html', phone: true },
     { key: 'payments', label: 'Оплаты', href: '/app/cabinet/payments.html' },
     { key: 'materials', label: 'Материалы', href: T }
   ];
