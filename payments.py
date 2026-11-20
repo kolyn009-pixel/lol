@@ -2860,10 +2860,27 @@ async def admin_payment_buttons(
 
         except Exception as error:
 
-            await query.answer(
-                str(error),
-                show_alert=True
-            )
+            if isinstance(error, database.PromoLimitExceeded):
+                error_text = database.PROMO_LIMIT_APPROVE_MESSAGE
+            else:
+                error_text = str(error)
+
+            # query.answer() уже вызван выше — повторный answer может
+            # не дойти, поэтому дублируем сообщением.
+            try:
+                await query.answer(
+                    error_text,
+                    show_alert=True
+                )
+            except Exception:
+                pass
+
+            try:
+                await query.message.reply_text(
+                    f"⚠️ Платёж #{payment_id}: {error}"
+                )
+            except Exception:
+                pass
 
             return
 
