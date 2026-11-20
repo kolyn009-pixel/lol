@@ -45,13 +45,22 @@ def menu_text(telegram_id: int) -> str:
     )
 
 
+def should_update_bot_timezone(telegram_id: int) -> bool:
+    try:
+        return bool(admin_roles.is_owner(int(telegram_id)))
+    except Exception:
+        return False
+
+
 async def _apply(update: Update, context: ContextTypes.DEFAULT_TYPE, offset: int, zone_name: str | None):
     tid = int(update.effective_user.id)
     database.set_user_timezone(tid, int(offset), zone_name=zone_name, configured=True)
     database.mark_timezone_notified(tid)
 
-    # The teacher/administrator timezone is also the TutorBot working timezone.
-    if admin_roles.is_admin_id(tid):
+    # Only the OWNER (the teacher) defines the TutorBot working timezone.
+    # Other administrators keep a personal display zone in user_timezones
+    # (already stored per telegram_id) and must not move bot-wide schedules.
+    if should_update_bot_timezone(tid):
         effective_zone = zone_name or user_timezone.fixed_zone_name_from_msk_offset(int(offset))
         database.set_setting("bot_timezone", effective_zone)
         database.set_setting("bot_timezone_msk_offset", str(int(offset)))

@@ -2032,13 +2032,11 @@ async def channel_daily_dispatcher(context: ContextTypes.DEFAULT_TYPE):
         return
     now = datetime.now(_channel_tz())
     target = database.get_setting("channel_summary_time", "08:30") or "08:30"
-    if now.strftime("%H:%M") != target:
-        return
-    day = now.date().isoformat()
-    if (database.get_setting("channel_summary_last_day", "") or "") == day:
+    # now >= target + "sent today" flag claimed before sending (missed minute safe).
+    from core.lesson_time import claim_daily_slot
+    if not claim_daily_slot("channel_summary_last_day", now, target):
         return
     await channel_daily_stats_job(context)
-    database.set_setting("channel_summary_last_day", day)
 
 def register_jobs(application):
     if not application.job_queue:

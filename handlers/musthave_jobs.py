@@ -85,10 +85,11 @@ async def weekly_dispatcher(context):
     now=datetime.now(_timezone())
     if now.weekday()!=0:return
     target=database.get_setting("weekly_summary_time","09:00") or "09:00"
-    if now.strftime("%H:%M")!=target:return
-    day=now.date().isoformat()
-    if (database.get_setting("weekly_summary_last_day","") or "")==day:return
-    await weekly_job(context);await weekly_booking_reminders(context);database.set_setting("weekly_summary_last_day",day)
+    # now >= target (not exact HH:MM) + "sent today" flag claimed before sending:
+    # a skipped dispatcher minute still delivers exactly once.
+    from core.lesson_time import claim_daily_slot
+    if not claim_daily_slot("weekly_summary_last_day",now,target):return
+    await weekly_job(context);await weekly_booking_reminders(context)
 
 async def homework_watchdog_job(context):
     """Evaluate individual/group deadlines and queue durable notifications."""

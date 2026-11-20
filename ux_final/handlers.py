@@ -120,6 +120,9 @@ async def callbacks(update:Update,context:ContextTypes.DEFAULT_TYPE):
         kb.append([InlineKeyboardButton('⬅️ Назад',callback_data='ux_time_settings'),InlineKeyboardButton('🏠 Главная',callback_data='global_home')])
         await _edit(q,'🌍 ЧАСОВОЙ ПОЯС\n\n💜 Выберите основной часовой пояс TutorBot. Я сразу пересчитаю время сводок и будущих напоминаний о занятиях.',InlineKeyboardMarkup(kb)); return
     if d.startswith('ux_timezone_set|'):
+        # bot_timezone is the teacher's working zone: only the OWNER may change it.
+        if not admin_roles.is_owner(q.from_user.id):
+            await q.answer('Основной часовой пояс TutorBot меняет только владелец. Свой пояс можно выбрать в «Часовой пояс».',show_alert=True); return
         zone=d.split('|',1)[1]
         try:
             from zoneinfo import ZoneInfo
@@ -345,7 +348,12 @@ async def callbacks(update:Update,context:ContextTypes.DEFAULT_TYPE):
                 no_next=int(c.execute("SELECT COUNT(*) FROM users u WHERE u.active=1 AND NOT EXISTS (SELECT 1 FROM lessons l WHERE l.user_id=u.id AND l.cancelled_at IS NULL AND l.finished_at IS NULL AND datetime(l.start_time)>=datetime('now'))").fetchone()[0] or 0)
             except Exception: pass
             tomorrow=0
-            try: tomorrow=int(c.execute("SELECT COUNT(*) FROM lessons WHERE date(start_time)=date('now','+1 day') AND lesson_status!='CANCELLED'").fetchone()[0] or 0)
+            try:
+                # "Tomorrow" in the teacher's timezone, not UTC date('now','+1 day').
+                from datetime import timedelta
+                from core.lesson_time import lessons_on_local_day, teacher_timezone
+                ttz=teacher_timezone(); tday=datetime.now(ttz).date()+timedelta(days=1)
+                tomorrow=len(lessons_on_local_day(c,tday,ttz,"SELECT l.id,l.start_time FROM lessons l WHERE l.lesson_status!='CANCELLED'"))
             except Exception: pass
         finally: c.close()
         messages=int(dash.get('open_messages') or 0); unpaid=int(dash.get('unpaid') or 0); attention=len(dash.get('attention') or []); lessons=len(dash.get('lessons') or [])

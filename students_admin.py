@@ -24,11 +24,14 @@ from crm_plus import service as crm_service
 # НАСТРОЙКИ
 # ============================================================
 
-TIMEZONE_NAME = "Europe/Moscow"
+# Schedule timestamps are parsed by core.lesson_time (naive = schedule
+# timezone) and printed in the teacher's working timezone (bot_timezone);
+# no hardcoded Europe/Moscow here.
+from core.lesson_time import schedule_datetime, actual_datetime, teacher_timezone
 
-TIMEZONE = ZoneInfo(
-    TIMEZONE_NAME
-)
+
+def display_tz():
+    return teacher_timezone()
 
 
 # ============================================================
@@ -151,7 +154,9 @@ def is_admin(
 # ============================================================
 
 def format_datetime(
-    value
+    value,
+    actual=False,
+    wall=False,
 ):
 
     if not value:
@@ -160,19 +165,18 @@ def format_datetime(
 
     try:
 
-        dt = (
-            datetime.fromisoformat(
-                value
-            )
-        )
+        if actual:
+            # started_at/finished_at: legacy UTC-naive storage.
+            dt = actual_datetime(value)
+        elif wall:
+            # e.g. homework deadline typed by the teacher as local wall clock.
+            dt = datetime.fromisoformat(str(value))
+            if dt.tzinfo is None:
+                return dt.strftime("%d.%m.%Y %H:%M")
+        else:
+            dt = schedule_datetime(value)
 
-        if dt.tzinfo is None:
-
-            dt = dt.replace(
-                tzinfo=TIMEZONE
-            )
-
-        return dt.strftime(
+        return dt.astimezone(display_tz()).strftime(
             "%d.%m.%Y %H:%M"
         )
 
@@ -992,11 +996,11 @@ async def show_lessons(
         try:
 
             start_dt = (
-                datetime.fromisoformat(
+                schedule_datetime(
                     lesson[
                         "start_time"
                     ]
-                )
+                ).astimezone(display_tz())
             )
 
             date_text = (
@@ -1147,7 +1151,7 @@ async def show_lesson(
 
         text += (
             "\n\n▶️ Фактическое начало: "
-            f"{format_datetime(lesson['started_at'])}"
+            f"{format_datetime(lesson['started_at'], actual=True)}"
         )
 
     if lesson[
@@ -1156,7 +1160,7 @@ async def show_lesson(
 
         text += (
             "\n⏹ Фактическое окончание: "
-            f"{format_datetime(lesson['finished_at'])}"
+            f"{format_datetime(lesson['finished_at'], actual=True)}"
         )
 
     if (
@@ -1432,7 +1436,7 @@ async def show_homework(
 
         text += (
             "\n\n⏰ Срок: "
-            f"{format_datetime(homework['deadline'])}"
+            f"{format_datetime(homework['deadline'], wall=True)}"
         )
 
     if homework[

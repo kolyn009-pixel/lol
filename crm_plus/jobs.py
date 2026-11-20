@@ -7,7 +7,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import Forbidden
 from core import admin_roles
 from core import user_timezone
-from core.lesson_time import schedule_datetime, lesson_timezone
+from core.lesson_time import schedule_datetime, lesson_timezone, actual_datetime, lessons_on_local_day, local_date, claim_daily_slot, daily_slot_due
 import database
 from . import service, messenger
 
@@ -51,13 +51,25 @@ async def morning_brief_job(context):
         except Exception as e:
             database.log_automation_delivery('morning_brief','ERROR','ADMIN',aid,repr(e)); log.exception('ADELIA MORNING BRIEF SEND ERROR admin=%s',aid)
 
+def _count_local_day(conn, day, tz, base_sql, col):
+    """Count rows whose actual moment (finished/cancelled, UTC-naive legacy
+    storage) or, if absent, scheduled start falls on ``day`` in ``tz``."""
+    lo=(day-timedelta(days=1)).isoformat(); hi=(day+timedelta(days=1)).isoformat(); n=0
+    for r in conn.execute(f"{base_sql} AND date({col}) BETWEEN ? AND ?",(lo,hi)).fetchall():
+        try:
+            moment=actual_datetime(r['actual_at']) if r['actual_at'] else schedule_datetime(r['start_time'])
+        except Exception:
+            continue
+        if moment.astimezone(tz).date()==day:n+=1
+    return n
+
 async def evening_brief_job(context):
-    c=database.connect(); local_now=datetime.now(_tz()); today=local_now.date().isoformat(); tomorrow_day=(local_now.date()+timedelta(days=1)).isoformat()
+    tz=_tz(); c=database.connect(); local_now=datetime.now(tz); today=local_now.date(); tomorrow_day=today+timedelta(days=1)
     try:
-        done=c.execute("SELECT COUNT(*) FROM lessons WHERE date(COALESCE(finished_at,start_time))=? AND lesson_status IN ('COMPLETED','FINISHED')",(today,)).fetchone()[0]
-        cancelled=c.execute("SELECT COUNT(*) FROM lessons WHERE date(COALESCE(cancelled_at,start_time))=? AND lesson_status='CANCELLED'",(today,)).fetchone()[0]
+        done=_count_local_day(c,today,tz,"SELECT finished_at AS actual_at,start_time FROM lessons l WHERE lesson_status IN ('COMPLETED','FINISHED')","COALESCE(l.finished_at,l.start_time)")
+        cancelled=_count_local_day(c,today,tz,"SELECT cancelled_at AS actual_at,start_time FROM lessons l WHERE lesson_status='CANCELLED'","COALESCE(l.cancelled_at,l.start_time)")
         unpaid=c.execute("SELECT COUNT(*),COALESCE(SUM(price),0) FROM lessons WHERE lesson_status='CONFIRMED' AND payment_status='AWAITING_PAYMENT'").fetchone()
-        tomorrow=c.execute("SELECT COUNT(*) FROM lessons WHERE date(start_time)=? AND lesson_status!='CANCELLED'",(tomorrow_day,)).fetchone()[0]
+        tomorrow=len(lessons_on_local_day(c,tomorrow_day,tz,"SELECT l.id,l.start_time FROM lessons l WHERE l.lesson_status!='CANCELLED'"))
     except Exception:
         log.exception('ADELIA EVENING BRIEF DB ERROR');done=cancelled=tomorrow=0;unpaid=(0,0)
     finally:c.close()
@@ -110,9 +122,12 @@ async def student_day_brief_job(context, force=False):
         tid = int(first['telegram_id'])
         tz = user_timezone.user_tz(tid, schedule_zone)
         local_now = datetime.now(tz)
-        if not force and local_now.strftime('%H:%M') != target:
-            continue
         day = local_now.date().isoformat()
+        sent_key = f'student_day_brief_last_day_{uid}'
+        # now >= target (not exact HH:MM): a skipped dispatcher minute must not
+        # lose the brief; the per-day flag keeps it to one delivery.
+        if not force and not daily_slot_due(local_now, target, database.get_setting(sent_key, '') or ''):
+            continue
         lessons = []
         for lesson in candidate_lessons:
             canonical_start = schedule_datetime(lesson['start_time'])
@@ -121,9 +136,10 @@ async def student_day_brief_job(context, force=False):
                 lessons.append((lesson, local_start))
         if not lessons:
             continue
-        sent_key = f'student_day_brief_last_day_{uid}'
-        if not force and (database.get_setting(sent_key, '') or '') == day:
-            continue
+        lessons.sort(key=lambda item: item[1])
+        if not force:
+            # Claim before sending: at most one brief per student and day.
+            database.set_setting(sent_key, day)
 
         lines = [
             '💜 АДЕЛИЯ • СЕГОДНЯ ЗАНЯТИЕ',
@@ -144,8 +160,6 @@ async def student_day_brief_job(context, force=False):
         buttons.append([InlineKeyboardButton('🏠 Главная', callback_data='global_home')])
         try:
             await context.bot.send_message(tid, '\n'.join(lines), reply_markup=InlineKeyboardMarkup(buttons))
-            if not force:
-                database.set_setting(sent_key, day)
             database.log_automation_delivery('student_day_brief','OK','STUDENT',uid)
         except Exception as e:
             database.log_automation_delivery('student_day_brief','ERROR','STUDENT',uid,repr(e)); log.exception('ADELIA STUDENT DAY BRIEF SEND ERROR user=%s', uid)
@@ -232,14 +246,14 @@ async def timezone_migration_job(context, remind=False):
         log.exception('TIMEZONE MIGRATION JOB ERROR')
 
 async def brief_dispatcher(context):
-    now=datetime.now(_tz()); hhmm=now.strftime('%H:%M'); day=now.strftime('%Y-%m-%d')
+    now=datetime.now(_tz())
     for kind,func,default in [('morning',morning_brief_job,'08:30'),('evening',evening_brief_job,'21:00')]:
         if not _on(f'{kind}_brief_enabled','1'):continue
         target=database.get_setting(f'{kind}_brief_time',default) or default
-        if hhmm != target:continue
-        sent=database.get_setting(f'{kind}_brief_last_day','') or ''
-        if sent==day:continue
-        await func(context);database.set_setting(f'{kind}_brief_last_day',day)
+        # now >= target + persisted "sent today" flag (claimed before sending),
+        # so a missed dispatcher minute still delivers exactly once.
+        if not claim_daily_slot(f'{kind}_brief_last_day',now,target):continue
+        await func(context)
 
     # Each student receives the morning summary at the configured clock time
     # in their own selected region/timezone.

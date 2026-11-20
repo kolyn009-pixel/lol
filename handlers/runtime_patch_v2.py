@@ -89,15 +89,16 @@ def _nearest_future_rows():
 def today_dashboard():
     c = database.connect()
     try:
-        lessons = c.execute("""
+        # Teacher-local "today" (bot_timezone), not the process/UTC date.
+        from core.lesson_time import lessons_on_local_day
+        tz = _tz()
+        lessons = lessons_on_local_day(c, datetime.now(tz).date(), tz, """
             SELECT l.id,l.user_id,l.start_time,l.duration_minutes,u.name
             FROM lessons l
             JOIN users u ON u.id=l.user_id
-            WHERE date(l.start_time)=date('now','localtime')
-              AND l.cancelled_at IS NULL
+            WHERE l.cancelled_at IS NULL
               AND u.active=1
-            ORDER BY datetime(l.start_time)
-        """).fetchall()
+        """)
         open_msgs = c.execute(
             "SELECT COUNT(*) n FROM teacher_inbox WHERE status='OPEN'"
         ).fetchone()["n"]
