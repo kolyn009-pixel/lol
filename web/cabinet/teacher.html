@@ -76,7 +76,7 @@
 
   function load() {
     if (loading) return Promise.resolve(); loading = true;
-    return C.api('/teacher/today').then(function (d) { hadData = true; tz = d.tz; paint(d); },
+    return C.api('/teacher/today').then(function (d) { hadData = true; tz = d.tz; C.clockTz = d.tz; C.refreshClock && C.refreshClock(); paint(d); },
       function (e) {
         if (e.status === 401) { location.replace(T); return; }
         if (!hadData) { body.replaceChildren(C.error(e.message, load)); } else C.toast('Не удалось обновить. Показаны прежние данные.');

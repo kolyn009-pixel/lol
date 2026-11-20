@@ -256,3 +256,62 @@ body.cab { margin: 0; background: var(--paper); color: var(--ink); font-family: 
   .msg-back { display: none; }
   .msg-hist { height: 48vh; }
 }
+
+.msg-chs { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin-top: var(--space-1); }
+.msg-ch { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: var(--text-label-size); cursor: pointer; }
+.msg-ch input { width: 20px; height: 20px; accent-color: var(--ink); }
+.msg-ch.off, .msg-ch.fixed { color: var(--ink-muted); cursor: default; }
+.msg-ch-note { color: var(--ink-subtle); font-size: var(--text-label-size); align-self: center; }
+.msg-status { font-size: 12px; margin-top: 2px; display: flex; flex-wrap: wrap; align-items: center; }
+.msg-st.bad { text-decoration: underline wavy; }
+.msg-retry { font: inherit; font-size: 12px; min-height: 32px; margin-left: var(--space-1); padding: 0 var(--space-1); border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+
+/* --- Часы в шапке --- */
+.cab-clock { font-variant-numeric: tabular-nums; font-size: var(--text-label-size); color: var(--ink-subtle); white-space: nowrap; margin-left: auto; }
+.cab-name + .cab-clock { margin-left: var(--space-2); }
+@media (max-width: 560px) { .cab-clock { font-size: 13px; } }
+
+/* --- Поля форм и выпадающие списки в стиле «Журнал» --- */
+.cab select, .cab input[type="text"], .cab input[type="search"], .cab input[type="number"], .cab input[type="date"], .cab input[type="time"], .cab input[type="datetime-local"], .cab input[type="tel"], .cab textarea,
+body select, body input[type="date"], body input[type="time"], body input[type="datetime-local"] {
+  font: inherit; font-size: 16px; color: var(--ink); background-color: var(--paper);
+  border: 1px solid var(--ink); border-radius: 0; min-height: 44px; padding: 8px 12px; box-shadow: none;
+}
+body select {
+  -webkit-appearance: none; appearance: none; padding-right: 36px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px; background-repeat: no-repeat;
+}
+body select:hover, body input:hover, body textarea:hover { border-color: var(--accent); }
+body select:focus-visible, body input:focus-visible, body textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+body select:disabled, body input:disabled { color: var(--ink-subtle); border-color: var(--rule-soft); cursor: not-allowed; }
+body label { font-size: var(--text-label-size); color: var(--ink-subtle); }
+.pay-group { border-bottom: var(--rule-inner); }
+.pay-ghead { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-2); align-items: center; width: 100%; min-height: 56px; padding: var(--space-1) 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.pay-glist { padding-left: var(--space-2); }
+.pay-glist .pay-row:last-child { border-bottom: 0; }
+.pay-sumline { color: var(--ink-subtle); margin: 0 0 var(--space-1); }
+.pay-img { display: block; max-width: 100%; max-height: 60vh; margin: 0 auto var(--space-2); }
+.pay-prev { text-align: center; }
+
+/* ---- Кабинет ученика: общие .st-* ---- */
+.st-tabs { display: flex; gap: var(--space-3); border-bottom: var(--rule-inner); margin: 0 0 var(--space-2); overflow-x: auto; }
+.st-tabs button { font: inherit; background: none; border: 0; border-bottom: 3px solid transparent; min-height: 44px; padding: 0; cursor: pointer; color: var(--ink-subtle); white-space: nowrap; }
+.st-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: var(--text-ui-weight); }
+.st-field { display: block; margin: var(--space-2) 0; }
+.st-field > span { display: block; }
+.st-field input, .st-field select, .st-field textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; min-height: 44px; }
+.st-note { margin: var(--space-2) 0; padding: var(--space-1) var(--space-2); border-left: 3px solid var(--ink); background: var(--surface-alt); overflow-wrap: anywhere; }
+.st-note.ok { border-left-color: var(--success); }
+.st-note.bad { border-left-color: var(--warning); color: var(--warning); }
+.st-panel { padding: var(--space-2) 0; }
+.st-lesson { padding: var(--space-2) 0; border-bottom: var(--rule-inner); }
+.st-lesson-main { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); flex-wrap: wrap; }
+.st-when { font-size: 26px; }
+.st-manage { min-width: 0; }
+.st-slotday { margin-top: var(--space-2); font-weight: var(--text-ui-weight); }
+.st-slots { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: 6px; }
+.st-pane-note { color: var(--ink-subtle); }
+
+@media (max-width: 599px) { .cab-head { flex-wrap: wrap; row-gap: 4px; } .cab-head .cab-name { display: none; } .cab-clock { margin-left: auto; } }

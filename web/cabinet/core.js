@@ -156,6 +156,14 @@
       var head = el('header', 'cab-head');
       var brand = el('a', 'cab-brand', 'Аделия'); brand.href = (menu[0] && menu[0].href) || NEWHOME[role]; head.appendChild(brand);
       var nm = s.name || s.full_name || (s.user && (s.user.name || s.user.full_name)) || ''; head.appendChild(el('span', 'cab-name', nm));
+      var clk = el('span', 'cab-clock'); clk.setAttribute('aria-label', 'Текущее время'); head.appendChild(clk);
+      var tick = function () {
+        var d = new Date(), o = { hour: '2-digit', minute: '2-digit', hour12: false }, od = { weekday: 'short', day: 'numeric', month: 'short' };
+        if (C.clockTz) { o.timeZone = C.clockTz; od.timeZone = C.clockTz; }
+        try { var t = new Intl.DateTimeFormat('ru-RU', o).format(d); clk.textContent = (window.innerWidth < 600) ? t : new Intl.DateTimeFormat('ru-RU', od).format(d) + ' · ' + t; }
+        catch (e) { C.clockTz = null; clk.textContent = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); }
+      };
+      tick(); setInterval(tick, 15000); window.addEventListener('resize', tick); C.refreshClock = tick;
       var bell = el('button', 'cab-bell'); bell.type = 'button'; bell.setAttribute('aria-label', 'Уведомления');
       bell.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4"/></svg>';
       bell.addEventListener('click', function () { location.href = C.classic(home); }); head.appendChild(bell);
@@ -200,5 +208,18 @@
     { key: 'messages', label: 'Сообщения', href: '/app/cabinet/messages.html', phone: true },
     { key: 'payments', label: 'Оплаты', href: '/app/cabinet/payments.html' },
     { key: 'materials', label: 'Материалы', href: T }
+  ];
+})();
+
+/* Единое меню кабинета ученика (все новые страницы ученика используют его) */
+(function () {
+  var D = '/app/cabinet/';
+  window.C.STUDENT_MENU = [
+    { key: 'home', label: 'Главная', href: D + 'student.html', phone: true },
+    { key: 'lessons', label: 'Занятия', href: D + 'student-lessons.html', phone: true },
+    { key: 'homework', label: 'Домашние задания', short: 'ДЗ', href: D + 'student-homework.html', phone: true },
+    { key: 'messages', label: 'Сообщения', href: D + 'student-messages.html', phone: true },
+    { key: 'pay', label: 'Оплата', href: D + 'student-payments.html', phone: true },
+    { key: 'formulas', label: 'Формулы', href: '/app/' }
   ];
 })();
