@@ -119,3 +119,49 @@ body.cab { margin: 0; background: var(--paper); color: var(--ink); font-family: 
 .c-topic-h span:last-child { color: var(--ink-subtle); font-variant-numeric: tabular-nums; }
 .c-stats { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); color: var(--ink-subtle); margin-bottom: var(--space-1); }
 .c-stats b { color: var(--ink); font-weight: var(--text-ui-weight); }
+
+/* Оплаты преподавателя */
+.pay-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); align-items: center; padding: var(--space-2) 0; border-bottom: var(--rule-inner); }
+.pay-info { min-width: 0; }
+.pay-who { font-weight: var(--text-ui-weight); font-size: 17px; overflow-wrap: anywhere; }
+.pay-meta { display: flex; flex-wrap: wrap; gap: 2px var(--space-2); color: var(--ink-subtle); font-size: var(--text-label-size); }
+.pay-sum { font-family: var(--font-display); font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.pay-row .c-actions { grid-column: 1 / -1; }
+.pay-row .fin-reversal { font: inherit; font-size: var(--text-label-size); min-height: 44px; padding: 0 var(--space-2); border: 1px solid var(--ink); background: var(--paper); color: var(--ink); cursor: pointer; }
+.pay-row .lp-btn, .pay-row .c-btn { min-height: 44px; }
+.pay-stu { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-2); align-items: center; width: 100%; min-height: 56px; padding: var(--space-2) 0; border: 0; border-bottom: var(--rule-inner); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.pay-stu .pay-who { grid-column: 1; }
+.pay-stu .pay-meta { grid-column: 1; }
+.pay-stu .pay-arrow { grid-column: 2; grid-row: 1 / span 2; }
+.pay-debt { color: var(--warning); }
+.pay-h { font-family: var(--font-display); font-weight: var(--text-display-weight); font-size: 28px; margin: var(--space-1) 0; overflow-wrap: anywhere; }
+.pay-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.pay-total { border-top: var(--rule); padding-top: var(--space-1); min-width: 0; }
+.pay-t-l { display: block; color: var(--ink-subtle); font-size: var(--text-label-size); text-transform: uppercase; letter-spacing: .1em; }
+.pay-t-v { display: block; font-family: var(--font-display); font-weight: var(--text-display-weight); font-size: 28px; font-variant-numeric: tabular-nums; }
+.pay-total small { color: var(--ink-subtle); }
+@media (max-width: 420px) { .pay-sum { font-size: 19px; } }
+
+/* Расписание преподавателя (.sch-*) */
+.sch-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin: var(--space-2) 0; }
+.sch-range { flex: 1 1 140px; text-align: center; font-weight: var(--text-ui-weight); min-width: 0; }
+.sch-week { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.sch-day { min-width: 0; border-top: 2px solid var(--ink); padding-top: var(--space-1); }
+.sch-day.today { border-top-color: var(--accent); }
+.sch-dh { display: flex; justify-content: space-between; gap: 8px; font-size: var(--text-label-size); color: var(--ink-subtle); text-transform: capitalize; margin-bottom: 6px; }
+.sch-day.today .sch-dh { color: var(--ink); font-weight: var(--text-ui-weight); }
+.sch-none { color: var(--ink-subtle); font-size: var(--text-label-size); margin: 0; }
+.sch-item { display: block; width: 100%; text-align: left; font: inherit; background: transparent; color: inherit; border: 0; border-bottom: var(--rule-inner); padding: 10px 0; cursor: pointer; min-height: 44px; min-width: 0; }
+.sch-item:hover { background: var(--surface-alt); }
+.sch-item.cancelled { opacity: .55; text-decoration: line-through; }
+.sch-t { font-variant-numeric: tabular-nums; font-weight: var(--text-ui-weight); }
+.sch-w { display: block; overflow-wrap: anywhere; }
+.sch-m { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: var(--text-label-size); color: var(--ink-subtle); }
+.sch-form label { display: block; margin: 0 0 var(--space-1); font-size: var(--text-label-size); }
+.sch-form input, .sch-form select, .sch-form textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; min-height: 44px; padding: 8px; margin-top: 4px; border: 1px solid var(--ink); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); }
+.sch-err { color: var(--accent); margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+.sch-ok { margin: var(--space-1) 0 0; }
+.sch-acts { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
+.sch-facts { margin: 0; }
+.sch-facts p { margin: 4px 0; overflow-wrap: anywhere; }
+@media (min-width: 1200px) { .sch-week { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1); } }

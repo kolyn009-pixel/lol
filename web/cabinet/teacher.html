@@ -18,15 +18,7 @@
 (function () {
   window.__lpNoReload = true; // модуль оплаты не «кликает» меню старого кабинета
   var T = '/app/teacher.html';
-  var MENU = [
-    { key: 'today', label: 'Сегодня', short: 'Сегодня', href: '/app/cabinet/teacher.html', phone: true },
-    { key: 'schedule', label: 'Расписание', href: T, phone: true },
-    { key: 'students', label: 'Ученики и группы', href: T },
-    { key: 'homework', label: 'Работы', href: T, phone: true },
-    { key: 'messages', label: 'Сообщения', href: T, phone: true },
-    { key: 'payments', label: 'Оплаты', href: T },
-    { key: 'materials', label: 'Материалы', href: T }
-  ];
+  var MENU = C.TEACHER_MENU;
   var WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
   var body, tz, timer, loading = false, hadData = false;
 
