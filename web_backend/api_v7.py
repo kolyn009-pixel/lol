@@ -36,6 +36,14 @@ class Handler(PublicGroupRegistrationMixin, SelfStudyMixin, ReceiptToolsMixin, G
             for row in rows:web_push.send('teacher',int(row['entity_id']),'👋 Новый ученик зарегистрировался',f'{name} завершил регистрацию на сайте. Откройте карточку ученика, чтобы посмотреть данные.','/teacher/','adelia-registration',{'type':'registration','user_id':int(user_id)})
         except Exception as exc:print('[web-api] registration push error:',type(exc).__name__,repr(exc),flush=True)
     def do_GET(self):
+        if urlparse(self.path).path=='/api/teacher/today':
+            auth=self._teacher()
+            if not auth:return self._json(401,{'error':'unauthorized'})
+            try:
+                from web_backend import teacher_today
+                return self._json(200,teacher_today.today(int(auth.get('id') or 0)))
+            except Exception as exc:
+                print('[web-api] teacher today error:',type(exc).__name__,repr(exc),flush=True);return self._json(500,{'error':'internal_error'})
         if urlparse(self.path).path=='/api/teacher/lesson/options':
             if not self._teacher():return self._json(401,{'error':'unauthorized'})
             try:return self._json(200,teacher_manual_booking.options(parse_qs(urlparse(self.path).query).get('user_id',['0'])[0]))
