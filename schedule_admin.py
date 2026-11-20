@@ -117,10 +117,13 @@ def format_datetime(
 
     try:
 
+        # Naive = schedule timezone; print in the teacher's zone.
+        from core.lesson_time import schedule_datetime, teacher_timezone
         return (
-            datetime.fromisoformat(
+            schedule_datetime(
                 value
             )
+            .astimezone(teacher_timezone())
             .strftime(
                 "%d.%m.%Y %H:%M"
             )
@@ -698,34 +701,30 @@ def get_future_lessons_on_date(
         database.connect()
     )
 
-    rows = conn.execute("""
-        SELECT
-
-            l.*,
-
-            u.name,
-            u.telegram_id
-
-        FROM lessons l
-
-        JOIN users u
-            ON u.id = l.user_id
-
-        WHERE
-            DATE(l.start_time) = ?
-
-            AND l.lesson_status IN (
-                'PENDING',
-                'CONFIRMED'
-            )
-
-        ORDER BY
-            l.start_time
-    """, (
-        date_value,
-    )).fetchall()
-
-    conn.close()
+    # The day-off date is a teacher-local calendar date. SQLite DATE() would
+    # move offset-aware night lessons (01:30+04:00) to the previous UTC day,
+    # so the exact day check and the ordering are done in Python.
+    from core.lesson_time import lessons_on_local_day, teacher_timezone
+    if isinstance(date_value, str):
+        day_obj = date.fromisoformat(date_value[:10])
+    elif isinstance(date_value, datetime):
+        day_obj = date_value.date()
+    else:
+        day_obj = date_value
+    try:
+        rows = lessons_on_local_day(
+            conn,
+            day_obj,
+            teacher_timezone(),
+            """
+            SELECT l.*, u.name, u.telegram_id
+            FROM lessons l
+            JOIN users u ON u.id = l.user_id
+            WHERE l.lesson_status IN ('PENDING','CONFIRMED')
+            """,
+        )
+    finally:
+        conn.close()
 
     return rows
 
@@ -1103,12 +1102,13 @@ async def closed_comment_handler(
 
     for lesson in lessons:
 
+        from core.lesson_time import schedule_datetime, teacher_timezone
         start_dt = (
-            datetime.fromisoformat(
+            schedule_datetime(
                 lesson[
                     "start_time"
                 ]
-            )
+            ).astimezone(teacher_timezone())
         )
 
         lines.append(
