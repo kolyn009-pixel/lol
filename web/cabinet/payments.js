@@ -35,7 +35,7 @@
   function box(key, num_, title) {
     var s = C.section(num_, title), b = el('div', 'pay-body'); b.setAttribute('aria-live', 'polite'); s.appendChild(b); sec[key] = { s: s, b: b }; return s;
   }
-  function skel(key) { sec[key].b.replaceChildren(el('p', 'c-empty', 'Загружаю…')); }
+  function skel(key) { sec[key].b.replaceChildren(el('div', 'c-skel')); }
   function fail(key, e, retry) { sec[key].b.replaceChildren(C.error(errText(e), retry)); }
   function auth(e) { if (e && e.status === 401) { location.replace(T); return true; } return false; }
 

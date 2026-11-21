@@ -26,7 +26,7 @@
   function subjOk(s) { return st.subj === 'ALL' || subjKey(s) === st.subj; }
 
   function drawList() {
-    var out = document.createDocumentFragment(), n = 0;
+    var out = document.createDocumentFragment(), n = 0; out.appendChild(C.label('01', st.tab === 'students' ? 'Ученики' : 'Группы'));
     if (st.tab === 'students') {
       students.filter(function (s) { return match([s.name, s.telegram_username, s.phone, s.main_subject, s.study_goal].join(' ')) && subjOk(s.main_subject); }).forEach(function (s) {
         n++; var b = E('button', 'stu-row'); b.type = 'button'; b.append(E('span', 'stu-name', s.name || 'Ученик'));

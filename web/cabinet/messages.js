@@ -14,7 +14,7 @@
   function paintList() {
     var q = st.q.trim().toLowerCase(), unread = st.items.reduce(function (n, x) { return n + (Number(x.unread) || 0); }, 0);
     var rows = st.items.filter(function (x) { return (!st.unreadOnly || Number(x.unread) > 0) && (!q || [x.name, x.student_name, x.last_body].join(' ').toLowerCase().indexOf(q) >= 0); });
-    var f = document.createDocumentFragment();
+    var f = document.createDocumentFragment(); f.appendChild(C.label('01', 'Диалоги'));
     var fb = el('div', 'msg-filter');
     [[false, 'Все'], [true, 'Непрочитанные' + (unread ? ' · ' + unread : '')]].forEach(function (p) {
       var b = el('button', 'msg-fbtn', p[1]); b.type = 'button'; b.setAttribute('aria-pressed', String(st.unreadOnly === p[0]));
@@ -88,7 +88,7 @@
     if (stick || near) histBox.scrollTop = histBox.scrollHeight;
   }
   function buildThread() {
-    var x = st.active; threadBox.replaceChildren();
+    var x = st.active; threadBox.replaceChildren(C.label('02', 'Переписка'));
     if (!x) { threadBox.appendChild(C.empty('Выберите диалог слева.')); return; }
     var head = el('div', 'msg-head'), back = el('button', 'msg-back', '←'); back.type = 'button'; back.setAttribute('aria-label', 'К списку диалогов');
     back.addEventListener('click', function () { saveDraft(); st.active = null; shell.classList.remove('has-active'); buildThread(); paintList(); });

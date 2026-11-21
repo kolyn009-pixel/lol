@@ -182,11 +182,11 @@
       var tabs = el('nav', 'cab-tabs'); tabs.setAttribute('aria-label', 'Основные разделы');
       phone.forEach(function (m) { var a = el('a', '', m.short || m.label); a.href = C.classic(m.href); if (m.key === opts.active) a.setAttribute('aria-current', 'page'); tabs.appendChild(a); });
       var more = el('div', 'cab-more'); more.hidden = true; more.id = 'cabMore';
-      rest.forEach(function (m) { var a = el('a', '', m.label); a.href = C.classic(m.href); more.appendChild(a); });
+      rest.forEach(function (m) { var a = el('a', '', m.label); a.href = C.classic(m.href); if (m.key === opts.active) a.setAttribute('aria-current', 'page'); more.appendChild(a); });
       var oa = el('a', '', 'Старый кабинет'); oa.href = C.classic(home); oa.addEventListener('click', C.goOld); more.appendChild(oa);
       var mb = el('button', '', 'Ещё'); mb.type = 'button'; mb.setAttribute('aria-expanded', 'false'); mb.setAttribute('aria-controls', 'cabMore');
       mb.addEventListener('click', function () { more.hidden = !more.hidden; mb.setAttribute('aria-expanded', String(!more.hidden)); });
-      tabs.appendChild(mb); document.body.appendChild(more); document.body.appendChild(tabs);
+      if (rest.some(function (m) { return m.key === opts.active; })) mb.setAttribute('aria-current', 'page'); tabs.appendChild(mb); document.body.appendChild(more); document.body.appendChild(tabs);
 
       C.main = main;
       Promise.resolve().then(function () { return opts.render(main, s); }).catch(function (e) {
