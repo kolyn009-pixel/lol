@@ -1,0 +1,57 @@
+/* Страница занятия в стиле «Журнал». Подключается ПОСЛЕ lesson.css; раскладку не меняет, только оформление. */
+body.lj-page { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans); font-size: var(--text-body-size); line-height: var(--text-body-line); }
+html:has(body.lj-page) { background: var(--paper); }
+body.lj-page *, body.lj-page *::before, body.lj-page *::after { border-radius: 0; box-shadow: none; text-shadow: none; }
+body.lj-page :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+body.lj-page .lesson-shell { max-width: 760px; margin: 0 auto; padding: var(--space-3) var(--space-2) var(--space-7); background: none; }
+body.lj-page .lesson-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-1) var(--space-2); padding: 0 0 var(--space-2); border-bottom: var(--rule); background: none; }
+body.lj-page .lesson-top > a { color: var(--ink); font-size: 14px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; text-decoration: none; background: none; border: 0; }
+body.lj-page .lesson-top h1, body.lj-page h1 { font-family: var(--font-display); font-weight: var(--text-display-weight); font-size: clamp(30px, 6vw, 48px); line-height: 1.05; color: var(--ink); margin: 0; overflow-wrap: anywhere; }
+body.lj-page .eyebrow, body.lj-page .status { display: inline-block; background: none; border: 0; padding: 0; color: var(--ink-subtle); font-size: var(--text-label-size); font-weight: var(--text-label-weight); letter-spacing: var(--text-label-tracking); text-transform: uppercase; }
+body.lj-page .status { border: 1px solid var(--ink); padding: 4px 10px; color: var(--ink); }
+body.lj-page .lesson-hero { background: none; color: var(--ink); border: 0; border-bottom: var(--rule-inner); padding: var(--space-3) 0; margin: 0; }
+body.lj-page .lesson-hero h2 { font-family: var(--font-display); font-weight: var(--text-display-weight); font-size: clamp(26px, 5vw, 40px); line-height: 1.1; color: var(--ink); margin: 0 0 var(--space-1); }
+body.lj-page .lesson-hero p, body.lj-page .lesson-hero small, body.lj-page .lesson-hero > span { color: var(--ink-muted); }
+body.lj-page .lesson-hero > span { font-size: var(--text-label-size); font-weight: var(--text-label-weight); letter-spacing: var(--text-label-tracking); text-transform: uppercase; color: var(--ink-subtle); }
+body.lj-page .lesson-hero.finished { opacity: 1; }
+body.lj-page .pulse:empty, body.lj-page .skeleton:empty { animation: none; }
+body.lj-page .pulse { background: none; border: 0; width: auto; height: auto; min-height: 0; animation: none; }
+body.lj-page .pulse:empty { display: none; }
+body.lj-page .waiting-note { background: none; border: 0; border-left: 3px solid var(--ink); padding: 4px 0 4px var(--space-2); color: var(--ink-muted); }
+body.lj-page .lesson-main, body.lj-page .lesson-rsvp-actions button, body.lj-page .lesson-tools button, body.lj-page .lesson-tools a, body.lj-page button.primary, body.lj-page .move-submit, body.lj-page .survey-moods button { font: inherit; font-size: 16px; font-weight: var(--text-ui-weight); min-height: 52px; padding: 12px var(--space-3); background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 0; text-decoration: none; display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; background-image: none; }
+body.lj-page .lesson-main { width: 100%; margin: var(--space-2) 0; background: var(--accent); border-color: var(--accent); animation: none; }
+body.lj-page .lesson-main:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+body.lj-page .lesson-main:disabled { background: var(--surface-alt); color: var(--ink-subtle); border-color: var(--rule-soft); cursor: not-allowed; }
+body.lj-page .lesson-rsvp { background: none; border: 0; border-top: var(--rule); padding: var(--space-2) 0; margin: var(--space-2) 0; }
+body.lj-page .lesson-rsvp h3, body.lj-page .post-survey h3 { font-family: var(--font-display); font-weight: var(--text-display-weight); font-size: 26px; margin: 0 0 var(--space-1); color: var(--ink); }
+body.lj-page .lesson-rsvp p, body.lj-page .lesson-rsvp > small { color: var(--ink-muted); }
+body.lj-page .lesson-rsvp-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-1); }
+body.lj-page .lesson-rsvp-actions button, body.lj-page .survey-moods button { background: var(--paper); color: var(--ink); }
+body.lj-page .lesson-rsvp-actions button:hover, body.lj-page .survey-moods button:hover { background: var(--surface-alt); }
+body.lj-page .lesson-rsvp-actions button.active, body.lj-page .lesson-rsvp-actions button.going.active, body.lj-page .lesson-rsvp-actions button.maybe.active, body.lj-page .lesson-rsvp-actions button.no.active { background: var(--ink); color: var(--paper); }
+body.lj-page .lesson-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-1); margin: var(--space-2) 0; }
+body.lj-page .lesson-tools button, body.lj-page .lesson-tools a, body.lj-page .lesson-tools article { flex-direction: column; align-items: flex-start; justify-content: center; text-align: left; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); }
+body.lj-page .lesson-tools article { padding: 12px var(--space-2); }
+body.lj-page .lesson-tools b { font-weight: var(--text-ui-weight); }
+body.lj-page .lesson-tools span { color: var(--ink-subtle); font-size: 14px; font-weight: 400; }
+body.lj-page .lesson-tools button:hover:not(:disabled), body.lj-page .lesson-tools a:hover { background: var(--surface-alt); color: var(--ink); }
+body.lj-page .muted-tools article { border-color: var(--rule-soft); color: var(--ink-subtle); }
+body.lj-page .survey-moods { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-1); margin: var(--space-1) 0; }
+body.lj-page .post-survey { border-top: var(--rule); padding-top: var(--space-2); background: none; border-left: 0; }
+body.lj-page textarea, body.lj-page input, body.lj-page select { font: inherit; font-size: 16px; color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0; padding: 10px; min-height: 44px; width: 100%; box-shadow: none; }
+body.lj-page .form-error, body.lj-page .move-error, body.lj-page .danger { color: var(--warning); background: none; border: 0; border-left: 3px solid var(--warning); padding: 4px 0 4px var(--space-2); }
+body.lj-page .move-ok { color: var(--success); background: none; }
+body.lj-page .move-panel { background: none; border: 0; border-top: var(--rule); padding: var(--space-2) 0; }
+body.lj-page .move-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: var(--space-1); }
+body.lj-page .move-slot { font: inherit; min-height: 44px; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); }
+body.lj-page .move-slot.selected, body.lj-page .move-slot:hover { background: var(--ink); color: var(--paper); }
+body.lj-page .move-info { background: none; border-left: 3px solid var(--ink); padding: 4px 0 4px var(--space-2); color: var(--ink-muted); }
+body.lj-page .move-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+body.lj-page .skeleton { background: var(--surface-alt); animation: none; }
+@media (max-width: 650px) { body.lj-page .lesson-shell { padding: var(--space-2) 16px var(--space-5); } }
+body.lj-page .lesson-top > a { order: 1; }
+body.lj-page .lesson-top > .status { order: 2; margin-left: auto; }
+body.lj-page .lesson-top > div { order: 3; flex: 1 1 100%; }
+body.lj-page .lesson-top > div .eyebrow { display: block; margin-bottom: 4px; }
+body.lj-page .lesson-hero { text-align: left; }
+body.lj-page .lesson-shell button:not([class]):not([data-rating]):not([id]) { background: none; color: var(--ink-subtle); border: 0; text-decoration: underline; min-height: 44px; }

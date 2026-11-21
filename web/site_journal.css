@@ -150,3 +150,21 @@ body.sj-page .channel-open.primary, body.sj-page .channel-open.primary:hover, bo
 body.sj-start .messenger-actions button:disabled { border-color: var(--rule-soft); }
 body.sj-start .slot-day { margin: 0; width: 100%; }
 html:has(body.sj-page) { background: var(--paper); }
+
+/* ===== документы: родитель (consent) и админка документов ===== */
+body.sj-docnav main > nav { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-1) var(--space-3); padding: 0 0 var(--space-2); margin: 0 0 var(--space-3); border-bottom: var(--rule); }
+body.sj-docnav main > nav a:first-child { font-family: var(--font-display); font-size: 28px; font-weight: 700; text-decoration: none; }
+body.sj-docnav main > nav a:not(:first-child) { font-size: 14px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; text-decoration: none; }
+body.sj-docnav main { padding-bottom: var(--space-7); }
+body.sj-docnav .card { background: none; border: 0; border-top: var(--rule); padding: var(--space-2) 0; margin: var(--space-3) 0; }
+body.sj-docnav label { display: block; margin: 0 0 var(--space-2); }
+body.sj-docnav label.check { display: flex; align-items: flex-start; gap: var(--space-1); }
+body.sj-docnav label.check span { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 400; color: var(--ink-muted); }
+body.sj-docnav .notice { border-left: 3px solid var(--ink); padding: 4px 0 4px var(--space-2); background: none; color: var(--ink-muted); }
+body.sj-docnav textarea { min-height: 160px; }
+body.sj-docnav #state { color: var(--ink-subtle); }
+body.sj-docnav .actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+body.sj-docnav main > nav + .card, body.sj-docnav main > nav + h1 { border-top: 0; margin-top: 0; }
+body.sj-group a.home-link { display: inline-block; background: none; color: var(--ink); padding: 12px 0; border: 0; text-decoration: underline; text-underline-offset: 3px; }
+body.sj-group a.home-link:hover { color: var(--accent); }
+body.sj-group .eyebrow { opacity: 1; }
