@@ -1,36 +1,105 @@
-/* Старые кабинеты: автопереход в новый кабинет своей роли + ссылка «Новый кабинет» при ?classic=1. */
+/* Open Journal on normal web entry. Shortcut, desktop and installed-app routes keep their handlers. */
 (function () {
   'use strict';
-  var p = location.pathname.replace(/\/index\.html$/, '/').replace(/\/+$/, '/') || '/';
-  var NEW = { teacher: '/app/cabinet/teacher.html', student: '/app/cabinet/student.html', parent: '/app/cabinet/parent.html' };
-  var kind = null;
-  if (p === '/teacher/' || p === '/app/teacher.html/' || /^\/app\/teacher\.html$/.test(location.pathname)) kind = 'teacher';
-  else if (p === '/app/parent/' || p === '/parent/') kind = 'parent';
-  else if (p === '/app/' || p === '/app') kind = 'student';
-  if (!kind || document.getElementById('cabSwitchLink')) return;
-  var classic = /[?&]classic=1(&|#|$)/.test(location.search);
-  var pref = null; try { pref = localStorage.getItem('adelia:cabinet'); } catch (e) {}
+  var path = location.pathname.replace(/\/index\.html$/, '').replace(/\/+$/, '');
+  var role = {
+    '/teacher': 'teacher', '/app/teacher.html': 'teacher', '/app/parent': 'parent', '/parent': 'parent', '/app': 'student'
+  }[path];
+  if (!role) return;
 
-  if (!classic && pref !== 'old') {
-    try {
-      fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-        if (!d || d.authenticated !== true) return;
-        var role = d.role || (d.session && d.session.role);
-        if (false && NEW[role]) location.replace(NEW[role] + (location.hash || ''));
-      }).catch(function () {});
-    } catch (e) {}
-    return;
+  var current = new URL(location.href);
+  var next = '/app/cabinet/' + role + '.html';
+  var section = current.searchParams.get('section');
+  var check;
+  var navigationDone = false;
+  var authenticated = false;
+
+  function standalone() {
+    return !!(window.adeliaDesktop?.desktop || navigator.standalone ||
+      window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches);
   }
 
-  var href = NEW[kind];
-  function add() {
-    if (document.getElementById('cabSwitchLink')) return;
-    var a = document.createElement('a');
-    a.id = 'cabSwitchLink'; a.href = href; a.textContent = 'Новый кабинет';
-    a.addEventListener('click', function () { try { localStorage.removeItem('adelia:cabinet'); } catch (e) {} });
-    var host = document.querySelector('.header-actions') || document.querySelector('main > header');
-    if (host) { a.style.cssText = 'font:inherit;font-size:13px;font-weight:600;color:inherit;text-decoration:underline;text-underline-offset:3px;padding:12px 8px;min-height:44px;display:inline-flex;align-items:center'; host.insertBefore(a, host.firstChild); }
-    else { a.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:300;font:600 13px/1.2 system-ui,sans-serif;color:#111;background:#fff;border:1px solid #111;padding:10px 12px;text-decoration:none'; document.body.appendChild(a); }
+  function prefersClassic() {
+    try { return localStorage.getItem('adelia:cabinet') === 'old'; }
+    catch (_) { return false; }
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
+
+  function addLink() {
+    if (standalone()) return;
+    var a = document.getElementById('cabSwitchLink');
+    if (!a) {
+      a = document.createElement('a');
+      a.id = 'cabSwitchLink';
+      a.href = next;
+      a.textContent = 'Кабинет «Журнал»';
+      a.addEventListener('click', function () {
+        try { localStorage.removeItem('adelia:cabinet'); } catch (_) {}
+      });
+    }
+    var host = document.querySelector('.header-actions, #root > header, .topbar');
+    if (a.parentNode === (host || document.body)) return;
+    a.className = 'journal-cabinet-link' + (host ? '' : ' is-floating');
+    (host || document.body).appendChild(a);
+  }
+
+  function openSection() {
+    if (navigationDone) return;
+    var selector = role === 'teacher' && {
+      schedule: '[data-view="schedule"]', groups: '[data-view="groups"]', students: '[data-view="students"]',
+      library: '[data-view="library"]', formulas: '[data-view="formulas"]',
+      finance: '[data-view="finance"]', analytics: '[data-view="analytics"]',
+      health: '[data-view="health"]', plans: '[data-learning-open]', requests: '[data-request-center]',
+      homework: '[data-view="newHomework"]'
+    }[section];
+    if (role === 'parent' && section === 'messages') selector = '#parentMessagesOpen';
+    if (role === 'student' && section === 'formulas') selector = '[data-tab="formulas"]';
+    if (typeof selector !== 'string') return;
+    if (role === 'teacher' && document.querySelector('#app > .loading')) {
+      var app = document.querySelector('#app');
+      var observer = new MutationObserver(function () {
+        if (!app.querySelector(':scope > .loading')) { observer.disconnect(); openSection(); }
+      });
+      observer.observe(app, { childList: true });
+      setTimeout(function () { observer.disconnect(); }, 15000);
+      return;
+    }
+    var button = document.querySelector(selector);
+    if (button) {
+      navigationDone = true;
+      button.click();
+    }
+  }
+
+  function inspectSession() {
+    if (navigationDone) return;
+    if (check) return check;
+    check = fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (session) {
+        if (!session || session.authenticated !== true || (session.role || session.session?.role) !== role) return;
+        authenticated = true;
+        if (!standalone() && !current.search && !current.hash && !prefersClassic()) {
+          navigationDone = true;
+          location.replace(next);
+          return;
+        }
+        addLink();
+        openSection();
+      })
+      .catch(function () { /* the current cabinet still handles connection and sign-in */ })
+      .finally(function () { check = null; });
+    return check;
+  }
+
+  if (role === 'parent') {
+    window.addEventListener('adelia:parent-render', function (event) {
+      if (!event.detail?.parentId) return;
+      if (authenticated) { addLink(); openSection(); }
+      else inspectSession();
+    });
+  } else {
+    window.addEventListener(role === 'teacher' ? 'adelia:teacher-login' : 'adelia:student-authenticated',
+      function () { if (check) check.then(inspectSession); else inspectSession(); }, { once: true });
+  }
+  inspectSession();
 })();

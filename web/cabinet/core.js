@@ -13,6 +13,9 @@
     var q = m[2] || ''; if (/[?&]classic=1(&|$)/.test(q)) return u;
     return m[1] + (q ? q + '&' : '?') + 'classic=1' + (m[3] || '');
   };
+  C.legacy = function (role, section) {
+    return C.classic(HOME[role] + (section ? '?section=' + encodeURIComponent(section) : ''));
+  };
   C.goOld = function () { try { localStorage.setItem('adelia:cabinet', 'old'); } catch (e) {} };
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -138,16 +141,16 @@
 
   /* ---- boot ---- */
   C.boot = function (opts) {
-    var role = opts.role, home = HOME[role], other = '';
+    var role = opts.role, home = HOME[role];
     document.body.classList.add('cab');
     C.api('/auth/me').then(function (me) {
       var s = me && me.session;
       if (!me || !me.authenticated || !s) { location.replace(home); return; }
       if (s.role !== role) { location.replace(NEWHOME[s.role] || home); return; }
       build(s);
-    }, function (e) { if (e.status === 401) location.replace(home); else showFatal(e); });
+    }, function (e) { if (e.status === 401) location.replace(C.classic(home)); else showFatal(e); });
 
-    function showFatal(e) { document.body.innerHTML = ''; var d = el('div', 'cab-main'); d.appendChild(C.error(e.message || 'Не получилось открыть кабинет.', function () { location.reload(); })); document.body.appendChild(d); }
+    function showFatal(e) { document.body.innerHTML = ''; var d = el('div', 'cab-main'); d.append(C.error(e.message || 'Не получилось открыть кабинет.', function () { location.reload(); }), C.button('Открыть рабочий кабинет', 'secondary', C.classic(home))); document.body.appendChild(d); }
 
     function build(s) {
       var menu = opts.menu || [];
@@ -158,10 +161,18 @@
       var nm = s.name || s.full_name || (s.user && (s.user.name || s.user.full_name)) || ''; head.appendChild(el('span', 'cab-name', nm));
       var bell = el('button', 'cab-bell'); bell.type = 'button'; bell.setAttribute('aria-label', 'Уведомления');
       bell.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4"/></svg>';
-      bell.addEventListener('click', function () { location.href = C.classic(home); }); head.appendChild(bell);
-      var old = el('a', 'cab-link cab-old', 'Старый кабинет'); old.href = C.classic(home); old.addEventListener('click', C.goOld); head.appendChild(old);
+      bell.addEventListener('click', function () { location.href = opts.notifications || (role === 'teacher' ? NEWHOME.teacher + '#attention' : C.classic(home)); }); head.appendChild(bell);
+      var old = el('a', 'cab-link cab-old', 'Классический кабинет'); old.href = C.classic(home); old.addEventListener('click', C.goOld); head.appendChild(old);
       var out = el('button', 'cab-link', 'Выйти'); out.type = 'button';
-      out.addEventListener('click', function () { C.api('/auth/logout', { method: 'POST', body: {} }).catch(function () {}).then(function () { location.replace(home); }); });
+      out.addEventListener('click', function () {
+        out.disabled = true;
+        C.api('/auth/logout', { method: 'POST', body: {} }).then(function () {
+          location.replace(home);
+        }, function (e) {
+          if (e.status === 401) { location.replace(C.classic(home)); return; }
+          out.disabled = false; C.toast('Не удалось выйти. Попробуйте ещё раз.');
+        });
+      });
       head.appendChild(out); document.body.appendChild(head);
 
       var shell = el('div', 'cab-shell'), side = el('nav', 'cab-side'); side.setAttribute('aria-label', 'Разделы');
@@ -174,15 +185,19 @@
       var tabs = el('nav', 'cab-tabs'); tabs.setAttribute('aria-label', 'Основные разделы');
       phone.forEach(function (m) { var a = el('a', '', m.short || m.label); a.href = C.classic(m.href); if (m.key === opts.active) a.setAttribute('aria-current', 'page'); tabs.appendChild(a); });
       var more = el('div', 'cab-more'); more.hidden = true; more.id = 'cabMore';
-      rest.forEach(function (m) { var a = el('a', '', m.label); a.href = C.classic(m.href); more.appendChild(a); });
-      var oa = el('a', '', 'Старый кабинет'); oa.href = C.classic(home); oa.addEventListener('click', C.goOld); more.appendChild(oa);
+      rest.forEach(function (m) { var a = el('a', '', m.label); a.href = C.classic(m.href); if (m.key === opts.active) a.setAttribute('aria-current', 'page'); more.appendChild(a); });
+      var oa = el('a', '', 'Классический кабинет'); oa.href = C.classic(home); oa.addEventListener('click', C.goOld); more.appendChild(oa);
       var mb = el('button', '', 'Ещё'); mb.type = 'button'; mb.setAttribute('aria-expanded', 'false'); mb.setAttribute('aria-controls', 'cabMore');
-      mb.addEventListener('click', function () { more.hidden = !more.hidden; mb.setAttribute('aria-expanded', String(!more.hidden)); });
+      function toggleMore(open) { more.hidden = !open; mb.setAttribute('aria-expanded', String(open)); }
+      mb.addEventListener('click', function () { toggleMore(more.hidden); if (!more.hidden) more.querySelector('a').focus(); });
+      more.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { toggleMore(false); mb.focus(); }
+      });
       tabs.appendChild(mb); document.body.appendChild(more); document.body.appendChild(tabs);
 
       C.main = main;
       Promise.resolve().then(function () { return opts.render(main, s); }).catch(function (e) {
-        if (e && e.status === 401) { location.replace(home); return; }
+        if (e && e.status === 401) { location.replace(C.classic(home)); return; }
         main.innerHTML = ''; main.appendChild(C.error((e && e.message) || 'Что-то пошло не так.', function () { location.reload(); }));
       });
     }
@@ -191,7 +206,6 @@
 
 /* Единое меню кабинета преподавателя (все новые страницы используют его) */
 (function () {
-  var T = '/app/teacher.html';
   window.C.TEACHER_MENU = [
     { key: 'today', label: 'Сегодня', short: 'Сегодня', href: '/app/cabinet/teacher.html', phone: true },
     { key: 'schedule', label: 'Расписание', href: '/app/cabinet/schedule.html', phone: true },
@@ -199,6 +213,7 @@
     { key: 'homework', label: 'Работы', href: '/app/cabinet/homework.html', phone: true },
     { key: 'messages', label: 'Сообщения', href: '/app/cabinet/messages.html', phone: true },
     { key: 'payments', label: 'Оплаты', href: '/app/cabinet/payments.html' },
-    { key: 'materials', label: 'Материалы', href: T }
+    { key: 'materials', label: 'Материалы', href: '/app/cabinet/tools.html' },
+    { key: 'more', label: 'Другие разделы', href: '/app/cabinet/tools.html?section=more' }
   ];
 })();

@@ -123,7 +123,7 @@
     refreshList().then(function () { return cid ? loadHist(cid) : null; }).then(function (h) {
       if (h && st.active && st.active.id === cid && !st.sending && JSON.stringify(h) !== JSON.stringify(st.hist)) { st.hist = h; paintHist(false); }
       if (h) ack();
-    }).catch(function (e) { if (e && e.status === 401) location.replace('/app/teacher.html'); }).then(function () { polling = false; });
+    }).catch(function (e) { if (e && e.status === 401) location.replace(C.classic('/app/teacher.html')); }).then(function () { polling = false; });
   }
 
   C.boot({
@@ -135,7 +135,7 @@
       document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
       return C.api('/teacher/messages?limit=200').then(function (d) {
         st.items = d.items || []; paintList(); timer = setInterval(poll, 15000);
-      }, function (e) { if (e.status === 401) { location.replace('/app/teacher.html'); return; } shell.replaceChildren(C.error(err(e), function () { location.reload(); })); });
+      }, function (e) { if (e.status === 401) { location.replace(C.classic('/app/teacher.html')); return; } shell.replaceChildren(C.error(err(e), function () { location.reload(); })); });
     }
   });
 })();

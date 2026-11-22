@@ -144,7 +144,7 @@
         var y = minOf(matched);
         setText(link.querySelector('[data-group-price]'), 'от ' + num(y) + ' ₽ / занятие');
         link.classList.remove('is-empty');
-        link.setAttribute('href', '/start/?format=group#e-groups');
+        link.setAttribute('href', '#e-groups');
         link.setAttribute('aria-label', 'В группе, ' + (row.querySelector('.e-course__title').textContent) + ': от ' + num(y) + ' рублей за занятие');
       });
       setText(doc.querySelector('[data-formats-price="group"]'), 'от ' + num(overall) + ' ₽ / занятие');

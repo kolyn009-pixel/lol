@@ -2,16 +2,8 @@
 (function () {
   'use strict';
   window.__lpNoReload = true;
-  var T = '/app/teacher.html';
-  var MENU = window.C && C.TEACHER_MENU || [
-    { key: 'today', label: 'Сегодня', short: 'Сегодня', href: '/app/cabinet/teacher.html', phone: true },
-    { key: 'schedule', label: 'Расписание', href: T, phone: true },
-    { key: 'students', label: 'Ученики и группы', href: T },
-    { key: 'homework', label: 'Работы', href: T, phone: true },
-    { key: 'messages', label: 'Сообщения', href: T, phone: true },
-    { key: 'payments', label: 'Оплаты', href: '/app/cabinet/payments.html' },
-    { key: 'materials', label: 'Материалы', href: T }
-  ];
+  var T = C.classic('/app/teacher.html');
+  var MENU = C.TEACHER_MENU;
   var UNPAID = ['AWAITING_PAYMENT', 'UNPAID', 'WAITING'];
   var DEAD = ['CANCELLED', 'LATE_CANCELLED', 'REJECTED', 'SICKNESS', 'NO_SHOW'];
   var PSTAT = { PAID: 'Оплачено', WAITING: 'Ожидает оплаты', PENDING: 'На проверке', REVERSED: 'Подтверждение отменено', RECEIPT_SENT: 'Чек отправлен' };

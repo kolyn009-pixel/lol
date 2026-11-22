@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Разделы кабинета — Аделия</title>
+<link rel="icon" href="/app/assets/icons/adelia-mark-32.png">
+<link rel="stylesheet" href="/app/tokens.css">
+<link rel="stylesheet" href="/app/cabinet/cabinet.css?v=20261122-journal2">
+</head>
+<body class="cab">
+<noscript>Для работы кабинета нужен JavaScript.</noscript>
+<script src="/app/cabinet/core.js?v=20261122-journal2"></script>
+<script>
+(function () {
+  'use strict';
+  var more = new URLSearchParams(location.search).get('section') === 'more';
+  var title = more ? 'Другие разделы' : 'Материалы';
+  var links = more ? [
+    ['Учебные планы', 'plans'], ['Прогресс учеников', 'analytics'], ['Заявки', 'requests'],
+    ['Тарифы и абонементы', 'finance'], ['Состояние Аделии', 'health'],
+    ['Моё обучение', '/app/self-study.html'],
+    ['Документы сайта', '/app/legal-admin.html']
+  ] : [['Библиотека', 'library'], ['Формулы', 'formulas'], ['Задать работу', 'homework']];
+  C.boot({
+    role: 'teacher', menu: C.TEACHER_MENU, active: more ? 'more' : 'materials',
+    render: function (main) {
+      document.title = title + ' — Аделия';
+      main.appendChild(C.el('h1', 'cab-title', title));
+      links.forEach(function (link) {
+        var row = C.el('a', 'c-attn');
+        row.href = link[1].startsWith('/') ? link[1] : C.legacy('teacher', link[1]);
+        row.append(C.el('span', 'c-attn-t', link[0]), C.el('span', '', '→'));
+        main.appendChild(row);
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>

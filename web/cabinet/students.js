@@ -1,7 +1,7 @@
 /* Кабинет «Журнал»: Ученики и группы. Эндпоинты — как в старом кабинете. */
 (function () {
   'use strict';
-  var T = '/app/teacher.html';
+  var T = C.legacy('teacher', 'students');
   var E = C.el, DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
   var ERR = { student_not_found: 'Ученик не найден.', unauthorized: 'Войдите заново.', invalid_request: 'Проверьте данные.', invalid_value: 'Проверьте значение поля.', cross_origin_forbidden: 'Обновите страницу и повторите.', group_not_found: 'Группа не найдена.' };
   var st = { tab: 'students', q: '', fmt: 'ALL', subj: 'ALL' }, students = [], groups = [], glessons = [], host, listEl, lastErr;

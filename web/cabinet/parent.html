@@ -7,7 +7,7 @@
 <title>Главная — Аделия</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/app/assets/icons/adelia-mark-32.png">
 <link rel="stylesheet" href="/app/tokens.css">
-<link rel="stylesheet" href="/app/cabinet/cabinet.css">
+<link rel="stylesheet" href="/app/cabinet/cabinet.css?v=20261122-journal2">
 <style>
 .c-kids{display:flex;flex-wrap:wrap;gap:var(--space-1);margin:0 0 var(--space-3)}
 .c-kids button{font:inherit;min-height:44px;padding:0 var(--space-2);background:none;border:1px solid var(--ink);color:var(--ink);cursor:pointer}
@@ -17,15 +17,16 @@
 </head>
 <body class="cab">
 <noscript>Для работы кабинета нужен JavaScript.</noscript>
-<script src="/app/cabinet/core.js"></script>
+<script src="/app/parent/legal_gate.js?v=20261002-1"></script>
+<script src="/app/cabinet/core.js?v=20261122-journal2"></script>
 <script>
 (function () {
   var P = '/app/parent/';
   var MENU = [
     { key: 'home', label: 'Главная', href: '/app/cabinet/parent.html', phone: true },
-    { key: 'lessons', label: 'Занятия', href: P, phone: true },
-    { key: 'pay', label: 'Оплата', href: P, phone: true },
-    { key: 'messages', label: 'Сообщения', href: P, phone: true }
+    { key: 'lessons', label: 'Занятия', href: '#lessons', phone: true },
+    { key: 'pay', label: 'Оплата', href: '#payments', phone: true },
+    { key: 'messages', label: 'Сообщения', href: C.legacy('parent', 'messages'), phone: true }
   ];
   var MON = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   var FMT = { INDIVIDUAL: 'Индивидуально', GROUP: 'Группа', OPEN_EVENT: 'Событие' };
@@ -42,7 +43,7 @@
   }
 
   function lessonSection(kid) {
-    var s = C.section('01', 'Ближайшее занятие');
+    var s = C.section('01', 'Ближайшее занятие'); s.id = 'lessons';
     var l = ((dash.upcoming) || []).filter(function (x) { return num(x.user_id) === num(kid.id); })[0];
     if (!l) { s.appendChild(C.empty('Ближайших занятий пока нет. Напишите Аделии, и мы подберём время.')); return s; }
     var row = C.el('div', 'c-row'), t = C.el('div', 'c-row-t');
@@ -95,7 +96,7 @@
   }
 
   function paySection(d) {
-    var s = C.section('04', 'Оплата и баланс');
+    var s = C.section('04', 'Оплата и баланс'); s.id = 'payments';
     var tot = num(d.minute_balance && d.minute_balance.total);
     s.appendChild(C.el('div', 'c-big', tot + ' мин'));
     var n = Math.floor(tot / 60), sub = '≈ ' + n + ' ' + plural(n, 'занятие', 'занятия', 'занятий') + ' по 60 минут';
@@ -161,13 +162,13 @@
       var kid = kids.filter(function (k) { return num(k.id) === num(sel); })[0] || kids[0]; sel = kid.id;
       return C.api('/parent/student?id=' + encodeURIComponent(kid.id)).then(function (d) { paint(kid, d); }, function (e) { if (e.status === 401) throw e; paint(kid, null); });
     }).catch(function (e) {
-      if (e.status === 401) { location.replace(P); return; }
+      if (e.status === 401) { location.replace(C.classic(P)); return; }
       body.replaceChildren(C.error(e.message || 'Не получилось загрузить кабинет.', load));
     }).then(function () { loading = false; });
   }
 
   C.boot({
-    role: 'parent', menu: MENU, active: 'home',
+    role: 'parent', menu: MENU, active: 'home', notifications: C.legacy('parent', 'messages'),
     render: function (main) {
       body = document.createElement('div'); body.setAttribute('aria-live', 'polite');
       for (var i = 0; i < 3; i++) body.appendChild(C.el('div', 'c-skel'));

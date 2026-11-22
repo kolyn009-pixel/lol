@@ -256,3 +256,8 @@ body.cab { margin: 0; background: var(--paper); color: var(--ink); font-family: 
   .msg-back { display: none; }
   .msg-hist { height: 48vh; }
 }
+
+/* Keep anchored sections and the mobile overflow menu clear of fixed navigation. */
+.cab-main [id] { scroll-margin-top: 88px; }
+.cab-more { bottom: calc(56px + env(safe-area-inset-bottom)); max-height: 65dvh; overflow-y: auto; }
+.cab-more [aria-current="page"] { color: var(--accent); font-weight: var(--text-ui-weight); }

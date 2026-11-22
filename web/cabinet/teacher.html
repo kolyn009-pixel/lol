@@ -7,17 +7,19 @@
 <title>Сегодня — Аделия</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/app/assets/icons/adelia-mark-32.png">
 <link rel="stylesheet" href="/app/tokens.css">
-<link rel="stylesheet" href="/app/cabinet/cabinet.css">
+<link rel="stylesheet" href="/app/cabinet/cabinet.css?v=20261122-journal2">
 <link rel="stylesheet" href="/app/teacher_lesson_payment.css">
 </head>
 <body class="cab">
 <noscript>Для работы кабинета нужен JavaScript.</noscript>
 <script src="/app/teacher_lesson_payment.js"></script>
-<script src="/app/cabinet/core.js"></script>
+<script src="/app/cabinet/core.js?v=20261122-journal2"></script>
 <script>
 (function () {
   window.__lpNoReload = true; // модуль оплаты не «кликает» меню старого кабинета
-  var T = '/app/teacher.html';
+  var T = C.classic('/app/teacher.html');
+  var CAB = '/app/cabinet/';
+  var attentionLinks = { homework: 'homework.html', receipt: 'payments.html', message: 'messages.html' };
   var MENU = C.TEACHER_MENU;
   var WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
   var body, tz, timer, loading = false, hadData = false;
@@ -37,17 +39,18 @@
         var x = Object.assign({}, l, { name: l.student_name || l.group_title, start_time: l.start_at });
         acts.push(window.AdeliaLessonPayment.buttons(x));
       }
-      acts.push(C.button('Открыть', 'secondary', T));
+      var query = new URLSearchParams({ date: String(l.start_at || '').slice(0, 10), id: l.id, kind: l.kind });
+      acts.push(C.button('Открыть', 'secondary', CAB + 'schedule.html?' + query));
       s.appendChild(C.lessonRow(l, { tz: d.tz, actions: acts }));
     });
     return s;
   }
 
   function attentionSection(d) {
-    var s = C.section('02', 'Требует внимания');
+    var s = C.section('02', 'Требует внимания'); s.id = 'attention';
     var a = (d.attention || []).filter(function (x) { return Number(x.count) > 0; });
     if (!a.length) { s.appendChild(C.empty('Всё разобрано. Аделия сообщит, если что-то появится.')); return s; }
-    a.forEach(function (x) { s.appendChild(C.attentionRow(x, T)); });
+    a.forEach(function (x) { s.appendChild(C.attentionRow(x, attentionLinks[x.kind] ? CAB + attentionLinks[x.kind] : C.legacy('teacher', 'requests'))); });
     return s;
   }
 
@@ -69,7 +72,7 @@
   function paint(d) {
     var frag = document.createDocumentFragment();
     frag.append(lessonsSection(d), attentionSection(d), weekSection(d));
-    var bar = body.querySelector('[data-stale]'); body.replaceChildren(frag);
+    body.replaceChildren(frag);
     var n = (d.attention || []).reduce(function (t, x) { return t + (Number(x.count) || 0); }, 0);
     C.setBell(n);
   }
@@ -84,7 +87,7 @@
   }
 
   C.boot({
-    role: 'teacher', menu: MENU, active: 'today',
+    role: 'teacher', menu: MENU, active: 'today', notifications: '#attention',
     render: function (main) {
       var h = C.el('h1', 'cab-title', 'Сегодня');
       var sub = C.el('p', 'cab-sub', new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }));

@@ -1,0 +1,89 @@
+/* Journal surfaces for screens that keep their existing layouts and handlers. */
+html.journal-ui {
+  --a: var(--accent);
+  --a2: var(--accent);
+  --p: var(--accent);
+  --p2: var(--accent);
+  --purple: var(--accent);
+  --violet: var(--accent);
+  --violet2: var(--accent);
+  --bg: var(--paper);
+  --card: var(--paper);
+  --muted: var(--ink-subtle);
+  --line: var(--rule-soft);
+  --shadow: none;
+}
+
+html.journal-ui, .journal-ui body {
+  background: var(--paper);
+  color: var(--inverse);
+  font-family: var(--font-sans);
+}
+
+.journal-ui body :is(h1, .section-title h2, .form-head h2, .cabinet-title) {
+  font-family: var(--font-display);
+  font-weight: var(--text-display-weight);
+}
+
+.journal-ui body :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.journal-ui body :is(.topbar, .teacher-shell > main > header, .booking-card, .form-card,
+  .group-card, .connect-card, .login-card, .preview-card, .controls-card, .about, .flow-step) {
+  background: var(--paper);
+  border-color: var(--rule-soft);
+  border-radius: var(--radius-none);
+  box-shadow: none;
+}
+
+.journal-ui body :is(.booking-side, .lesson-hero, .intro, .ss-root .ss-hero) {
+  background: var(--inverse);
+  color: var(--on-inverse);
+  border-radius: var(--radius-none);
+  box-shadow: none;
+}
+
+.journal-ui body :is(.booking-side, .lesson-hero, .intro) :is(h1, h2, small, p, li),
+.journal-ui body .ss-root .ss-hero p {
+  color: inherit;
+}
+
+.journal-ui body :is(.booking-side, .intro)::after {
+  background: none;
+}
+
+.journal-ui[data-journal="standalone"] body :is(main > .card, .shell > .card, main, .flow-shell .card) {
+  border-radius: var(--radius-none);
+  box-shadow: none;
+}
+
+.journal-ui[data-journal="standalone"] body :is(button, input, select, textarea):not([type="checkbox"], [type="radio"]) {
+  border-radius: var(--radius-sm);
+}
+
+.journal-ui .ss-root {
+  --ss-purple: var(--accent);
+  --ss-ink: var(--inverse);
+  --ss-muted: var(--ink-subtle);
+  --ss-line: var(--rule-soft);
+}
+
+.journal-ui .journal-cabinet-link {
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: var(--space-1);
+  font: var(--text-ui-weight) var(--text-label-size)/var(--text-label-line) var(--font-sans);
+  text-underline-offset: 3px;
+}
+
+.journal-ui .journal-cabinet-link.is-floating {
+  position: fixed;
+  inset: auto var(--space-2) calc(72px + env(safe-area-inset-bottom)) auto;
+  z-index: 70;
+  background: var(--paper);
+  border: var(--rule-inner);
+}

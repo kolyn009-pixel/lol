@@ -2,9 +2,10 @@
 (function () {
   'use strict';
   window.__lpNoReload = true;
-  var T = '/app/teacher.html';
+  var T = C.legacy('teacher', 'schedule');
   var STATUS = { SCHEDULED: 'Запланировано', PLANNED: 'Запланировано', PENDING: 'Ждёт подтверждения', IN_PROGRESS: 'Идёт', COMPLETED: 'Завершено', FINISHED: 'Завершено', CANCELLED: 'Отменено', CONFIRMED: 'Подтверждено' };
   var ERR = { invalid_start_time: 'Проверьте дату и время.', start_time_in_past: 'Выберите будущее время.', slot_unavailable: 'Это время уже занято.', program_not_found: 'Направление недоступно. Выберите другое.', cross_origin_forbidden: 'Обновите страницу и повторите.', unauthorized: 'Войдите заново.' };
+  var focus = null;
   var weekOffset = 0, items = [], groups = [], tz = '', body, bar, grid, rangeEl, hadData = false;
 
   function p2(n) { return (n < 10 ? '0' : '') + n; }
@@ -32,6 +33,13 @@
         var d = String(g.start_time || '').slice(0, 10); return d >= ymd(r.m) && d < ymd(r.e);
       });
       paint();
+      if (focus) {
+        var target = (focus.group ? groups : items).find(function (x) { return Number(x.id) === focus.id; });
+        var show = focus.group ? openGroup : openLesson;
+        focus = null;
+        if (target) show(target);
+        else C.toast('Занятие не найдено в выбранной неделе.');
+      }
     }, function (e) {
       if (e.status === 401) { location.replace(T); return; }
       if (!hadData) { grid.replaceChildren(C.error(tr(e).message, load)); } else C.toast('Не удалось обновить. Показаны прежние данные.');
@@ -213,6 +221,14 @@
   C.boot({
     role: 'teacher', menu: C.TEACHER_MENU, active: 'schedule',
     render: function (main) {
+      var params = new URLSearchParams(location.search), id = Number(params.get('id')), day = params.get('date') || '';
+      if (Number.isSafeInteger(id) && id > 0 && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        var targetDay = Date.parse(day), firstDay = Date.parse(ymd(monday(0)));
+        if (Number.isFinite(targetDay)) {
+          weekOffset = Math.floor((targetDay - firstDay) / 604800000);
+          focus = { id: id, group: params.get('kind') === 'group_lesson' };
+        }
+      }
       main.appendChild(C.el('h1', 'cab-title', 'Расписание'));
       bar = C.el('div', 'sch-bar');
       var prev = C.button('← Неделя', 'secondary', function () { weekOffset--; load(); });

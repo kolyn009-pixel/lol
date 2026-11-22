@@ -128,7 +128,7 @@
   function load(quiet) {
     if (loading) return Promise.resolve(); loading = true;
     return C.api('/teacher/homework-center').then(function (d) { items = d.items || []; loaded = true; paint(); C.setBell(items.filter(function (h) { return inTab(h, 'review'); }).length); },
-      function (e) { if (e.status === 401) { location.replace('/app/teacher.html'); return; } if (!loaded) root.replaceChildren(C.error(err(e), function () { load(); })); else if (!quiet) C.toast('Не удалось обновить.'); }).then(function () { loading = false; });
+      function (e) { if (e.status === 401) { location.replace(C.classic('/app/teacher.html')); return; } if (!loaded) root.replaceChildren(C.error(err(e), function () { load(); })); else if (!quiet) C.toast('Не удалось обновить.'); }).then(function () { loading = false; });
   }
 
   C.boot({

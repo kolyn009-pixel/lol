@@ -7,21 +7,22 @@
 <title>Главная — Аделия</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/app/assets/icons/adelia-mark-32.png">
 <link rel="stylesheet" href="/app/tokens.css">
-<link rel="stylesheet" href="/app/cabinet/cabinet.css">
+<link rel="stylesheet" href="/app/cabinet/cabinet.css?v=20261122-journal2">
 </head>
 <body class="cab">
 <noscript>Для работы кабинета нужен JavaScript.</noscript>
-<script src="/app/cabinet/core.js"></script>
+<script src="/app/cabinet/core.js?v=20261122-journal2"></script>
 <script>
 (function () {
   var A = '/app/';
+  function tab(name) { return C.classic(A + '?tab=' + name); }
   var MENU = [
     { key: 'home', label: 'Главная', href: '/app/cabinet/student.html', phone: true },
-    { key: 'lessons', label: 'Занятия', href: A, phone: true },
-    { key: 'homework', label: 'Домашние задания', short: 'ДЗ', href: A, phone: true },
-    { key: 'messages', label: 'Сообщения', href: A, phone: true },
-    { key: 'pay', label: 'Оплата', href: A, phone: true },
-    { key: 'formulas', label: 'Формулы', href: A }
+    { key: 'lessons', label: 'Занятия', href: tab('schedule'), phone: true },
+    { key: 'homework', label: 'Домашние задания', short: 'ДЗ', href: tab('homework'), phone: true },
+    { key: 'messages', label: 'Сообщения', href: tab('messages'), phone: true },
+    { key: 'pay', label: 'Оплата', href: tab('payments') },
+    { key: 'formulas', label: 'Формулы', href: C.legacy('student', 'formulas') }
   ];
   var MON = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   var body, name = '', hadData = false, loading = false;
@@ -60,7 +61,7 @@
       var u = (r && r.meeting_url) || l.meeting_url;
       if (u && /^https?:\/\//i.test(u)) window.open(u, '_blank', 'noopener'); else location.href = fb;
     }, function (e) {
-      if (e.status === 401) { location.replace(A); return; }
+      if (e.status === 401) { location.replace(C.classic(A)); return; }
       C.toast(e.message || 'Не получилось войти.');
       if (l.meeting_url && /^https?:\/\//i.test(l.meeting_url)) window.open(l.meeting_url, '_blank', 'noopener');
     }).then(function () { btn.disabled = false; });
@@ -70,13 +71,13 @@
     var s = C.section('02', 'Домашние задания');
     if (!items.length) { s.appendChild(C.empty('Заданий нет — можно выдохнуть.')); return s; }
     items.slice().sort(function (a, b) { return String(a.deadline || '9').localeCompare(String(b.deadline || '9')); }).slice(0, 3).forEach(function (h) {
-      var r = C.el('a', 'c-row'); r.href = A; r.style.textDecoration = 'none';
+      var r = C.el('a', 'c-row'); r.href = h.id ? C.classic(A + '?homework=' + encodeURIComponent(h.id)) : tab('homework'); r.style.textDecoration = 'none';
       var t = C.el('div', 'c-row-t'); t.appendChild(C.el('div', '', h.title || h.topic || 'Задание'));
       var sub = [stat(h.status_ui), h.deadline ? 'до ' + when(h.deadline) : ''].filter(Boolean).join(' · ');
       if (sub) t.appendChild(C.el('div', 'c-row-s', sub));
       r.appendChild(t); s.appendChild(r);
     });
-    var a = C.el('div', 'c-actions'); a.style.marginTop = 'var(--space-2)'; a.appendChild(C.button('Все задания', 'secondary', A)); s.appendChild(a);
+    var a = C.el('div', 'c-actions'); a.style.marginTop = 'var(--space-2)'; a.appendChild(C.button('Все задания', 'secondary', tab('homework'))); s.appendChild(a);
     return s;
   }
 
@@ -90,7 +91,7 @@
     var w = num(f && f.waiting_payment);
     if (w > 0) {
       var r = C.el('div', 'c-row'); r.appendChild(C.el('span', 'c-pay due', 'Ждёт оплата: ' + rub(w) + ' ₽'));
-      r.appendChild(C.button('Оплатить', 'primary', A)); s.appendChild(r);
+      r.appendChild(C.button('Оплатить', 'primary', tab('payments'))); s.appendChild(r);
     }
     return s;
   }
@@ -128,7 +129,7 @@
     var line = items.length ? 'Есть задания: ' + items.length : w > 0 ? 'Ждёт оплата' : 'Всё под контролем';
     if (items.length && w > 0) line += ' · Ждёт оплата';
     var frag = document.createDocumentFragment();
-    frag.append(C.el('h1', 'c-hello', 'Привет, ' + name + '!'), C.el('p', 'cab-sub', line));
+    frag.append(C.el('h1', 'c-hello', name ? 'Привет, ' + name + '!' : 'Главная'), C.el('p', 'cab-sub', line));
     frag.appendChild(dash ? lessonSection(dash) : C.error('Не получилось загрузить ближайший урок.', load));
     frag.appendChild(hw ? hwSection(items) : C.error('Не получилось загрузить задания.', load));
     frag.appendChild(fin ? finSection(fin) : C.error('Не получилось загрузить баланс.', load));
@@ -143,13 +144,13 @@
     return Promise.all([ok(C.api('/student/dashboard')), ok(C.api('/student/homework')), ok(C.api('/student/finance/overview')), ok(C.api('/student/progress'))]).then(function (r) {
       if (r.every(function (x) { return x.e; })) { if (!hadData) body.replaceChildren(C.error(r[0].e.message, load)); else C.toast('Не удалось обновить. Показаны прежние данные.'); return; }
       hadData = true; paint(r[0].v, r[1].v, r[2].v, r[3].v);
-    }, function (e) { if (e.status === 401) location.replace(A); }).then(function () { loading = false; });
+    }, function (e) { if (e.status === 401) location.replace(C.classic(A)); }).then(function () { loading = false; });
   }
 
   C.boot({
-    role: 'student', menu: MENU, active: 'home',
+    role: 'student', menu: MENU, active: 'home', notifications: tab('messages'),
     render: function (main, s) {
-      name = s.name || s.full_name || (s.user && (s.user.name || s.user.full_name)) || 'ученик';
+      name = s.name || s.full_name || (s.user && (s.user.name || s.user.full_name)) || '';
       name = String(name).split(/\s+/)[0];
       body = document.createElement('div'); body.setAttribute('aria-live', 'polite');
       for (var i = 0; i < 3; i++) body.appendChild(C.el('div', 'c-skel'));
