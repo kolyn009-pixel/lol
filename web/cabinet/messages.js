@@ -117,6 +117,22 @@
       st.items = d.items || []; if (st.active) st.active = st.items.filter(function (i) { return i.id === st.active.id; })[0] || st.active; paintList();
     });
   }
+  function openStudent() {
+    var id = Number(new URLSearchParams(location.search).get('student'));
+    if (!Number.isSafeInteger(id) || id <= 0 || st.active) return;
+    var existing = st.items.find(function (item) {
+      return !isParent(item) && Number(item.student_id) === id;
+    });
+    if (existing) { openConv(existing.id); return; }
+    return C.api('/teacher/messages/student?user_id=' + encodeURIComponent(id)).then(function (d) {
+      if (st.active || !d.conversation) return;
+      st.items.unshift(d.conversation);
+      openConv(d.conversation.id);
+    }, function (e) {
+      if (e.status === 401) { location.replace(C.classic('/app/teacher.html')); return; }
+      C.toast('Не удалось открыть диалог: ' + err(e));
+    });
+  }
   function poll() {
     if (polling || document.hidden || st.sending) return; polling = true;
     var cid = st.active && st.active.id;
@@ -134,7 +150,8 @@
       document.title = 'Сообщения — Аделия'; buildThread();
       document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
       return C.api('/teacher/messages?limit=200').then(function (d) {
-        st.items = d.items || []; paintList(); timer = setInterval(poll, 15000);
+        st.items = d.items || []; paintList();
+        return Promise.resolve(openStudent()).then(function () { timer = setInterval(poll, 15000); });
       }, function (e) { if (e.status === 401) { location.replace(C.classic('/app/teacher.html')); return; } shell.replaceChildren(C.error(err(e), function () { location.reload(); })); });
     }
   });

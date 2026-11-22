@@ -90,7 +90,8 @@
     var bd = C.el('div', 'sch-facts');
     bd.append(C.el('p', '', fmtWhen(g)), C.el('p', '', [C.subjectLabel(g.subject), C.subjectLabel(g.study_goal)].filter(Boolean).join(' · ')));
     if (g.participants != null) bd.append(C.el('p', '', 'Были: ' + (g.attended || 0) + ' из ' + g.participants));
-    var a = C.el('div', 'sch-acts'); a.appendChild(C.button('Открыть в старом кабинете', 'secondary', T)); bd.appendChild(a);
+    var target = g.group_id ? '/app/cabinet/students.html?' + new URLSearchParams({ group: g.group_id, lesson: g.id }) : C.legacy('teacher', 'groups');
+    var a = C.el('div', 'sch-acts'); a.appendChild(C.button('Участники занятия', 'secondary', target)); bd.appendChild(a);
     C.modal({ title: g.group_name || 'Групповое занятие', body: bd });
   }
 
@@ -211,12 +212,86 @@
       go.disabled = true;
       post('/teacher/lesson/create', b).then(function (r) {
         m.close(); C.toast(r.already_created ? 'Это занятие уже создано.' : 'Занятие назначено.');
-        var d = parseDay(when.value.slice(0, 10)), mon = monday(0); weekOffset = Math.floor((d - mon) / (7 * 86400000)); if (window.__schNoBoot) { if (window.__schAfterCreate) window.__schAfterCreate(); return; } load();
+        if (window.__schNoBoot) { if (window.__schAfterCreate) window.__schAfterCreate(); return; }
+        return showCreatedWeek(when.value.slice(0, 10));
       }, function (er) { go.disabled = false; fail(er); });
     });
   }
 
-  window.CabSchedule = { create: createPanel };
+  function showCreatedWeek(day) {
+    weekOffset = Math.floor((Date.parse(day) - Date.parse(ymd(monday(0)))) / 604800000);
+    return load();
+  }
+
+  function createGroupPanel(group, onCreated) {
+    var form = C.el('form', 'sch-form'), feedback = C.el('div');
+    feedback.setAttribute('aria-live', 'polite');
+    function field(label, input, values) {
+      Object.assign(input, values);
+      var wrapper = C.el('label', '', label);
+      wrapper.appendChild(input); form.appendChild(wrapper);
+      return input;
+    }
+    var select = field('Группа', document.createElement('select'), { required: true, disabled: true });
+    var day = field('Дата первого занятия', document.createElement('input'), { type: 'date', required: true });
+    var clock = field('Время по расписанию', document.createElement('input'), { type: 'time', required: true, step: 900 });
+    var duration = field('Длительность, мин', document.createElement('input'),
+      { type: 'number', required: true, min: 30, max: 240, step: 15, value: 60 });
+    var weeks = field('Количество недель', document.createElement('input'),
+      { type: 'number', required: true, min: 1, max: 26, value: 1 });
+    var submit = C.button('Добавить в расписание', 'primary');
+    submit.type = 'submit'; submit.disabled = true;
+    form.append(feedback, submit);
+    var modal = C.modal({ title: 'Групповое занятие', body: form });
+
+    function error(e) {
+      var conflict = /^schedule_conflict:(.+)$/.exec(e.message);
+      var text = conflict ? 'В расписании занято: ' + conflict[1] :
+        ({ quarter_hour_required: 'Выберите время с шагом 15 минут.',
+           lesson_crosses_midnight: 'Урок должен закончиться до полуночи.',
+           invalid_duration: 'Укажите от 30 до 240 минут с шагом 15.',
+           invalid_weeks: 'Укажите от 1 до 26 недель.',
+           start_date_too_far: 'Выберите дату в пределах года.' })[e.message] || msg(e);
+      feedback.replaceChildren(C.error(text));
+    }
+    function fill(list) {
+      select.appendChild(new Option('Выберите группу', ''));
+      list.forEach(function (g) { select.appendChild(new Option(g.name || 'Группа', g.id)); });
+      if (group) select.value = String(group.id);
+      select.disabled = false; submit.disabled = !list.length;
+      if (list.length) select.focus();
+      else feedback.replaceChildren(C.empty('Сначала создайте учебную группу.'));
+    }
+    if (group) fill([group]);
+    else C.api('/teacher/groups').then(function (d) {
+      if (form.isConnected) fill((d.items || []).filter(function (g) { return g.active !== false && g.active !== 0; }));
+    }, error);
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (submit.disabled || !form.reportValidity()) return;
+      submit.disabled = true; feedback.replaceChildren();
+      post('/teacher/group/weekly-session', {
+        group_id: Number(select.value), starts_on: day.value,
+        weekday: (new Date(day.value).getUTCDay() + 6) % 7, start_time: clock.value,
+        duration_minutes: Number(duration.value), weeks: Number(weeks.value)
+      }).then(function (result) {
+        modal.close();
+        C.toast(result.already_created ? 'Занятия уже есть в расписании.' : 'Занятий добавлено: ' + result.lesson_count);
+        return onCreated(result.starts_on || day.value);
+      }, function (e) { submit.disabled = false; error(e); });
+    });
+  }
+
+  function chooseFormat() {
+    C.modal({ title: 'Новый урок', actions: [
+      { text: 'Индивидуально', kind: 'primary', onClick: function () { queueMicrotask(createPanel); } },
+      { text: 'Группа', kind: 'secondary', onClick: function () { queueMicrotask(function () { createGroupPanel(null, showCreatedWeek); }); } },
+      { text: 'Отмена', kind: 'text' }
+    ] });
+  }
+
+  window.CabSchedule = { create: createPanel, createGroup: createGroupPanel };
   if (window.__schNoBoot) return;
   C.boot({
     role: 'teacher', menu: C.TEACHER_MENU, active: 'schedule',
@@ -235,7 +310,7 @@
       var next = C.button('Неделя →', 'secondary', function () { weekOffset++; load(); });
       var tod = C.button('Сегодня', 'secondary', function () { weekOffset = 0; load(); });
       rangeEl = C.el('div', 'sch-range'); rangeEl.setAttribute('aria-live', 'polite');
-      var add = C.button('+ Урок', 'primary', createPanel);
+      var add = C.button('+ Урок', 'primary', chooseFormat);
       bar.append(prev, rangeEl, next, tod, add);
       grid = C.el('div', 'sch-week'); grid.setAttribute('aria-live', 'polite');
       for (var i = 0; i < 3; i++) grid.appendChild(C.el('div', 'c-skel'));

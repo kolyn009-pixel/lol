@@ -16,10 +16,12 @@
 (function () {
   var A = '/app/';
   function tab(name) { return C.classic(A + '?tab=' + name); }
+  var HOMEWORK = '/app/cabinet/student.html?section=homework';
+  var isHomework = new URLSearchParams(location.search).get('section') === 'homework';
   var MENU = [
     { key: 'home', label: 'Главная', href: '/app/cabinet/student.html', phone: true },
     { key: 'lessons', label: 'Занятия', href: tab('schedule'), phone: true },
-    { key: 'homework', label: 'Домашние задания', short: 'ДЗ', href: tab('homework'), phone: true },
+    { key: 'homework', label: 'Домашние задания', short: 'ДЗ', href: HOMEWORK, phone: true },
     { key: 'messages', label: 'Сообщения', href: tab('messages'), phone: true },
     { key: 'pay', label: 'Оплата', href: tab('payments') },
     { key: 'formulas', label: 'Формулы', href: C.legacy('student', 'formulas') }
@@ -50,35 +52,54 @@
     var ps = C.payStatus(l.payment_status); if (ps) meta.appendChild(C.el('span', 'c-pay ' + ps.cls, ps.text));
     t.appendChild(meta); row.appendChild(t);
     var act = C.el('div', 'c-actions');
-    act.appendChild(C.button('Войти на урок', 'primary', function (ev) { join(l, ev.currentTarget); }));
+    act.appendChild(C.button('Открыть занятие', 'primary', A + 'lesson/?id=' + encodeURIComponent(l.id)));
     row.appendChild(act); s.appendChild(row); return s;
   }
 
-  function join(l, btn) {
-    var fb = A + 'lesson/?id=' + encodeURIComponent(l.id);
-    btn.disabled = true;
-    C.api('/student/lesson/join', { method: 'POST', body: { lesson_id: l.id } }).then(function (r) {
-      var u = (r && r.meeting_url) || l.meeting_url;
-      if (u && /^https?:\/\//i.test(u)) window.open(u, '_blank', 'noopener'); else location.href = fb;
-    }, function (e) {
-      if (e.status === 401) { location.replace(C.classic(A)); return; }
-      C.toast(e.message || 'Не получилось войти.');
-      if (l.meeting_url && /^https?:\/\//i.test(l.meeting_url)) window.open(l.meeting_url, '_blank', 'noopener');
-    }).then(function () { btn.disabled = false; });
+  function homeworkRow(h) {
+    var row = C.el('div', 'c-row'), info = C.el('div', 'c-row-t');
+    info.appendChild(C.el('b', '', h.title || h.topic || 'Задание'));
+    var meta = [h.status_ui && h.status_ui.student || stat(h.status_ui),
+      h.deadline ? 'до ' + when(h.deadline) : '',
+      C.subjectLabel(h.subject)].filter(Boolean).join(' · ');
+    if (meta) info.appendChild(C.el('div', 'c-row-s', meta));
+    row.appendChild(info);
+    if (h.id) row.appendChild(C.button('Открыть', 'secondary', C.classic(A + '?homework=' + encodeURIComponent(h.id))));
+    return row;
   }
 
   function hwSection(items) {
     var s = C.section('02', 'Домашние задания');
-    if (!items.length) { s.appendChild(C.empty('Заданий нет — можно выдохнуть.')); return s; }
-    items.slice().sort(function (a, b) { return String(a.deadline || '9').localeCompare(String(b.deadline || '9')); }).slice(0, 3).forEach(function (h) {
-      var r = C.el('a', 'c-row'); r.href = h.id ? C.classic(A + '?homework=' + encodeURIComponent(h.id)) : tab('homework'); r.style.textDecoration = 'none';
-      var t = C.el('div', 'c-row-t'); t.appendChild(C.el('div', '', h.title || h.topic || 'Задание'));
-      var sub = [stat(h.status_ui), h.deadline ? 'до ' + when(h.deadline) : ''].filter(Boolean).join(' · ');
-      if (sub) t.appendChild(C.el('div', 'c-row-s', sub));
-      r.appendChild(t); s.appendChild(r);
-    });
-    var a = C.el('div', 'c-actions'); a.style.marginTop = 'var(--space-2)'; a.appendChild(C.button('Все задания', 'secondary', tab('homework'))); s.appendChild(a);
+    var active = items.filter(function (h) { return h.status_ui?.active !== false; });
+    active.sort(function (a, b) { return String(a.deadline || '9').localeCompare(String(b.deadline || '9')); });
+    if (!active.length) s.appendChild(C.empty('Активных заданий нет.'));
+    active.slice(0, 3).forEach(function (h) { s.appendChild(homeworkRow(h)); });
+    s.appendChild(C.button('Все задания', 'secondary', HOMEWORK));
     return s;
+  }
+
+  function homeworkScreen(main) {
+    main.appendChild(C.el('h1', 'cab-title', 'Домашние задания'));
+    var list = C.el('div');
+    list.setAttribute('aria-live', 'polite'); main.appendChild(list);
+    function refresh() {
+      list.replaceChildren(C.el('div', 'c-skel'));
+      return C.api('/student/homework').then(function (d) {
+        var items = d.items || [];
+        var active = C.section('', 'В работе'), archive = C.section('', 'Архив');
+        var open = items.filter(function (h) { return h.status_ui?.active !== false; });
+        var closed = items.filter(function (h) { return h.status_ui?.active === false; });
+        open.forEach(function (h) { active.appendChild(homeworkRow(h)); });
+        closed.forEach(function (h) { archive.appendChild(homeworkRow(h)); });
+        if (!open.length) active.appendChild(C.empty('Активных заданий нет.'));
+        if (!closed.length) archive.appendChild(C.empty('В архиве пока пусто.'));
+        list.replaceChildren(active, archive);
+      }, function (e) {
+        if (e.status === 401) { location.replace(C.classic(A)); return; }
+        list.replaceChildren(C.error(e.message, refresh));
+      });
+    }
+    return refresh();
   }
 
   function finSection(f) {
@@ -125,7 +146,7 @@
   }
 
   function paint(dash, hw, fin, prog) {
-    var items = (hw && hw.items) || [], w = num(fin && fin.waiting_payment);
+    var items = (hw && hw.items || []).filter(function (h) { return h.status_ui?.active !== false; }), w = num(fin && fin.waiting_payment);
     var line = items.length ? 'Есть задания: ' + items.length : w > 0 ? 'Ждёт оплата' : 'Всё под контролем';
     if (items.length && w > 0) line += ' · Ждёт оплата';
     var frag = document.createDocumentFragment();
@@ -148,8 +169,12 @@
   }
 
   C.boot({
-    role: 'student', menu: MENU, active: 'home', notifications: tab('messages'),
+    role: 'student', menu: MENU, active: isHomework ? 'homework' : 'home', notifications: tab('messages'),
     render: function (main, s) {
+      if (isHomework) {
+        document.title = 'Домашние задания — Аделия';
+        return homeworkScreen(main);
+      }
       name = s.name || s.full_name || (s.user && (s.user.name || s.user.full_name)) || '';
       name = String(name).split(/\s+/)[0];
       body = document.createElement('div'); body.setAttribute('aria-live', 'polite');

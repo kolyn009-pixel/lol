@@ -85,7 +85,7 @@
       var sub = [s.grade ? s.grade + ' класс' : '', gl(s)].filter(Boolean).join(' · '); if (sub) v.appendChild(E('p', 'cab-sub', sub));
       var acts = E('div', 'c-actions');
       acts.append(C.button('Записать на урок', 'primary', function () { window.__schAfterCreate = function () { openStudent(id); }; window.CabSchedule.create({ user_id: id }); }));
-      acts.append(C.button('Написать', 'secondary', T));
+      acts.append(C.button('Написать', 'secondary', '/app/cabinet/messages.html?student=' + encodeURIComponent(id)));
       if (s.board_url) { var bd = C.button('Доска', 'secondary', s.board_url); bd.target = '_blank'; bd.rel = 'noopener'; acts.append(bd); }
       v.appendChild(acts);
       var grid = E('div', 'stu-grid'), left = E('div'), right = E('div');
@@ -127,6 +127,11 @@
       var s2 = C.section('02', 'Расписание');
       slots.forEach(function (s) { s2.appendChild(line(DAYS[s.weekday] || '', String(s.start_time || '').slice(0, 5))); });
       if (!slots.length) s2.appendChild(C.empty('Постоянного времени нет.'));
+      s2.appendChild(C.button('Добавить занятие', 'secondary', function () {
+        window.CabSchedule.createGroup({ id: id, name: g.name }, function () {
+          return loadAll().then(function () { openGroup(id); }, function () { openGroup(id); });
+        });
+      }));
       left.appendChild(s2);
       var s3 = C.section('03', 'Ссылка-приглашение'), url = d.invite_path ? new URL(d.invite_path, location.origin).href : '';
       var inp = document.createElement('input'); inp.className = 'stu-invite'; inp.readOnly = true; inp.value = url; inp.setAttribute('aria-label', 'Ссылка-приглашение');
@@ -178,7 +183,14 @@
     render: function (main) {
       main.appendChild(E('h1', 'cab-title', 'Ученики и группы'));
       host = E('div'); main.appendChild(host); document.title = 'Ученики и группы — Аделия'; busyView();
-      return loadAll().then(drawMain, function (e) { host.replaceChildren(C.error(msg(e), function () { location.reload(); })); });
+      var params = new URLSearchParams(location.search), group = Number(params.get('group')), lesson = Number(params.get('lesson'));
+      return loadAll().then(function () {
+        if (Number.isSafeInteger(group) && group > 0 && groups.some(function (g) { return Number(g.id) === group; })) {
+          if (Number.isSafeInteger(lesson) && lesson > 0 && glessons.some(function (l) { return Number(l.id) === lesson && Number(l.group_id) === group; })) {
+            openLesson(lesson, group);
+          } else openGroup(group);
+        } else drawMain();
+      }, function (e) { host.replaceChildren(C.error(msg(e), function () { location.reload(); })); });
     }
   });
 })();

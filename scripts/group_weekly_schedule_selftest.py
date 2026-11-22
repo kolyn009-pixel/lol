@@ -24,6 +24,8 @@ class Weekly(base.Groups):
     def setUp(self):
         super().setUp()
         self.freeze=patch.object(planner,'datetime',Frozen);self.freeze.start()
+        database_clock=patch.object(database,'now_iso',lambda:Frozen.now().isoformat(timespec='seconds'))
+        database_clock.start();self.addCleanup(database_clock.stop)
         c=database.connect();c.executescript('''
         CREATE TABLE lessons(id INTEGER PRIMARY KEY,start_time TEXT,end_time TEXT,lesson_status TEXT);
         CREATE TABLE public_trial_requests(id INTEGER PRIMARY KEY,selected_slot_start TEXT,selected_slot_end TEXT,status TEXT,expires_at TEXT);

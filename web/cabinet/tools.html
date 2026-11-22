@@ -12,22 +12,24 @@
 <body class="cab">
 <noscript>Для работы кабинета нужен JavaScript.</noscript>
 <script src="/app/cabinet/core.js?v=20261122-journal2"></script>
+<script src="/app/cabinet/materials.js?v=20261122-journal3"></script>
 <script>
 (function () {
   'use strict';
   var more = new URLSearchParams(location.search).get('section') === 'more';
   var title = more ? 'Другие разделы' : 'Материалы';
-  var links = more ? [
+  var links = [
     ['Учебные планы', 'plans'], ['Прогресс учеников', 'analytics'], ['Заявки', 'requests'],
     ['Тарифы и абонементы', 'finance'], ['Состояние Аделии', 'health'],
     ['Моё обучение', '/app/self-study.html'],
     ['Документы сайта', '/app/legal-admin.html']
-  ] : [['Библиотека', 'library'], ['Формулы', 'formulas'], ['Задать работу', 'homework']];
+  ];
   C.boot({
     role: 'teacher', menu: C.TEACHER_MENU, active: more ? 'more' : 'materials',
     render: function (main) {
       document.title = title + ' — Аделия';
       main.appendChild(C.el('h1', 'cab-title', title));
+      if (!more) return window.CabMaterials.render(main);
       links.forEach(function (link) {
         var row = C.el('a', 'c-attn');
         row.href = link[1].startsWith('/') ? link[1] : C.legacy('teacher', link[1]);
